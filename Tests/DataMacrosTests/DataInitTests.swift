@@ -59,7 +59,7 @@ final class DataInitTests: XCTestCase {
 
                     public typealias DataLayout = Int
 
-                    public init(_ value: DataLayout) {
+                    public init(_ value: Int) {
                         self.value = value
                     }
                 }

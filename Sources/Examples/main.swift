@@ -36,7 +36,7 @@ public struct User {
 // threaded as Binding<Bool>; @ViewBuilder carries onto the parameters. Generated init:
 // `init(isOn: Binding<Bool>, title: String, subtitle: String? = nil, model: Settings,
 //       @ViewBuilder content: @escaping () -> Content, @ViewBuilder footer: () -> Content)`.
-@MemberwiseInit
+@DataInit
 public struct ProfileCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isExpanded = false
@@ -85,7 +85,7 @@ public struct SomeStruct {
 // A single property still gets a DataLayout — just not a tuple (Swift has no
 // 1-tuples: `(value: Int)` collapses to plain `Int`, no `.value` accessor). So
 // `Box.DataLayout` aliases `Int` directly, and the init stays unlabeled:
-// `init(_ value: DataLayout) { self.value = value }`.
+// `init(_ value: Int) { self.value = value }`.
 @DataLayoutInit
 public struct Box {
     let value: Int

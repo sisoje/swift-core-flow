@@ -28,12 +28,14 @@
 /// - **No per-field defaults.** Tuple element types can't carry `= default`, so an
 ///   inline `var` default and an implicitly-`nil` optional `var` are both dropped —
 ///   every field must be supplied when constructing the tuple.
-/// - **One property still gets a `DataLayout`, just not a tuple.** Swift has no
-///   1-tuples — `(id: UUID)` as a type collapses to plain `UUID`, no `.id` accessor —
-///   so with exactly one participating property, `DataLayout` aliases the bare field
-///   type directly (`typealias DataLayout = UUID`), and the init takes it unlabeled
-///   instead of wrapped in a tuple: `init(_ id: DataLayout) { self.id = id }` — the
-///   same shape `@MemberwiseInit` would produce for that one property, just unlabeled.
+/// - **One property still gets a `DataLayout`, just not a tuple, and the init
+///   doesn't route through it.** Swift has no 1-tuples — `(id: UUID)` as a type
+///   collapses to plain `UUID`, no `.id` accessor — so with exactly one
+///   participating property, `DataLayout` aliases the bare field type directly
+///   (`typealias DataLayout = UUID`, declared for API uniformity), but the init
+///   just uses the property's own name and type — `init(_ id: UUID) { self.id = id }`
+///   — the same shape `@MemberwiseInit` would produce for that one property, just
+///   unlabeled.
 @attached(member, names: named(init), named(DataLayout))
 public macro DataLayoutInit() =
     #externalMacro(

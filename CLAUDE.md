@@ -87,10 +87,11 @@ Rendering: `renderDataLayoutMembers` in
 
 - **Two or more properties** → `public typealias DataLayout = (x: T, y: U)` plus
   `public init(_ dataLayout: DataLayout)`, assigning `self.x = dataLayout.x`.
-- **Exactly one property still gets a `DataLayout`, just not a tuple.** Swift has no
-  1-tuples — `(x: T)` as a type collapses to plain `T`, no `.x` accessor — so
-  `DataLayout` aliases the bare field type (`typealias DataLayout = T`), and the init
-  takes it unlabeled instead of wrapped in a tuple: `init(_ x: DataLayout) { self.x = x }`.
+- **Exactly one property still gets a `DataLayout`, just not a tuple — and the init
+  doesn't route through it.** Swift has no 1-tuples — `(x: T)` as a type collapses to
+  plain `T`, no `.x` accessor — so `DataLayout` aliases the bare field type
+  (`typealias DataLayout = T`, declared for API uniformity), but the init just uses
+  the property's own name and type: `init(_ x: T) { self.x = x }`.
 - **Zero properties** → `init() {}`, no typealias.
 - **No per-field defaults.** Tuple element types can't carry `= default`, so an inline
   `var` default and optional-implies-`nil` are both *dropped* here — every field is

@@ -144,7 +144,7 @@ Wrapping every property into one tuple parameter, instead of many, changes two t
   1-tuples — `(x: Int)` as a type collapses to plain `Int`, no `.x` accessor — so with
   exactly one participating property, `DataLayout` aliases the bare field type
   directly (`typealias DataLayout = Int`), and the init skips routing through it: a
-  plain, unlabeled single-parameter init — `init(_ value: DataLayout) { self.value = value }`
+  plain, unlabeled single-parameter init — `init(_ value: Int) { self.value = value }`
   — the same shape `@MemberwiseInit` would produce for that one property.
 
 Function-typed properties never get `@escaping` here (a closure nested inside a tuple
