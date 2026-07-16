@@ -90,3 +90,42 @@ public struct SomeStruct {
 public struct Box {
     let value: Int
 }
+
+// MARK: - Capability
+
+// @Capability bundles every eligible computed property/method into one
+// `Capability` tuple typealias + `capability` computed property. Unlike
+// @MemberwiseInit/@DataLayoutInit, it works fine on an extension — it collects
+// COMPUTED members (which extensions can declare), not stored ones (which they
+// can't). `me`, `zola`, `zola2` (stored) don't participate; `x` (computed),
+// `doSomething`, `doSomethingElse`, `meme` (methods) do. Generated:
+// `typealias Capability = (x: Int, doSomething: () -> Void, doSomethingElse: () -> Void, meme: () async throws -> Void)`
+// `var capability: Capability { (x, doSomething, doSomethingElse, meme) }`
+// No @Sendable on the fields — marking them unconditionally would fail to
+// compile for any type capturing something non-Sendable; Swift 6's region-based
+// checking already permits crossing actor/Task boundaries without it when the
+// captured content actually is safe.
+struct MySomething {
+    private var me = 0
+    let zola: Int
+    var zola2: Int = 0
+}
+
+@Capability
+extension MySomething {
+    var x: Int {
+        zola * me
+    }
+
+    func doSomething() {
+        print(zola)
+    }
+
+    func doSomethingElse() {
+        print(zola2)
+    }
+
+    func meme() async throws {
+        try await Task.sleep(nanoseconds: 1)
+    }
+}

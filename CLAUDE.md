@@ -22,8 +22,8 @@ concurrency) throughout.
 
 | Target | Kind | Contents |
 |---|---|---|
-| `DataMacrosMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`MemberwiseInitMacro.swift`, `DataLayoutInitMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `MemberwiseInitRendering.swift`, `DataLayoutInitRendering.swift`) and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `DataMacros` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`MemberwiseInit.swift`, `DataLayoutInit.swift`, `TuplePicker.swift`) |
+| `DataMacrosMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`MemberwiseInitMacro.swift`, `DataLayoutInitMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `MemberwiseInitRendering.swift`, `DataLayoutInitRendering.swift`) and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `DataMacros` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`MemberwiseInit.swift`, `DataLayoutInit.swift`, `Capability.swift`, `TuplePicker.swift`) |
 | `DataMacrosTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's real-compiled end-to-end suite |
 | `Examples` | executable | combined playground for every macro |
 
@@ -117,6 +117,46 @@ Rendering: `renderDataLayoutMembers` in
   comparable. `baseTypeText`/`fieldAssignment` take a `wrapViewBuilder` flag for
   exactly this — `@MemberwiseInit` passes `true` (the default), `@DataLayoutInit`
   passes `false`.
+
+## @Capability — tricky points
+
+`member` macro that bundles every eligible *computed* property/method into a
+`Capability` typealias + `capability` computed property. Entry point + collection +
+rendering all live in `Sources/DataMacrosMacros/CapabilityMacro.swift` — doesn't
+share `StoredProperty.swift`'s model at all (that's for *stored* properties; this
+macro is deliberately about the opposite thing, and mixes properties with methods,
+which `StoredProperty` has no concept of).
+
+- **Works on an extension, unlike the other two — and that's not an oversight on
+  their part.** `@MemberwiseInit`/`@DataLayoutInit` collect *stored* properties,
+  and extensions can never declare those, so there's nothing they could ever find
+  there. `@Capability` collects *computed* members, which extensions declare freely
+  — so it's useful on an extension specifically, and works identically attached
+  directly to the struct/class/actor itself.
+- **Collects:** computed properties (`var x: Int { ... }` — needs an explicit type,
+  same syntax-only reasoning as the other macros) and instance methods (their
+  closure type is built from parameter types with labels dropped, `async`/`throws`
+  effects, and return type, defaulting to `Void`).
+- **Skipped:** `private`/`fileprivate`, `static`/`class`, stored properties
+  (including willSet/didSet-only ones), initializers, subscripts, and `mutating`
+  methods — Swift can't form a plain closure reference to a mutating method on a
+  value type (`error: cannot reference 'mutating' method as function value`,
+  verified directly), so including one would generate code that doesn't compile.
+- **One eligible member collapses `Capability` to its bare type/value**, same
+  1-tuple collapse `@DataLayoutInit` does. **Zero** is a diagnostic, not an empty
+  tuple — there's no sensible "empty capability."
+- **Deliberately no `@Sendable`** on the generated closure fields. Verified directly
+  both ways: marking them unconditionally makes the generated code fail to compile
+  for any type capturing something non-Sendable (`error: converting non-Sendable
+  function value to '@Sendable () -> Void' may introduce data races`), while
+  omitting it still compiles fine *and* still permits genuine cross-actor/`Task`
+  usage — Swift 6's region-based Sendable checking runs at the point the tuple
+  literal is built, independent of the field's declared type.
+- **Generic methods work** as long as the tuple field type doesn't leak the bare
+  generic parameter name (contextual inference specializes the reference) — not
+  specially handled, just documented; a method whose signature's own text would
+  require the placeholder to resolve outside its generic scope is a known,
+  unguarded limitation.
 
 ## #pick (TuplePicker) — tricky points
 

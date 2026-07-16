@@ -21,6 +21,7 @@ together in `Sources/Examples/main.swift` (`swift run Examples`).
 |---|---|---|
 | [`@MemberwiseInit`](#memberwiseinit) | member | writes a memberwise `init` at the type's own access level, for a struct, class, or actor |
 | [`@DataLayoutInit`](#datalayoutinit) | member | writes an init that takes the type's stored properties as **one tuple parameter** instead of one per property |
+| [`@Capability`](#capability) | member | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
 | [`#pick`](#pick-tuplepicker) | expression | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
 
 ---
@@ -155,6 +156,71 @@ builder closure specifically to get trailing-closure syntax at the call site; a
 tuple literal has no parameter position for that syntax to attach to, so the
 wrapping would buy nothing here — and would actively work against the point of
 `DataLayout`, which is data you pass around, store, or diff, not a closure.
+
+---
+
+## Capability
+
+A `member` macro that bundles every eligible **computed** property and method of the
+type — or extension — it's attached to into one `Capability` tuple typealias and a
+`capability` computed property: a lightweight "protocol witness"-style bundle of
+*behavior*, as opposed to `@DataLayoutInit`'s bundle of *data*.
+
+```swift
+struct Counter {
+    private var count = 0
+}
+
+@Capability
+extension Counter {
+    var doubled: Int { count * 2 }
+    func increment() { /* ... */ }
+    func fetch() async throws -> Int { count }
+}
+// generates:
+// typealias Capability = (doubled: Int, increment: () -> Void, fetch: () async throws -> Int)
+// var capability: Capability {
+//     (doubled, increment, fetch)
+// }
+```
+
+### Works on an extension — unlike the other two, on purpose
+
+`@MemberwiseInit` and `@DataLayoutInit` collect **stored** properties, and
+extensions can never declare those — so there's nothing for either macro to find if
+attached to one; that's a hard Swift rule, not a missing feature. `@Capability`
+collects **computed** members instead, which extensions declare just as freely as a
+primary type body, so it works equally well attached directly to a
+struct/class/actor or to an extension of one.
+
+### What's collected
+
+- **Computed properties** (`var x: Int { ... }`) — needs an explicit type
+  annotation, same syntax-only reasoning as the other macros. Stored properties
+  (including ones with only `willSet`/`didSet`) don't participate.
+- **Instance methods** — turned into a closure type from the parameter types
+  (labels dropped, matching how closure types work), `async`/`throws` effects, and
+  return type (`Void` if omitted).
+- **Skipped**: `private`/`fileprivate`, `static`/`class`, initializers, subscripts,
+  and `mutating` methods — Swift can't form a plain closure reference to a mutating
+  method on a value type, so including one would generate code that doesn't
+  compile.
+
+One eligible member collapses `Capability` to that member's bare type/value — same
+1-tuple collapse `@DataLayoutInit` does, for the same reason (Swift has no
+1-tuples). Zero eligible members is a diagnostic, not an empty `Capability`.
+
+### No `@Sendable`
+
+The generated closure fields are deliberately **not** marked `@Sendable`. Verified
+directly, both ways: marking them unconditionally makes the generated code fail to
+compile for any type that captures something non-Sendable (a plain class reference,
+say) — `error: converting non-Sendable function value to '@Sendable () -> Void' may
+introduce data races`. Omitting it compiles cleanly regardless, and still permits
+genuine cross-`Task`/actor usage in practice: Swift 6's region-based Sendable
+checking runs at the point the tuple literal is actually built (inside the
+generated `capability` getter), independent of whether the field's declared type
+says `@Sendable`.
 
 ---
 
@@ -399,8 +465,8 @@ One target pair for every macro — not one pair per macro:
 
 | Target | Kind | Contents |
 |---|---|---|
-| `DataMacrosMacros` | macro plugin | every macro's implementation: `MemberwiseInitMacro`, `DataLayoutInitMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`), the two initializer renderers (`MemberwiseInitRendering.swift`, `DataLayoutInitRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`). One `Plugin.swift` lists every macro type. |
-| `DataMacros` | library (the one product) | every macro's public declaration — `MemberwiseInit.swift`, `DataLayoutInit.swift`, `TuplePicker.swift` |
+| `DataMacrosMacros` | macro plugin | every macro's implementation: `MemberwiseInitMacro`, `DataLayoutInitMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`), the two initializer renderers (`MemberwiseInitRendering.swift`, `DataLayoutInitRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`). One `Plugin.swift` lists every macro type. |
+| `DataMacros` | library (the one product) | every macro's public declaration — `MemberwiseInit.swift`, `DataLayoutInit.swift`, `Capability.swift`, `TuplePicker.swift` |
 | `DataMacrosTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's real-compiled end-to-end suite — both test frameworks coexist fine in one target |
 | `Examples` | executable | one playground exercising every macro in the package |
 
