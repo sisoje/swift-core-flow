@@ -149,8 +149,13 @@ Wrapping every property into one tuple parameter, instead of many, changes two t
 
 Function-typed properties never get `@escaping` here (a closure nested inside a tuple
 parameter is already escaping — writing the attribute is a compile error), and
-`@ViewBuilder` keeps its "call the builder" codegen but loses its trailing-closure
-call-site sugar, since the attribute can't attach to a tuple element.
+`@ViewBuilder` is ignored entirely — a stored-value field
+(`@ViewBuilder let footer: Content`) keeps its own type in the tuple (`Content`, not
+`() -> Content`) and is assigned directly. `@MemberwiseInit` wraps that field in a
+builder closure specifically to get trailing-closure syntax at the call site; a
+tuple literal has no parameter position for that syntax to attach to, so the
+wrapping would buy nothing here — and would actively work against the point of
+`DataLayout`, which is data you pass around, store, or diff, not a closure.
 
 ---
 

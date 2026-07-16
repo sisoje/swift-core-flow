@@ -18,10 +18,13 @@ import SwiftSyntax
 /// the call site. A function-typed field also never gets `@escaping` (see
 /// `baseTypeText`): that attribute is only legal directly on a function *parameter*,
 /// and here the parameter is `DataLayout` as a whole — a closure nested inside it is
-/// already escaping. `@ViewBuilder` can't attach to a tuple element at all, so a
-/// builder-value field (`@ViewBuilder let footer: Content`) becomes a plain
-/// `() -> Content` closure field with no trailing-closure call-site sugar — the init
-/// still calls it (see `fieldAssignment`).
+/// already escaping. `@ViewBuilder` is passed `wrapViewBuilder: false` below — a
+/// stored-value field (`@ViewBuilder let footer: Content`) keeps its own type
+/// (`Content`) and is assigned directly, *not* turned into a `() -> Content` builder:
+/// there's no parameter position inside a tuple literal for the trailing-closure
+/// sugar that wrapping exists to enable, and a closure would make `DataLayout` — data
+/// meant to be passed around/stored/diffed — hold something that isn't `Equatable`
+/// or comparable for no benefit.
 public func renderDataLayoutMembers(properties: [StoredProperty], access: String) -> [DeclSyntax] {
     let initParams = properties.filter { !$0.isPrivate }
     guard !initParams.isEmpty else {
@@ -31,8 +34,9 @@ public func renderDataLayoutMembers(properties: [StoredProperty], access: String
     let isTuple = initParams.count > 1
     let rhs =
         isTuple
-        ? "(" + initParams.map { "\($0.name): \(baseTypeText($0))" }.joined(separator: ", ") + ")"
-        : baseTypeText(initParams[0])
+        ? "(" + initParams.map { "\($0.name): \(baseTypeText($0, wrapViewBuilder: false))" }
+            .joined(separator: ", ") + ")"
+        : baseTypeText(initParams[0], wrapViewBuilder: false)
     let paramName = isTuple ? "dataLayout" : initParams[0].name
     // Routing through `DataLayout` saves spelling out the tuple inline; for a lone
     // property there's nothing to save, so the init just uses its own type.
@@ -40,7 +44,11 @@ public func renderDataLayoutMembers(properties: [StoredProperty], access: String
 
     let assignments =
         initParams
-        .map { fieldAssignment($0, source: isTuple ? "\(paramName).\($0.name)" : paramName) }
+        .map {
+            fieldAssignment(
+                $0, source: isTuple ? "\(paramName).\($0.name)" : paramName, wrapViewBuilder: false
+            )
+        }
         .joined(separator: "\n")
 
     return [

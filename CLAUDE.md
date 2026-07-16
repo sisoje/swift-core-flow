@@ -101,11 +101,17 @@ Rendering: `renderDataLayoutMembers` in
   single field), so a closure nested inside it is already escaping — same reasoning
   as `@MemberwiseInit`'s optional-closure case, just applied to every function-typed
   field instead of only optional ones.
-- **`@ViewBuilder` loses its call-site sugar.** The attribute can't attach to a tuple
-  element at all, so it only affects codegen (a stored-value field like
-  `@ViewBuilder let footer: Content` still becomes a `() -> Content` field the init
-  *calls* — `self.footer = dataLayout.footer()`), never the parameter list — there's
-  no trailing-closure syntax for a tuple literal's field.
+- **`@ViewBuilder` is ignored entirely — not just its call-site sugar.** A
+  stored-value field (`@ViewBuilder let footer: Content`) keeps its own type
+  (`footer: Content`) and is assigned directly (`self.footer = dataLayout.footer`),
+  *not* turned into a `() -> Content` builder the init calls. `@MemberwiseInit` wants
+  that wrapping — it's what buys trailing-closure syntax at the call site. That
+  reason doesn't exist here (no parameter position inside a tuple literal for a
+  trailing closure to attach to), and wrapping would actively hurt: `DataLayout` is
+  meant to be data you pass around/store/diff, and a closure isn't `Equatable` or
+  comparable. `baseTypeText`/`fieldAssignment` take a `wrapViewBuilder` flag for
+  exactly this — `@MemberwiseInit` passes `true` (the default), `@DataLayoutInit`
+  passes `false`.
 
 ## @DataInit — tricky points
 

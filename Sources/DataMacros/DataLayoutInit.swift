@@ -22,8 +22,8 @@
 /// argument by argument.
 ///
 /// Shares its property-collection rules with `@MemberwiseInit` — see that macro's doc
-/// comment for the inline `var` / property-wrapper / `@ViewBuilder` behavior. Two
-/// differences fall out of using one tuple parameter instead of many:
+/// comment for the inline `var` / property-wrapper behavior. Bundling every property
+/// into one tuple parameter, instead of many, changes three things:
 ///
 /// - **No per-field defaults.** Tuple element types can't carry `= default`, so an
 ///   inline `var` default and an implicitly-`nil` optional `var` are both dropped —
@@ -36,6 +36,13 @@
 ///   just uses the property's own name and type — `init(_ id: UUID) { self.id = id }`
 ///   — the same shape `@MemberwiseInit` would produce for that one property, just
 ///   unlabeled.
+/// - **`@ViewBuilder` is ignored.** `@MemberwiseInit` turns a stored-value field
+///   (`@ViewBuilder let footer: Content`) into a `() -> Content` builder parameter to
+///   get trailing-closure syntax at the call site. A tuple literal has no parameter
+///   position for that syntax to attach to, so here the field just keeps its own
+///   type (`footer: Content`) and is assigned directly — wrapping it would only make
+///   `DataLayout` hold a non-`Equatable` closure instead of the actual data, for no
+///   benefit.
 @attached(member, names: named(init), named(DataLayout))
 public macro DataLayoutInit() =
     #externalMacro(

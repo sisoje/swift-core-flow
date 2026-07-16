@@ -211,7 +211,13 @@ final class DataLayoutInitTests: XCTestCase {
         )
     }
 
-    func testViewBuilderStoredValueFieldIsCalledLikeMemberwiseInit() {
+    func testViewBuilderStoredValueFieldKeepsItsOwnTypeUnlikeMemberwiseInit() {
+        // Unlike @MemberwiseInit — which turns this into a `() -> Content` builder
+        // parameter to buy trailing-closure call-site sugar — @DataLayoutInit's
+        // tuple field just uses the property's own type (`Content`) directly and
+        // assigns it as-is. There's no parameter position inside a tuple literal for
+        // that sugar to attach to, so wrapping buys nothing, and it would make
+        // DataLayout hold a closure instead of the actual data.
         assertMacroExpansion(
             """
             @DataLayoutInit
@@ -225,11 +231,11 @@ final class DataLayoutInitTests: XCTestCase {
                     public let title: String
                     @ViewBuilder let footer: Content
 
-                    public typealias DataLayout = (title: String, footer: () -> Content)
+                    public typealias DataLayout = (title: String, footer: Content)
 
                     public init(_ dataLayout: DataLayout) {
                         self.title = dataLayout.title
-                        self.footer = dataLayout.footer()
+                        self.footer = dataLayout.footer
                     }
                 }
                 """,
