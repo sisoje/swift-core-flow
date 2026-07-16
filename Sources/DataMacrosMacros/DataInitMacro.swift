@@ -29,9 +29,11 @@ public enum DataInitMacro: MemberMacro {
         }
 
         guard properties.contains(where: { !$0.isPrivate }) else {
-            // Both renderers would independently emit the same `init() {}` — collapse
-            // to one to avoid "invalid redeclaration of 'init()'".
-            return [DeclSyntax(stringLiteral: "\(access)init() {}")]
+            // Both renderers would independently emit the same `init() {}` for zero
+            // participating properties — call just `renderDataLayoutMembers` (which
+            // already handles that case) instead of both, to avoid an "invalid
+            // redeclaration of 'init()'".
+            return renderDataLayoutMembers(properties: properties, access: access)
         }
 
         return renderMemberwiseInit(properties: properties, access: access)

@@ -178,27 +178,8 @@ final class DataInitTests: XCTestCase {
         )
     }
 
-    func testDiagnosesNotAStruct() {
-        assertMacroExpansion(
-            """
-            @DataInit
-            public enum E {
-                case a
-            }
-            """,
-            expandedSource: """
-                public enum E {
-                    case a
-                }
-                """,
-            diagnostics: [
-                DiagnosticSpec(
-                    message: "@DataInit can only be attached to a struct, class, or actor.",
-                    line: 1,
-                    column: 1
-                )
-            ],
-            macros: macros
-        )
-    }
+    // testDiagnosesNotAStruct is intentionally not repeated here — it exercises
+    // validatedProperties's type guard, which is macro-agnostic and already covered
+    // by MemberwiseInitTests. testMissingTypeIsDiagnosedOnceNotTwice above is this
+    // suite's diagnostic coverage that's actually specific to @DataInit.
 }

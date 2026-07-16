@@ -265,59 +265,11 @@ final class DataLayoutInitTests: XCTestCase {
         )
     }
 
-    func testComputedAndStaticAreSkipped() {
-        assertMacroExpansion(
-            """
-            @DataLayoutInit
-            public struct Point {
-                public let x: Double
-                public let y: Double
-                public static let origin = Point((x: 0, y: 0))
-                public var magnitude: Double { (x * x + y * y).squareRoot() }
-            }
-            """,
-            expandedSource: """
-                public struct Point {
-                    public let x: Double
-                    public let y: Double
-                    public static let origin = Point((x: 0, y: 0))
-                    public var magnitude: Double { (x * x + y * y).squareRoot() }
-
-                    public typealias DataLayout = (x: Double, y: Double)
-
-                    public init(_ dataLayout: DataLayout) {
-                        self.x = dataLayout.x
-                        self.y = dataLayout.y
-                    }
-                }
-                """,
-            macros: macros
-        )
-    }
-
-    func testDiagnosesNotAStruct() {
-        assertMacroExpansion(
-            """
-            @DataLayoutInit
-            public enum E {
-                case a
-            }
-            """,
-            expandedSource: """
-                public enum E {
-                    case a
-                }
-                """,
-            diagnostics: [
-                DiagnosticSpec(
-                    message: "@DataLayoutInit can only be attached to a struct, class, or actor.",
-                    line: 1,
-                    column: 1
-                )
-            ],
-            macros: macros
-        )
-    }
+    // testComputedAndStaticAreSkipped and testDiagnosesNotAStruct are intentionally
+    // not repeated here — both exercise shared, macro-agnostic logic
+    // (collectStoredProperties's skip rules, validatedProperties's type guard) that
+    // MemberwiseInitTests already covers; this file's tests instead focus on what's
+    // actually specific to DataLayoutInit's rendering.
 
     func testDiagnosesMissingType() {
         assertMacroExpansion(
