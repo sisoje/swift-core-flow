@@ -36,7 +36,7 @@ public struct User {
 // threaded as Binding<Bool>; @ViewBuilder carries onto the parameters. Generated init:
 // `init(isOn: Binding<Bool>, title: String, subtitle: String? = nil, model: Settings,
 //       @ViewBuilder content: @escaping () -> Content, @ViewBuilder footer: () -> Content)`.
-@DataInit
+@MemberwiseInit
 public struct ProfileCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isExpanded = false
@@ -90,18 +90,3 @@ public struct SomeStruct {
 public struct Box {
     let value: Int
 }
-
-// MARK: - DataInit
-
-// @DataInit generates BOTH initializers from one attribute — everything
-// @MemberwiseInit generates and everything @DataLayoutInit generates — collecting
-// the stored properties once instead of stacking @DataLayoutInit @MemberwiseInit
-// (which would collect, and diagnose, the same properties twice).
-@DataInit
-public struct Point {
-    public let x: Int
-    public let y: Int
-}
-
-let byProperty = Point(x: 1, y: 2)  // @MemberwiseInit-shaped init
-let byLayout = Point((x: 1, y: 2))  // @DataLayoutInit-shaped init

@@ -10,9 +10,9 @@ import SwiftSyntaxMacros
 /// gets the `public init` Swift won't synthesize, and an `@Observable final class`
 /// gets the memberwise `init` it otherwise needs by hand.
 ///
-/// Entry-point boilerplate (`validatedProperties`) and rendering
-/// (`renderMemberwiseInit`) are both shared with `@DataInit`. This type is just the
-/// `MemberMacro` conformance.
+/// Entry-point boilerplate (`validatedProperties`) is shared with `@DataLayoutInit`;
+/// `renderMemberwiseInit` does the actual work. This type is just the `MemberMacro`
+/// conformance.
 public enum MemberwiseInitMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,

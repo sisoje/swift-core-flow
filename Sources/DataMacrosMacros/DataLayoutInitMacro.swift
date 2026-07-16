@@ -6,9 +6,9 @@ import SwiftSyntaxMacros
 /// `@DataLayoutInit` (in `Sources/DataMacros/DataLayoutInit.swift`) for the full
 /// picture.
 ///
-/// Entry-point boilerplate (`validatedProperties`) and rendering
-/// (`renderDataLayoutMembers`) are both shared with `@DataInit`. This type is just
-/// the `MemberMacro` conformance.
+/// Entry-point boilerplate (`validatedProperties`) is shared with `@MemberwiseInit`;
+/// `renderDataLayoutMembers` does the actual work. This type is just the
+/// `MemberMacro` conformance.
 public enum DataLayoutInitMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,

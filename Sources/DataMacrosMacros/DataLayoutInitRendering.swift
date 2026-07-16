@@ -10,7 +10,6 @@ import SwiftSyntax
 /// `DataLayout` aliases a tuple of them, and the init takes it as one `dataLayout:
 /// DataLayout` parameter — routing through the alias there actually saves spelling
 /// out the whole tuple type inline. Zero properties yields a plain empty init.
-/// Shared by `@DataLayoutInit` and `@DataInit`.
 ///
 /// Unlike `@MemberwiseInit`'s per-parameter rendering, no per-field default can be
 /// attached here — tuple element types don't support `= default` — so inline `var`

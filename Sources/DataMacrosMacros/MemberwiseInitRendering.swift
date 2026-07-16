@@ -2,7 +2,7 @@ import SwiftSyntax
 
 /// Render a memberwise initializer for `properties` at the given access level —
 /// one parameter per property. `access` is a modifier prefix such as `"public "` or
-/// `""` (internal). Shared by `@MemberwiseInit` and `@DataInit`.
+/// `""` (internal).
 public func renderMemberwiseInit(properties: [StoredProperty], access: String) -> [DeclSyntax] {
     let initParams = properties.filter { !$0.isPrivate }
 

@@ -21,7 +21,6 @@ together in `Sources/Examples/main.swift` (`swift run Examples`).
 |---|---|---|
 | [`@MemberwiseInit`](#memberwiseinit) | member | writes a memberwise `init` at the type's own access level, for a struct, class, or actor |
 | [`@DataLayoutInit`](#datalayoutinit) | member | writes an init that takes the type's stored properties as **one tuple parameter** instead of one per property |
-| [`@DataInit`](#datainit) | member | writes **both** of the above inits from one attribute |
 | [`#pick`](#pick-tuplepicker) | expression | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
 
 ---
@@ -156,43 +155,6 @@ builder closure specifically to get trailing-closure syntax at the call site; a
 tuple literal has no parameter position for that syntax to attach to, so the
 wrapping would buy nothing here — and would actively work against the point of
 `DataLayout`, which is data you pass around, store, or diff, not a closure.
-
----
-
-## DataInit
-
-A `member` macro that generates **both** `@MemberwiseInit`'s per-property init and
-`@DataLayoutInit`'s tuple-parameter init from a single attribute:
-
-```swift
-@DataInit
-public struct Point {
-    public let x: Int
-    public let y: Int
-}
-
-let a = Point(x: 1, y: 2)     // @MemberwiseInit-shaped init
-let b = Point((x: 1, y: 2))   // @DataLayoutInit-shaped init, via Point.DataLayout
-```
-
-This is equivalent to stacking `@DataLayoutInit @MemberwiseInit` on the same type —
-the two generated initializers have different signatures (one labeled parameter per
-property vs. one unlabeled tuple parameter) and never collide, so stacking already
-compiles fine. `@DataInit` exists for one reason: stacking runs stored-property
-collection twice, independently, once per macro — so a property that's missing its
-required type annotation gets diagnosed **twice**, as two separate compiler errors,
-for the one mistake. `@DataInit` collects the type's stored properties once and
-renders both initializer shapes from that single pass, so the same mistake is
-diagnosed once.
-
-The one edge case where the two shapes *would* collide — zero stored properties,
-where both renderers independently produce a bare `init()` — is special-cased to emit
-that single shared `init()` once rather than twice.
-
-Otherwise it's exactly the union of the two macros above: same property rules
-(`private` exclusion, `@Binding`, `@ViewBuilder`), same limitations on the
-`DataLayout`-shaped half (no per-field defaults, no `@escaping`, and a single
-property gets a bare-type `DataLayout` alias rather than a 1-tuple).
 
 ---
 
@@ -437,8 +399,8 @@ One target pair for every macro — not one pair per macro:
 
 | Target | Kind | Contents |
 |---|---|---|
-| `DataMacrosMacros` | macro plugin | every macro's implementation: `MemberwiseInitMacro`, `DataLayoutInitMacro`, `DataInitMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`), the two initializer renderers (`MemberwiseInitRendering.swift`, `DataLayoutInitRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`). One `Plugin.swift` lists every macro type. |
-| `DataMacros` | library (the one product) | every macro's public declaration — `MemberwiseInit.swift`, `DataLayoutInit.swift`, `DataInit.swift`, `TuplePicker.swift` |
+| `DataMacrosMacros` | macro plugin | every macro's implementation: `MemberwiseInitMacro`, `DataLayoutInitMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`), the two initializer renderers (`MemberwiseInitRendering.swift`, `DataLayoutInitRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`). One `Plugin.swift` lists every macro type. |
+| `DataMacros` | library (the one product) | every macro's public declaration — `MemberwiseInit.swift`, `DataLayoutInit.swift`, `TuplePicker.swift` |
 | `DataMacrosTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's real-compiled end-to-end suite — both test frameworks coexist fine in one target |
 | `Examples` | executable | one playground exercising every macro in the package |
 

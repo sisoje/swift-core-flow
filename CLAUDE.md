@@ -22,8 +22,8 @@ concurrency) throughout.
 
 | Target | Kind | Contents |
 |---|---|---|
-| `DataMacrosMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`MemberwiseInitMacro.swift`, `DataLayoutInitMacro.swift`, `DataInitMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberwiseInitRendering.swift`, `DataLayoutInitRendering.swift`) and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `DataMacros` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`MemberwiseInit.swift`, `DataLayoutInit.swift`, `DataInit.swift`, `TuplePicker.swift`) |
+| `DataMacrosMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`MemberwiseInitMacro.swift`, `DataLayoutInitMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `MemberwiseInitRendering.swift`, `DataLayoutInitRendering.swift`) and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `DataMacros` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`MemberwiseInit.swift`, `DataLayoutInit.swift`, `TuplePicker.swift`) |
 | `DataMacrosTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's real-compiled end-to-end suite |
 | `Examples` | executable | combined playground for every macro |
 
@@ -34,15 +34,20 @@ Adding a new macro: one new file in `DataMacrosMacros` for the implementation
 "DataMacrosMacros", type: "FooMacro")`, a new `XCTestCase`/`@Suite` in
 `DataMacrosTests`, and a `// MARK: -` section in `Examples/main.swift`. No new
 Package.swift targets or products. If the macro generates an init from a type's
-stored properties (like `@MemberwiseInit`, `@DataLayoutInit`, and `@DataInit` do),
-build it on `StoredProperty.swift`'s collection and the existing `*Rendering.swift`
-functions rather than re-deriving them — everything being one module is exactly what
-makes that free (no cross-target `public`, no extra target wiring). A macro that
-combines what two existing macros generate (like `@DataInit` combines
-`@MemberwiseInit` + `@DataLayoutInit`) should collect stored properties **once** and
-call each renderer directly, rather than being spelled as "stack the two existing
-attribute macros" — stacking works when the two sets of generated members never
-collide, but it collects (and diagnoses) the same properties once per stacked macro.
+stored properties (like `@MemberwiseInit` and `@DataLayoutInit` do), build it on
+`StoredProperty.swift`'s collection (`validatedProperties` in
+`MemberMacroEntry.swift`) and the existing `*Rendering.swift` functions rather than
+re-deriving them — everything being one module is exactly what makes that free (no
+cross-target `public`, no extra target wiring).
+
+There used to be a third macro here, `@DataInit`, that generated both
+`@MemberwiseInit`'s and `@DataLayoutInit`'s initializers from one attribute (removed
+— see git history if reviving it). If you want a macro that combines what two
+existing macros generate, the lesson from that one still applies: collect stored
+properties **once** and call each renderer directly, rather than spelling it as
+"stack the two existing attribute macros" on the same type — stacking works when the
+two sets of generated members don't collide, but it collects (and diagnoses) the same
+properties once per stacked macro.
 
 ## @MemberwiseInit — tricky points
 
@@ -112,31 +117,6 @@ Rendering: `renderDataLayoutMembers` in
   comparable. `baseTypeText`/`fieldAssignment` take a `wrapViewBuilder` flag for
   exactly this — `@MemberwiseInit` passes `true` (the default), `@DataLayoutInit`
   passes `false`.
-
-## @DataInit — tricky points
-
-`member` macro that generates both `@MemberwiseInit`'s and `@DataLayoutInit`'s
-initializers from one attribute. Impl: `Sources/DataMacrosMacros/DataInitMacro.swift`
-— collects properties once (`collectStoredProperties(..., macroName: "DataInit")`),
-then calls `renderMemberwiseInit` and `renderDataLayoutMembers` directly and
-concatenates.
-
-- **Why not just stack `@DataLayoutInit @MemberwiseInit`?** That already works — the
-  two generated initializers have different signatures at every property count except
-  zero (see below), so nothing collides. `@DataInit` exists for one reason: stacking
-  means two independent `collectStoredProperties` calls, so a property with a missing
-  type annotation gets diagnosed **twice** (once per stacked macro). One collection
-  pass fixes that; `DataInitTests.testMissingTypeIsDiagnosedOnceNotTwice` pins it down.
-- **The two inits never collide, except at zero properties.** `init(x:y:)` (labeled,
-  one per property) vs. `init(_ dataLayout: DataLayout)` (one unlabeled tuple
-  parameter) are different signatures for 2+ properties; for exactly 1 property it's
-  `init(x:)` (labeled) vs. `init(_ x:)` (unlabeled) — still distinct. At **zero**
-  properties both renderers independently produce a bare `init()`, which *would*
-  collide (`invalid redeclaration of 'init()'`) — `DataInitMacro` special-cases this
-  and emits the shared `init()` once rather than calling both renderers.
-- Otherwise inherits every rule from both macros above — read those two sections for
-  the property model, `@Binding`/`@ViewBuilder` handling, and what's dropped
-  (defaults, `@escaping`) in the `DataLayout`-shaped init specifically.
 
 ## #pick (TuplePicker) — tricky points
 
