@@ -51,6 +51,9 @@ public func renderMemberwiseInit(properties: [StoredProperty], access: String) -
     if let dataLayout = renderDataLayoutTypealias(properties: properties, access: access) {
         decls.append(dataLayout)
     }
+    if let factory = renderDataLayoutFactory(properties: properties, access: access) {
+        decls.append(factory)
+    }
     return decls
 }
 
@@ -82,4 +85,40 @@ func renderDataLayoutTypealias(properties: [StoredProperty], access: String) -> 
         : baseTypeText(initParams[0], wrapViewBuilder: false)
 
     return DeclSyntax(stringLiteral: "\(access)typealias DataLayout = \(rhs)")
+}
+
+/// A `make(from:)` static factory constructing `Self` from a `DataLayout` value, by
+/// forwarding each field into the primary memberwise init above — direct field
+/// access, not the array/map/force-unwrap trick a `Self.init` function reference
+/// needs to accept a tuple. A static func (not a second `init`) specifically because
+/// it works identically for a struct, class, or actor: a delegating second `init`
+/// would need `self.init(...)`, which on a class/actor requires the `convenience`
+/// keyword and drags in Swift's designated/convenience init rules — `Self(...)`
+/// inside a plain static function sidesteps all of that. Returns nil exactly when
+/// `renderDataLayoutTypealias` does (no properties, nothing to build from).
+///
+/// A `@ViewBuilder`-stored *value* field is a plain value in `DataLayout` but the
+/// primary init still wants a `() -> Value` builder for it (see `baseTypeText`) — so
+/// unlike every other field, it's forwarded as a trivial closure (`{ dataLayout.x }`)
+/// rather than the bare value.
+func renderDataLayoutFactory(properties: [StoredProperty], access: String) -> DeclSyntax? {
+    let initParams = properties.filter { !$0.isPrivate }
+    guard !initParams.isEmpty else { return nil }
+
+    let isTuple = initParams.count > 1
+    let args = initParams.map { p -> String in
+        let source = isTuple ? "dataLayout.\(p.name)" : "dataLayout"
+        if p.isViewBuilder, !(p.type.map(isFunctionType) ?? false) {
+            return "\(p.name): { \(source) }"
+        }
+        return "\(p.name): \(source)"
+    }.joined(separator: ", ")
+
+    return DeclSyntax(
+        stringLiteral: """
+            \(access)static func make(from dataLayout: DataLayout) -> Self {
+                Self(\(args))
+            }
+            """
+    )
 }

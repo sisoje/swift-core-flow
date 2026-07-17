@@ -1,6 +1,6 @@
 /// Generates a memberwise `init` for the struct it is attached to, at the struct's
 /// own access level — plus a `DataLayout` typealias bundling the same properties
-/// into a tuple.
+/// into a tuple, and a `make(from:)` static factory constructing `Self` from one.
 ///
 /// Swift only ever synthesizes an **internal** memberwise initializer, and only
 /// when you write no init of your own. `@MemberwiseInit` writes an explicit one that
@@ -18,6 +18,9 @@
 ///     //     self.isActive = isActive
 ///     // }
 ///     // public typealias DataLayout = (id: UUID, isActive: Bool)
+///     // public static func make(from dataLayout: DataLayout) -> Self {
+///     //     Self(id: dataLayout.id, isActive: dataLayout.isActive)
+///     // }
 /// }
 /// ```
 ///
@@ -38,8 +41,8 @@
 ///
 /// ## The `DataLayout` typealias
 /// Alongside the init, `@MemberwiseInit` also declares `DataLayout` — the same
-/// properties bundled into a tuple type, for uniformity/discoverability rather than
-/// as a second constructor. It's built independently of the init's own rendering:
+/// properties bundled into a tuple type. It's built independently of the init's own
+/// rendering:
 ///
 /// - **Two or more properties** → a tuple (`(id: UUID, isActive: Bool)`). **Exactly
 ///   one** collapses to that property's bare type — Swift has no 1-tuples, so
@@ -54,7 +57,20 @@
 ///   no parameter position for the trailing-closure sugar that wrapping exists to
 ///   enable, and a closure would make `DataLayout` hold something that isn't
 ///   `Equatable`.
-@attached(member, names: named(init), named(DataLayout))
+///
+/// ## The `make(from:)` factory
+/// A `static func make(from dataLayout: DataLayout) -> Self` that builds an instance
+/// from a `DataLayout` value — declared whenever `DataLayout` itself is (so it
+/// collapses/disappears the same way). It's a static function rather than a second
+/// `init` so it works the same on a struct, class, or actor: a delegating second
+/// `init` would need `self.init(...)`, which on a class/actor requires the
+/// `convenience` keyword and Swift's designated/convenience init rules — a plain
+/// static function returning `Self(...)` avoids that entirely. The one field shape
+/// that differs from a direct `dataLayout.x` forward: a `@ViewBuilder`-stored value
+/// is wrapped back into a trivial closure (`{ dataLayout.footer }`), since the
+/// primary init wants a builder for it even though `DataLayout` itself stores the
+/// plain value.
+@attached(member, names: named(init), named(DataLayout), named(make))
 public macro MemberwiseInit() =
     #externalMacro(
         module: "DataMacrosMacros",

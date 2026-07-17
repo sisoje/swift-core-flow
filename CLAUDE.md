@@ -66,12 +66,13 @@ you're extending it further:
 
 `member` macro that writes a memberwise `init` at the type's own access level, for a
 struct, class, or actor — plus a `DataLayout` typealias bundling the same properties
-into a tuple, alongside it. Entry point:
-`Sources/DataMacrosMacros/MemberwiseInitMacro.swift`. Rendering: both
-`renderMemberwiseInit` (the init) and `renderDataLayoutTypealias` (the typealias) in
-`Sources/DataMacrosMacros/MemberwiseInitRendering.swift` — the latter is called from
-inside the former, so one macro expansion always produces both together (or just the
-init, if there are zero properties to alias).
+into a tuple, and a `make(from:)` static factory building `Self` from one. Entry
+point: `Sources/DataMacrosMacros/MemberwiseInitMacro.swift`. Rendering: all three —
+`renderMemberwiseInit` (the init), `renderDataLayoutTypealias` (the typealias), and
+`renderDataLayoutFactory` (`make(from:)`) — live in
+`Sources/DataMacrosMacros/MemberwiseInitRendering.swift`; the latter two are called
+from inside the first, so one macro expansion always produces all three together (or
+just the init, if there are zero properties to alias/build from).
 
 The init:
 - **Syntax-only, no type inference.** A non-private property that becomes a parameter
@@ -126,10 +127,28 @@ differently:
   `baseTypeText` (in `FieldRendering.swift`) takes a `wrapViewBuilder` flag for
   exactly this — the init's own rendering passes `true` (the default), the typealias
   rendering passes `false`.
-- **The init and the typealias are otherwise independent** — the typealias isn't a
-  parameter of the init, and nothing in the init routes through it. `DataLayout` is
-  declared purely for API uniformity/discoverability (every `@MemberwiseInit` type
-  has one to reference, e.g. in generic code), not as an alternate constructor.
+- **The init doesn't route through the typealias** — `DataLayout` isn't a parameter
+  of the init above. It's declared for API uniformity/discoverability (every
+  `@MemberwiseInit` type has one to reference, e.g. in generic code) independent of
+  the init's own signature.
+
+The `make(from:)` factory — a `static func` (not a second `init`) building `Self`
+from a `DataLayout`, present exactly when `DataLayout` is:
+- **A static func, not a delegating `init`, specifically to work uniformly across
+  struct/class/actor.** A second `init` calling `self.init(...)` needs the
+  `convenience` keyword on a class/actor and drags in Swift's designated/convenience
+  init rules; `Self(...)` inside a plain static function sidesteps that entirely.
+- **Forwards each field directly** — `Self(x: dataLayout.x, y: dataLayout.y)` — not
+  the `[layout].map(Self.init).first!` trick an *unapplied* `Self.init` reference
+  needs to accept a tuple positionally. The macro already knows every field's name,
+  so it just spells out the call.
+- **A `@ViewBuilder`-stored value is the one field that isn't forwarded as-is.**
+  `DataLayout` stores it as a plain value (`Content`), but the primary init still
+  wants a `() -> Content` builder for it — so `make(from:)` wraps it back into a
+  trivial closure: `footer: { dataLayout.footer }`.
+- **Single-property collapse carries through unchanged.** When `DataLayout` is a
+  bare type (not a tuple), `dataLayout` *is* the one field's value directly — no
+  `.name` access: `Self(value: dataLayout)`.
 
 ## @Capability — tricky points
 

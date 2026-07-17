@@ -10,21 +10,24 @@ import SwiftUI
 // `public typealias DataLayout = (id: UUID, name: String, isActive: Bool, onmain: @MainActor () -> Void,
 //     onChange: () async -> Void, onRename: @Sendable (String, Int) async -> Void, onDone: (() -> Void)?)`
 // — no defaults, no @escaping, unlike the init right above it (tuple element types
-// support neither).
+// support neither). Also generates `make(from:)`, building Self back from a
+// DataLayout value: `static func make(from dataLayout: DataLayout) -> Self { Self(x: dataLayout.x, y: dataLayout.y) }`.
 
 @MemberwiseInit
 public struct Point {
     var x: Int
     var y: Int
-    
-    /// TODO: make this possible and include it in macro expansion, improve naming if you want
-    public static func create(_ layout: DataLayout) -> Self {
-        // if possible find a better "trick" inst4ead of array + map + forceunwrap, if possible
-        [layout].map(Self.init).first!
-    }
 }
 
-let p = Point.create((1,1))
+// A tuple *literal* converts across label differences ((1, 1) or (x: 1, y: 1) both
+// work), but a value already bound to a differently-labeled tuple type doesn't —
+// `let keke = (xxx: 1, yyy: 1); Point.make(from: keke)` is a real type error
+// ("cannot convert value of type '(xxx: Int, yyy: Int)' to expected argument type
+// 'Point.DataLayout'"), not a macro bug. Labels have to match once a tuple has its
+// own concrete type.
+let keke = (x: 1, y: 1)
+
+let p = Point.make(from: keke)
 
 @MemberwiseInit
 public struct User {
@@ -59,6 +62,8 @@ public struct User {
 // subtitle, and footer keeps its own type (`Content`) instead of the `() -> Content`
 // builder the init uses — `typealias DataLayout = (isOn: Binding<Bool>, title: String,
 // subtitle: String?, model: Settings, content: () -> Content, footer: Content)`.
+// make(from:) re-wraps footer into a closure to satisfy the init's builder param:
+// `Self(isOn: dataLayout.isOn, ..., footer: { dataLayout.footer })`.
 @MemberwiseInit
 public struct ProfileCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme

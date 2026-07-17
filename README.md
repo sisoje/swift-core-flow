@@ -31,8 +31,9 @@ A `member` macro that writes a memberwise `init` for the type it's attached to, 
 the type's own access level**. It fills the initializers Swift won't synthesize: the
 `public init` a public struct needs, and *any* init for a `class` or `actor` —
 including an `@Observable final class`. Alongside the init, it also declares a
-`DataLayout` typealias bundling the same properties into a tuple — see
-[below](#the-datalayout-typealias).
+`DataLayout` typealias bundling the same properties into a tuple, and a
+`make(from:)` static factory building `Self` back from one — see
+[below](#the-datalayout-typealias) and [below that](#the-makefrom-factory).
 
 ```swift
 @MemberwiseInit
@@ -46,6 +47,9 @@ public struct User {
 //     self.isActive = isActive
 // }
 // public typealias DataLayout = (id: UUID, isActive: Bool)
+// public static func make(from dataLayout: DataLayout) -> Self {
+//     Self(id: dataLayout.id, isActive: dataLayout.isActive)
+// }
 ```
 
 Works the same on a `class` or `actor`:
@@ -56,7 +60,8 @@ Works the same on a `class` or `actor`:
     var count: Int = 0
 }
 // init(count: Int = 0) { self.count = count }
-// typealias DataLayout = Int   // one property → bare type, not a 1-tuple
+// typealias DataLayout = Int             // one property → bare type, not a 1-tuple
+// static func make(from dataLayout: DataLayout) -> Self { Self(count: dataLayout) }
 ```
 
 ### What it does
@@ -148,6 +153,31 @@ It's built independently of the init, so it diverges from it in a few ways:
   for that syntax to attach to, so the wrapping would buy nothing here — and would
   actively work against the point of `DataLayout`, which is data you pass around,
   store, or diff, not a closure.
+
+### The make(from:) factory
+
+A `static func make(from dataLayout: DataLayout) -> Self` that builds an instance
+from a `DataLayout` value — declared whenever `DataLayout` itself is (same
+collapse/absence rules). It forwards each field directly:
+
+```swift
+let layout: User.DataLayout = (id: someID, name: "Ada")
+let user = User.make(from: layout)
+```
+
+- **A static function, not a second `init`** — deliberately, so it works the same on
+  a struct, class, or actor. A delegating second `init` (`self.init(...)`) requires
+  the `convenience` keyword on a class/actor and drags in Swift's
+  designated/convenience init rules; a plain static function returning `Self(...)`
+  sidesteps that entirely.
+- **Direct field forwarding**, not a trick. `Self(x: dataLayout.x, y: dataLayout.y)`
+  — not `[layout].map(Self.init).first!`, which is what you'd reach for by hand to
+  get an *unapplied* `Self.init` reference to accept a tuple positionally (it works,
+  but the macro doesn't need it: it already knows every field's name).
+- **A `@ViewBuilder`-stored value is the one field that isn't forwarded as-is.**
+  `DataLayout` holds it as a plain value, but the primary init still wants a
+  `() -> Content` builder for it — so `make(from:)` wraps it back into a trivial
+  closure: `footer: { dataLayout.footer }`.
 
 ---
 
