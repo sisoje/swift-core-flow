@@ -4,7 +4,7 @@ import SwiftSyntaxMacros
 
 // MARK: - Stored-property model
 
-/// A stored property that participates in `@MemberwiseInit`'s generated init and
+/// A stored property that participates in `@DataLayout`'s generated init and
 /// `DataLayout` typealias.
 public struct StoredProperty {
     public let name: String
@@ -42,7 +42,7 @@ public struct StoredProperty {
 /// Skips computed properties, `static`/`class` members, and non-identifier bindings
 /// (tuple destructuring). Returns `nil` if a diagnostic was emitted — an init
 /// parameter lacking an explicit type (this is syntax-only and can't infer it).
-/// `macroName` (e.g. `"MemberwiseInit"`) names the attribute in the diagnostic.
+/// `macroName` (e.g. `"DataLayout"`) names the attribute in the diagnostic.
 public func collectStoredProperties(
     of decl: some DeclGroupSyntax,
     in context: some MacroExpansionContext,
@@ -169,7 +169,7 @@ public func isComputed(_ accessorBlock: AccessorBlockSyntax) -> Bool {
 // MARK: - Diagnostics
 
 /// Shared diagnostics for member macros generating an init from stored properties.
-/// `macroName` (e.g. `"MemberwiseInit"`) names the offending attribute in the
+/// `macroName` (e.g. `"DataLayout"`) names the offending attribute in the
 /// message.
 public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     public let message: String

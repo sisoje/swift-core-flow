@@ -22,8 +22,8 @@ concurrency) throughout.
 
 | Target | Kind | Contents |
 |---|---|---|
-| `DataMacrosMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`MemberwiseInitMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `MemberwiseInitRendering.swift`) that `@MemberwiseInit` builds on, and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `DataMacros` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`MemberwiseInit.swift`, `Capability.swift`, `TuplePicker.swift`) |
+| `DataMacrosMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`DataLayoutMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `DataLayoutRendering.swift`) that `@DataLayout` builds on, and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `DataMacros` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`DataLayout.swift`, `Capability.swift`, `TuplePicker.swift`) |
 | `DataMacrosTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's real-compiled end-to-end suite |
 | `Examples` | executable | combined playground for every macro |
 
@@ -34,9 +34,9 @@ Adding a new macro: one new file in `DataMacrosMacros` for the implementation
 "DataMacrosMacros", type: "FooMacro")`, a new `XCTestCase`/`@Suite` in
 `DataMacrosTests`, and a `// MARK: -` section in `Examples/main.swift`. No new
 Package.swift targets or products. If the macro generates something from a type's
-stored properties (like `@MemberwiseInit` does), build it on `StoredProperty.swift`'s
+stored properties (like `@DataLayout` does), build it on `StoredProperty.swift`'s
 collection (`validatedProperties` in `MemberMacroEntry.swift`) and
-`MemberwiseInitRendering.swift`'s functions rather than re-deriving them —
+`DataLayoutRendering.swift`'s functions rather than re-deriving them —
 everything being one module is exactly what makes that free (no cross-target
 `public`, no extra target wiring).
 
@@ -46,14 +46,14 @@ you're extending it further:
 - **`@DataLayoutInit` used to be its own macro** — an init taking every stored
   property as one tuple-typed parameter, plus the `DataLayout` typealias describing
   that tuple. It's gone as a standalone macro now: the typealias half was folded
-  directly into `@MemberwiseInit` (every `@MemberwiseInit` type gets a `DataLayout`
+  directly into `@DataLayout` (every `@DataLayout` type gets a `DataLayout`
   typealias alongside its init, for free), and the "one tuple *parameter*" half was
-  dropped entirely rather than carried over — `@MemberwiseInit`'s own init is
+  dropped entirely rather than carried over — `@DataLayout`'s own init is
   unchanged, `DataLayout` is declared but nothing consumes it as a single init
   argument anymore. If a future macro wants that back, `renderDataLayoutTypealias`
-  in `MemberwiseInitRendering.swift` already has the tuple-vs-bare-type collapse
+  in `DataLayoutRendering.swift` already has the tuple-vs-bare-type collapse
   logic to build on.
-- **`@DataInit`** generated both `@MemberwiseInit`'s and `@DataLayoutInit`'s
+- **`@DataInit`** generated both `@DataLayout`'s and `@DataLayoutInit`'s
   initializers from one attribute — removed even before `@DataLayoutInit` was (see
   git history for both). If you want a macro that combines what two existing macros
   generate, the lesson from it still applies: collect stored properties **once** and
@@ -62,15 +62,15 @@ you're extending it further:
   members don't collide, but it collects (and diagnoses) the same properties once
   per stacked macro.
 
-## @MemberwiseInit — tricky points
+## @DataLayout — tricky points
 
 `member` macro that writes a memberwise `init` at the type's own access level, for a
 struct, class, or actor — plus a `DataLayout` typealias bundling the same properties
 into an unlabeled tuple, and a `make(dataLayout:)` static factory building `Self`
-from one. Entry point: `Sources/DataMacrosMacros/MemberwiseInitMacro.swift`.
-Rendering: all three — `renderMemberwiseInit` (the init), `renderDataLayoutTypealias`
+from one. Entry point: `Sources/DataMacrosMacros/DataLayoutMacro.swift`.
+Rendering: all three — `renderDataLayout` (the init), `renderDataLayoutTypealias`
 (the typealias), and `renderDataLayoutFactory` (`make(dataLayout:)`) — live in
-`Sources/DataMacrosMacros/MemberwiseInitRendering.swift`; the latter two are called
+`Sources/DataMacrosMacros/DataLayoutRendering.swift`; the latter two are called
 from inside the first, so one macro expansion always produces all three together (or
 just the init, if there are zero properties to alias/build from).
 
@@ -130,7 +130,7 @@ differently:
   rendering passes `false`.
 - **The init doesn't route through the typealias** — `DataLayout` isn't a parameter
   of the init above. It's declared for API uniformity/discoverability (every
-  `@MemberwiseInit` type has one to reference, e.g. in generic code) independent of
+  `@DataLayout` type has one to reference, e.g. in generic code) independent of
   the init's own signature.
 - **Why unlabeled: verified directly, both ways.** A tuple *value* already bound
   with different labels (`let t = (xxx: 1, yyy: 2)`) fails to convert into a
@@ -173,8 +173,8 @@ share `StoredProperty.swift`'s model at all (that's for *stored* properties; thi
 macro is deliberately about the opposite thing, and mixes properties with methods,
 which `StoredProperty` has no concept of).
 
-- **Works on an extension, unlike `@MemberwiseInit` — and that's not an oversight on
-  its part.** `@MemberwiseInit` collects *stored* properties, and extensions can
+- **Works on an extension, unlike `@DataLayout` — and that's not an oversight on
+  its part.** `@DataLayout` collects *stored* properties, and extensions can
   never declare those, so there's nothing it could ever find there. `@Capability`
   collects *computed* members, which extensions declare freely — so it's useful on
   an extension specifically, and works identically attached directly to the
@@ -189,7 +189,7 @@ which `StoredProperty` has no concept of).
   value type (`error: cannot reference 'mutating' method as function value`,
   verified directly), so including one would generate code that doesn't compile.
 - **One eligible member collapses `Capability` to its bare type/value**, same
-  1-tuple collapse `@MemberwiseInit`'s `DataLayout` typealias does. **Zero** is a
+  1-tuple collapse `@DataLayout`'s `DataLayout` typealias does. **Zero** is a
   diagnostic, not an empty tuple — there's no sensible "empty capability."
 - **Deliberately no `@Sendable`** on the generated closure fields. Verified directly
   both ways: marking them unconditionally makes the generated code fail to compile

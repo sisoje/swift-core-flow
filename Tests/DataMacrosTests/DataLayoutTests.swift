@@ -4,13 +4,13 @@ import XCTest
 
 @testable import DataMacrosMacros
 
-final class MemberwiseInitTests: XCTestCase {
-    let macros: [String: Macro.Type] = ["MemberwiseInit": MemberwiseInitMacro.self]
+final class DataLayoutTests: XCTestCase {
+    let macros: [String: Macro.Type] = ["DataLayout": DataLayoutMacro.self]
 
     func testPublicStructGetsPublicInit() {
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             public struct User {
                 public let id: UUID
                 public var isActive: Bool = false
@@ -41,7 +41,7 @@ final class MemberwiseInitTests: XCTestCase {
         // A plain (internal) struct gets an init and typealias with no access modifier.
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             struct Point {
                 let x: Int
                 let y: Int
@@ -68,13 +68,13 @@ final class MemberwiseInitTests: XCTestCase {
         )
     }
 
-    func testClassGetsMemberwiseInit() {
+    func testWorksOnAClass() {
         // Works on a class too — e.g. an @Observable class, which Swift gives no
         // memberwise init at all. Access level mirrors the type (internal here).
         // One property collapses DataLayout to its bare type, not a 1-tuple.
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             @Observable final class Zola {
                 var ii: Int = 0
             }
@@ -98,12 +98,12 @@ final class MemberwiseInitTests: XCTestCase {
         )
     }
 
-    func testActorGetsMemberwiseInit() {
+    func testWorksOnAnActor() {
         // Works on an actor too — a synchronous memberwise init is valid (it runs
         // before isolation applies). Access level mirrors the type.
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             public actor Counter {
                 public var count: Int = 0
             }
@@ -133,7 +133,7 @@ final class MemberwiseInitTests: XCTestCase {
         // escaping — @escaping is only legal directly on a function parameter).
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             public struct Handler {
                 public var onChange: () -> Void
                 public var onMain: @MainActor () -> Void
@@ -171,7 +171,7 @@ final class MemberwiseInitTests: XCTestCase {
         // carries none of these defaults — tuple element types can't have them.
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             public struct Handler {
                 public var nickname: String?
                 public var onChange: (() -> Void)?
@@ -208,7 +208,7 @@ final class MemberwiseInitTests: XCTestCase {
         // the DataLayout typealias too.
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             public struct ProfileCard: View {
                 @Environment(\\.colorScheme) private var colorScheme
                 @Binding public var isOn: Bool
@@ -246,7 +246,7 @@ final class MemberwiseInitTests: XCTestCase {
         // DataLayout collapses to its bare type.
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             public struct V {
                 public var title: String
                 private var cache: Int = 0
@@ -288,7 +288,7 @@ final class MemberwiseInitTests: XCTestCase {
         // init, reading it positionally (dataLayout.2) since DataLayout is unlabeled.
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             public struct ProfileCard<Content: View>: View {
                 public let title: String
                 @ViewBuilder let content: () -> Content
@@ -323,7 +323,7 @@ final class MemberwiseInitTests: XCTestCase {
     func testComputedAndStaticAreSkipped() {
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             public struct Point {
                 public let x: Double
                 public let y: Double
@@ -360,7 +360,7 @@ final class MemberwiseInitTests: XCTestCase {
         // index needed either, unlike the tuple case).
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             public struct Box {
                 public let value: Int
             }
@@ -387,7 +387,7 @@ final class MemberwiseInitTests: XCTestCase {
     func testTwoPropertiesGetATupleDataLayout() {
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             public struct Point {
                 public let x: Int
                 public let y: Int
@@ -417,7 +417,7 @@ final class MemberwiseInitTests: XCTestCase {
     func testDiagnosesNotAStruct() {
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             public enum E {
                 case a
             }
@@ -429,7 +429,7 @@ final class MemberwiseInitTests: XCTestCase {
                 """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "@MemberwiseInit can only be attached to a struct, class, or actor.",
+                    message: "@DataLayout can only be attached to a struct, class, or actor.",
                     line: 1,
                     column: 1
                 )
@@ -441,7 +441,7 @@ final class MemberwiseInitTests: XCTestCase {
     func testDiagnosesMissingType() {
         assertMacroExpansion(
             """
-            @MemberwiseInit
+            @DataLayout
             public struct Thing {
                 public var count = 0
             }
@@ -454,7 +454,7 @@ final class MemberwiseInitTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "Stored property 'count' needs an explicit type annotation so @MemberwiseInit can generate the initializer.",
+                        "Stored property 'count' needs an explicit type annotation so @DataLayout can generate the initializer.",
                     line: 3,
                     column: 16
                 )

@@ -3,7 +3,7 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 
 /// Validates that `declaration` is a struct, class, or actor and collects its stored
-/// properties — diagnosing (and returning nil) on either failure. `@MemberwiseInit`'s
+/// properties — diagnosing (and returning nil) on either failure. `@DataLayout`'s
 /// `expansion` reduces to calling this and then rendering; kept as its own function
 /// (rather than inlined) since any future macro generating both an init and a
 /// `DataLayout`-style typealias from stored properties would want the exact same

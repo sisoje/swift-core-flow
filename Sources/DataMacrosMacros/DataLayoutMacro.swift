@@ -11,10 +11,10 @@ import SwiftSyntaxMacros
 /// gets the `public init` Swift won't synthesize, and an `@Observable final class`
 /// gets the memberwise `init` it otherwise needs by hand.
 ///
-/// Entry-point boilerplate is `validatedProperties`; `renderMemberwiseInit` does the
+/// Entry-point boilerplate is `validatedProperties`; `renderDataLayout` does the
 /// actual work (including the `DataLayout` typealias — see its own doc comment in
-/// `MemberwiseInitRendering.swift`). This type is just the `MemberMacro` conformance.
-public enum MemberwiseInitMacro: MemberMacro {
+/// `DataLayoutRendering.swift`). This type is just the `MemberMacro` conformance.
+public enum DataLayoutMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
@@ -23,11 +23,11 @@ public enum MemberwiseInitMacro: MemberMacro {
     ) throws -> [DeclSyntax] {
         guard
             let (properties, access) = validatedProperties(
-                of: declaration, attachedTo: node, macroName: "MemberwiseInit", in: context
+                of: declaration, attachedTo: node, macroName: "DataLayout", in: context
             )
         else {
             return []
         }
-        return renderMemberwiseInit(properties: properties, access: access)
+        return renderDataLayout(properties: properties, access: access)
     }
 }

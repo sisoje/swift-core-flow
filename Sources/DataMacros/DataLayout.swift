@@ -4,12 +4,12 @@
 /// `Self` from one.
 ///
 /// Swift only ever synthesizes an **internal** memberwise initializer, and only
-/// when you write no init of your own. `@MemberwiseInit` writes an explicit one that
+/// when you write no init of your own. `@DataLayout` writes an explicit one that
 /// matches the struct's access — the `public` memberwise init Swift refuses to give
 /// a public type:
 ///
 /// ```swift
-/// @MemberwiseInit
+/// @DataLayout
 /// public struct User {
 ///     public let id: UUID
 ///     public var isActive: Bool = false
@@ -34,14 +34,14 @@
 /// ## Property wrappers (tuned for SwiftUI)
 /// Only `@Binding` is threaded into the init, as a projected `Binding<T>` parameter.
 /// Every other wrapper — `@State`, `@Environment`, `@StateObject`, … — is view-owned
-/// or injected and is **excluded** from the init, so `@MemberwiseInit` works cleanly
+/// or injected and is **excluded** from the init, so `@DataLayout` works cleanly
 /// on a `View`.
 ///
 /// A property that becomes an init parameter must carry an explicit type annotation
 /// (the macro is syntax-only and can't infer a type from a literal).
 ///
 /// ## The `DataLayout` typealias
-/// Alongside the init, `@MemberwiseInit` also declares `DataLayout` — the same
+/// Alongside the init, `@DataLayout` also declares `DataLayout` — the same
 /// properties bundled into a tuple type. It's built independently of the init's own
 /// rendering:
 ///
@@ -84,8 +84,8 @@
 /// (`{ dataLayout.2 }`), since the primary init wants a builder for it even though
 /// `DataLayout` itself stores the plain value.
 @attached(member, names: named(init), named(DataLayout), named(make))
-public macro MemberwiseInit() =
+public macro DataLayout() =
     #externalMacro(
         module: "DataMacrosMacros",
-        type: "MemberwiseInitMacro"
+        type: "DataLayoutMacro"
     )

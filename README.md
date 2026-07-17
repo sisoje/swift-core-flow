@@ -19,13 +19,13 @@ together in `Sources/Examples/main.swift` (`swift run Examples`).
 
 | Macro | Form | Does |
 |---|---|---|
-| [`@MemberwiseInit`](#memberwiseinit) | member | writes a memberwise `init` at the type's own access level, plus a `DataLayout` typealias bundling the same properties into a tuple |
+| [`@DataLayout`](#datalayout) | member | writes a memberwise `init` at the type's own access level, plus a `DataLayout` typealias bundling the same properties into a tuple |
 | [`@Capability`](#capability) | member | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
 | [`#pick`](#pick-tuplepicker) | expression | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
 
 ---
 
-## MemberwiseInit
+## DataLayout
 
 A `member` macro that writes a memberwise `init` for the type it's attached to, **at
 the type's own access level**. It fills the initializers Swift won't synthesize: the
@@ -36,7 +36,7 @@ including an `@Observable final class`. Alongside the init, it also declares a
 [below](#the-datalayout-typealias) and [below that](#the-makedatalayout-factory).
 
 ```swift
-@MemberwiseInit
+@DataLayout
 public struct User {
     public let id: UUID
     public var isActive: Bool = false
@@ -55,7 +55,7 @@ public struct User {
 Works the same on a `class` or `actor`:
 
 ```swift
-@MemberwiseInit
+@DataLayout
 @Observable final class Counter {
     var count: Int = 0
 }
@@ -90,7 +90,7 @@ Works the same on a `class` or `actor`:
   init calls it (`self.footer = footer()`).
 
 ```swift
-@MemberwiseInit
+@DataLayout
 struct Card<Content: View>: View {
     @Environment(\.colorScheme) private var scheme   // excluded (private)
     @State private var expanded = false              // excluded (private)
@@ -116,13 +116,13 @@ struct Card<Content: View>: View {
 
 ### The DataLayout typealias
 
-Alongside the init, `@MemberwiseInit` declares `DataLayout` — the same properties
+Alongside the init, `@DataLayout` declares `DataLayout` — the same properties
 bundled into a tuple type, for API uniformity/discoverability (e.g. `Foo.DataLayout`
 is always there to reference generically) rather than as a second constructor;
 nothing in the init routes through it.
 
 ```swift
-@MemberwiseInit
+@DataLayout
 public struct User {
     public let id: UUID
     public let name: String
@@ -205,7 +205,7 @@ let user2 = User.make(dataLayout: differentlyLabeled)
 A `member` macro that bundles every eligible **computed** property and method of the
 type — or extension — it's attached to into one `Capability` tuple typealias and a
 `capability` computed property: a lightweight "protocol witness"-style bundle of
-*behavior*, as opposed to `@MemberwiseInit`'s `DataLayout` typealias, which bundles
+*behavior*, as opposed to `@DataLayout`'s `DataLayout` typealias, which bundles
 *data*.
 
 ```swift
@@ -226,9 +226,9 @@ extension Counter {
 // }
 ```
 
-### Works on an extension — unlike @MemberwiseInit, on purpose
+### Works on an extension — unlike @DataLayout, on purpose
 
-`@MemberwiseInit` collects **stored** properties, and extensions can never declare
+`@DataLayout` collects **stored** properties, and extensions can never declare
 those — so there's nothing for it to find if attached to one; that's a hard Swift
 rule, not a missing feature. `@Capability` collects **computed** members instead,
 which extensions declare just as freely as a primary type body, so it works equally
@@ -248,7 +248,7 @@ well attached directly to a struct/class/actor or to an extension of one.
   compile.
 
 One eligible member collapses `Capability` to that member's bare type/value — same
-1-tuple collapse `@MemberwiseInit`'s `DataLayout` typealias does, for the same reason
+1-tuple collapse `@DataLayout`'s `DataLayout` typealias does, for the same reason
 (Swift has no 1-tuples). Zero eligible members is a diagnostic, not an empty
 `Capability`.
 
@@ -302,7 +302,7 @@ Swift's own overload resolution (argument count), backed by a single implementat
 ### Run it
 
 - `swift run Examples` — `#pick` combining multiple sources into one tuple, on plain
-  tuple values, alongside the `@MemberwiseInit` examples.
+  tuple values, alongside the `@DataLayout` examples.
 - `swift test` — macro-expansion + diagnostic tests (`assertMacroExpansion`) and an
   end-to-end suite that compiles and runs real `#pick` calls, across arities.
 - Open `Package.swift` in Xcode, right-click a `#pick` call → **Expand Macro** to see the
@@ -507,8 +507,8 @@ One target pair for every macro — not one pair per macro:
 
 | Target | Kind | Contents |
 |---|---|---|
-| `DataMacrosMacros` | macro plugin | every macro's implementation: `MemberwiseInitMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`MemberwiseInitRendering.swift`, covering both the init and the `DataLayout` typealias) that `@MemberwiseInit` builds on, and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`). One `Plugin.swift` lists every macro type. |
-| `DataMacros` | library (the one product) | every macro's public declaration — `MemberwiseInit.swift`, `Capability.swift`, `TuplePicker.swift` |
+| `DataMacrosMacros` | macro plugin | every macro's implementation: `DataLayoutMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`DataLayoutRendering.swift`, covering both the init and the `DataLayout` typealias) that `@DataLayout` builds on, and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`). One `Plugin.swift` lists every macro type. |
+| `DataMacros` | library (the one product) | every macro's public declaration — `DataLayout.swift`, `Capability.swift`, `TuplePicker.swift` |
 | `DataMacrosTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's real-compiled end-to-end suite — both test frameworks coexist fine in one target |
 | `Examples` | executable | one playground exercising every macro in the package |
 

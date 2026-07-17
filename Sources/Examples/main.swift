@@ -2,9 +2,9 @@ import DataMacros
 import Foundation
 import SwiftUI
 
-// MARK: - MemberwiseInit
+// MARK: - DataLayout
 
-// @MemberwiseInit writes the memberwise initializer at the struct's own access
+// @DataLayout writes the memberwise initializer at the struct's own access
 // level — the `public init` Swift refuses to synthesize for a public type — plus a
 // `DataLayout` typealias bundling the same properties into an UNLABELED tuple
 // alongside it:
@@ -16,7 +16,7 @@ import SwiftUI
 // Unlabeled specifically so ANY structurally-compatible tuple converts in, not just
 // one built with these exact field names/order in mind:
 
-@MemberwiseInit
+@DataLayout
 public struct Point {
     var x: Int
     var y: Int
@@ -30,7 +30,7 @@ let keke = (xxx: 1, yyy: 1)
 
 let p = Point.make(dataLayout: keke)
 
-@MemberwiseInit
+@DataLayout
 public struct User {
     static let x: Int = 0
     static var y: Int {
@@ -50,7 +50,7 @@ public struct User {
     public var onDone: (() -> Void)?  // optional var → `= nil` param, no @escaping
 }
 
-@MemberwiseInit
+@DataLayout
 @Observable public final class Settings {
     var count: Int = 0  // one property → `typealias DataLayout = Int`, no 1-tuple
 }
@@ -65,7 +65,7 @@ public struct User {
 // Settings, () -> Content, Content)`, unlabeled like every DataLayout.
 // make(dataLayout:) re-wraps footer into a closure to satisfy the init's builder
 // param, reading positionally: `Self(isOn: dataLayout.0, ..., footer: { dataLayout.5 })`.
-@MemberwiseInit
+@DataLayout
 public struct ProfileCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isExpanded = false
@@ -103,7 +103,7 @@ let twoOfEleven = #pick(from: big, \.val3, \.val11)
 
 // @Capability bundles every eligible computed property/method into one
 // `Capability` tuple typealias + `capability` computed property. Unlike
-// @MemberwiseInit, it works fine on an extension — it collects
+// @DataLayout, it works fine on an extension — it collects
 // COMPUTED members (which extensions can declare), not stored ones (which they
 // can't). `me`, `zola`, `zola2` (stored) don't participate; `x` (computed),
 // `doSomething`, `doSomethingElse`, `meme` (methods) do. Generated:

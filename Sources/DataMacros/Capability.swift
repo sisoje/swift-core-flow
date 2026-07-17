@@ -21,7 +21,7 @@
 /// }
 /// ```
 ///
-/// Unlike `@MemberwiseInit` — which collects *stored* properties and therefore
+/// Unlike `@DataLayout` — which collects *stored* properties and therefore
 /// cannot usefully attach to an extension (extensions can't declare stored
 /// properties, so there'd be nothing to find) — `@Capability` collects *computed*
 /// members, which extensions can declare freely. So `@Capability` works attached
@@ -40,7 +40,7 @@
 ///   reference to one — `mutating` methods.
 ///
 /// One eligible member collapses `Capability` to that member's bare type (Swift has no
-/// 1-tuples) and `capability` to that bare value — same collapse `@MemberwiseInit`'s
+/// 1-tuples) and `capability` to that bare value — same collapse `@DataLayout`'s
 /// `DataLayout` typealias does. Zero eligible members is a diagnostic, not an empty
 /// `Capability` — there's no sensible "empty capability."
 ///

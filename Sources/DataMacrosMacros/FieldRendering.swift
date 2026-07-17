@@ -6,7 +6,7 @@ import SwiftSyntax
 /// footer: Content`, not a closure) becomes a `() -> T` builder when `wrapViewBuilder`
 /// is true.
 ///
-/// `@MemberwiseInit` calls this twice, for two different purposes, with opposite
+/// `@DataLayout` calls this twice, for two different purposes, with opposite
 /// settings: once per init parameter with `wrapViewBuilder: true` (the default) —
 /// that's what buys real trailing-closure call-site sugar (`Card(...) { content }`)
 /// — and once per `DataLayout` typealias field with `wrapViewBuilder: false`. There

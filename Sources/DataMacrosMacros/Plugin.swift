@@ -4,7 +4,7 @@ import SwiftSyntaxMacros
 @main
 struct DataMacrosPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
-        MemberwiseInitMacro.self,
+        DataLayoutMacro.self,
         CapabilityMacro.self,
         PickMacro.self,
     ]
