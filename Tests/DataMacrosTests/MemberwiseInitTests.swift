@@ -26,10 +26,10 @@ final class MemberwiseInitTests: XCTestCase {
                         self.isActive = isActive
                     }
 
-                    public typealias DataLayout = (id: UUID, isActive: Bool)
+                    public typealias DataLayout = (UUID, Bool)
 
-                    public static func make(from dataLayout: DataLayout) -> Self {
-                        Self(id: dataLayout.id, isActive: dataLayout.isActive)
+                    public static func make(dataLayout: DataLayout) -> Self {
+                        Self(id: dataLayout.0, isActive: dataLayout.1)
                     }
                 }
                 """,
@@ -57,10 +57,10 @@ final class MemberwiseInitTests: XCTestCase {
                         self.y = y
                     }
 
-                    typealias DataLayout = (x: Int, y: Int)
+                    typealias DataLayout = (Int, Int)
 
-                    static func make(from dataLayout: DataLayout) -> Self {
-                        Self(x: dataLayout.x, y: dataLayout.y)
+                    static func make(dataLayout: DataLayout) -> Self {
+                        Self(x: dataLayout.0, y: dataLayout.1)
                     }
                 }
                 """,
@@ -89,7 +89,7 @@ final class MemberwiseInitTests: XCTestCase {
 
                     typealias DataLayout = Int
 
-                    static func make(from dataLayout: DataLayout) -> Self {
+                    static func make(dataLayout: DataLayout) -> Self {
                         Self(ii: dataLayout)
                     }
                 }
@@ -118,7 +118,7 @@ final class MemberwiseInitTests: XCTestCase {
 
                     public typealias DataLayout = Int
 
-                    public static func make(from dataLayout: DataLayout) -> Self {
+                    public static func make(dataLayout: DataLayout) -> Self {
                         Self(count: dataLayout)
                     }
                 }
@@ -152,10 +152,10 @@ final class MemberwiseInitTests: XCTestCase {
                         self.onSend = onSend
                     }
 
-                    public typealias DataLayout = (onChange: () -> Void, onMain: @MainActor () -> Void, onSend: @Sendable (Int) -> Void)
+                    public typealias DataLayout = (() -> Void, @MainActor () -> Void, @Sendable (Int) -> Void)
 
-                    public static func make(from dataLayout: DataLayout) -> Self {
-                        Self(onChange: dataLayout.onChange, onMain: dataLayout.onMain, onSend: dataLayout.onSend)
+                    public static func make(dataLayout: DataLayout) -> Self {
+                        Self(onChange: dataLayout.0, onMain: dataLayout.1, onSend: dataLayout.2)
                     }
                 }
                 """,
@@ -190,10 +190,10 @@ final class MemberwiseInitTests: XCTestCase {
                         self.onSend = onSend
                     }
 
-                    public typealias DataLayout = (nickname: String?, onChange: (() -> Void)?, onSend: (@Sendable (Int) -> Void)!)
+                    public typealias DataLayout = (String?, (() -> Void)?, (@Sendable (Int) -> Void)!)
 
-                    public static func make(from dataLayout: DataLayout) -> Self {
-                        Self(nickname: dataLayout.nickname, onChange: dataLayout.onChange, onSend: dataLayout.onSend)
+                    public static func make(dataLayout: DataLayout) -> Self {
+                        Self(nickname: dataLayout.0, onChange: dataLayout.1, onSend: dataLayout.2)
                     }
                 }
                 """,
@@ -228,10 +228,10 @@ final class MemberwiseInitTests: XCTestCase {
                         self.title = title
                     }
 
-                    public typealias DataLayout = (isOn: Binding<Bool>, title: String)
+                    public typealias DataLayout = (Binding<Bool>, String)
 
-                    public static func make(from dataLayout: DataLayout) -> Self {
-                        Self(isOn: dataLayout.isOn, title: dataLayout.title)
+                    public static func make(dataLayout: DataLayout) -> Self {
+                        Self(isOn: dataLayout.0, title: dataLayout.1)
                     }
                 }
                 """,
@@ -267,7 +267,7 @@ final class MemberwiseInitTests: XCTestCase {
 
                     public typealias DataLayout = String
 
-                    public static func make(from dataLayout: DataLayout) -> Self {
+                    public static func make(dataLayout: DataLayout) -> Self {
                         Self(title: dataLayout)
                     }
                 }
@@ -284,7 +284,8 @@ final class MemberwiseInitTests: XCTestCase {
         // entirely: footer keeps its own type (Content), not a builder closure —
         // there's no parameter position inside a tuple type for the trailing-closure
         // sugar wrapping exists to enable, and a closure isn't Equatable/storable.
-        // make(from:) re-wraps footer into a trivial closure to satisfy the init.
+        // make(dataLayout:) re-wraps footer into a trivial closure to satisfy the
+        // init, reading it positionally (dataLayout.2) since DataLayout is unlabeled.
         assertMacroExpansion(
             """
             @MemberwiseInit
@@ -306,11 +307,11 @@ final class MemberwiseInitTests: XCTestCase {
                         self.footer = footer()
                     }
 
-                    public typealias DataLayout = (title: String, content: () -> Content, footer: Content)
+                    public typealias DataLayout = (String, () -> Content, Content)
 
-                    public static func make(from dataLayout: DataLayout) -> Self {
-                        Self(title: dataLayout.title, content: dataLayout.content, footer: {
-                                dataLayout.footer
+                    public static func make(dataLayout: DataLayout) -> Self {
+                        Self(title: dataLayout.0, content: dataLayout.1, footer: {
+                                dataLayout.2
                             })
                     }
                 }
@@ -342,10 +343,10 @@ final class MemberwiseInitTests: XCTestCase {
                         self.y = y
                     }
 
-                    public typealias DataLayout = (x: Double, y: Double)
+                    public typealias DataLayout = (Double, Double)
 
-                    public static func make(from dataLayout: DataLayout) -> Self {
-                        Self(x: dataLayout.x, y: dataLayout.y)
+                    public static func make(dataLayout: DataLayout) -> Self {
+                        Self(x: dataLayout.0, y: dataLayout.1)
                     }
                 }
                 """,
@@ -355,7 +356,8 @@ final class MemberwiseInitTests: XCTestCase {
 
     func testOnePropertyCollapsesDataLayoutToItsBareType() {
         // No 1-tuples in Swift, so (value: Int) as a type is just Int — and
-        // make(from:) takes dataLayout as that bare value directly (no `.value`).
+        // make(dataLayout:) takes it as that bare value directly (no positional
+        // index needed either, unlike the tuple case).
         assertMacroExpansion(
             """
             @MemberwiseInit
@@ -373,7 +375,7 @@ final class MemberwiseInitTests: XCTestCase {
 
                     public typealias DataLayout = Int
 
-                    public static func make(from dataLayout: DataLayout) -> Self {
+                    public static func make(dataLayout: DataLayout) -> Self {
                         Self(value: dataLayout)
                     }
                 }
@@ -401,10 +403,10 @@ final class MemberwiseInitTests: XCTestCase {
                         self.y = y
                     }
 
-                    public typealias DataLayout = (x: Int, y: Int)
+                    public typealias DataLayout = (Int, Int)
 
-                    public static func make(from dataLayout: DataLayout) -> Self {
-                        Self(x: dataLayout.x, y: dataLayout.y)
+                    public static func make(dataLayout: DataLayout) -> Self {
+                        Self(x: dataLayout.0, y: dataLayout.1)
                     }
                 }
                 """,

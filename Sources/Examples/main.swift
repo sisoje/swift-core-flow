@@ -6,12 +6,15 @@ import SwiftUI
 
 // @MemberwiseInit writes the memberwise initializer at the struct's own access
 // level — the `public init` Swift refuses to synthesize for a public type — plus a
-// `DataLayout` typealias bundling the same properties into a tuple alongside it:
-// `public typealias DataLayout = (id: UUID, name: String, isActive: Bool, onmain: @MainActor () -> Void,
-//     onChange: () async -> Void, onRename: @Sendable (String, Int) async -> Void, onDone: (() -> Void)?)`
+// `DataLayout` typealias bundling the same properties into an UNLABELED tuple
+// alongside it:
+// `public typealias DataLayout = (UUID, String, Bool, @MainActor () -> Void,
+//     () async -> Void, @Sendable (String, Int) async -> Void, (() -> Void)?)`
 // — no defaults, no @escaping, unlike the init right above it (tuple element types
-// support neither). Also generates `make(from:)`, building Self back from a
-// DataLayout value: `static func make(from dataLayout: DataLayout) -> Self { Self(x: dataLayout.x, y: dataLayout.y) }`.
+// support neither). Also generates `make(dataLayout:)`, building Self back from a
+// DataLayout value: `static func make(dataLayout: DataLayout) -> Self { Self(x: dataLayout.0, y: dataLayout.1) }`.
+// Unlabeled specifically so ANY structurally-compatible tuple converts in, not just
+// one built with these exact field names/order in mind:
 
 @MemberwiseInit
 public struct Point {
@@ -19,15 +22,13 @@ public struct Point {
     var y: Int
 }
 
-// A tuple *literal* converts across label differences ((1, 1) or (x: 1, y: 1) both
-// work), but a value already bound to a differently-labeled tuple type doesn't —
-// `let keke = (xxx: 1, yyy: 1); Point.make(from: keke)` is a real type error
-// ("cannot convert value of type '(xxx: Int, yyy: Int)' to expected argument type
-// 'Point.DataLayout'"), not a macro bug. Labels have to match once a tuple has its
-// own concrete type.
-let keke = (x: 1, y: 1)
+// A differently-labeled tuple value swallows/"splats" right in — verified this
+// fails against a *labeled* DataLayout (real type error, not a macro bug) but
+// succeeds once DataLayout is unlabeled: Swift only enforces label agreement
+// between two labeled tuple types, not into an unlabeled one.
+let keke = (xxx: 1, yyy: 1)
 
-let p = Point.make(from: keke)
+let p = Point.make(dataLayout: keke)
 
 @MemberwiseInit
 public struct User {
@@ -60,10 +61,10 @@ public struct User {
 //       @ViewBuilder content: @escaping () -> Content, @ViewBuilder footer: () -> Content)`.
 // The DataLayout typealias diverges from that init in two ways: no default for
 // subtitle, and footer keeps its own type (`Content`) instead of the `() -> Content`
-// builder the init uses — `typealias DataLayout = (isOn: Binding<Bool>, title: String,
-// subtitle: String?, model: Settings, content: () -> Content, footer: Content)`.
-// make(from:) re-wraps footer into a closure to satisfy the init's builder param:
-// `Self(isOn: dataLayout.isOn, ..., footer: { dataLayout.footer })`.
+// builder the init uses — `typealias DataLayout = (Binding<Bool>, String, String?,
+// Settings, () -> Content, Content)`, unlabeled like every DataLayout.
+// make(dataLayout:) re-wraps footer into a closure to satisfy the init's builder
+// param, reading positionally: `Self(isOn: dataLayout.0, ..., footer: { dataLayout.5 })`.
 @MemberwiseInit
 public struct ProfileCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme

@@ -60,9 +60,22 @@ public func renderMemberwiseInit(properties: [StoredProperty], access: String) -
 /// The `DataLayout` typealias declaration for `properties` — a tuple bundling every
 /// non-private property, for API uniformity/discoverability alongside the memberwise
 /// init above. Two or more properties → a tuple; exactly one collapses to that
-/// property's bare type (Swift has no 1-tuples: `(x: T)` as a type collapses to
-/// plain `T`, no `.x` accessor); zero yields no typealias at all — there's nothing
-/// to alias, and a bare `init()` already covers that case above.
+/// property's bare type (Swift has no 1-tuples: `(T)` as a type is just `T`); zero
+/// yields no typealias at all — there's nothing to alias, and a bare `init()`
+/// already covers that case above.
+///
+/// **Deliberately unlabeled**, e.g. `(Int, String)` not `(x: Int, name: String)` —
+/// so any structurally-compatible tuple converts into it, not just one built with
+/// these exact field names. Verified directly: a tuple *value* already bound with
+/// different labels (`let t = (xxx: 1, yyy: 2)`) fails to convert into a
+/// *labeled* target tuple type of the same shape, but succeeds against an
+/// *unlabeled* one — Swift only enforces label agreement between two labeled tuple
+/// types, not into an unlabeled one. A labeled tuple *literal* (`(x: 1, y: 2)`)
+/// converts into an unlabeled target either way, so callers can still write field
+/// names for their own readability when constructing the value; only a
+/// pre-existing differently-labeled variable needed this loosening. The real
+/// tradeoff: with no labels, swapping two same-typed fields' order is no longer
+/// caught by the type checker.
 ///
 /// Always built with `wrapViewBuilder: false` (see `baseTypeText`), independent of
 /// the init's own rendering above: a `@ViewBuilder`-stored *value* field
@@ -80,34 +93,38 @@ func renderDataLayoutTypealias(properties: [StoredProperty], access: String) -> 
 
     let rhs =
         initParams.count > 1
-        ? "(" + initParams.map { "\($0.name): \(baseTypeText($0, wrapViewBuilder: false))" }
-            .joined(separator: ", ") + ")"
+        ? "(" + initParams.map { baseTypeText($0, wrapViewBuilder: false) }.joined(separator: ", ") + ")"
         : baseTypeText(initParams[0], wrapViewBuilder: false)
 
     return DeclSyntax(stringLiteral: "\(access)typealias DataLayout = \(rhs)")
 }
 
-/// A `make(from:)` static factory constructing `Self` from a `DataLayout` value, by
-/// forwarding each field into the primary memberwise init above — direct field
-/// access, not the array/map/force-unwrap trick a `Self.init` function reference
-/// needs to accept a tuple. A static func (not a second `init`) specifically because
-/// it works identically for a struct, class, or actor: a delegating second `init`
-/// would need `self.init(...)`, which on a class/actor requires the `convenience`
-/// keyword and drags in Swift's designated/convenience init rules — `Self(...)`
-/// inside a plain static function sidesteps all of that. Returns nil exactly when
-/// `renderDataLayoutTypealias` does (no properties, nothing to build from).
+/// A `make(dataLayout:)` static factory constructing `Self` from a `DataLayout`
+/// value, by forwarding each field into the primary memberwise init above — direct
+/// field access, not the array/map/force-unwrap trick a `Self.init` function
+/// reference needs to accept a tuple. A static func (not a second `init`)
+/// specifically because it works identically for a struct, class, or actor: a
+/// delegating second `init` would need `self.init(...)`, which on a class/actor
+/// requires the `convenience` keyword and drags in Swift's designated/convenience
+/// init rules — `Self(...)` inside a plain static function sidesteps all of that.
+/// Returns nil exactly when `renderDataLayoutTypealias` does (no properties,
+/// nothing to build from).
+///
+/// `DataLayout` is unlabeled (see `renderDataLayoutTypealias`), so a tuple-case
+/// field is read positionally — `dataLayout.0`, `dataLayout.1`, … in field order —
+/// rather than by name.
 ///
 /// A `@ViewBuilder`-stored *value* field is a plain value in `DataLayout` but the
 /// primary init still wants a `() -> Value` builder for it (see `baseTypeText`) — so
-/// unlike every other field, it's forwarded as a trivial closure (`{ dataLayout.x }`)
+/// unlike every other field, it's forwarded as a trivial closure (`{ dataLayout.0 }`)
 /// rather than the bare value.
 func renderDataLayoutFactory(properties: [StoredProperty], access: String) -> DeclSyntax? {
     let initParams = properties.filter { !$0.isPrivate }
     guard !initParams.isEmpty else { return nil }
 
     let isTuple = initParams.count > 1
-    let args = initParams.map { p -> String in
-        let source = isTuple ? "dataLayout.\(p.name)" : "dataLayout"
+    let args = initParams.enumerated().map { index, p -> String in
+        let source = isTuple ? "dataLayout.\(index)" : "dataLayout"
         if p.isViewBuilder, !(p.type.map(isFunctionType) ?? false) {
             return "\(p.name): { \(source) }"
         }
@@ -116,7 +133,7 @@ func renderDataLayoutFactory(properties: [StoredProperty], access: String) -> De
 
     return DeclSyntax(
         stringLiteral: """
-            \(access)static func make(from dataLayout: DataLayout) -> Self {
+            \(access)static func make(dataLayout: DataLayout) -> Self {
                 Self(\(args))
             }
             """

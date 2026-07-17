@@ -66,10 +66,10 @@ you're extending it further:
 
 `member` macro that writes a memberwise `init` at the type's own access level, for a
 struct, class, or actor — plus a `DataLayout` typealias bundling the same properties
-into a tuple, and a `make(from:)` static factory building `Self` from one. Entry
-point: `Sources/DataMacrosMacros/MemberwiseInitMacro.swift`. Rendering: all three —
-`renderMemberwiseInit` (the init), `renderDataLayoutTypealias` (the typealias), and
-`renderDataLayoutFactory` (`make(from:)`) — live in
+into an unlabeled tuple, and a `make(dataLayout:)` static factory building `Self`
+from one. Entry point: `Sources/DataMacrosMacros/MemberwiseInitMacro.swift`.
+Rendering: all three — `renderMemberwiseInit` (the init), `renderDataLayoutTypealias`
+(the typealias), and `renderDataLayoutFactory` (`make(dataLayout:)`) — live in
 `Sources/DataMacrosMacros/MemberwiseInitRendering.swift`; the latter two are called
 from inside the first, so one macro expansion always produces all three together (or
 just the init, if there are zero properties to alias/build from).
@@ -103,7 +103,8 @@ The init:
 
 The `DataLayout` typealias — same property collection as the init above, rendered
 differently:
-- **Two or more properties** → `public typealias DataLayout = (x: T, y: U)`.
+- **Two or more properties** → an *unlabeled* tuple: `public typealias DataLayout =
+  (T, U)`, not `(x: T, y: U)`. Deliberate, not an oversight — see below.
 - **Exactly one property still gets a `DataLayout`, just not a tuple.** Swift has no
   1-tuples — `(x: T)` as a type collapses to plain `T`, no `.x` accessor — so
   `DataLayout` aliases the bare field type directly (`typealias DataLayout = T`).
@@ -118,7 +119,7 @@ differently:
   as the init's optional-closure case, just applied to every function-typed field
   instead of only optional ones.
 - **`@ViewBuilder` is ignored entirely.** A stored-value field
-  (`@ViewBuilder let footer: Content`) keeps its own type (`footer: Content`) in the
+  (`@ViewBuilder let footer: Content`) keeps its own type (`Content`) in the
   typealias, *not* the `() -> Content` builder the init uses right above it. The init
   wants that wrapping — it's what buys trailing-closure syntax at the call site. That
   reason doesn't exist for a tuple type (no parameter position for a trailing closure
@@ -131,24 +132,37 @@ differently:
   of the init above. It's declared for API uniformity/discoverability (every
   `@MemberwiseInit` type has one to reference, e.g. in generic code) independent of
   the init's own signature.
+- **Why unlabeled: verified directly, both ways.** A tuple *value* already bound
+  with different labels (`let t = (xxx: 1, yyy: 2)`) fails to convert into a
+  *labeled* tuple type of the same shape (`error: cannot convert value of type
+  '(xxx: Int, yyy: Int)' to expected argument type '(x: Int, y: Int)'`), but
+  succeeds once the target is unlabeled (`(Int, Int)`) — Swift only enforces label
+  agreement between two labeled tuple types, not into an unlabeled one. A labeled
+  tuple *literal* (`(x: 1, y: 2)`) converts into an unlabeled target either way, so
+  this loses nothing for a caller constructing the value fresh — only a
+  pre-existing, differently-labeled variable needed the loosening. Real cost: with
+  no labels, the type checker no longer catches two same-typed fields swapped in
+  the wrong order.
 
-The `make(from:)` factory — a `static func` (not a second `init`) building `Self`
-from a `DataLayout`, present exactly when `DataLayout` is:
+The `make(dataLayout:)` factory — a `static func` (not a second `init`) building
+`Self` from a `DataLayout`, present exactly when `DataLayout` is:
 - **A static func, not a delegating `init`, specifically to work uniformly across
   struct/class/actor.** A second `init` calling `self.init(...)` needs the
   `convenience` keyword on a class/actor and drags in Swift's designated/convenience
   init rules; `Self(...)` inside a plain static function sidesteps that entirely.
-- **Forwards each field directly** — `Self(x: dataLayout.x, y: dataLayout.y)` — not
+- **Forwards each field directly** — `Self(x: dataLayout.0, y: dataLayout.1)` — not
   the `[layout].map(Self.init).first!` trick an *unapplied* `Self.init` reference
-  needs to accept a tuple positionally. The macro already knows every field's name,
-  so it just spells out the call.
+  needs to accept a tuple positionally. The macro already knows every field's
+  position, so it just spells out the call.
+- **Fields are read positionally** (`dataLayout.0`, `dataLayout.1`, … in field
+  order), since `DataLayout` is unlabeled — not by name.
 - **A `@ViewBuilder`-stored value is the one field that isn't forwarded as-is.**
   `DataLayout` stores it as a plain value (`Content`), but the primary init still
-  wants a `() -> Content` builder for it — so `make(from:)` wraps it back into a
-  trivial closure: `footer: { dataLayout.footer }`.
+  wants a `() -> Content` builder for it — so `make(dataLayout:)` wraps it back into
+  a trivial closure: `footer: { dataLayout.2 }`.
 - **Single-property collapse carries through unchanged.** When `DataLayout` is a
   bare type (not a tuple), `dataLayout` *is* the one field's value directly — no
-  `.name` access: `Self(value: dataLayout)`.
+  positional index needed: `Self(value: dataLayout)`.
 
 ## @Capability — tricky points
 
