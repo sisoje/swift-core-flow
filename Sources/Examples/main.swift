@@ -13,6 +13,20 @@ import SwiftUI
 // support neither).
 
 @MemberwiseInit
+public struct Point {
+    var x: Int
+    var y: Int
+    
+    /// TODO: make this possible and include it in macro expansion, improve naming if you want
+    public static func create(_ layout: DataLayout) -> Self {
+        // if possible find a better "trick" inst4ead of array + map + forceunwrap, if possible
+        [layout].map(Self.init).first!
+    }
+}
+
+let p = Point.create((1,1))
+
+@MemberwiseInit
 public struct User {
     static let x: Int = 0
     static var y: Int {
@@ -100,7 +114,6 @@ struct MySomething {
 }
 
 @Capability
-@MainActor
 extension MySomething {
     var x: Int {
         zola * me
