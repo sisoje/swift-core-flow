@@ -19,8 +19,7 @@ together in `Sources/Examples/main.swift` (`swift run Examples`).
 
 | Macro | Form | Does |
 |---|---|---|
-| [`@MemberwiseInit`](#memberwiseinit) | member | writes a memberwise `init` at the type's own access level, for a struct, class, or actor |
-| [`@DataLayoutInit`](#datalayoutinit) | member | writes an init that takes the type's stored properties as **one tuple parameter** instead of one per property |
+| [`@MemberwiseInit`](#memberwiseinit) | member | writes a memberwise `init` at the type's own access level, plus a `DataLayout` typealias bundling the same properties into a tuple |
 | [`@Capability`](#capability) | member | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
 | [`#pick`](#pick-tuplepicker) | expression | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
 
@@ -31,7 +30,9 @@ together in `Sources/Examples/main.swift` (`swift run Examples`).
 A `member` macro that writes a memberwise `init` for the type it's attached to, **at
 the type's own access level**. It fills the initializers Swift won't synthesize: the
 `public init` a public struct needs, and *any* init for a `class` or `actor` —
-including an `@Observable final class`.
+including an `@Observable final class`. Alongside the init, it also declares a
+`DataLayout` typealias bundling the same properties into a tuple — see
+[below](#the-datalayout-typealias).
 
 ```swift
 @MemberwiseInit
@@ -44,6 +45,7 @@ public struct User {
 //     self.id = id
 //     self.isActive = isActive
 // }
+// public typealias DataLayout = (id: UUID, isActive: Bool)
 ```
 
 Works the same on a `class` or `actor`:
@@ -54,6 +56,7 @@ Works the same on a `class` or `actor`:
     var count: Int = 0
 }
 // init(count: Int = 0) { self.count = count }
+// typealias DataLayout = Int   // one property → bare type, not a 1-tuple
 ```
 
 ### What it does
@@ -106,56 +109,45 @@ struct Card<Content: View>: View {
   hits the missing-type rule above. Either way it won't compile.
 - **`private` means private.** If a value is meant to be passed in, it isn't private.
 
----
+### The DataLayout typealias
 
-## DataLayoutInit
-
-A `member` macro built on the same property-collection rules as `@MemberwiseInit` —
-see that section above for what counts as a stored property, `private` exclusion,
-`@Binding`, and `@ViewBuilder`. Where `@MemberwiseInit` writes one parameter per
-property, `@DataLayoutInit` bundles them into **one tuple-typed parameter**: a
-`DataLayout` you construct, pass around, or store as a single unit.
+Alongside the init, `@MemberwiseInit` declares `DataLayout` — the same properties
+bundled into a tuple type, for API uniformity/discoverability (e.g. `Foo.DataLayout`
+is always there to reference generically) rather than as a second constructor;
+nothing in the init routes through it.
 
 ```swift
-@DataLayoutInit
+@MemberwiseInit
 public struct User {
     public let id: UUID
     public let name: String
 }
-// generates:
 // public typealias DataLayout = (id: UUID, name: String)
-// public init(_ dataLayout: DataLayout) {
-//     self.id = dataLayout.id
-//     self.name = dataLayout.name
-// }
 
 let layout: User.DataLayout = (id: someID, name: "Ada")
-let user = User(layout)
 ```
 
-### What's different from @MemberwiseInit
-
-Wrapping every property into one tuple parameter, instead of many, changes two things:
+It's built independently of the init, so it diverges from it in a few ways:
 
 - **No per-field defaults.** Tuple element types can't carry `= default` — so an
-  inline `var` default, and an optional `var`'s implicit `nil`, are both dropped.
-  Every field is required when you build the `DataLayout` tuple.
+  inline `var` default, and an optional `var`'s implicit `nil`, are both dropped,
+  unlike the init right above it.
 - **One property still gets a `DataLayout` — just not a tuple.** Swift has no
-  1-tuples — `(x: Int)` as a type collapses to plain `Int`, no `.x` accessor — so with
-  exactly one participating property, `DataLayout` aliases the bare field type
-  directly (`typealias DataLayout = Int`), and the init skips routing through it: a
-  plain, unlabeled single-parameter init — `init(_ value: Int) { self.value = value }`
-  — the same shape `@MemberwiseInit` would produce for that one property.
-
-Function-typed properties never get `@escaping` here (a closure nested inside a tuple
-parameter is already escaping — writing the attribute is a compile error), and
-`@ViewBuilder` is ignored entirely — a stored-value field
-(`@ViewBuilder let footer: Content`) keeps its own type in the tuple (`Content`, not
-`() -> Content`) and is assigned directly. `@MemberwiseInit` wraps that field in a
-builder closure specifically to get trailing-closure syntax at the call site; a
-tuple literal has no parameter position for that syntax to attach to, so the
-wrapping would buy nothing here — and would actively work against the point of
-`DataLayout`, which is data you pass around, store, or diff, not a closure.
+  1-tuples — `(x: Int)` as a type collapses to plain `Int`, no `.x` accessor — so
+  with exactly one participating property, `DataLayout` aliases the bare field type
+  directly (`typealias DataLayout = Int`).
+- **Zero properties → no typealias at all.** There's nothing to alias, and the init
+  already covers the zero-property case on its own (`init() {}`).
+- **Never `@escaping`**, even on function-typed fields — a closure nested inside a
+  tuple type is already escaping; writing the attribute there is a compile error.
+- **`@ViewBuilder` is ignored entirely.** A stored-value field
+  (`@ViewBuilder let footer: Content`) keeps its own type in the typealias
+  (`Content`, not `() -> Content`) and would be assigned directly if anything
+  consumed it. The init wraps that field in a builder closure specifically to get
+  trailing-closure syntax at the call site; a tuple type has no parameter position
+  for that syntax to attach to, so the wrapping would buy nothing here — and would
+  actively work against the point of `DataLayout`, which is data you pass around,
+  store, or diff, not a closure.
 
 ---
 
@@ -164,7 +156,8 @@ wrapping would buy nothing here — and would actively work against the point of
 A `member` macro that bundles every eligible **computed** property and method of the
 type — or extension — it's attached to into one `Capability` tuple typealias and a
 `capability` computed property: a lightweight "protocol witness"-style bundle of
-*behavior*, as opposed to `@DataLayoutInit`'s bundle of *data*.
+*behavior*, as opposed to `@MemberwiseInit`'s `DataLayout` typealias, which bundles
+*data*.
 
 ```swift
 struct Counter {
@@ -184,14 +177,13 @@ extension Counter {
 // }
 ```
 
-### Works on an extension — unlike the other two, on purpose
+### Works on an extension — unlike @MemberwiseInit, on purpose
 
-`@MemberwiseInit` and `@DataLayoutInit` collect **stored** properties, and
-extensions can never declare those — so there's nothing for either macro to find if
-attached to one; that's a hard Swift rule, not a missing feature. `@Capability`
-collects **computed** members instead, which extensions declare just as freely as a
-primary type body, so it works equally well attached directly to a
-struct/class/actor or to an extension of one.
+`@MemberwiseInit` collects **stored** properties, and extensions can never declare
+those — so there's nothing for it to find if attached to one; that's a hard Swift
+rule, not a missing feature. `@Capability` collects **computed** members instead,
+which extensions declare just as freely as a primary type body, so it works equally
+well attached directly to a struct/class/actor or to an extension of one.
 
 ### What's collected
 
@@ -207,8 +199,9 @@ struct/class/actor or to an extension of one.
   compile.
 
 One eligible member collapses `Capability` to that member's bare type/value — same
-1-tuple collapse `@DataLayoutInit` does, for the same reason (Swift has no
-1-tuples). Zero eligible members is a diagnostic, not an empty `Capability`.
+1-tuple collapse `@MemberwiseInit`'s `DataLayout` typealias does, for the same reason
+(Swift has no 1-tuples). Zero eligible members is a diagnostic, not an empty
+`Capability`.
 
 ### No `@Sendable`
 
@@ -465,8 +458,8 @@ One target pair for every macro — not one pair per macro:
 
 | Target | Kind | Contents |
 |---|---|---|
-| `DataMacrosMacros` | macro plugin | every macro's implementation: `MemberwiseInitMacro`, `DataLayoutInitMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`), the two initializer renderers (`MemberwiseInitRendering.swift`, `DataLayoutInitRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`). One `Plugin.swift` lists every macro type. |
-| `DataMacros` | library (the one product) | every macro's public declaration — `MemberwiseInit.swift`, `DataLayoutInit.swift`, `Capability.swift`, `TuplePicker.swift` |
+| `DataMacrosMacros` | macro plugin | every macro's implementation: `MemberwiseInitMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`MemberwiseInitRendering.swift`, covering both the init and the `DataLayout` typealias) that `@MemberwiseInit` builds on, and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`). One `Plugin.swift` lists every macro type. |
+| `DataMacros` | library (the one product) | every macro's public declaration — `MemberwiseInit.swift`, `Capability.swift`, `TuplePicker.swift` |
 | `DataMacrosTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's real-compiled end-to-end suite — both test frameworks coexist fine in one target |
 | `Examples` | executable | one playground exercising every macro in the package |
 

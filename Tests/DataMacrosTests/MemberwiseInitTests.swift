@@ -25,6 +25,8 @@ final class MemberwiseInitTests: XCTestCase {
                         self.id = id
                         self.isActive = isActive
                     }
+
+                    public typealias DataLayout = (id: UUID, isActive: Bool)
                 }
                 """,
             macros: macros
@@ -32,7 +34,7 @@ final class MemberwiseInitTests: XCTestCase {
     }
 
     func testAccessLevelMirrorsTheStruct() {
-        // A plain (internal) struct gets an init with no access modifier.
+        // A plain (internal) struct gets an init and typealias with no access modifier.
         assertMacroExpansion(
             """
             @MemberwiseInit
@@ -50,6 +52,8 @@ final class MemberwiseInitTests: XCTestCase {
                         self.x = x
                         self.y = y
                     }
+
+                    typealias DataLayout = (x: Int, y: Int)
                 }
                 """,
             macros: macros
@@ -59,6 +63,7 @@ final class MemberwiseInitTests: XCTestCase {
     func testClassGetsMemberwiseInit() {
         // Works on a class too — e.g. an @Observable class, which Swift gives no
         // memberwise init at all. Access level mirrors the type (internal here).
+        // One property collapses DataLayout to its bare type, not a 1-tuple.
         assertMacroExpansion(
             """
             @MemberwiseInit
@@ -73,6 +78,8 @@ final class MemberwiseInitTests: XCTestCase {
                     init(ii: Int = 0) {
                         self.ii = ii
                     }
+
+                    typealias DataLayout = Int
                 }
                 """,
             macros: macros
@@ -96,6 +103,8 @@ final class MemberwiseInitTests: XCTestCase {
                     public init(count: Int = 0) {
                         self.count = count
                     }
+
+                    public typealias DataLayout = Int
                 }
                 """,
             macros: macros
@@ -103,6 +112,9 @@ final class MemberwiseInitTests: XCTestCase {
     }
 
     func testClosuresGetEscaping() {
+        // The init gets @escaping on every function-typed param; the DataLayout
+        // typealias never does (a closure nested inside a tuple type is already
+        // escaping — @escaping is only legal directly on a function parameter).
         assertMacroExpansion(
             """
             @MemberwiseInit
@@ -123,6 +135,8 @@ final class MemberwiseInitTests: XCTestCase {
                         self.onMain = onMain
                         self.onSend = onSend
                     }
+
+                    public typealias DataLayout = (onChange: () -> Void, onMain: @MainActor () -> Void, onSend: @Sendable (Int) -> Void)
                 }
                 """,
             macros: macros
@@ -133,7 +147,8 @@ final class MemberwiseInitTests: XCTestCase {
         // An optional `var` is implicitly nil-initialized, so its parameter defaults
         // to nil — just like Swift's own memberwise init. Optional closures also get
         // no @escaping (an optional parameter is already escaping; adding the
-        // attribute to an optional type is a compile error).
+        // attribute to an optional type is a compile error). The DataLayout typealias
+        // carries none of these defaults — tuple element types can't have them.
         assertMacroExpansion(
             """
             @MemberwiseInit
@@ -154,6 +169,8 @@ final class MemberwiseInitTests: XCTestCase {
                         self.onChange = onChange
                         self.onSend = onSend
                     }
+
+                    public typealias DataLayout = (nickname: String?, onChange: (() -> Void)?, onSend: (@Sendable (Int) -> Void)!)
                 }
                 """,
             macros: macros
@@ -163,7 +180,8 @@ final class MemberwiseInitTests: XCTestCase {
     func testOnlyBindingWrappersReachTheInit() {
         // @Binding is threaded through as Binding<T>; every other wrapper (@State,
         // @Environment, …) is view-owned / injected and excluded — including the
-        // untyped `@State private var isExpanded = false`.
+        // untyped `@State private var isExpanded = false`. Binding<T> carries into
+        // the DataLayout typealias too.
         assertMacroExpansion(
             """
             @MemberwiseInit
@@ -185,6 +203,8 @@ final class MemberwiseInitTests: XCTestCase {
                         self._isOn = isOn
                         self.title = title
                     }
+
+                    public typealias DataLayout = (isOn: Binding<Bool>, title: String)
                 }
                 """,
             macros: macros
@@ -192,8 +212,10 @@ final class MemberwiseInitTests: XCTestCase {
     }
 
     func testPrivatePropertiesAreExcluded() {
-        // Every private/fileprivate stored property is kept out of the init — private
-        // state is an implementation detail, not part of the init surface.
+        // Every private/fileprivate stored property is kept out of both the init and
+        // the typealias — private state is an implementation detail, not part of the
+        // public surface either way. Only one property (title) survives, so
+        // DataLayout collapses to its bare type.
         assertMacroExpansion(
             """
             @MemberwiseInit
@@ -214,6 +236,8 @@ final class MemberwiseInitTests: XCTestCase {
                     public init(title: String) {
                         self.title = title
                     }
+
+                    public typealias DataLayout = String
                 }
                 """,
             macros: macros
@@ -221,9 +245,13 @@ final class MemberwiseInitTests: XCTestCase {
     }
 
     func testViewBuilderPropertiesGetBuilderParameters() {
-        // @ViewBuilder carries onto the parameter. A stored closure (() -> Content)
-        // becomes an @escaping builder closure; a stored value (Content) becomes a
-        // () -> Content builder the init calls (self.footer = footer()).
+        // @ViewBuilder carries onto the init parameter. A stored closure
+        // (() -> Content) becomes an @escaping builder closure; a stored value
+        // (Content) becomes a () -> Content builder the init calls
+        // (self.footer = footer()). The DataLayout typealias ignores @ViewBuilder
+        // entirely: footer keeps its own type (Content), not a builder closure —
+        // there's no parameter position inside a tuple type for the trailing-closure
+        // sugar wrapping exists to enable, and a closure isn't Equatable/storable.
         assertMacroExpansion(
             """
             @MemberwiseInit
@@ -244,6 +272,8 @@ final class MemberwiseInitTests: XCTestCase {
                         self.content = content
                         self.footer = footer()
                     }
+
+                    public typealias DataLayout = (title: String, content: () -> Content, footer: Content)
                 }
                 """,
             macros: macros
@@ -272,6 +302,58 @@ final class MemberwiseInitTests: XCTestCase {
                         self.x = x
                         self.y = y
                     }
+
+                    public typealias DataLayout = (x: Double, y: Double)
+                }
+                """,
+            macros: macros
+        )
+    }
+
+    func testOnePropertyCollapsesDataLayoutToItsBareType() {
+        // No 1-tuples in Swift, so (value: Int) as a type is just Int.
+        assertMacroExpansion(
+            """
+            @MemberwiseInit
+            public struct Box {
+                public let value: Int
+            }
+            """,
+            expandedSource: """
+                public struct Box {
+                    public let value: Int
+
+                    public init(value: Int) {
+                        self.value = value
+                    }
+
+                    public typealias DataLayout = Int
+                }
+                """,
+            macros: macros
+        )
+    }
+
+    func testTwoPropertiesGetATupleDataLayout() {
+        assertMacroExpansion(
+            """
+            @MemberwiseInit
+            public struct Point {
+                public let x: Int
+                public let y: Int
+            }
+            """,
+            expandedSource: """
+                public struct Point {
+                    public let x: Int
+                    public let y: Int
+
+                    public init(x: Int, y: Int) {
+                        self.x = x
+                        self.y = y
+                    }
+
+                    public typealias DataLayout = (x: Int, y: Int)
                 }
                 """,
             macros: macros

@@ -4,9 +4,8 @@ import SwiftSyntaxMacros
 
 // MARK: - Stored-property model
 
-/// A stored property that participates in a member macro's generated initializer.
-/// Shared between `@MemberwiseInit` and `@DataLayoutInit` — both read the same
-/// property surface, they just render it differently (one param each vs. one tuple).
+/// A stored property that participates in `@MemberwiseInit`'s generated init and
+/// `DataLayout` typealias.
 public struct StoredProperty {
     public let name: String
     public let type: TypeSyntax?
@@ -170,8 +169,8 @@ public func isComputed(_ accessorBlock: AccessorBlockSyntax) -> Bool {
 // MARK: - Diagnostics
 
 /// Shared diagnostics for member macros generating an init from stored properties.
-/// `macroName` (e.g. `"MemberwiseInit"`, `"DataLayoutInit"`) names the offending
-/// attribute in the message.
+/// `macroName` (e.g. `"MemberwiseInit"`) names the offending attribute in the
+/// message.
 public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     public let message: String
     public let id: String

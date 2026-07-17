@@ -6,14 +6,15 @@ import SwiftSyntax
 /// footer: Content`, not a closure) becomes a `() -> T` builder when `wrapViewBuilder`
 /// is true.
 ///
-/// That wrapping is a deliberate divergence between the two renderers, not shared
-/// behavior: `@MemberwiseInit` wants it (`wrapViewBuilder: true`, the default) — it's
-/// what buys real trailing-closure call-site sugar (`Card(...) { content }`).
-/// `@DataLayoutInit` passes `false` — there is no parameter position inside a tuple
-/// literal for that sugar to attach to, so wrapping buys nothing there, and it's
-/// actively wrong: a closure isn't `Equatable`/storable/diffable, which defeats
-/// `DataLayout`'s whole purpose. So `@DataLayoutInit`'s tuple field for such a
-/// property is just its own declared type (`Content`), matching every other field.
+/// `@MemberwiseInit` calls this twice, for two different purposes, with opposite
+/// settings: once per init parameter with `wrapViewBuilder: true` (the default) —
+/// that's what buys real trailing-closure call-site sugar (`Card(...) { content }`)
+/// — and once per `DataLayout` typealias field with `wrapViewBuilder: false`. There
+/// is no parameter position inside a tuple type for that trailing-closure sugar to
+/// attach to, so wrapping would buy nothing there, and it's actively wrong: a
+/// closure isn't `Equatable`/storable/diffable, which defeats `DataLayout`'s whole
+/// purpose. So a `@ViewBuilder`-stored-value field in the typealias is just its own
+/// declared type (`Content`), matching every other field.
 func baseTypeText(_ p: StoredProperty, wrapViewBuilder: Bool = true) -> String {
     let typeStr = p.type?.trimmedDescription ?? ""
     if p.isBinding { return "Binding<\(typeStr)>" }
@@ -23,16 +24,15 @@ func baseTypeText(_ p: StoredProperty, wrapViewBuilder: Bool = true) -> String {
     return typeStr
 }
 
-/// The member-init assignment for one field, reading from `source` — a bare
-/// parameter name (`@MemberwiseInit`, and `@DataLayoutInit`'s single-property
-/// fallback) or `dataLayout.<name>` (`@DataLayoutInit`'s tuple case). A `@Binding`
-/// assigns its backing storage (`self._x`); with `wrapViewBuilder` true, a
-/// `@ViewBuilder`-stored value calls the builder closure (`self.x = x()`) instead of
-/// assigning it directly — see `baseTypeText` for why `@DataLayoutInit` passes
-/// `false` here and skips that call.
-func fieldAssignment(_ p: StoredProperty, source: String, wrapViewBuilder: Bool = true) -> String {
+/// The init assignment for one field, reading from the bare parameter `source`. A
+/// `@Binding` assigns its backing storage (`self._x`); a `@ViewBuilder`-stored value
+/// calls the builder closure (`self.x = x()`) instead of assigning it directly.
+/// Only used for the init — the `DataLayout` typealias is a plain type declaration
+/// with no assignments to render, so unlike `baseTypeText` this has no
+/// `wrapViewBuilder` parameter to thread through.
+func fieldAssignment(_ p: StoredProperty, source: String) -> String {
     if p.isBinding { return "    self._\(p.name) = \(source)" }
-    if wrapViewBuilder, p.isViewBuilder, !(p.type.map(isFunctionType) ?? false) {
+    if p.isViewBuilder, !(p.type.map(isFunctionType) ?? false) {
         return "    self.\(p.name) = \(source)()"
     }
     return "    self.\(p.name) = \(source)"

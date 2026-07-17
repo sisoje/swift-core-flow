@@ -5,7 +5,12 @@ import SwiftUI
 // MARK: - MemberwiseInit
 
 // @MemberwiseInit writes the memberwise initializer at the struct's own access
-// level — the `public init` Swift refuses to synthesize for a public type.
+// level — the `public init` Swift refuses to synthesize for a public type — plus a
+// `DataLayout` typealias bundling the same properties into a tuple alongside it:
+// `public typealias DataLayout = (id: UUID, name: String, isActive: Bool, onmain: @MainActor () -> Void,
+//     onChange: () async -> Void, onRename: @Sendable (String, Int) async -> Void, onDone: (() -> Void)?)`
+// — no defaults, no @escaping, unlike the init right above it (tuple element types
+// support neither).
 
 @MemberwiseInit
 public struct User {
@@ -29,13 +34,17 @@ public struct User {
 
 @MemberwiseInit
 @Observable public final class Settings {
-    var count: Int = 0
+    var count: Int = 0  // one property → `typealias DataLayout = Int`, no 1-tuple
 }
 
 // On a View: @State/@Environment are private, so they're excluded; @Binding is
 // threaded as Binding<Bool>; @ViewBuilder carries onto the parameters. Generated init:
 // `init(isOn: Binding<Bool>, title: String, subtitle: String? = nil, model: Settings,
 //       @ViewBuilder content: @escaping () -> Content, @ViewBuilder footer: () -> Content)`.
+// The DataLayout typealias diverges from that init in two ways: no default for
+// subtitle, and footer keeps its own type (`Content`) instead of the `() -> Content`
+// builder the init uses — `typealias DataLayout = (isOn: Binding<Bool>, title: String,
+// subtitle: String?, model: Settings, content: () -> Content, footer: Content)`.
 @MemberwiseInit
 public struct ProfileCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -70,32 +79,11 @@ let merged = #pick(from: store, \.expenses => "zzz", \.limit, from: actions, \.a
 let big = (val1: 1, val2: 2, val3: 3, val4: 4, val5: 5, val6: 6, val7: 7, val8: 8, val9: 9, val10: 10, val11: 11)
 let twoOfEleven = #pick(from: big, \.val3, \.val11)
 
-// MARK: - DataLayoutInit
-
-// @DataLayoutInit takes the same stored-property rules as @MemberwiseInit but
-// bundles them into ONE tuple-typed `dataLayout` parameter instead of one parameter
-// each. Two or more properties → a `DataLayout` typealias plus
-// `init(_ dataLayout: DataLayout)`; call site: `SomeStruct((x: 1, y: $binding))`.
-@DataLayoutInit
-public struct SomeStruct {
-    let x: Int
-    @Binding var y: Int
-}
-
-// A single property still gets a DataLayout — just not a tuple (Swift has no
-// 1-tuples: `(value: Int)` collapses to plain `Int`, no `.value` accessor). So
-// `Box.DataLayout` aliases `Int` directly, and the init stays unlabeled:
-// `init(_ value: Int) { self.value = value }`.
-@DataLayoutInit
-public struct Box {
-    let value: Int
-}
-
 // MARK: - Capability
 
 // @Capability bundles every eligible computed property/method into one
 // `Capability` tuple typealias + `capability` computed property. Unlike
-// @MemberwiseInit/@DataLayoutInit, it works fine on an extension — it collects
+// @MemberwiseInit, it works fine on an extension — it collects
 // COMPUTED members (which extensions can declare), not stored ones (which they
 // can't). `me`, `zola`, `zola2` (stored) don't participate; `x` (computed),
 // `doSomething`, `doSomethingElse`, `meme` (methods) do. Generated:
@@ -112,6 +100,7 @@ struct MySomething {
 }
 
 @Capability
+@MainActor
 extension MySomething {
     var x: Int {
         zola * me

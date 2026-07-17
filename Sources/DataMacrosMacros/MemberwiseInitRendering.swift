@@ -1,8 +1,9 @@
 import SwiftSyntax
 
 /// Render a memberwise initializer for `properties` at the given access level —
-/// one parameter per property. `access` is a modifier prefix such as `"public "` or
-/// `""` (internal).
+/// one parameter per property — plus a `DataLayout` typealias bundling the same
+/// properties into a tuple type. `access` is a modifier prefix such as `"public "`
+/// or `""` (internal).
 public func renderMemberwiseInit(properties: [StoredProperty], access: String) -> [DeclSyntax] {
     let initParams = properties.filter { !$0.isPrivate }
 
@@ -40,10 +41,45 @@ public func renderMemberwiseInit(properties: [StoredProperty], access: String) -
 
     // One relative indentation level: the `init` header/brace at column 0, the body
     // at 4 spaces. The member macro's output is re-indented into the type body.
-    let decl = """
+    let initDecl = """
         \(access)init(\(params.joined(separator: ", "))) {
         \(assignments)
         }
         """
-    return [DeclSyntax(stringLiteral: decl)]
+
+    var decls = [DeclSyntax(stringLiteral: initDecl)]
+    if let dataLayout = renderDataLayoutTypealias(properties: properties, access: access) {
+        decls.append(dataLayout)
+    }
+    return decls
+}
+
+/// The `DataLayout` typealias declaration for `properties` — a tuple bundling every
+/// non-private property, for API uniformity/discoverability alongside the memberwise
+/// init above. Two or more properties → a tuple; exactly one collapses to that
+/// property's bare type (Swift has no 1-tuples: `(x: T)` as a type collapses to
+/// plain `T`, no `.x` accessor); zero yields no typealias at all — there's nothing
+/// to alias, and a bare `init()` already covers that case above.
+///
+/// Always built with `wrapViewBuilder: false` (see `baseTypeText`), independent of
+/// the init's own rendering above: a `@ViewBuilder`-stored *value* field
+/// (`@ViewBuilder let footer: Content`) keeps its own type here (`Content`), not a
+/// `() -> Content` builder — there's no parameter position inside a tuple type for
+/// the trailing-closure sugar that wrapping exists to enable, and a closure would
+/// make `DataLayout` — meant to be data you pass around/store/diff — hold something
+/// that isn't `Equatable`. Function-typed fields likewise never get `@escaping`:
+/// that attribute is only legal directly on a function *parameter*, and a closure
+/// nested inside a tuple type is already escaping. Per-field defaults are dropped
+/// too — tuple element types don't support `= default`.
+func renderDataLayoutTypealias(properties: [StoredProperty], access: String) -> DeclSyntax? {
+    let initParams = properties.filter { !$0.isPrivate }
+    guard !initParams.isEmpty else { return nil }
+
+    let rhs =
+        initParams.count > 1
+        ? "(" + initParams.map { "\($0.name): \(baseTypeText($0, wrapViewBuilder: false))" }
+            .joined(separator: ", ") + ")"
+        : baseTypeText(initParams[0], wrapViewBuilder: false)
+
+    return DeclSyntax(stringLiteral: "\(access)typealias DataLayout = \(rhs)")
 }

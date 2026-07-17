@@ -130,7 +130,7 @@ private func isExcluded(_ modifiers: DeclModifierListSyntax) -> Bool {
 /// Render the `Capability` typealias + `capability` computed property for `members`,
 /// at the given access level. Two or more members get a tuple `Capability`; exactly
 /// one collapses to that member's bare type/value (Swift has no 1-tuples, same
-/// collapse `@DataLayoutInit` does).
+/// collapse @MemberwiseInit's DataLayout typealias does).
 func renderCapabilityMembers(members: [CapabilityMember], access: String) -> [DeclSyntax] {
     let isTuple = members.count > 1
 

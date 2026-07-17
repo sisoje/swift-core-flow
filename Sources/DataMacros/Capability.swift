@@ -21,8 +21,8 @@
 /// }
 /// ```
 ///
-/// Unlike `@MemberwiseInit`/`@DataLayoutInit` — which collect *stored* properties and
-/// therefore cannot usefully attach to an extension (extensions can't declare stored
+/// Unlike `@MemberwiseInit` — which collects *stored* properties and therefore
+/// cannot usefully attach to an extension (extensions can't declare stored
 /// properties, so there'd be nothing to find) — `@Capability` collects *computed*
 /// members, which extensions can declare freely. So `@Capability` works attached
 /// directly to a struct/class/actor, or to an extension of one; either way it only
@@ -40,9 +40,9 @@
 ///   reference to one — `mutating` methods.
 ///
 /// One eligible member collapses `Capability` to that member's bare type (Swift has no
-/// 1-tuples) and `capability` to that bare value, same collapse `@DataLayoutInit` does.
-/// Zero eligible members is a diagnostic, not an empty `Capability` — there's no
-/// sensible "empty capability."
+/// 1-tuples) and `capability` to that bare value — same collapse `@MemberwiseInit`'s
+/// `DataLayout` typealias does. Zero eligible members is a diagnostic, not an empty
+/// `Capability` — there's no sensible "empty capability."
 ///
 /// No `@Sendable` on the generated closure fields: marking them unconditionally would
 /// make the generated code fail to compile for any type that captures something

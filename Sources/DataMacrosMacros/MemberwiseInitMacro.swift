@@ -2,7 +2,8 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 
 /// Adds a memberwise `init` to the struct, class, or actor it is attached to, at the
-/// type's own access level.
+/// type's own access level — plus a `DataLayout` typealias bundling the same
+/// properties into a tuple, for API uniformity alongside it.
 ///
 /// Swift only *synthesizes* an `internal` memberwise initializer for a struct, and
 /// only when you write no init of your own; a class or actor gets none at all. This
@@ -10,9 +11,9 @@ import SwiftSyntaxMacros
 /// gets the `public init` Swift won't synthesize, and an `@Observable final class`
 /// gets the memberwise `init` it otherwise needs by hand.
 ///
-/// Entry-point boilerplate (`validatedProperties`) is shared with `@DataLayoutInit`;
-/// `renderMemberwiseInit` does the actual work. This type is just the `MemberMacro`
-/// conformance.
+/// Entry-point boilerplate is `validatedProperties`; `renderMemberwiseInit` does the
+/// actual work (including the `DataLayout` typealias — see its own doc comment in
+/// `MemberwiseInitRendering.swift`). This type is just the `MemberMacro` conformance.
 public enum MemberwiseInitMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,

@@ -9,7 +9,7 @@ final class CapabilityTests: XCTestCase {
 
     func testAttachedToAnExtensionBundlesComputedPropertiesAndMethods() {
         // Stored properties (me, zola, zola2) don't participate — only computed
-        // members do. This is the case @MemberwiseInit/@DataLayoutInit can't cover:
+        // members do. This is the case @MemberwiseInit can't cover:
         // an extension can't declare stored properties, but it can declare these.
         assertMacroExpansion(
             """
@@ -81,7 +81,7 @@ final class CapabilityTests: XCTestCase {
     }
 
     func testSingleEligibleMemberCollapsesToItsBareTypeNotATuple() {
-        // Same collapse @DataLayoutInit does for one property — Swift has no
+        // Same collapse @MemberwiseInit's DataLayout typealias does for one property — Swift has no
         // 1-tuples, so (x: Int) as a type is indistinguishable from plain Int.
         assertMacroExpansion(
             """

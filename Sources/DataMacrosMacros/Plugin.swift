@@ -5,7 +5,6 @@ import SwiftSyntaxMacros
 struct DataMacrosPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         MemberwiseInitMacro.self,
-        DataLayoutInitMacro.self,
         CapabilityMacro.self,
         PickMacro.self,
     ]

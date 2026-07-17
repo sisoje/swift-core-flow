@@ -18,10 +18,10 @@ let package = Package(
     targets: [
         // Every macro's implementation, compiled as one compiler plugin; never ships
         // to consumers. One file per macro (MemberwiseInitMacro.swift,
-        // DataLayoutInitMacro.swift, PickMacro.swift), plus the shared
-        // stored-property collection + rendering helpers (StoredProperty.swift,
-        // MemberMacroEntry.swift, *Rendering.swift) that the init-generating macros
-        // build on, and TuplePicker's own key-path parsing (KeyPathPick.swift,
+        // CapabilityMacro.swift, PickMacro.swift), plus the shared stored-property
+        // collection + rendering helpers (StoredProperty.swift, MemberMacroEntry.swift,
+        // FieldRendering.swift, MemberwiseInitRendering.swift) that @MemberwiseInit
+        // builds on, and TuplePicker's own key-path parsing (KeyPathPick.swift,
         // TuplePickerSupport.swift). One Plugin.swift lists every macro type.
         .macro(
             name: "DataMacrosMacros",
@@ -33,7 +33,7 @@ let package = Package(
             ]
         ),
         // The public-facing library: every macro's attribute/expression declaration,
-        // one file per macro (MemberwiseInit.swift, DataLayoutInit.swift,
+        // one file per macro (MemberwiseInit.swift, Capability.swift,
         // TuplePicker.swift).
         .target(name: "DataMacros", dependencies: ["DataMacrosMacros"]),
         // All tests — macro-expansion + diagnostic coverage per macro, plus
