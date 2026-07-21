@@ -14,6 +14,15 @@ granularity nobody needed.)
 - Format: `swift format --in-place --recursive Sources Tests`
 - Examples: `Sources/Examples/main.swift` — one playground, imports and exercises every
   macro in the package. `swift run Examples`.
+- Example apps: `ExampleApps/<Name>/project.yml` — real apps (xcodegen; the
+  generated `.xcodeproj` is gitignored) verifying live behavior no headless
+  test can, via XCUITests. `cd ExampleApps/GestureState && xcodegen generate
+  && xcodebuild -project GestureStateExample.xcodeproj -scheme
+  GestureStateExample -destination "platform=iOS Simulator,name=iPhone 17
+  Pro" test` — its one UI test performs a real drag and asserts both live
+  behaviors at once: `Core`'s mirrored `@GestureState` streams mid-gesture
+  offsets and resets on release, and the offset writes back through the
+  `@State`→`@Binding` substitution.
 
 Targets Swift 6.3 (`swift-tools-version: 6.3`); swift-syntax `600.0.0..<700.0.0`, whose
 APIs are stable across the whole Swift 6.x line. Swift 6 language mode (strict
