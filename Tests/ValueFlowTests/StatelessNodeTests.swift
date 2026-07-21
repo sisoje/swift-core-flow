@@ -14,6 +14,7 @@ import ValueFlow
 @StatelessNode
 struct StatefulCard: View {
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
+    @Namespace private var ns: Namespace.ID
     @State private var isExpanded: Bool = false
     @FocusState private var isFocused: Bool
     @Binding var isOn: Bool
@@ -113,5 +114,25 @@ extension StatefulCard.StatelessNode {
 
         let snap = card.statelessNode
         #expect(snap.colorScheme == .light)  // default EnvironmentValues, no live view installed
+    }
+
+    @Test func statelessCapturesNamespaceAsAPlainLetFieldLikeEnvironment() {
+        // @Namespace has no projectedValue and a get-only wrappedValue (verified
+        // directly) — grouped with @Environment, so it's a plain, unattributed
+        // `let` here too, captured once per `.statelessNode` read, not mirrored
+        // live. Unlike @Environment's default EnvironmentValues, reading
+        // @Namespace's wrappedValue outside a live view isn't even stable
+        // across separate reads — verified directly: two independent
+        // `.statelessNode.ns` reads on the same instance mint two different
+        // IDs, since there's no live view identity for it to resolve against.
+        // So this only asserts the field is reachable and of the right type,
+        // not that it's stable — that instability is @Namespace's own
+        // behavior outside SwiftUI's render pipeline, not a bug here.
+        let isOnBinding = Binding<Bool>(get: { true }, set: { _ in })
+        let card = StatefulCard(isOn: isOnBinding, title: "x")
+
+        let snap = card.statelessNode
+        let ns: Namespace.ID = snap.ns
+        #expect(ns == ns)
     }
 }

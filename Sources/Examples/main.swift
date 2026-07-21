@@ -88,6 +88,13 @@ public struct User {
 @DataLayout
 @StatelessNode
 public struct ProfileCard<Content: View>: View {
+    // Namespace.wrappedValue has no setter and no projectedValue at all (verified
+    // directly) — this macro can't thread it through an init parameter, so unlike
+    // real-world SwiftUI (where non-private @Namespace is common), it's required
+    // private here, same as @Environment. No explicit type needed, unlike every
+    // other recognized wrapper: @Namespace has exactly one possible wrapped
+    // type, Namespace.ID, so this macro fills it in without a type checker.
+    @Namespace private var ns
     @FocusState private var focused: Bool  // @FocusState has no init(wrappedValue:) — no inline default allowed
     @Query(animation: Animation.bouncy) private var items: [Item]
     @Environment(\.colorScheme) private var colorScheme: ColorScheme

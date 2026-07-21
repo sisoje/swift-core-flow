@@ -78,6 +78,42 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         )
     }
 
+    func testNamespaceIsGroupedWithEnvironmentAsAPlainLetAndNeedsNoExplicitType() {
+        // @Namespace has no projectedValue at all (unlike @State/@AppStorage/
+        // @FocusState) and a get-only wrappedValue (like @Environment) —
+        // verified directly against the real SwiftUI interface — so it gets
+        // the exact same plain, unattributed `let` treatment @Environment does,
+        // read via a bare `self.x`. Unlike every other recognized wrapper,
+        // `@Namespace` needs no explicit type annotation at all: it has exactly
+        // one possible wrapped type (`Namespace.ID`), so this macro fills that
+        // in itself rather than diagnosing a missing type.
+        assertMacroExpansion(
+            """
+            @StatelessNode
+            struct HeroCard {
+                @Namespace private var ns
+                let title: String
+            }
+            """,
+            expandedSource: """
+                struct HeroCard {
+                    @Namespace private var ns
+                    let title: String
+
+                    struct StatelessNode {
+                        let ns: Namespace.ID
+                        let title: String
+                    }
+
+                    var statelessNode: StatelessNode {
+                        StatelessNode(ns: self.ns, title: self.title)
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
     func testZeroEligibleFieldsStillGeneratesAnEmptyStatelessNodeStruct() {
         assertMacroExpansion(
             """

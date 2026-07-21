@@ -1,9 +1,9 @@
 import SwiftSyntax
 
 /// Renders `@StatelessNode`'s two generated members: a nested `StatelessNode` struct
-/// over `OutFlow`'s field set *plus* `@Environment` (`outFlowProperties`
-/// itself excludes `@Environment` — see its own doc comment, in
-/// `DataLayoutRendering.swift` — but `@StatelessNode` still captures it, just
+/// over `OutFlow`'s field set *plus* `@Environment`/`@Namespace`
+/// (`outFlowProperties` itself excludes both — see its own doc comment, in
+/// `DataLayoutRendering.swift` — but `@StatelessNode` still captures them, just
 /// differently than `OutFlow` ever did), plus a `statelessNode` computed property
 /// building one from the current instance.
 ///
@@ -59,7 +59,7 @@ import SwiftSyntax
 ///   `@Binding` does — just spelling a different wrapper — and round-trips for
 ///   free: `snap.name` reads the unwrapped value, `snap.$name` hands back a
 ///   real `FocusState<T>.Binding` usable directly with `.focused(_:)`.
-/// - `@Environment` → a plain `let name: T` — no attribute at all.
+/// - `@Environment`/`@Namespace` → a plain `let name: T` — no attribute at all.
 ///   `@Environment`'s `wrappedValue` has no public setter (verified directly:
 ///   `error: cannot assign to property: 'colorScheme' is a get-only
 ///   property`), but that only blocks preserving the *attribute*; a plain,
@@ -67,7 +67,12 @@ import SwiftSyntax
 ///   assigns `self.name = name` like any other field. Always `let`, not
 ///   mirroring the original's `let`/`var` — the original is *always* `var`
 ///   (every property wrapper requires it), but the captured copy is a
-///   one-time snapshot, immutable by design.
+///   one-time snapshot, immutable by design. `@Namespace` is grouped with
+///   `@Environment` here rather than getting its own case: same get-only
+///   `wrappedValue` problem (verified directly), and unlike
+///   `@State`/`@AppStorage`/`@FocusState` it has no `projectedValue` at all to
+///   fall back on for a `@Binding`-style substitution, so a plain `let` is the
+///   only option.
 ///
 /// Every other field — plain, `@ViewBuilder`, `@Query`, `@Bindable`, or any other
 /// property wrapper — mirrors the *original* property's own attribute (if it has
@@ -109,7 +114,7 @@ func renderStatelessNode(
     // `outFlowProperties` documents for OutFlow/InFlow.
     let fields = properties.filter {
         !$0.isPrivate || $0.isQuery || $0.isStateOrAppStorage || $0.isEnvironment
-            || $0.isFocusState
+            || $0.isFocusState || $0.isNamespace
     }
 
     // Every field is internal — never `access` — regardless of the attached
@@ -130,7 +135,7 @@ func renderStatelessNode(
             let type = p.type?.trimmedDescription ?? ""
             return "@FocusState<\(type)>.Binding var \(p.name): \(type)"
         }
-        if p.isEnvironment {
+        if p.isEnvironment || p.isNamespace {
             return "let \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         // Query gets its OutFlow-synthesized type with no attribute (no wrapper

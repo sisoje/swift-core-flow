@@ -738,11 +738,11 @@ final class DataLayoutTests: XCTestCase {
     }
 
     func testDiagnosesNonPrivateSourceOfTruthWrappers() {
-        // @State/@Environment/@Query/@AppStorage/@FocusState are a view's own
-        // source of truth, never something a caller supplies — enforced here
-        // rather than accommodated: every downstream renderer can assume these
-        // five are always private, with no "what if it's also public" case to
-        // handle.
+        // @State/@Environment/@Query/@AppStorage/@FocusState/@Namespace are a
+        // view's own source of truth, never something a caller supplies —
+        // enforced here rather than accommodated: every downstream renderer can
+        // assume these six are always private, with no "what if it's also
+        // public" case to handle.
         assertMacroExpansion(
             """
             @DataLayout
@@ -758,7 +758,7 @@ final class DataLayoutTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'isExpanded' must be private — @State/@Environment/@Query/@AppStorage/@FocusState are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                        "'isExpanded' must be private — @State/@Environment/@Query/@AppStorage/@FocusState/@Namespace are a view's own source of truth, not something a caller supplies (use @Binding for that).",
                     line: 3,
                     column: 16
                 )
