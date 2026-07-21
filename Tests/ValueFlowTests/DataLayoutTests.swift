@@ -277,15 +277,19 @@ final class DataLayoutTests: XCTestCase {
         // @Binding is threaded through as Binding<T>; every other wrapper (@State,
         // @Environment, …) is excluded from the INIT — but @Environment/@State
         // still need an explicit type even though private: @Environment because
-        // @StatelessNode (a separate macro) mirrors it verbatim, @State because it's
-        // one of OutFlow's recognized wrapper kinds. OutFlow itself no longer
-        // includes @Environment at all (see below) — only @State/@AppStorage/
-        // @Query, plus non-private fields.
+        // OutFlow reads its type too now (see below), @State because it's one of
+        // OutFlow's other recognized wrapper kinds.
         // Binding<T> carries into the InFlowSplat typealias too, and the inFlow
-        // property reads its projected form (_isOn), not the wrapped Bool
-        // value — OutFlow reads isOn the same way (it's non-private), but reads
-        // isExpanded via its OWN projected form ($isExpanded), since @State's
-        // wrapper instance (_isExpanded) is a State<Bool>, not a Binding<Bool>.
+        // property reads its projected form ($isOn), not the wrapped Bool
+        // value — the same $-projection convention @State's own read
+        // ($isExpanded) uses, not a @Binding-only special case (verified
+        // directly that $isOn and the backing-storage _isOn give the
+        // identical Binding<Bool>, write-through included; _isOn is kept only
+        // on the init's assignment side, where $isOn is immutable). OutFlow
+        // reads isOn the same way (it's non-private) and now includes
+        // colorScheme too (a plain, unattributed let, read the same way any
+        // non-private field is) — every private source-of-truth wrapper this
+        // package recognizes belongs in OutFlow, no exceptions.
         assertMacroExpansion(
             """
             @DataLayout
@@ -317,13 +321,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = (isOn: Binding<Bool>, title: String)
 
                     public var inFlow: InFlow {
-                        (isOn: _isOn, title: title)
+                        (isOn: $isOn, title: title)
                     }
 
-                    public typealias OutFlow = (isOn: Binding<Bool>, isExpanded: Binding<Bool>, title: String)
+                    public typealias OutFlow = (colorScheme: ColorScheme, isOn: Binding<Bool>, isExpanded: Binding<Bool>, title: String)
 
                     public var outFlow: OutFlow {
-                        (isOn: _isOn, isExpanded: $isExpanded, title: title)
+                        (colorScheme: colorScheme, isOn: $isOn, isExpanded: $isExpanded, title: title)
                     }
                 }
                 """,
@@ -331,11 +335,12 @@ final class DataLayoutTests: XCTestCase {
         )
     }
 
-    func testPrivatePropertiesAreExcluded() {
-        // Every private/fileprivate stored property is kept out of both the init and
-        // the typealias — private state is an implementation detail, not part of the
-        // public surface either way. Only one property (title) survives, so
-        // InFlowSplat collapses to its bare type.
+    func testDiagnosesPlainPrivatePropertyWithNoWrapper() {
+        // A private property with no recognized wrapper used to fall through
+        // silently, excluded from the init/typealiases with nothing to show for
+        // it in OutFlow either — now it's a compile error: pure data flow has no
+        // room for opaque private state that's neither a source of truth nor
+        // something a caller supplies.
         assertMacroExpansion(
             """
             @DataLayout
@@ -352,30 +357,58 @@ final class DataLayoutTests: XCTestCase {
                     private var cache: Int = 0
                     fileprivate var scratch = ""
                     private let seed = 42
-
-                    public init(title: String) {
-                        self.title = title
-                    }
-
-                    public typealias InFlowSplat = String
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
-                        Self(title: flow)
-                    }
-
-                    public typealias InFlow = String
-
-                    public var inFlow: InFlow {
-                        title
-                    }
-
-                    public typealias OutFlow = String
-
-                    public var outFlow: OutFlow {
-                        title
-                    }
                 }
                 """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message:
+                        "'cache' is private with no property wrapper — @DataLayout has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace).",
+                    line: 4,
+                    column: 17
+                ),
+                DiagnosticSpec(
+                    message:
+                        "'scratch' is private with no property wrapper — @DataLayout has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace).",
+                    line: 5,
+                    column: 21
+                ),
+                DiagnosticSpec(
+                    message:
+                        "'seed' is private with no property wrapper — @DataLayout has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace).",
+                    line: 6,
+                    column: 17
+                ),
+            ],
+            macros: macros
+        )
+    }
+
+    func testCallerSuppliedWrapperDeclaredPrivateIsDiagnosed() {
+        // @Binding/@Bindable/@ViewBuilder are the opposite of a source-of-truth
+        // wrapper — a caller supplies them through the generated init —
+        // so declaring one private makes it unreachable and is rejected with a
+        // dedicated message, distinct from the generic "unrecognized wrapper"
+        // diagnostic (these three ARE recognized, just never allowed private).
+        assertMacroExpansion(
+            """
+            @DataLayout
+            struct V {
+                @Binding private var isOn: Bool
+            }
+            """,
+            expandedSource: """
+                struct V {
+                    @Binding private var isOn: Bool
+                }
+                """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message:
+                        "'isOn' uses @Binding, which a caller supplies through @DataLayout's generated init — declaring it private makes it unreachable. Remove `private`/`fileprivate` from 'isOn'.",
+                    line: 3,
+                    column: 26
+                )
+            ],
             macros: macros
         )
     }
@@ -592,15 +625,17 @@ final class DataLayoutTests: XCTestCase {
         )
     }
 
-    func testOutFlowSynthesizesQueryAsAResultFetchErrorModelContextTuple() {
+    func testOutFlowSynthesizesQueryAsAWrappedValueFetchErrorTupleViaPick() {
         // @Query is NOT a passthrough of its declared type the way @Environment
-        // is — OutFlow always synthesizes (result: WrappedType, fetchError: Error?,
-        // modelContext: ModelContext). fetchError/modelContext are real members of
-        // SwiftData's Query wrapper *instance* (verified directly against the
-        // SwiftData interface: `@MainActor @preconcurrency public var fetchError:
-        // (any Error)? { get }`, `public var modelContext: ModelContext { get }`),
-        // reached via the underscore-prefixed backing storage — not synthesized
-        // placeholders.
+        // is — OutFlow always synthesizes (wrappedValue: WrappedType, fetchError:
+        // Error?), via #pick — this package's own TuplePicker macro, reused here
+        // rather than hand-rolling the same tuple-literal construction.
+        // wrappedValue/fetchError are real members of SwiftData's Query wrapper
+        // *instance* (verified directly against the SwiftData interface:
+        // `@MainActor @preconcurrency public var fetchError: (any Error)? {
+        // get }`), picked verbatim, no renaming. modelContext is deliberately
+        // left out — it's plumbing for issuing further queries/saves, not a
+        // snapshot value worth asserting on.
         assertMacroExpansion(
             """
             @DataLayout
@@ -630,10 +665,10 @@ final class DataLayoutTests: XCTestCase {
                         title
                     }
 
-                    public typealias OutFlow = (items: (result: [Item], fetchError: Error?, modelContext: ModelContext), title: String)
+                    public typealias OutFlow = (items: (wrappedValue: [Item], fetchError: Error?), title: String)
 
                     public var outFlow: OutFlow {
-                        (items: (result: items, fetchError: _items.fetchError, modelContext: _items.modelContext), title: title)
+                        (items: #pick(from: _items, \\.wrappedValue, \\.fetchError), title: title)
                     }
                 }
                 """,
@@ -759,16 +794,21 @@ final class DataLayoutTests: XCTestCase {
     }
 
     func testDiagnosesMissingType() {
+        // count = 0 would be a Bool/Int/String literal default, inferable
+        // without a type annotation (see
+        // testLiteralDefaultsInferBoolIntAndStringWithNoExplicitAnnotation) —
+        // this uses a call expression instead, which isn't one of those three
+        // recognized literal kinds, to keep testing the genuine missing-type path.
         assertMacroExpansion(
             """
             @DataLayout
             public struct Thing {
-                public var count = 0
+                public var count = someDefault()
             }
             """,
             expandedSource: """
                 public struct Thing {
-                    public var count = 0
+                    public var count = someDefault()
                 }
                 """,
             diagnostics: [
@@ -779,6 +819,57 @@ final class DataLayoutTests: XCTestCase {
                     column: 16
                 )
             ],
+            macros: macros
+        )
+    }
+
+    func testLiteralDefaultsInferBoolIntAndStringWithNoExplicitAnnotation() {
+        // Simple syntactic literal inference — Bool/Int/String are the only
+        // three literal kinds unambiguous enough to recognize without a real
+        // type checker (no numeric-literal-defaults-to-Double, no protocol
+        // witness resolution). Same spirit as @Namespace's auto-inferred
+        // Namespace.ID above: a specific, unambiguous case handled without
+        // giving up the macro's syntax-only design.
+        assertMacroExpansion(
+            """
+            @DataLayout
+            struct Flags {
+                var isOn = false
+                var count = 0
+                var label = "x"
+            }
+            """,
+            expandedSource: """
+                struct Flags {
+                    var isOn = false
+                    var count = 0
+                    var label = "x"
+
+                    init(isOn: Bool = false, count: Int = 0, label: String = "x") {
+                        self.isOn = isOn
+                        self.count = count
+                        self.label = label
+                    }
+
+                    typealias InFlowSplat = (Bool, Int, String)
+
+                    static func makeFlow(_ flow: InFlowSplat) -> Self {
+                        Self(isOn: flow.0, count: flow.1, label: flow.2)
+                    }
+
+                    typealias InFlow = (isOn: Bool, count: Int, label: String)
+
+                    var inFlow: InFlow {
+                        (isOn: isOn, count: count, label: label)
+                    }
+
+                    typealias OutFlow = (isOn: Bool, count: Int, label: String)
+
+                    var outFlow: OutFlow {
+                        (isOn: isOn, count: count, label: label)
+                    }
+                }
+                """,
             macros: macros
         )
     }

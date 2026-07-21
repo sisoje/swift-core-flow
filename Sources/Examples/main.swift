@@ -77,16 +77,16 @@ public struct User {
 // Settings, () -> Content, Content)`, unlabeled like every InFlowSplat.
 // makeFlow(_:) re-wraps footer into a closure to satisfy the init's builder
 // param, reading positionally: `Self(isOn: flow.0, ..., footer: { flow.5 })`.
-// @StatelessNode auto-detects View/ViewModifier off the attached type's own
-// inheritance clause (syntactically — see StatelessNodeMacro.swift's
+// @Shell auto-detects View/ViewModifier off the attached type's own
+// inheritance clause (syntactically — see ShellMacro.swift's
 // `detectHostKind`) and, when it matches, generates two more things beyond the
-// usual StatelessNode struct/statelessNode property: `StatelessNode` itself is additionally
+// usual Core struct/core property: `Core` itself is additionally
 // declared `: View` (here) or `: ViewModifier` (VM, below), and ProfileCard gets
-// a generated `var body: some View { statelessNode }` for free — the mechanical
+// a generated `var body: some View { core }` for free — the mechanical
 // delegation, not hand-written. Only the *real* body implementation, on
-// `StatelessNode` itself, is left for hand-written code below.
+// `Core` itself, is left for hand-written code below.
 @DataLayout
-@StatelessNode
+@Shell
 public struct ProfileCard<Content: View>: View {
     // Namespace.wrappedValue has no setter and no projectedValue at all (verified
     // directly) — this macro can't thread it through an init parameter, so unlike
@@ -98,26 +98,26 @@ public struct ProfileCard<Content: View>: View {
     @FocusState private var focused: Bool  // @FocusState has no init(wrappedValue:) — no inline default allowed
     @Query(animation: Animation.bouncy) private var items: [Item]
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
-    @State private var isExpanded: Bool = false
+    @State private var counter = 0
     // @SceneStorage's wrappedValue is get/nonmutating-set and its projectedValue
     // genuinely IS Binding<Bool> (verified directly, same shape as @AppStorage) —
     // so it shares @State/@AppStorage's exact treatment: Binding<Bool> in OutFlow,
-    // @Binding var in StatelessNode, both read via $isPinned.
-    @SceneStorage("isPinned") private var isPinned: Bool = false
+    // @Binding var in Core, both read via $isPinned.
+    @SceneStorage("isPinned") private var isPinned = true
     @Binding var isOn: Bool
-    let title: String
+    var title = "a"
     var subtitle: String? = "x"
     @Bindable var model: Settings
     @ViewBuilder let content: () -> Content
     @ViewBuilder let footer: Content
 }
 
-// The real implementation — StatelessNode already conforms to View (declared by the
+// The real implementation — Core already conforms to View (declared by the
 // macro above), so this extension only needs to satisfy the requirement, not
 // redeclare the conformance.
-extension ProfileCard.StatelessNode {
-    // colorScheme is a plain, internal `let` on StatelessNode — captured once when
-    // `.statelessNode` was computed, same as every other field. StatelessNode itself
+extension ProfileCard.Core {
+    // colorScheme is a plain, internal `let` on Core — captured once when
+    // `.core` was computed, same as every other field. Core itself
     // is always internal, regardless of ProfileCard's own `public` access — this
     // is a testing/internal-body seam, not part of ProfileCard's public API.
     var body: some View {
@@ -125,19 +125,19 @@ extension ProfileCard.StatelessNode {
     }
 }
 
-// Same story for ViewModifier: @StatelessNode sees `: ViewModifier` on VM and
-// generates `func body(content: Content) -> some View { content.modifier(statelessNode) }`
-// on VM, plus `: ViewModifier` on VM.StatelessNode — via `.modifier(_:)`, so there's
-// no need to unify VM's own `Content` with VM.StatelessNode's (verified directly
-// that forwarding `content` straight into StatelessNode's own `body(content:)`
-// instead does not compile — see StatelessNodeMacro.swift's doc comment).
+// Same story for ViewModifier: @Shell sees `: ViewModifier` on VM and
+// generates `func body(content: Content) -> some View { content.modifier(core) }`
+// on VM, plus `: ViewModifier` on VM.Core — via `.modifier(_:)`, so there's
+// no need to unify VM's own `Content` with VM.Core's (verified directly
+// that forwarding `content` straight into Core's own `body(content:)`
+// instead does not compile — see ShellMacro.swift's doc comment).
 @DataLayout
-@StatelessNode
+@Shell
 public struct VM: ViewModifier {
     @State private var c: Int = 0
 }
 
-extension VM.StatelessNode {
+extension VM.Core {
     func body(content: Content) -> some View {
         content.opacity(c == 0 ? 1 : 0.5)
     }
@@ -209,37 +209,40 @@ let pointFieldNames = Reflector.fieldNames(of: Point.InFlow.self)  // ["x", "y"]
 // being a class, not about what its fields are.
 let profileCardFieldNames = Reflector.fieldNames(of: ProfileCard<Text>.InFlow.self)
 
-// Point OutFlow, not InFlow, to see isExpanded/isPinned too — @State/
-// @SceneStorage are private, so InFlow excludes them entirely, but OutFlow
-// includes @Query/@State/@AppStorage/@SceneStorage alongside the public data.
-// colorScheme is NOT here — @Environment is deliberately excluded from OutFlow
-// (see below), even though `StatelessNode` (below) captures it fine.
+// Point OutFlow, not InFlow, to see isExpanded/isPinned/colorScheme/ns too —
+// @State/@SceneStorage/@Environment/@Namespace are private, so InFlow excludes
+// them entirely, but OutFlow includes every recognized private source-of-truth
+// wrapper alongside the public data, no exceptions.
 let profileCardOutFlowFieldNames = Reflector.fieldNames(of: ProfileCard<Text>.OutFlow.self)
 
 // MARK: - OutFlow
 
 // outFlow mixes InFlow's fields with the view's own externally-relevant
-// CAPTURABLE private state (@Query/@State/@AppStorage/@FocusState — NOT
-// @Environment, see below), in declaration order — not data-layout fields
-// first, wrapper fields appended after: `focused` (@FocusState) comes first
+// CAPTURABLE private state — every recognized source-of-truth wrapper this
+// package supports, no exceptions — in declaration order — not data-layout
+// fields first, wrapper fields appended after: `ns` (@Namespace) comes first
 // here because it's declared first on ProfileCard. @Query is always
-// synthesized as (result: WrappedType, fetchError: Error?, modelContext:
-// ModelContext) — items: [Item] becomes items: (result: [Item], fetchError:
-// Error?, modelContext: ModelContext). fetchError/modelContext are real
-// members of SwiftData's Query wrapper instance
-// (_items.fetchError/.modelContext), not synthesized placeholders.
-// @State/@AppStorage/@SceneStorage all read as Binding<T> via the projected $
-// value — @SceneStorage's own projectedValue genuinely IS Binding<T>, verified
-// directly, same shape as @State/@AppStorage exactly. @FocusState reads via
-// that same `$x` shortcut, but resolves to its OWN projected type,
-// FocusState<Bool>.Binding — not Binding<Bool> — since @FocusState's
-// projectedValue has no public conversion to Binding<T> (verified directly).
-//
-// @Environment is excluded: not because it's uncapturable (a plain value works
-// fine — StatelessNode, below, captures it exactly that way), but because a
-// captured snapshot goes stale the moment the real environment changes, and
-// @Environment's own mocking story (inject a different value where the type
-// is hosted) already covers testing it without this package's help.
+// synthesized as (wrappedValue: WrappedType, fetchError: Error?), via #pick
+// (this package's own TuplePicker macro, reused here rather than hand-rolled)
+// — items: [Item] becomes items: (wrappedValue: [Item], fetchError: Error?).
+// wrappedValue/fetchError are real members of SwiftData's Query wrapper
+// instance, picked verbatim (#pick(from: _items, \.wrappedValue,
+// \.fetchError)), not synthesized placeholders — modelContext is deliberately
+// left out, plumbing for further queries/saves rather than a snapshot value
+// worth asserting on. @State/@AppStorage/@SceneStorage all read as Binding<T>
+// via the projected $ value — @SceneStorage's own projectedValue genuinely IS
+// Binding<T>, verified directly, same shape as @State/@AppStorage exactly.
+// @FocusState reads via that same `$x` shortcut, but resolves to its OWN
+// projected type, FocusState<Bool>.Binding — not Binding<Bool> — since
+// @FocusState's projectedValue has no public conversion to Binding<T>
+// (verified directly). @Binding fields (isOn, below) read via that identical
+// `$x` shortcut too — verified directly that $isOn and the backing-storage
+// _isOn give the same Binding<Bool>; _isOn is kept only for the *assignment*
+// side inside the generated init, where $isOn is immutable. @Environment/
+// @Namespace read as plain values (colorScheme, ns), the same way any
+// non-private field does — no exclusion: a captured value going stale, or
+// @Environment's own mocking story, are things worth knowing about the
+// snapshot, not reasons to leave the field out of it.
 var isOnStorage = true
 let profileCard = ProfileCard(
     isOn: Binding(get: { isOnStorage }, set: { isOnStorage = $0 }),
@@ -259,18 +262,18 @@ let profileCardOutFlowFocused = profileCardOutFlow.focused.wrappedValue
 // mapping @State/@AppStorage already get, no separate case needed.
 let profileCardOutFlowIsPinned = profileCardOutFlow.isPinned.wrappedValue
 
-// MARK: - StatelessNode
+// MARK: - Core
 
-// @StatelessNode is a separate macro from @DataLayout — doesn't replace OutFlow,
+// @Shell is a separate macro from @DataLayout — doesn't replace OutFlow,
 // works alongside it. Same field set as OutFlow, PLUS @Environment (which
-// OutFlow leaves out but StatelessNode captures anyway), as a real nominal
-// `StatelessNode` struct instead of a tuple — always internal (struct, fields, and
-// the `statelessNode` property itself), regardless of ProfileCard's own `public`
+// OutFlow leaves out but Core captures anyway), as a real nominal
+// `Core` struct instead of a tuple — always internal (struct, fields, and
+// the `core` property itself), regardless of ProfileCard's own `public`
 // access: this is a testing/internal-body seam, not a public API surface, and
 // carries no @DataLayout — Swift's own memberwise-init synthesis already handles
 // every field kind here the same way @DataLayout's hand-written logic would. The
 // rule: every field mirrors its ORIGINAL declaration's attribute and type, but
-// NEVER its mutability — StatelessNode is a deterministic snapshot, so a field is
+// NEVER its mutability — Core is a deterministic snapshot, so a field is
 // `var` only where Swift's own property-wrapper rule forces it (a genuine
 // @propertyWrapper type requires `var` storage); everything else is `let`,
 // regardless of what the original was declared as. @State/@AppStorage/
@@ -281,23 +284,23 @@ let profileCardOutFlowIsPinned = profileCardOutFlow.isPinned.wrappedValue
 // property wrapper). @Environment becomes a plain `let` — no attribute at
 // all, since @Environment's wrappedValue has no public setter and the
 // attribute can't be preserved, but a plain unattributed value has no such
-// restriction (see ProfileCard.StatelessNode above).
+// restriction (see ProfileCard.Core above).
 // @State/@Environment/@Query/@AppStorage/@SceneStorage must all be private —
 // enforced with a diagnostic if violated, not accommodated.
-let profileCardStatelessNode = profileCard.statelessNode
-let profileCardStatelessNodeTitle = profileCardStatelessNode.title
-profileCardStatelessNode.isOn = false  // writes straight through to the caller's Binding
+let profileCardCore = profileCard.core
+let profileCardCoreTitle = profileCardCore.title
+profileCardCore.isOn = false  // writes straight through to the caller's Binding
 
 // isPinned reads as a bare Bool here too — @SceneStorage folds into the exact
 // same @Binding var substitution @State/@AppStorage already get.
-let profileCardStatelessNodeIsPinned = profileCardStatelessNode.isPinned
+let profileCardCoreIsPinned = profileCardCore.isPinned
 
-// subtitle is a plain `var` on ProfileCard, but StatelessNode is a deterministic
+// subtitle is a plain `var` on ProfileCard, but Core is a deterministic
 // snapshot — it's `let subtitle: String?` here (not mirrored as `var`), so a fresh
 // snapshot read is the only way to see a different value, not an in-place mutation.
-let profileCardStatelessNodeSubtitle = profileCardStatelessNode.subtitle
+let profileCardCoreSubtitle = profileCardCore.subtitle
 
-// @Bindable mirrors verbatim — model is declared on StatelessNode exactly as
+// @Bindable mirrors verbatim — model is declared on Core exactly as
 // ProfileCard declares it. @ViewBuilder mirrors too, but only for content
 // (a stored closure, () -> Content) — footer (a stored value, Content) drops
 // the attribute entirely instead: mirroring it there would make Swift's own
@@ -305,13 +308,13 @@ let profileCardStatelessNodeSubtitle = profileCardStatelessNode.subtitle
 // it, for a value that's already built and just being copied through. So
 // footer stays a plain `let footer: Content`, passed straight through with
 // no wrapping needed on either side.
-let profileCardStatelessNodeModel = profileCardStatelessNode.model
-let profileCardStatelessNodeFooter = profileCardStatelessNode.footer
+let profileCardCoreModel = profileCardCore.model
+let profileCardCoreFooter = profileCardCore.footer
 
 // focused reads as a bare Bool here — @FocusState<Bool>.Binding var focused: Bool
-// is StatelessNode's own substituted attribute (distinct from @Binding, since
+// is Core's own substituted attribute (distinct from @Binding, since
 // @FocusState's projectedValue isn't Binding<T> — see the OutFlow section above),
 // but it's the real wrapper, redeclared, not a fabricated stand-in: $focused
 // hands back a genuine FocusState<Bool>.Binding usable directly with `.focused(_:)`.
-let profileCardStatelessNodeFocused = profileCardStatelessNode.focused
-_ = Text("search").focused(profileCardStatelessNode.$focused)
+let profileCardCoreFocused = profileCardCore.focused
+_ = Text("search").focused(profileCardCore.$focused)

@@ -5,7 +5,7 @@ import SwiftSyntaxMacros
 struct ValueFlowPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         DataLayoutMacro.self,
-        StatelessNodeMacro.self,
+        ShellMacro.self,
         CapabilityMacro.self,
         PickMacro.self,
     ]

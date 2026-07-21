@@ -33,7 +33,27 @@ public struct StoredProperty {
         wrapperName == "ViewBuilder"
     }
 
-    /// `@Environment` — `@StatelessNode`'s field is a plain `let` of the property's
+    /// `@Bindable` — mirrors verbatim wherever it appears (its `wrappedValue` is a
+    /// plain get/set, so the ordinary `self.x = x` assignment path already handles
+    /// it with no dedicated rendering logic anywhere downstream). Exists as its own
+    /// case only so a private declaration can be named specifically, alongside
+    /// `@Binding`/`@ViewBuilder`, as a caller-supplied wrapper that must never be
+    /// private.
+    public var isBindable: Bool {
+        wrapperName == "Bindable"
+    }
+
+    /// `@Binding`/`@Bindable`/`@ViewBuilder` — the three wrapper kinds a caller
+    /// supplies through the generated init, the opposite of a source-of-truth
+    /// wrapper. Declaring one private makes it unreachable (a caller could never
+    /// supply it), so it's rejected with its own diagnostic rather than falling
+    /// into the generic "wrapper this macro doesn't recognize" message — these
+    /// three ARE recognized, just never allowed private.
+    public var isCallerSuppliedWrapper: Bool {
+        isBinding || isBindable || isViewBuilder
+    }
+
+    /// `@Environment` — `@Shell`'s field is a plain `let` of the property's
     /// own declared type, no attribute at all (unlike `@State`/`@AppStorage`,
     /// which keep `@Binding`). Not because the value doesn't change — because
     /// the *attribute* can't be preserved: `@Environment`'s `wrappedValue` has
@@ -45,7 +65,7 @@ public struct StoredProperty {
         wrapperName == "Environment"
     }
 
-    /// `@Query` (SwiftData) — `@StatelessNode`'s field is always synthesized as
+    /// `@Query` (SwiftData) — `@Shell`'s field is always synthesized as
     /// `(result: WrappedType, fetchError: Error?, modelContext: ModelContext)`,
     /// regardless of the property's own declared type. `WrappedType` is the
     /// property's own declared type (e.g. `[Item]` for `@Query private var
@@ -57,7 +77,7 @@ public struct StoredProperty {
         wrapperName == "Query"
     }
 
-    /// `@State`/`@AppStorage`/`@SceneStorage` — three wrappers `@StatelessNode`
+    /// `@State`/`@AppStorage`/`@SceneStorage` — three wrappers `@Shell`
     /// declares as a real `@Binding var` property (bare wrapped type, not
     /// `Binding<T>`), read via the projected `$` value (not `_`, which gives the
     /// wrapper instance itself — `State<T>`, not `Binding<T>`). All three share
@@ -82,16 +102,16 @@ public struct StoredProperty {
     /// `projectedValue` (itself), no public initializer at all and no
     /// conversion to `Binding<T>` — so it's kept as its own case rather than
     /// folded into `isBindingBackedStorage`, both for the field *type* (`OutFlow`)
-    /// and because `@StatelessNode` redeclares it as its own real attribute
+    /// and because `@Shell` redeclares it as its own real attribute
     /// (`@FocusState<T>.Binding var x: T`, not `@Binding var x: T`) — see
     /// `outFlowFieldType`/`outFlowFieldReadExpression` (`DataLayoutRendering.swift`)
-    /// and `renderStatelessNode` (`StatelessNodeRendering.swift`).
+    /// and `renderShell` (`ShellRendering.swift`).
     public var isFocusState: Bool {
         wrapperName == "FocusState"
     }
 
     /// `@Namespace` — treated exactly like `@Environment`: a plain, unattributed
-    /// `let` on `StatelessNode`, excluded from `OutFlow` entirely. Verified
+    /// `let` on `Core`, excluded from `OutFlow` entirely. Verified
     /// directly against the real SwiftUI interface: `Namespace.wrappedValue` is
     /// get-only (same "cannot assign to property" error `@Environment` hits),
     /// and unlike `@State`/`@AppStorage`/`@FocusState` it has **no
@@ -100,7 +120,7 @@ public struct StoredProperty {
     /// view instance's lifetime (unlike `@Environment`, which can change if the
     /// environment context above it changes), but it's grouped with
     /// `@Environment` anyway rather than added to `OutFlow`: nothing currently
-    /// demonstrates a need for it there, and `StatelessNode`'s plain-`let`
+    /// demonstrates a need for it there, and `Core`'s plain-`let`
     /// capture already covers the same "assert on it with no live view" use case
     /// `OutFlow` exists for.
     public var isNamespace: Bool {
@@ -149,16 +169,29 @@ public func collectStoredProperties(
             if let accessorBlock = binding.accessorBlock, isComputed(accessorBlock) { continue }
 
             let wrapperName = propertyWrapperName(varDecl.attributes)
-            // @Namespace has exactly one possible wrapped type — `Namespace.ID`
-            // — with no generic parameter to resolve, unlike every other
-            // wrapper this macro recognizes (`@State<T>`, `@Query`'s declared
-            // element type, …). Unlike those, it needs no explicit annotation
-            // at all: the type is inferable from the attribute alone, no type
-            // checker required, so a bare `@Namespace private var ns` is filled
-            // in here rather than diagnosed as missing a type.
             let explicitType = binding.typeAnnotation?.type
-            let inferredType: TypeSyntax? =
-                wrapperName == "Namespace" ? (explicitType ?? "Namespace.ID") : explicitType
+            let inferredType: TypeSyntax?
+            if let explicitType {
+                inferredType = explicitType
+            } else if wrapperName == "Namespace" {
+                // @Namespace has exactly one possible wrapped type —
+                // `Namespace.ID` — with no generic parameter to resolve, unlike
+                // every other wrapper this macro recognizes (`@State<T>`,
+                // `@Query`'s declared element type, …). Unlike those, it needs
+                // no explicit annotation at all: the type is inferable from the
+                // attribute alone, no type checker required, so a bare
+                // `@Namespace private var ns` is filled in here rather than
+                // diagnosed as missing a type.
+                inferredType = "Namespace.ID"
+            } else {
+                // Simple syntactic literal inference — `= false` / `= 0` /
+                // `= "x"` — matching Swift's own unambiguous default-literal
+                // types. Not real type inference (no numeric-literal-defaults-
+                // to-Double, no protocol witness resolution): just three literal
+                // syntax node kinds this macro can recognize without a type
+                // checker, same spirit as the @Namespace case above.
+                inferredType = binding.initializer.flatMap { inferredLiteralType($0.value) }
+            }
 
             let property = StoredProperty(
                 name: pattern.identifier.text,
@@ -198,16 +231,53 @@ public func collectStoredProperties(
                 continue
             }
 
+            // @Binding/@Bindable/@ViewBuilder are the opposite of a
+            // source-of-truth wrapper: a caller supplies them through the
+            // generated init, so declaring one private makes it unreachable.
+            // Checked before the generic "unrecognized wrapper" case below so
+            // these three get a message naming the real problem (private,
+            // not unrecognized).
+            if property.isPrivate, property.isCallerSuppliedWrapper {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(binding),
+                        message: DataTypeMacroDiagnostic.callerSuppliedWrapperMustNotBePrivate(
+                            macroName: macroName, propertyName: property.name,
+                            wrapperName: wrapperName!
+                        )
+                    )
+                )
+                hadError = true
+                continue
+            }
+
+            // A private property with no property wrapper at all is opaque
+            // view-owned state that's neither a source of truth nor something a
+            // caller supplies — there's no room for it in pure data flow. This
+            // used to fall through silently, excluded like a genuine
+            // source-of-truth field but with nothing to show for it in
+            // OutFlow/Core; now it fails loudly instead.
+            if property.isPrivate, property.wrapperName == nil {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(binding),
+                        message: DataTypeMacroDiagnostic.plainPrivatePropertyNotAllowed(
+                            macroName: macroName, propertyName: property.name
+                        )
+                    )
+                )
+                hadError = true
+                continue
+            }
+
             // A private property carrying SOME wrapper attribute this package
-            // doesn't recognize (@StateObject, @GestureState, a private
-            // @Binding/@ViewBuilder/@Bindable, a future SwiftUI wrapper, …) is
-            // refused outright, rather than silently treated as ordinary
-            // opaque private state — the same fallthrough `private var cache = 0`
-            // gets. Silent fallthrough is exactly how @FocusState went
-            // unsupported for a while: it compiled fine, it just quietly never
-            // appeared in OutFlow/StatelessNode. Forcing a diagnostic here means
-            // any future wrapper this macro hasn't been taught about fails loudly
-            // instead of compiling into a silent gap.
+            // doesn't recognize (@StateObject, @GestureState, a future SwiftUI
+            // wrapper, …) is refused outright, rather than silently treated as
+            // ordinary opaque private state. Silent fallthrough is exactly how
+            // @FocusState went unsupported for a while: it compiled fine, it
+            // just quietly never appeared in OutFlow/Core. Forcing a
+            // diagnostic here means any future wrapper this macro hasn't been
+            // taught about fails loudly instead of compiling into a silent gap.
             if property.isPrivate, let wrapperName = property.wrapperName, !isSourceOfTruth {
                 context.diagnose(
                     Diagnostic(
@@ -225,9 +295,9 @@ public func collectStoredProperties(
             // Init parameters need a written type; so do
             // @Environment/@Query/@State/@AppStorage/@SceneStorage/@FocusState
             // properties, even though they're excluded from *this* type's own
-            // init — @StatelessNode (see StatelessNodeRendering.swift) reads
+            // init — @Shell (see ShellRendering.swift) reads
             // their type to build its field (all six eventually get folded
-            // into StatelessNode's own init, as a plain captured value or a
+            // into Core's own init, as a plain captured value or a
             // @Binding/@FocusState.Binding substitute). Every other private
             // property — inline-initialized `let` constants, plain private
             // state — is exempt (`private var ole = 0` needs no annotation and
@@ -306,6 +376,18 @@ public func isOptionalType(_ type: TypeSyntax) -> Bool {
     type.is(OptionalTypeSyntax.self) || type.is(ImplicitlyUnwrappedOptionalTypeSyntax.self)
 }
 
+/// Infers a type from a simple literal default (`false`, `0`, `"x"`) — the only
+/// three literal kinds unambiguous enough to recognize without a real type
+/// checker (no numeric-literal-defaults-to-Double, no protocol witness
+/// resolution). Returns nil for anything else — a call, an identifier, `nil`, a
+/// collection literal, … — leaving those to the missing-type diagnostic.
+public func inferredLiteralType(_ expr: ExprSyntax) -> TypeSyntax? {
+    if expr.is(BooleanLiteralExprSyntax.self) { return "Bool" }
+    if expr.is(IntegerLiteralExprSyntax.self) { return "Int" }
+    if expr.is(StringLiteralExprSyntax.self) { return "String" }
+    return nil
+}
+
 /// True if an accessor block represents a computed property (a getter), as opposed
 /// to a stored property carrying only `willSet` / `didSet` observers.
 public func isComputed(_ accessorBlock: AccessorBlockSyntax) -> Bool {
@@ -358,6 +440,28 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
         )
     }
 
+    public static func plainPrivatePropertyNotAllowed(macroName: String, propertyName: String)
+        -> DataTypeMacroDiagnostic
+    {
+        DataTypeMacroDiagnostic(
+            message:
+                "'\(propertyName)' is private with no property wrapper — @\(macroName) has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace).",
+            id: "plainPrivatePropertyNotAllowed"
+        )
+    }
+
+    public static func callerSuppliedWrapperMustNotBePrivate(
+        macroName: String, propertyName: String, wrapperName: String
+    )
+        -> DataTypeMacroDiagnostic
+    {
+        DataTypeMacroDiagnostic(
+            message:
+                "'\(propertyName)' uses @\(wrapperName), which a caller supplies through @\(macroName)'s generated init — declaring it private makes it unreachable. Remove `private`/`fileprivate` from '\(propertyName)'.",
+            id: "callerSuppliedWrapperMustNotBePrivate"
+        )
+    }
+
     public static func unsupportedPrivateWrapper(
         macroName: String, propertyName: String, wrapperName: String
     )
@@ -365,7 +469,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-                "'\(propertyName)' uses @\(wrapperName), a private property wrapper @\(macroName) doesn't recognize — it would be silently excluded from OutFlow/StatelessNode instead of captured like @Environment/@Query/@State/@AppStorage/@SceneStorage/@FocusState/@Namespace. Make '\(propertyName)' non-private, remove @\(wrapperName), or extend this macro's support for it.",
+                "'\(propertyName)' uses @\(wrapperName), a private property wrapper @\(macroName) doesn't recognize — it would be silently excluded from OutFlow/Core instead of captured like @Environment/@Query/@State/@AppStorage/@SceneStorage/@FocusState/@Namespace. Make '\(propertyName)' non-private, remove @\(wrapperName), or extend this macro's support for it.",
             id: "unsupportedPrivateWrapper"
         )
     }

@@ -20,7 +20,7 @@ together in `Sources/Examples/main.swift` (`swift run Examples`).
 | Macro | Form | Does |
 |---|---|---|
 | [`@DataLayout`](#datalayout) | member | writes a memberwise `init` at the type's own access level, plus `InFlowSplat`/`InFlow` typealiases bundling the same properties into a tuple, unlabeled and labeled, plus a wider `OutFlow` for a private-state-inclusive view |
-| [`@StatelessNode`](#statelessnode) | member | a separate macro from `@DataLayout` (doesn't replace `OutFlow`) generating a nested, nominal `StatelessNode` struct over the same wider field set — real `Equatable`/`Codable`/protocol conformance a tuple can never have |
+| [`@Shell`](#shell) | member | a separate macro from `@DataLayout` (doesn't replace `OutFlow`) generating a nested, nominal `Core` struct over the same wider field set — real `Equatable`/`Codable`/protocol conformance a tuple can never have |
 | [`@Capability`](#capability) | member | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
 | [`#pick`](#pick-tuplepicker) | expression | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
 | [`Reflector`](#reflector) | runtime utility (not a macro) | lists a value type's field names off its type alone, no instance needed — pairs with `@DataLayout`'s `InFlow` |
@@ -115,14 +115,23 @@ struct Card<Content: View>: View {
 
 ### Design: for pure data
 
-- **No type inference.** It's syntax-only: a non-private property that becomes a
-  parameter needs an explicit type. `var count: Int = 0`, not `var count = 0` (the
-  latter is a compile error).
+- **No real type inference — except three unambiguous literal kinds.** It's
+  syntax-only: a property needing an explicit type must have one, *unless* its
+  inline default is a bare `Bool`/`Int`/`String` literal (`var isOn = false`,
+  `var count = 0`, `var label = "x"`) — those three are inferred straight off
+  the literal's own syntax, no type checker involved. Anything else uninferable
+  (a call, an identifier, `nil`, a collection literal, …) still needs an
+  explicit annotation.
 - **No stored `let` constants.** A constant isn't per-instance data — use `static let`.
   The macro doesn't special-case an instance `let`: `let version: Int = 1` generates
-  `self.version = version` (a `let`-reassignment error), and untyped `let version = 1`
-  hits the missing-type rule above. Either way it won't compile.
-- **`private` means private.** If a value is meant to be passed in, it isn't private.
+  `self.version = version` (a `let`-reassignment error) whether or not `version`'s type
+  is written explicitly or inferred from the literal above. Either way it won't compile.
+- **`private` means private, and it must mean something.** If a value is meant to be
+  passed in, it isn't private — `@Binding`/`@Bindable`/`@ViewBuilder` declared private
+  are unreachable by any caller and are rejected outright. And a private property with
+  no recognized wrapper at all (`private var cache = 0`) isn't quietly excluded
+  anymore either — it's neither a source of truth nor something a caller supplies, so
+  pure data flow has no room for it: give it a real wrapper, or make it non-private.
 
 ### The InFlowSplat typealias
 
@@ -245,7 +254,7 @@ let copy = User.makeFlow(user.inFlow)
 ```
 
 - Every field reads straight off `self` (`x`) — except `@Binding`, which
-  reads its projected form (`_x`) to match `InFlowSplat`'s `Binding<T>` field
+  reads its projected form (`$x`) to match `InFlowSplat`'s `Binding<T>` field
   type.
 - **No `@ViewBuilder` wrapping needed here**, unlike `makeFlow(_:)`'s reverse
   direction: a stored property already holds exactly its own declared type
@@ -255,29 +264,28 @@ let copy = User.makeFlow(user.inFlow)
 
 ### The OutFlow typealias and outFlow property
 
-Wider than `InFlow`/`inFlow`: `InFlow`'s fields, **plus**
-private `@Query`/`@State`/`@AppStorage` properties — a view's own
-externally-relevant *capturable* state, alongside its public data. Everything
-else private (a plain `private var cache = 0`, `@StateObject`, `@Environment`,
-…) is excluded.
+Wider than `InFlow`/`inFlow`: `InFlow`'s fields, **plus every recognized
+private source-of-truth wrapper** — `@Query`/`@State`/`@AppStorage`/
+`@SceneStorage`/`@FocusState`/`@Environment`/`@Namespace` — a view's own
+externally-relevant *capturable* state, alongside its public data, no
+exceptions. There's no such thing as "everything else private" left over —
+a private property either carries one of these recognized wrappers or it's a
+compile error (see [Design: for pure data](#design-for-pure-data)) — see the
+[wrapper mapping reference](#wrapper-mapping-reference) for exactly what each
+recognized kind becomes.
 
-**Why this exists: testability.** Any SwiftUI node that owns or reads live state
-via `@State`/`@Query`/`@AppStorage` introduces a source of truth that only
-really works inside a live render pipeline — view identity, a real
-`ModelContext`. That makes it hard to test directly. `OutFlow` converts that
-state into a plain, stateless snapshot: construct the type, read `.outFlow`,
-assert on the fields — no live view hierarchy needed. That's the actual point
-of targeting exactly these wrapper kinds, not "expose private state" for its
-own sake.
-
-**`@Environment` is deliberately excluded.** Not because it's technically
-uncapturable — a plain, unattributed value works fine, same as any other field,
-and [`@StatelessNode`](#statelessnode) captures it exactly that way (see its section
-below) — but because a captured snapshot goes stale the instant the real
-environment changes, and `@Environment`'s own mocking story (inject a different
-value where the type is constructed/hosted) already covers testing it without
-this package's help. `@StatelessNode` makes the opposite call and captures it
-anyway, for the same reason it treats every field uniformly.
+**Why this exists: testability.** Any SwiftUI node that owns or reads live
+state via one of these wrappers introduces a source of truth that only really
+works inside a live render pipeline — view identity, a real `ModelContext`,
+the current environment. That makes it hard to test directly. `OutFlow`
+converts that state into a plain, stateless snapshot: construct the type,
+read `.outFlow`, assert on the fields — no live view hierarchy needed. That's
+the actual point of targeting exactly these wrapper kinds, not "expose
+private state" for its own sake — and it's also why there's no exception for
+`@Environment`/`@Namespace`: a captured value going stale, or `@Environment`'s
+own mocking story, are things to know about the *snapshot*, not reasons to
+leave the field out of it — `@Shell` never excluded either one, and
+`OutFlow` shouldn't either.
 
 ```swift
 @DataLayout
@@ -286,10 +294,10 @@ struct Card: View {
     @State private var isExpanded: Bool = false
     let title: String
     // generates:
-    // typealias OutFlow = (items: (result: [Item], fetchError: Error?, modelContext: ModelContext),
+    // typealias OutFlow = (items: (wrappedValue: [Item], fetchError: Error?),
     //                       isExpanded: Binding<Bool>, title: String)
     // var outFlow: OutFlow {
-    //     (items: (result: items, fetchError: _items.fetchError, modelContext: _items.modelContext),
+    //     (items: #pick(from: _items, \.wrappedValue, \.fetchError),
     //      isExpanded: $isExpanded, title: title)
     // }
 }
@@ -298,23 +306,19 @@ struct Card: View {
 - **Declaration order, as one interleaved list** — not data-layout fields first
   with wrapper fields appended after. `items` comes first above because it's
   declared first.
-- **`@Query` → always `(result: WrappedType, fetchError: Error?, modelContext:
-  ModelContext)`, synthesized** — not a passthrough of the declared type.
-  `WrappedType` is the property's own declared type (`[Item]` above);
-  `fetchError`/`modelContext` are **real members of SwiftData's `Query`
-  wrapper instance** (`_items.fetchError`, `_items.modelContext`) — not
-  synthesized placeholders. Verified directly against the SwiftData interface:
-  `Query<Element, Result>` declares `@MainActor @preconcurrency public var
-  fetchError: (any Error)? { get }` and `public var modelContext: ModelContext {
-  get }` on the wrapper instance itself.
-- **`@State`/`@AppStorage` → `Binding<WrappedType>`**, read via the *projected*
-  value (`$x`) — not `_x`, which gives the wrapper instance itself
-  (`State<T>`, not `Binding<T>`; verified directly).
-- **`@Query`/`@State`/`@AppStorage` need an explicit type even though they're
+- **`@Query` → always `(wrappedValue: WrappedType, fetchError: Error?)`,
+  synthesized via `#pick`** — not a passthrough of the declared type, and no
+  `modelContext` (see the [wrapper mapping reference](#wrapper-mapping-reference)
+  for why). `WrappedType` is the property's own declared type (`[Item]`
+  above); `wrappedValue`/`fetchError` are real members of SwiftData's `Query`
+  wrapper instance, picked verbatim — not synthesized placeholders.
+- **`@State`/`@AppStorage`/`@SceneStorage` → `Binding<WrappedType>`**, read via
+  the *projected* value (`$x`) — not `_x`, which gives the wrapper instance
+  itself (`State<T>`, not `Binding<T>`; verified directly).
+- **Every recognized wrapper needs an explicit type even though it's
   private** — every other private property is exempt from that rule, but
-  `OutFlow` reads their type to build its field. (`@Environment` also needs an
-  explicit type, for `@StatelessNode`'s sake, even though `OutFlow` itself no
-  longer reads it.)
+  `OutFlow` reads the type to build its field. `@Namespace` is the one
+  exception — see the [wrapper mapping reference](#wrapper-mapping-reference).
 - **`@State`'s `Binding` doesn't write through outside a live SwiftUI view
   render** — verified directly: construct a `@DataLayout` type in plain code
   (never installed into a real view hierarchy) and mutate
@@ -330,43 +334,81 @@ struct Card: View {
 
 ### Wrapper mapping reference
 
-Every private source-of-truth wrapper kind this package recognizes, and exactly
-what it becomes on `OutFlow` and on `@StatelessNode`'s nested struct.
+Every wrapper kind this package recognizes, and exactly what it becomes on
+`OutFlow` and on `@Shell`'s nested struct — one row each, no grouping.
+`OutFlow` and `Core` always share the same read expression for a
+given field (the same function generates both), so that's one column, not two.
 
-| Wrapper | Must be private? | `OutFlow` field type | `OutFlow` read expression | `StatelessNode` field | `StatelessNode` construction |
-|---|---|---|---|---|---|
-| *(plain, no wrapper)* | no | declared type as-is | `x` | same attribute (if any) + declared type, but **`let`**, never mirroring `var` | `x` |
-| `@Binding` | no — caller-supplied | `Binding<T>` | `_x` | `@Binding var x: T` (mirrored verbatim) | `_x` |
-| `@Environment` | yes | *excluded* (see above) | — | plain `let x: T`, no attribute | `x` |
-| `@Query` (SwiftData) | yes | `(result: T, fetchError: Error?, modelContext: ModelContext)` | `(result: x, fetchError: _x.fetchError, modelContext: _x.modelContext)` | same synthesized tuple, no attribute, `let` | same read expression |
-| `@State` | yes | `Binding<T>` | `$x` — its own `projectedValue` genuinely *is* `Binding<T>` | `@Binding var x: T` (substituted attribute) | `$x` |
-| `@AppStorage` | yes | `Binding<T>` | `$x` — same as `@State` | `@Binding var x: T` (substituted attribute) | `$x` |
-| `@FocusState` | yes | `FocusState<T>.Binding` — **not** `Binding<T>` | `$x` — same shortcut as `@State`/`@AppStorage`, just resolving to a different concrete type | `@FocusState<T>.Binding var x: T` — redeclaring the *real* wrapper | `$x` |
+This table is every *source of truth* this package recognizes, plus the plain
+`let`/`var` baseline they're all measured against — `@Binding` and `@Bindable`
+are the two public exceptions, since both still need their `OutFlow`/
+`Core` mapping spelled out (`$x` for `@Binding`, a mirrored attribute
+for both). `@ViewBuilder` is deliberately **not** a row here: it's not a source
+of truth, and its `OutFlow`/read-expression columns would be identical to plain
+`let`/`var`'s (`declared type as-is`, `x`) — its only real nuance is the
+`Core` field declaration, already covered in the [SwiftUI](#swiftui)
+section above and the second bullet below the table. Every source-of-truth row
+must be private, enforced with a diagnostic, not just convention.
 
-**Why `@FocusState` doesn't collapse into the `@State`/`@AppStorage` row, even
-though all three are "read via `$x`."** `@State`/`@AppStorage`'s own
-`projectedValue` genuinely *is* `Binding<T>` — `$x` already gives the real
-thing. `@FocusState`'s `projectedValue` is a distinct type, `FocusState<T>.Binding`
-— verified directly against the real SwiftUI interface: it exposes only
-`wrappedValue` (get/`nonmutating set`) and `projectedValue` (itself), **no public
-initializer at all** and no conversion to `Binding<T>`. Two things follow:
+| Wrapper | `OutFlow` / `Core` field type | `Core` field declaration | Read expression |
+|---|---|---|---|
+| plain `let`/`var` | declared type as-is | always `let` on `Core`, regardless of the original's `let`/`var` | `x` |
+| `@Binding` | `Binding<T>` | `@Binding var x: T` (mirrored verbatim) — `var`, a genuine property wrapper requires it | `$x` |
+| `@Bindable` | declared type as-is (e.g. `Settings`) | `@Bindable var x: T` (mirrored verbatim) — `var`, a genuine property wrapper requires it | `x` |
+| `@Environment` | declared type as-is (e.g. `ColorScheme`) | plain `let x: T`, no attribute | `x` |
+| `@Namespace` | `Namespace.ID` (always — no explicit type needed, unlike every other row) | plain `let x: T`, no attribute | `x` |
+| `@Query` | `(wrappedValue: T, fetchError: Error?)`, via `#pick` | same tuple, no attribute — `let` | `#pick(from: _x, \.wrappedValue, \.fetchError)` |
+| `@State` | `Binding<T>` | `@Binding var x: T` (substituted attribute) — `var` | `$x` |
+| `@AppStorage` | `Binding<T>` | `@Binding var x: T` (substituted attribute) — `var` | `$x` |
+| `@SceneStorage` | `Binding<T>` | `@Binding var x: T` (substituted attribute) — `var` | `$x` |
+| `@FocusState` | `FocusState<T>.Binding` — **not** `Binding<T>` | `@FocusState<T>.Binding var x: T` (its own substituted attribute) — `var` | `$x` |
 
-- A hand-built `Binding(get: { x }, set: { self.x = $0 })` is **not** an
-  acceptable stand-in — it's a different, fabricated type that satisfies neither
-  `.focused(_:)` (which specifically wants `FocusState<T>.Binding`) nor any other
-  API that expects the real wrapper's projection back. It behaves similarly, but
-  it isn't the thing this package would be claiming to hand back.
-- The real `FocusState<T>.Binding` **is itself `@propertyWrapper`-attributed**
-  (verified directly, reading the actual SwiftUI interface:
-  `@frozen @propertyWrapper public struct Binding` nested inside `FocusState`),
-  so it can be redeclared as a genuine property-wrapper attribute on
-  `StatelessNode` — `@FocusState<T>.Binding var x: T` — exactly the same shape
-  `@State`/`@AppStorage` already get with `@Binding var x: T`, just spelling a
-  different wrapper. Verified directly, end to end: this compiles, the
-  synthesized init takes a `FocusState<T>.Binding` parameter, `snap.x` reads the
-  unwrapped `Bool` directly, and `snap.$x` hands back a real
-  `FocusState<T>.Binding` that plugs straight into `.focused(snap.$x)` — full
-  round-trip fidelity, nothing fabricated.
+> **`@StateObject` and `@ObservedObject` are NOT supported, on purpose.**
+> They're Combine-era `ObservableObject` wrappers, and this package doesn't
+> recognize either one — declaring one `private` (their normal form) hits the
+> `unsupportedPrivateWrapper` diagnostic below, by design. This isn't a gap to
+> fill in later: this package's whole `@DataLayout`/`@Shell` model is
+> built for plain, `Equatable`-friendly data and SwiftUI's own native property
+> wrappers, not `ObservableObject`/MVVM-style state containers.
+
+**Four things worth spelling out beyond the table above — the last one is about
+`@ViewBuilder`, which isn't a row in it at all (see why above):**
+
+- **`@Binding`'s read is `$x`, not `_x`, on purpose.** Verified directly:
+  `Binding`'s own `projectedValue` is `{ self }`, so `$x` and the backing
+  storage `_x` give the identical `Binding<T>`, write-through included — `$x`
+  is just the one convention every `Binding`-producing row already uses, no
+  `@Binding`-only special case. `_x` survives only on the generated *init*'s
+  assignment side (`self._x = x`), where `$x` is immutable.
+- **`@FocusState` can't share `@State`/`@AppStorage`/`@SceneStorage`'s field
+  type, even though all four are read via `$x`.** Those three wrappers'
+  `projectedValue` genuinely *is* `Binding<T>`. `@FocusState`'s is a distinct
+  type, `FocusState<T>.Binding` — verified directly against the real SwiftUI
+  interface: it exposes only `wrappedValue` and `projectedValue` (itself), no
+  public initializer and no conversion to `Binding<T>`. A hand-built
+  `Binding(get:set:)` stand-in was considered and rejected — it would satisfy
+  neither `.focused(_:)` nor anything else expecting the real projection back.
+  The real `FocusState<T>.Binding` is itself `@propertyWrapper`-attributed
+  (verified directly), so it redeclares onto `Core` the same way
+  `@Binding` does, just spelling a different wrapper — `snap.x` reads the
+  unwrapped value, `snap.$x` hands back a real `FocusState<T>.Binding` usable
+  directly with `.focused(_:)`.
+- **`@Query` reuses `#pick`, this package's own `TuplePicker` macro, instead of
+  a hand-rolled tuple literal** — dogfooding, not just avoiding duplication:
+  `#pick` already *is* "pick a few named members off a value into a tuple."
+  `modelContext` is deliberately left off — it's plumbing for issuing further
+  queries/saves, not a snapshot value worth asserting on — and `wrappedValue`/
+  `fetchError` are picked under their own real names, no renaming.
+- **`@ViewBuilder`'s two stored forms get opposite treatment, on purpose.** A
+  stored *closure* (`let content: () -> Content`) already has a closure-typed
+  field, so mirroring `@ViewBuilder` is pure upside — real builder syntax at
+  `Core`'s own init call site. A stored *value* (`let footer:
+  Content`) does **not** keep the attribute: mirroring it there would make
+  Swift's own synthesized init wrap the parameter in a builder closure purely
+  to satisfy the attribute (verified directly) — overhead with no benefit for
+  a value that's already built and just being copied through. So `footer`
+  stays a plain `let footer: Content`, passed straight through with no
+  wrapping needed on either side.
 
 ### Testing a @DataLayout type's state
 
@@ -393,13 +435,15 @@ its *value* for assertions works fine, mutating it in a test doesn't stick.
 
 An earlier revision also had an `allFieldNames` static var here, unconditionally
 listing *every* stored property's name with no filtering — including plain
-private fields with no recognized wrapper (`private var cache = 0`), which
-never appear in `InFlowSplat`/`InFlow`/`OutFlow` either. It was removed once
-it became clear [`Reflector`](#reflector) already covers the same need for any
-*specific* generated tuple (`Reflector.fieldNames(of: SomeType.OutFlow.self)`,
-say) without a dedicated member. The one real gap: a totally-private,
-non-wrapper field still has no tuple anywhere to reflect over. Accepted as
-YAGNI for now.
+private fields with no recognized wrapper (`private var cache = 0`, legal at
+the time), which never appeared in `InFlowSplat`/`InFlow`/`OutFlow` either. It
+was removed once it became clear [`Reflector`](#reflector) already covers the
+same need for any *specific* generated tuple
+(`Reflector.fieldNames(of: SomeType.OutFlow.self)`, say) without a dedicated
+member. The gap that removal opened — a totally-private, non-wrapper field has
+no tuple anywhere to reflect over — is moot now anyway: that kind of field is a
+compile error (see [Design: for pure data](#design-for-pure-data)), not a
+silently-excluded one.
 
 ### How InFlow and OutFlow relate
 
@@ -462,7 +506,7 @@ flowchart TD
     props --> init["init<br/>the actual reason @DataLayout exists —<br/>Swift won't synthesize a public one"]
     props --> flow["InFlowSplat / makeFlow(_:)<br/>InFlow / inFlow<br/>free once properties are collected —<br/>symmetry and Mirror support,<br/>not proven demand yet"]
     props --> out["OutFlow / outFlow<br/>earns its keep: construct directly,<br/>assert on private state, no live view"]
-    out --> node["StatelessNode<br/>same field set, plus @Environment —<br/>a real type: View / ViewModifier,<br/>Equatable, Codable, ..."]
+    out --> node["Core<br/>same field set, plus @Environment —<br/>a real type: View / ViewModifier,<br/>Equatable, Codable, ..."]
 ```
 
 - **`init`** — not optional, not speculative: it's the specific gap `@DataLayout`
@@ -479,29 +523,28 @@ flowchart TD
   without a live view (see [Testing a @DataLayout type's
   state](#testing-a-datalayout-types-state) and
   `Tests/ValueFlowTests/OutFlowTests.swift`).
-- **`StatelessNode`** — builds on `OutFlow`'s same motivation, one step
+- **`Core`** — builds on `OutFlow`'s same motivation, one step
   further: a real type where `OutFlow`'s tuple structurally can't follow (real
   `View`/`ViewModifier` conformance, `Equatable`/`Codable`, generic code
   needing a shared protocol).
 
 ---
 
-## StatelessNode
+## Shell
 
 A `member` macro, separate from `@DataLayout` — it doesn't replace `OutFlow`/
 `outFlow`, and works with or without `@DataLayout` also attached (it collects the
-type's stored properties itself). It generates a nested `StatelessNode` struct —
-always internal (the struct, every field, and the `statelessNode` property
+type's stored properties itself). It generates a nested `Core` struct —
+always internal (the struct, every field, and the `core` property
 itself), regardless of the attached type's own access level, and carrying no
-`@DataLayout` — plus a `statelessNode` computed property building one from the
-current instance, sharing its constructed-field set with what `OutFlow`
-already computes, *plus* `@Environment` (which `OutFlow` deliberately leaves out
-— see above — but `StatelessNode` still captures): every non-private participating
-property, plus private `@Environment`/`@Query`/`@State`/`@AppStorage` state,
-each captured once as a plain value.
+`@DataLayout` — plus a `core` computed property building one from the
+current instance. Its field set is identical to `OutFlow`'s (see the
+[wrapper mapping reference](#wrapper-mapping-reference)): every non-private
+participating property, plus every recognized private source-of-truth
+wrapper, each captured once as a plain value.
 
 ```swift
-@StatelessNode
+@Shell
 struct Card: View {
     @Query private var items: [Item]
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
@@ -509,17 +552,15 @@ struct Card: View {
     let title: String
     var subtitle: String?
     // generates:
-    // @DataLayout
-    // struct StatelessNode {
-    //     let items: (result: [Item], fetchError: Error?, modelContext: ModelContext)
+    // struct Core {
+    //     let items: (wrappedValue: [Item], fetchError: Error?)
     //     let colorScheme: ColorScheme
     //     @Binding var isExpanded: Bool
     //     let title: String
     //     let subtitle: String?
     // }
-    // var statelessNode: StatelessNode {
-    //     StatelessNode(items: (result: items, fetchError: _items.fetchError,
-    //                       modelContext: _items.modelContext),
+    // var core: Core {
+    //     Core(items: #pick(from: _items, \.wrappedValue, \.fetchError),
     //               colorScheme: colorScheme, isExpanded: $isExpanded,
     //               title: title, subtitle: subtitle)
     // }
@@ -536,18 +577,18 @@ only concrete types such as structs, enums and classes can conform to protocols
 ```
 
 So `OutFlow` alone can never be `Equatable`, `Codable`, or conform to a shared
-"any stateless snapshot" protocol for generic code to work with. `StatelessNode` is a
+"any stateless snapshot" protocol for generic code to work with. `Core` is a
 real nominal struct capturing the same data, so it can — for free, the moment it's
 declared as a real `struct`.
 
-### Why `StatelessNode` is always internal, and carries no `@DataLayout`
+### Why `Core` is always internal, and carries no `@DataLayout`
 
-`StatelessNode` is a purely internal testing/snapshot seam — `.statelessNode` for
-assertions, plus a `StatelessNode`-hosted `body`/`body(content:)` implementation
+`Core` is a purely internal testing/snapshot seam — `.core` for
+assertions, plus a `Core`-hosted `body`/`body(content:)` implementation
 — not part of the attached type's public API, even when that type itself is
 `public`: consumers of a public host never need the snapshot, only the
 package's own tests do (reachable from the same module, or a `@testable
-import`). So the struct, every field, and `statelessNode`'s own access are
+import`). So the struct, every field, and `core`'s own access are
 always internal, never mirroring the attached type's access level.
 
 No hand-rolled init is needed either. Swift's own memberwise-init synthesis
@@ -559,55 +600,53 @@ type, and `@ViewBuilder` directly on a stored `let` synthesizes a real
 builder parameter for the stored-closure form (see below) — exactly what
 `@DataLayout` would hand-write. The one thing genuinely lost by skipping
 `@DataLayout` is
-`InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on `StatelessNode` itself,
+`InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on `Core` itself,
 accepted since nothing here needs to round-trip a snapshot back into itself.
 
-Because `StatelessNode`'s own type is always internal, `statelessNode`'s access
+Because `Core`'s own type is always internal, `core`'s access
 is forced internal too — Swift rejects a more-accessible property with a
 less-accessible type (verified directly: "property must be declared internal
 because its type uses an internal type"). `body`/`body(content:)` on the
 *attached* type, by contrast, still mirrors that type's own access (`public`
 included) — verified directly that this compiles even though it reads
-`statelessNode` (internal) and returns it: `some View`'s opaque return
-type only exposes the `View` conformance, never the concrete `StatelessNode`
+`core` (internal) and returns it: `some View`'s opaque return
+type only exposes the `View` conformance, never the concrete `Core`
 type, so a `public` `body` can freely return an internal concrete value.
 
 ### Every source-of-truth wrapper becomes a plain, constructed value
 
-`@Query`, `@State`/`@AppStorage`, and `@Environment` all become ordinary fields
-on `StatelessNode`, captured once rather than kept live — never the original
-attribute, except `@State`/`@AppStorage`'s substitution into `@Binding`:
+Every private source-of-truth wrapper becomes an ordinary field on
+`Core`, captured once rather than kept live — never the original
+attribute, except where the field mapping table above shows a substitution
+(`@Binding`, or `@FocusState<T>.Binding` for `@FocusState`). The two fields with
+no `Binding`-shaped projection to substitute — `@Environment` and
+`@Namespace` — fall back to a plain `let name: T` instead: not because the
+value doesn't change, but because the *attribute* can't be preserved (both
+wrappers' `wrappedValue` is get-only — verified directly for `@Environment`:
+`error: cannot assign to property: 'colorScheme' is a get-only property` —
+and the synthesized init always assigns `self.x = x`, which a plain
+unattributed `let` has no trouble with). Always `let` here, not mirroring the
+original's `let`/`var` (always `var`, every property wrapper requires it) —
+the captured copy is a one-time snapshot, immutable by design.
 
-- **`@Query`** → the synthesized `(result:, fetchError:, modelContext:)` tuple,
-  no attribute.
-- **`@State`/`@AppStorage`** → `@Binding var name: T` — the one case that keeps
-  an attribute, substituted rather than mirrored, since their storage only
-  installs inside a live SwiftUI view and can't be redeclared as itself on a
-  plain struct.
-- **`@Environment`** → a plain `let name: T`, no attribute at all. Not because
-  the value doesn't change — because the *attribute* can't be preserved:
-  `@Environment`'s `wrappedValue` has no public setter (verified directly:
-  `error: cannot assign to property: 'colorScheme' is a get-only property`),
-  and the synthesized init always assigns `self.x = x` — a plain, unattributed
-  `let` has no such restriction. Always `let`, not mirroring the original's
-  `let`/`var` (always `var`, every property wrapper requires it) — the
-  captured copy is a one-time snapshot, immutable by design.
-
-**These four must be private — enforced with a diagnostic, not accommodated.**
-`@State`/`@Environment`/`@Query`/`@AppStorage` are a view's own source of
-truth, never something a caller supplies (`@Binding` is for that); declaring
-one non-private is a compile error, so every renderer downstream can assume
-all four are always private, with no "what if it's also public" case to
-reason about.
+**All seven recognized source-of-truth wrappers must be private — enforced
+with a diagnostic, not accommodated.** They're a view's own source of truth,
+never something a caller supplies (`@Binding` is for that); declaring one
+non-private is a compile error, so every renderer downstream can assume all
+seven are always private, with no "what if it's also public" case to reason
+about. A private field carrying some *other*, unrecognized wrapper
+(`@StateObject`, `@GestureState`, a future SwiftUI wrapper, …) is refused by a
+separate diagnostic rather than silently falling through as ordinary opaque
+private state and quietly disappearing from `OutFlow`/`Core`.
 
 ### The rule for everything else: mirror the attribute and type, never the mutability
 
 Every field except `@Query` (and `@Environment`, above) is declared on
-`StatelessNode` with the *original* property's own attribute (if it has one) and
+`Core` with the *original* property's own attribute (if it has one) and
 declared type — reusing `OutFlow`'s own field-computing functions
 (`outFlowProperties`/`outFlowFieldType`/`outFlowFieldReadExpression`) unchanged to
 decide *what* each field's type is — but never the original's `let`/`var`.
-`StatelessNode` is a deterministic snapshot, so a field is `var` only where Swift's
+`Core` is a deterministic snapshot, so a field is `var` only where Swift's
 own property-wrapper rule forces it (a genuine `@propertyWrapper` type requires
 `var` storage; verified directly, `@Bindable let model: Settings` is a compile
 error: "property wrapper can only be applied to a 'var'"). Everything else —
@@ -617,27 +656,27 @@ original property was declared as.
 This one rule covers several things at once:
 
 - **A plain `var subtitle: String?` becomes `let subtitle: String?` on
-  `StatelessNode`** — a captured value, not a re-tweakable one.
+  `Core`** — a captured value, not a re-tweakable one.
 - **A genuine, already-public `@Binding` field mirrors verbatim** into exactly
   the same `@Binding var name: T` form `@State`/`@AppStorage` are substituted
   into above — it already *is* that declaration in the original source, so no
   extra logic is needed. `@DataLayout`'s existing `@Binding` handling (a
   `Binding<T>` init parameter, assigned to the backing `_name` storage)
-  picks up both cases identically. The payoff: `statelessNode.name` reads the
-  wrapped value directly, no `.wrappedValue` unwrap — and `statelessNode.name =
+  picks up both cases identically. The payoff: `core.name` reads the
+  wrapped value directly, no `.wrappedValue` unwrap — and `core.name =
   newValue` writes straight through to whatever storage the original binding
   pointed at, genuinely two-way. `@Binding` is itself a genuine property
   wrapper, so it keeps `var`.
 - **`@ViewBuilder` mirroring is a real win here, unlike `OutFlow`'s tuple —
   but only for the stored-*closure* form** (`let content: () -> Content`):
   the field type is already a closure there, so the attribute is pure
-  upside — real builder syntax at `StatelessNode`'s own init call site, not
+  upside — real builder syntax at `Core`'s own init call site, not
   just documentation. For a stored *value* (`let footer: Content`), mirroring
   the attribute would make Swift's own synthesized init wrap the parameter in
   a builder closure purely to satisfy it (verified directly) — overhead with
   no benefit for a value that's already built and just being copied through —
   so it's dropped there entirely: `footer` stays a plain `let footer:
-  Content`, passed straight through in `statelessNode` with no wrapping on
+  Content`, passed straight through in `core` with no wrapping on
   either side. `@ViewBuilder` is *not* a `@propertyWrapper` — it's a
   result-builder attribute, legal directly on `let` (verified directly:
   `@ViewBuilder let vb: () -> Text` compiles).
@@ -645,42 +684,41 @@ This one rule covers several things at once:
   keeps var" rule above** — no init logic here ever recognized `@Bindable`
   specially even on the *original* type (it just does `self.model = model`,
   legal since `@Bindable`'s wrappedValue is a plain get/set), so mirroring it
-  onto `StatelessNode` works identically under Swift's own synthesized init.
+  onto `Core` works identically under Swift's own synthesized init.
 
 ### Automatic `View`/`ViewModifier` detection
 
 When the attached type's own inheritance clause spells `View` or `ViewModifier`,
-`@StatelessNode` generates two more things beyond the usual struct/property pair:
+`@Shell` generates two more things beyond the usual struct/property pair:
 
 ```swift
-@StatelessNode
+@Shell
 struct Card: View {
     let title: String
-    // generates, in addition to the usual StatelessNode struct/statelessNode property:
-    // @DataLayout
-    // struct StatelessNode: View { ... }       <- conformance declared, not implemented
-    // var body: some View { statelessNode }   <- the mechanical delegation, for free
+    // generates, in addition to the usual Core struct/core property:
+    // struct Core: View { ... }       <- conformance declared, not implemented
+    // var body: some View { core }   <- the mechanical delegation, for free
 }
 
 // only the real implementation is left to write by hand:
-extension Card.StatelessNode {
+extension Card.Core {
     var body: some View { Text(title) }
 }
 ```
 
-`ViewModifier` works the same way — `struct VM: ViewModifier` gets `StatelessNode:
+`ViewModifier` works the same way — `struct VM: ViewModifier` gets `Core:
 ViewModifier` plus `func body(content: Content) -> some View {
-content.modifier(statelessNode) }`, going through `View.modifier(_:)` rather
-than forwarding `content` directly into `StatelessNode`'s own `body(content:)`. That
+content.modifier(core) }`, going through `View.modifier(_:)` rather
+than forwarding `content` directly into `Core`'s own `body(content:)`. That
 detour is required, not stylistic: `ViewModifier.Content` is `typealias Content =
 _ViewModifier_Content<Self>`, a generic struct keyed on the *conforming type
-itself*, so `VM`'s own `Content` and `VM.StatelessNode`'s are different concrete
+itself*, so `VM`'s own `Content` and `VM.Core`'s are different concrete
 types — verified directly against the real compiler:
 
 ```
 error: cannot convert value of type 'VM.Content' (aka '_ViewModifier_Content<VM>')
-to expected argument type 'VM.StatelessNode.Content' (aka '_ViewModifier_Content<VM.StatelessNode>')
-note: arguments to generic parameter 'Modifier' ('VM' and 'VM.StatelessNode') are expected to be equal
+to expected argument type 'VM.Core.Content' (aka '_ViewModifier_Content<VM.Core>')
+note: arguments to generic parameter 'Modifier' ('VM' and 'VM.Core') are expected to be equal
 ```
 
 `.modifier(_:)` only needs its argument to conform to `ViewModifier`, not to
@@ -694,10 +732,10 @@ qualification (`SwiftUI.View`), is invisible to it. Only a bare `View`/
 `ViewModifier` identifier directly on the attached type is recognized.
 
 **How you're expected to discover you need to write that extension at all**:
-`StatelessNode: View`/`: ViewModifier` only *declares* the requirement, so Swift's
+`Core: View`/`: ViewModifier` only *declares* the requirement, so Swift's
 own "does not conform to protocol" build error already forces the extension to
-exist — but that error alone doesn't say *where* (extend `Card.StatelessNode`, not
-`Card`). `@StatelessNode` also generates a doc comment directly on the `StatelessNode`
+exist — but that error alone doesn't say *where* (extend `Card.Core`, not
+`Card`). `@Shell` also generates a doc comment directly on the `Core`
 struct declaration, spelling out exactly what to write, visible via Quick
 Help/jump-to-definition. Deliberately a doc comment, not a compiler diagnostic:
 the macro has no way to know whether the extension already exists elsewhere in
@@ -705,13 +743,13 @@ the module, so a `.note`/`.warning` would either nag forever (never clears
 once implemented) or never fire at all. A doc comment costs nothing once the
 extension is written.
 
-### How a StatelessNode relates to its host
+### How a Core relates to its host
 
 Every value a stateful host needs comes from exactly one of two places — supplied
 from *outside* by a caller, or held as the runtime's own *source of truth* — and
 both kinds converge on the host, which does nothing with them itself beyond
-handing them to `StatelessNode`. All the real rendering logic, and every view
-modifier, lives in `StatelessNode`'s own hand-written `body`/`body(content:)` —
+handing them to `Core`. All the real rendering logic, and every view
+modifier, lives in `Core`'s own hand-written `body`/`body(content:)` —
 which is why it's constructible and testable with no live view in the picture
 at all:
 
@@ -735,14 +773,14 @@ flowchart TD
         CardBody["body<br/>(generated delegation)"]
     end
 
-    subgraph SN["Card.StatelessNode — pure value, real View"]
+    subgraph SN["Card.Core — pure value, real View"]
         Fields["captured fields<br/>@Binding (writes through) · let (frozen)"]
         SNBody["body<br/>hand-written — ALL rendering logic<br/>and view modifiers live here"]
         Fields --> SNBody
     end
 
-    CardBody -. "statelessNode<br/>captures every value once" .-> SN
-    Test(["unit test / preview"]) -. "construct StatelessNode directly —<br/>no live view, no environment, no ModelContext" .-> Fields
+    CardBody -. "core<br/>captures every value once" .-> SN
+    Test(["unit test / preview"]) -. "construct Core directly —<br/>no live view, no environment, no ModelContext" .-> Fields
 ```
 
 - **`Outside`/`SOT` → `Card`** — `Card` is just where the two kinds of input
@@ -760,7 +798,7 @@ flowchart TD
   no live view, no environment injection, no `ModelContext` required to
   exercise it.
 - **`Test -.-> Fields`** (dotted, the other way in) — the path that skips
-  `Card` entirely: construct a `StatelessNode` directly — in a unit test, or a
+  `Card` entirely: construct a `Core` directly — in a unit test, or a
   `#Preview` — and assert on or render its captured fields, no live rendering
   pipeline required.
 
@@ -1158,8 +1196,8 @@ One target pair for every macro — not one pair per macro:
 
 | Target | Kind | Contents |
 |---|---|---|
-| `ValueFlowMacros` | macro plugin | every macro's implementation: `DataLayoutMacro`, `StatelessNodeMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`DataLayoutRendering.swift`, covering the init, `InFlowSplat`/`InFlow`, and `OutFlow`) that `@DataLayout` builds on and `@StatelessNode` reuses (`StatelessNodeRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `ValueFlow` | library (the one product) | every macro's public declaration — `DataLayout.swift`, `StatelessNode.swift`, `Capability.swift`, `TuplePicker.swift` — plus `Reflector.swift`, a small non-macro addition |
+| `ValueFlowMacros` | macro plugin | every macro's implementation: `DataLayoutMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`DataLayoutRendering.swift`, covering the init, `InFlowSplat`/`InFlow`, and `OutFlow`) that `@DataLayout` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `ValueFlow` | library (the one product) | every macro's public declaration — `DataLayout.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift` — plus `Reflector.swift`, a small non-macro addition |
 | `ValueFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites — both test frameworks coexist fine in one target |
 | `Examples` | executable | one playground exercising every macro in the package, plus Reflector |
 

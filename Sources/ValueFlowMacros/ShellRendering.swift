@@ -1,16 +1,16 @@
 import SwiftSyntax
 
-/// Renders `@StatelessNode`'s two generated members: a nested `StatelessNode` struct
+/// Renders `@Shell`'s two generated members: a nested `Core` struct
 /// over `OutFlow`'s field set *plus* `@Environment`/`@Namespace`
 /// (`outFlowProperties` itself excludes both — see its own doc comment, in
-/// `DataLayoutRendering.swift` — but `@StatelessNode` still captures them, just
-/// differently than `OutFlow` ever did), plus a `statelessNode` computed property
+/// `DataLayoutRendering.swift` — but `@Shell` still captures them, just
+/// differently than `OutFlow` ever did), plus a `core` computed property
 /// building one from the current instance.
 ///
-/// `StatelessNode` is always internal — its own access, every field's, and
-/// `statelessNode`'s — regardless of the attached type's own access level, and it
+/// `Core` is always internal — its own access, every field's, and
+/// `core`'s — regardless of the attached type's own access level, and it
 /// carries no `@DataLayout`. This is a purely internal testing/snapshot seam
-/// (`.statelessNode` for assertions and `StatelessNode`-hosted `body`/
+/// (`.core` for assertions and `Core`-hosted `body`/
 /// `body(content:)` implementations, both reachable from the same module or a
 /// `@testable import`), not a public API surface even when the attached type
 /// itself is `public` — consumers of a public host type never need the snapshot,
@@ -23,24 +23,24 @@ import SwiftSyntax
 /// stored-closure form, still mirrored — see below) synthesizes a real
 /// builder parameter, no different from `@DataLayout`'s own hand-written
 /// logic. The one thing genuinely lost by skipping `@DataLayout` is
-/// `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on `StatelessNode` itself —
+/// `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on `Core` itself —
 /// accepted, since nothing here needs to round-trip a snapshot back into
 /// itself.
 ///
-/// Because `StatelessNode`'s own type is always internal, `statelessNode`'s access
+/// Because `Core`'s own type is always internal, `core`'s access
 /// is forced internal too (Swift rejects a more-accessible property with a
 /// less-accessible type — verified directly: "property must be declared internal
 /// because its type uses an internal type"). `body`/`body(content:)` on the
 /// *attached* type, by contrast, still mirrors the attached type's own access
 /// (`public` included) — verified directly that this compiles even though it
-/// reads `statelessNode` (internal) and returns it: `some View`'s opaque
+/// reads `core` (internal) and returns it: `some View`'s opaque
 /// return type only exposes the `View` conformance, never the concrete
-/// `StatelessNode` type, so a `public` `body` can freely return an internal
+/// `Core` type, so a `public` `body` can freely return an internal
 /// concrete value.
 ///
 /// Every private wrapper kind becomes a *plain, constructed* field on
-/// `StatelessNode` — never the original attribute, always captured as an ordinary
-/// value read once when `.statelessNode` is computed:
+/// `Core` — never the original attribute, always captured as an ordinary
+/// value read once when `.core` is computed:
 /// - `@Query` → the synthesized `(result:, fetchError:, modelContext:)` tuple.
 /// - `@State`/`@AppStorage`/`@SceneStorage` → `@Binding var name: T` (the one
 ///   case that keeps an attribute — substituted, not mirrored, since their own
@@ -56,7 +56,7 @@ import SwiftSyntax
 ///   and no public initializer either, so folding it into the `@Binding` case
 ///   above isn't an option. The real `FocusState<T>.Binding`, though, is itself
 ///   `@propertyWrapper`-attributed (verified directly, reading the actual
-///   SwiftUI interface), so it redeclares onto `StatelessNode` the same way
+///   SwiftUI interface), so it redeclares onto `Core` the same way
 ///   `@Binding` does — just spelling a different wrapper — and round-trips for
 ///   free: `snap.name` reads the unwrapped value, `snap.$name` hands back a
 ///   real `FocusState<T>.Binding` usable directly with `.focused(_:)`.
@@ -77,8 +77,8 @@ import SwiftSyntax
 ///
 /// Every other field — plain, `@ViewBuilder`, `@Query`, `@Bindable`, or any other
 /// property wrapper — mirrors the *original* property's own attribute (if it has
-/// one) and declared type onto `StatelessNode` verbatim, but **not** its
-/// mutability: `StatelessNode` is a deterministic snapshot, so a field gets `var`
+/// one) and declared type onto `Core` verbatim, but **not** its
+/// mutability: `Core` is a deterministic snapshot, so a field gets `var`
 /// only where Swift's own property-wrapper rule forces it (a real
 /// `@propertyWrapper` type — `@Bindable`, or any other genuine wrapper — requires
 /// `var` storage; verified directly, `@Bindable let model: Settings` is a compile
@@ -86,7 +86,7 @@ import SwiftSyntax
 /// doesn't carry a genuine wrapper attribute is `let`, regardless of whether the
 /// *original* property was declared `let` or `var`:
 /// - A plain `var subtitle: String?` on the original type becomes `let subtitle:
-///   String?` on `StatelessNode` — a captured value, not a re-tweakable one.
+///   String?` on `Core` — a captured value, not a re-tweakable one.
 /// - `@Query`'s synthesized `(result:, fetchError:, modelContext:)` tuple carries
 ///   no attribute on the copy (see above) and is `let` for the same reason.
 /// - `@ViewBuilder` is **not** a `@propertyWrapper` — it's a result-builder
@@ -108,24 +108,19 @@ import SwiftSyntax
 ///   synthesized init handles `@Bindable` the same way `@DataLayout`'s
 ///   hand-written one would (`self.model = model`, legal since `@Bindable`'s
 ///   wrappedValue is a plain get/set — verified directly), so mirroring it onto
-///   `StatelessNode`'s copy works with no extra logic anywhere in this file.
-func renderStatelessNode(
-    properties: [StoredProperty], access: String, hostKind: StatelessNodeHostKind = .none
+///   `Core`'s copy works with no extra logic anywhere in this file.
+func renderShell(
+    properties: [StoredProperty], access: String, hostKind: ShellHostKind = .none
 ) -> [DeclSyntax] {
-    // StatelessNode's own field set: OutFlow's, plus @Environment (OutFlow's tuple
-    // can't carry it at all — see outFlowProperties's own doc comment — but
-    // StatelessNode, a real struct, captures it as a plain field like everything
-    // else). One filter over `properties` so declaration order is preserved
-    // as a single interleaved list, matching the same principle
-    // `outFlowProperties` documents for OutFlow/InFlow.
-    let fields = properties.filter {
-        !$0.isPrivate || $0.isQuery || $0.isBindingBackedStorage || $0.isEnvironment
-            || $0.isFocusState || $0.isNamespace
-    }
+    // Core's own field set is identical to OutFlow's — every source-
+    // of-truth wrapper this package recognizes is a private field worth
+    // capturing, no exceptions — so this reuses `outFlowProperties` directly
+    // rather than duplicating its filter.
+    let fields = outFlowProperties(properties)
 
     // Every field is internal — never `access` — regardless of the attached
     // type's own access level; see this file's own doc comment for why
-    // `StatelessNode` is deliberately never public.
+    // `Core` is deliberately never public.
     let fieldDecls = fields.map { p -> String in
         if p.isBindingBackedStorage || p.isBinding {
             // Always `var` — `@Binding` is a genuine `@propertyWrapper`, and Swift
@@ -175,7 +170,7 @@ func renderStatelessNode(
     case .none: conformance = ""
     }
 
-    // A doc comment, not a diagnostic — `@StatelessNode` can't know whether the
+    // A doc comment, not a diagnostic — `@Shell` can't know whether the
     // implementing extension already exists elsewhere in the module (no
     // semantic model), so a diagnostic here would either be a permanent nag
     // that never clears once implemented, or nothing at all. A doc comment on
@@ -183,21 +178,21 @@ func renderStatelessNode(
     // just documentation, visible on demand via Quick Help/jump-to-definition),
     // and Swift's own "does not conform to protocol" build error already
     // enforces that the extension gets written at all — this only clarifies
-    // *what* to write, since the error alone doesn't say "extend `StatelessNode`,
+    // *what* to write, since the error alone doesn't say "extend `Core`,
     // not the outer type."
     let hostDocLines: [String]
     switch hostKind {
     case .view:
         hostDocLines = [
-            "/// Conforms to `View`, declared by `@StatelessNode` — implement its real",
-            "/// `body` in a separate extension, e.g. `extension YourType.StatelessNode {",
+            "/// Conforms to `View`, declared by `@Shell` — implement its real",
+            "/// `body` in a separate extension, e.g. `extension YourType.Core {",
             "/// var body: some View { ... } }`.",
         ]
     case .viewModifier:
         hostDocLines = [
-            "/// Conforms to `ViewModifier`, declared by `@StatelessNode` — implement its",
+            "/// Conforms to `ViewModifier`, declared by `@Shell` — implement its",
             "/// real `body(content:)` in a separate extension, e.g. `extension",
-            "/// YourType.StatelessNode { func body(content: Content) -> some View",
+            "/// YourType.Core { func body(content: Content) -> some View",
             "/// { ... } }`.",
         ]
     case .none:
@@ -207,13 +202,13 @@ func renderStatelessNode(
 
     let statelessStruct = DeclSyntax(
         stringLiteral: """
-            \(hostDocComment)struct StatelessNode\(conformance) {
+            \(hostDocComment)struct Core\(conformance) {
             \(fieldDecls)
             }
             """
     )
 
-    // Constructing `StatelessNode`: every field reads the way `outFlow` does
+    // Constructing `Core`: every field reads the way `outFlow` does
     // (`outFlowFieldReadExpression`) and is passed straight through, no
     // wrapping needed anywhere — including a `@ViewBuilder`-stored *value*
     // field, which (per the field-decl comment above) isn't mirrored with the
@@ -222,32 +217,32 @@ func renderStatelessNode(
     let args = fields.map { p -> String in
         "\(p.name): \(outFlowFieldReadExpression(p))"
     }.joined(separator: ", ")
-    // Always internal, never `access` — `statelessNode`'s type (`StatelessNode`)
+    // Always internal, never `access` — `core`'s type (`Core`)
     // is itself always internal, and Swift rejects a more-accessible property
     // with a less-accessible type.
     let statelessProperty = DeclSyntax(
         stringLiteral: """
-            var statelessNode: StatelessNode {
-                StatelessNode(\(args))
+            var core: Core {
+                Core(\(args))
             }
             """
     )
 
     // The mechanical delegation from the attached type's own real `body`/
-    // `body(content:)` requirement down to `statelessNode`. `.modifier(_:)`
+    // `body(content:)` requirement down to `core`. `.modifier(_:)`
     // is what makes the `ViewModifier` case work at all without needing
-    // `StatelessNode`'s own `Content` to unify with the attached type's — see this
-    // function's doc comment (in StatelessNodeMacro.swift) for the verified reason
-    // forwarding `content` directly into `StatelessNode.body(content:)` doesn't.
+    // `Core`'s own `Content` to unify with the attached type's — see this
+    // function's doc comment (in ShellMacro.swift) for the verified reason
+    // forwarding `content` directly into `Core.body(content:)` doesn't.
     // No `self.` prefix: `content` is `body(content:)`'s only parameter, and it
-    // doesn't share `statelessNode`'s name, so there's nothing to disambiguate.
+    // doesn't share `core`'s name, so there's nothing to disambiguate.
     let hostBody: DeclSyntax?
     switch hostKind {
     case .view:
         hostBody = DeclSyntax(
             stringLiteral: """
                 \(access)var body: some View {
-                    statelessNode
+                    core
                 }
                 """
         )
@@ -255,7 +250,7 @@ func renderStatelessNode(
         hostBody = DeclSyntax(
             stringLiteral: """
                 \(access)func body(content: Content) -> some View {
-                    content.modifier(statelessNode)
+                    content.modifier(core)
                 }
                 """
         )

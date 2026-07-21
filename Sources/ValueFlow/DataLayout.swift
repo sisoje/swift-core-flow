@@ -37,13 +37,21 @@
 /// - Computed properties and `static`/`class` members are skipped.
 ///
 /// ## Property wrappers (tuned for SwiftUI)
-/// Only `@Binding` is threaded into the init, as a projected `Binding<T>` parameter.
-/// Every other wrapper — `@State`, `@Environment`, `@StateObject`, … — is view-owned
-/// or injected and is **excluded** from the init, so `@DataLayout` works cleanly
-/// on a `View`.
+/// `@Binding`/`@Bindable`/`@ViewBuilder` are threaded into the init as real
+/// parameters a caller supplies — declaring any of them `private` is a compile
+/// error, since that makes them unreachable. Every recognized source-of-truth
+/// wrapper — `@State`, `@Environment`, `@Query`, `@AppStorage`, `@SceneStorage`,
+/// `@FocusState`, `@Namespace` — is view-owned or injected, must be `private`,
+/// and is **excluded** from the init (though not from `OutFlow`/`Core`
+/// — see below), so `@DataLayout` works cleanly on a `View`. A private property
+/// with no property wrapper at all (`private var cache = 0`) is also a compile
+/// error — pure data flow has no room for opaque private state that's neither
+/// a source of truth nor caller-supplied.
 ///
-/// A property that becomes an init parameter must carry an explicit type annotation
-/// (the macro is syntax-only and can't infer a type from a literal).
+/// A property that becomes an init parameter must carry an explicit type
+/// annotation — the macro is syntax-only and can't really infer a type from a
+/// literal, *except* three unambiguous kinds: `var isOn = false`, `var count = 0`,
+/// `var label = "x"` are inferred straight off the literal's own syntax.
 ///
 /// ## The `InFlowSplat` typealias (in) and `makeFlow(_:)`
 /// Alongside the init, `@DataLayout` declares `InFlowSplat` — the same
@@ -117,23 +125,27 @@
 /// ## `allFieldNames` — removed
 /// An earlier revision had a `static var allFieldNames: [String]` here, listing
 /// **every** stored property's name unconditionally, with no filtering at all —
-/// including plain private fields with no recognized wrapper, which never appear
-/// in `InFlowSplat`/`InFlow`/`OutFlow` (none of those are tuples over the
-/// *whole* type, only over specific field subsets). Removed once it became clear
-/// `Reflector.fieldNames(of:)` already covers the same need for any *specific*
-/// tuple (`InFlow`, `OutFlow`, …) without a dedicated generated member — the
-/// one real gap that removal opens is a totally-private, non-wrapper field
-/// (`private var cache = 0`), which still has no tuple type anywhere to reflect
-/// over. Accepted as YAGNI for now; revisit if that specific need actually comes
-/// up.
+/// including plain private fields with no recognized wrapper (legal at the
+/// time), which never appeared in `InFlowSplat`/`InFlow`/`OutFlow` (none of
+/// those are tuples over the *whole* type, only over specific field subsets).
+/// Removed once it became clear `Reflector.fieldNames(of:)` already covers the
+/// same need for any *specific* tuple (`InFlow`, `OutFlow`, …) without a
+/// dedicated generated member — the gap that removal opened (a totally-private,
+/// non-wrapper field has no tuple type anywhere to reflect over) is moot now
+/// anyway: that kind of field is a compile error, not a silently-excluded one
+/// (see the property-wrappers section above).
 ///
 /// ## `OutFlow` and the `outFlow` property
 /// A wider version of `InFlow`/`inFlow`: every non-private participating property,
-/// **plus** private `@Query`/`@State`/`@AppStorage`/`@FocusState` properties — a
-/// view's own externally-relevant *capturable* state, alongside its public data —
-/// in declaration order (not data-layout fields first, wrapper fields appended
-/// after). Everything else private (a plain `private var cache = 0`,
-/// `@StateObject`, …) stays excluded.
+/// **plus every recognized private source-of-truth wrapper** —
+/// `@Query`/`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState`/
+/// `@Environment`/`@Namespace`, no exceptions — a view's own
+/// externally-relevant *capturable* state, alongside its public data, in
+/// declaration order (not data-layout fields first, wrapper fields appended
+/// after). Every property here is already guaranteed one of these two shapes —
+/// a private property with no recognized wrapper (`private var cache = 0`) or
+/// an unrecognized wrapper (`@StateObject`, …) is refused outright at the
+/// property-collection stage, not silently excluded here.
 ///
 /// ```swift
 /// @DataLayout
@@ -142,24 +154,28 @@
 ///     @State private var isExpanded: Bool = false
 ///     let title: String
 ///     // generates:
-///     // typealias OutFlow = (items: (result: [Item], fetchError: Error?, modelContext: ModelContext),
+///     // typealias OutFlow = (items: (wrappedValue: [Item], fetchError: Error?),
 ///     //                       isExpanded: Binding<Bool>, title: String)
 ///     // var outFlow: OutFlow {
-///     //     (items: (result: items, fetchError: _items.fetchError, modelContext: _items.modelContext),
+///     //     (items: #pick(from: _items, \.wrappedValue, \.fetchError),
 ///     //      isExpanded: $isExpanded, title: title)
 ///     // }
 /// }
 /// ```
 ///
-/// - **`@Query` → always `(result: WrappedType, fetchError: Error?, modelContext:
-///   ModelContext)`, synthesized** — not a passthrough of the declared type.
-///   `fetchError`/`modelContext` are real members of SwiftData's `Query` wrapper
-///   *instance* (`_x.fetchError`, `_x.modelContext`), not synthesized
-///   placeholders.
-/// - **`@State`/`@AppStorage` → `Binding<WrappedType>`, read via the *projected*
-///   value** (`$x`, not `_x` — verified directly that `_x` gives the
-///   wrapper instance itself, `State<T>`, not `Binding<T>`) — the view's own
-///   externally read-*and-write*-able storage.
+/// - **`@Query` → always `(wrappedValue: WrappedType, fetchError: Error?)`,
+///   synthesized via `#pick`** (this package's own `TuplePicker` macro,
+///   reused here) — not a passthrough of the declared type, and no
+///   `modelContext` either: that's plumbing for issuing further queries/
+///   saves, not a snapshot value worth asserting on, so it's left off rather
+///   than picked for completeness's sake. `wrappedValue`/`fetchError` are real
+///   members of SwiftData's `Query` wrapper *instance*, picked verbatim (no
+///   renaming) via `#pick(from: _x, \.wrappedValue, \.fetchError)`, not
+///   synthesized placeholders.
+/// - **`@State`/`@AppStorage`/`@SceneStorage` → `Binding<WrappedType>`, read via
+///   the *projected* value** (`$x`, not `_x` — verified directly that `_x`
+///   gives the wrapper instance itself, `State<T>`, not `Binding<T>`) — the
+///   view's own externally read-*and-write*-able storage.
 /// - **`@FocusState` → `FocusState<WrappedType>.Binding`, read the same way**
 ///   (`$x`) — **not** `Binding<WrappedType>`, despite the identical read
 ///   expression. Verified directly against the real SwiftUI interface:
@@ -167,19 +183,16 @@
 ///   `wrappedValue`, no public initializer at all and no conversion to
 ///   `Binding<T>` — so it can't share the row above, even though both are
 ///   reached via `$x`.
-/// - **`@Environment` is deliberately excluded**, unlike the other three — not
-///   because it's technically uncapturable (a plain, unattributed value works
-///   fine; `@StatelessNode`, a separate macro, captures it exactly that way), but
-///   because a captured snapshot goes stale the moment the real environment
-///   changes, and `@Environment`'s own mocking story (inject a different value
-///   where the type is constructed/hosted) already covers testing it without
-///   this package's help. `@StatelessNode` makes the opposite call and captures it
-///   anyway, for the same reason it treats every field uniformly.
-/// - **These four wrapper kinds need an explicit type even though they're
+/// - **`@Environment`/`@Namespace` → the plain declared type**, read the same
+///   way any non-private field is (`x`) — no exclusion. A captured value
+///   going stale if the real environment changes, or `@Environment`'s own
+///   mocking story, are things worth knowing about the *snapshot*, not
+///   reasons to leave the field out of it.
+/// - **Every recognized wrapper kind needs an explicit type even though it's
 ///   private** — every other private property is exempt from the "needs a type"
-///   rule, but `OutFlow` reads their type to build its field, so the exemption
-///   doesn't extend to them. (`@Environment` also needs an explicit type, for
-///   `@StatelessNode`'s sake, even though `OutFlow` itself no longer reads it.)
+///   rule, but `OutFlow` reads the type to build its field, so the exemption
+///   doesn't extend to any of them. `@Namespace` is the one exception — its
+///   wrapped type is always `Namespace.ID`, so there's nothing to annotate.
 @attached(
     member, names: named(init), named(InFlowSplat), named(makeFlow), named(InFlow),
     named(inFlow), named(OutFlow), named(outFlow)

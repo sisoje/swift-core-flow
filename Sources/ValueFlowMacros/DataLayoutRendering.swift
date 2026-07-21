@@ -226,32 +226,35 @@ func renderInFlowProperty(properties: [StoredProperty], access: String) -> DeclS
 }
 
 /// The properties `OutFlow`/`outFlow` (below) include: every non-private
-/// participating property (same set `InFlow` has), plus every private
-/// `@Query`/`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState` property — the
-/// view's own externally-relevant *capturable* state, alongside its public
-/// data. In declaration order, same as `properties` itself; not data-layout
-/// fields first and wrapper fields appended after.
+/// participating property (same set `InFlow` has), plus every recognized
+/// private source-of-truth wrapper — `@Query`/`@State`/`@AppStorage`/
+/// `@SceneStorage`/`@FocusState`/`@Environment`/`@Namespace` — the view's own
+/// externally-relevant *capturable* state, alongside its public data, no
+/// exceptions. In declaration order, same as `properties` itself; not
+/// data-layout fields first and wrapper fields appended after.
 ///
-/// **`@Environment` is deliberately excluded**, unlike the other private
-/// wrapper kinds — not because it's technically uncapturable (a plain,
-/// unattributed value works fine, same as any other field; `@StatelessNode`
-/// captures it exactly that way, see `StatelessNodeRendering.swift`), but because a
-/// captured snapshot goes stale the moment the real environment changes, and
-/// needs no help from this package anyway — `@Environment`'s own mocking story
-/// (inject a different value where the type is constructed/hosted) already
-/// covers it natively. `OutFlow` stays scoped to `@Query`/`@State`/
-/// `@AppStorage`/`@SceneStorage`/`@FocusState`; `@StatelessNode` makes the
-/// opposite call and captures it too, for the same reason it treats every
-/// field uniformly (see its own doc comment).
+/// **No wrapper kind is excluded** — an earlier revision left `@Environment`
+/// out on the theory that a captured snapshot goes stale the moment the real
+/// environment changes, and that its own mocking story (inject a different
+/// value where the type is constructed/hosted) already covers testing it
+/// without this package's help. That reasoning was reconsidered: every
+/// private property this package recognizes at all *is* a source of truth,
+/// full stop, and `@Shell` never excluded `@Environment` either — the
+/// asymmetry was the actual defect, not a deliberate design choice worth
+/// keeping. `OutFlow`'s field set is identical to `@Shell`'s now (see
+/// `outFlowProperties`'s reuse in `ShellRendering.swift`).
 ///
-/// Everything else private (a plain `private var cache = 0`, `@StateObject`, …) is
-/// excluded too — `OutFlow` is deliberately scoped to `@Query`/`@State`/
-/// `@AppStorage`/`@SceneStorage`/`@FocusState`, not "every private property"
-/// (there's no such unconditional, unfiltered member in this package — see
-/// `allFieldNames`'s removal note in `DataLayout.swift`).
+/// There's nothing left to exclude here at all — every property this function
+/// sees is already guaranteed a recognized shape: a private property with no
+/// wrapper (`private var cache = 0`) or an unrecognized one (`@StateObject`, a
+/// future SwiftUI wrapper this package hasn't been taught about, …) is refused
+/// outright by `collectStoredProperties`
+/// (`plainPrivatePropertyNotAllowed`/`unsupportedPrivateWrapper`,
+/// `StoredProperty.swift`) before it ever reaches this filter.
 func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
     properties.filter {
         !$0.isPrivate || $0.isQuery || $0.isBindingBackedStorage || $0.isFocusState
+            || $0.isEnvironment || $0.isNamespace
     }
 }
 
@@ -262,16 +265,17 @@ func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
 /// - **Non-private fields** use `baseTypeText` unchanged — same rules `InFlow`
 ///   already applies (`Binding<T>` for `@Binding`, `@ViewBuilder` unwrapped to its
 ///   bare type, everything else as declared).
-/// - **`@Query`** (`isQuery`) → **always** `(result: WrappedType, fetchError:
-///   Error?, modelContext: ModelContext)`, synthesized — not a passthrough of the
-///   declared type. `WrappedType` is the property's own declared type (e.g.
-///   `[Item]` for `@Query private var items: [Item]`); `fetchError` and
-///   `modelContext` are real members of SwiftData's `Query` wrapper *instance*
-///   (`@MainActor @preconcurrency public var fetchError: (any Error)? { get }`,
-///   `public var modelContext: ModelContext { get }` — verified directly against
-///   the SwiftData interface), not synthesized placeholders — reached the same
-///   way `@Binding`'s own wrapper instance is reached elsewhere in this file, via
-///   the underscore-prefixed backing storage.
+/// - **`@Query`** (`isQuery`) → **always** `(wrappedValue: WrappedType,
+///   fetchError: Error?)`, synthesized via `#pick` — not a passthrough of the
+///   declared type, and not `modelContext` either: that one's plumbing for
+///   issuing further queries/saves, not a snapshot value worth asserting on,
+///   so it's left off entirely rather than picked for completeness's sake.
+///   `WrappedType` is the property's own declared type (e.g. `[Item]` for
+///   `@Query private var items: [Item]`); `wrappedValue`/`fetchError` are the
+///   wrapper *instance*'s own two real members, picked verbatim, no renaming
+///   (`fetchError`: `@MainActor @preconcurrency public var fetchError: (any
+///   Error)? { get }` — verified directly against the SwiftData interface),
+///   not synthesized placeholders.
 /// - **`@State`/`@AppStorage`/`@SceneStorage`** (`isBindingBackedStorage`) →
 ///   `Binding<T>`, since these are the view's own read-*and-write*-able
 ///   storage from the outside — `self.$x` already gives the real thing, since
@@ -296,15 +300,14 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
         return "FocusState<\(p.type?.trimmedDescription ?? "")>.Binding"
     }
     if p.isQuery {
-        return
-            "(result: \(p.type?.trimmedDescription ?? ""), fetchError: Error?, modelContext: ModelContext)"
+        return "(wrappedValue: \(p.type?.trimmedDescription ?? ""), fetchError: Error?)"
     }
     return baseTypeText(p, wrapViewBuilder: false)
 }
 
 /// A field's `OutFlow` *read* expression, the `outFlow` property's counterpart to
 /// `outFlowFieldType` above. No `self.` prefix anywhere here, same reasoning as
-/// `fieldReadExpression`: every caller reads inside the `outFlow`/`statelessNode`
+/// `fieldReadExpression`: every caller reads inside the `outFlow`/`core`
 /// getter, neither of which has a parameter list, so there's nothing for a bare
 /// identifier to collide with (verified directly).
 /// - **Non-private fields** use `fieldReadExpression` unchanged (`x`, or
@@ -316,19 +319,23 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
 ///   `outFlowFieldType` above) — `@FocusState`'s own `projectedValue` happens
 ///   to be `FocusState<T>.Binding` rather than `Binding<T>`, but it's still
 ///   reached the exact same way.
-/// - **`@Query`** reads `(result: x, fetchError: _x.fetchError,
-///   modelContext: _x.modelContext)` — `x` is the wrapper's
-///   `wrappedValue` (the fetched array); `fetchError`/`modelContext` are real
-///   members of the wrapper *instance* itself (`_x`, type `Query<Element,
-///   Result>`), the same underscore-prefixed access `@Binding` already uses
-///   elsewhere in this file — not synthesized.
+/// - **`@Query`** reads `#pick(from: _x, \.wrappedValue, \.fetchError)` —
+///   `_x` is the wrapper *instance* itself (type `Query<Element, Result>`,
+///   the same underscore-prefixed access `@Binding` already uses elsewhere in
+///   this file), and `#pick` (this package's own `TuplePicker` macro) picks
+///   its `wrappedValue`/`fetchError` members verbatim into the labeled tuple
+///   `outFlowFieldType` declares — real members, not synthesized, and no
+///   `modelContext` (dropped above). Reusing `#pick` here instead of
+///   hand-writing the same tuple-literal construction is deliberate
+///   dogfooding: this package's own field-projection macro is exactly the
+///   tool for "pick a few named members off a value into a tuple," so this
+///   uses it rather than duplicating that logic.
 func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
     if p.isBindingBackedStorage || p.isFocusState {
         return "$\(p.name)"
     }
     if p.isQuery {
-        return
-            "(result: \(p.name), fetchError: _\(p.name).fetchError, modelContext: _\(p.name).modelContext)"
+        return "#pick(from: _\(p.name), \\.wrappedValue, \\.fetchError)"
     }
     return fieldReadExpression(p)
 }

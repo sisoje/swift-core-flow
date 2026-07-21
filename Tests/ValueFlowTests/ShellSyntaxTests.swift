@@ -4,13 +4,13 @@ import XCTest
 
 @testable import ValueFlowMacros
 
-final class StatelessNodeSyntaxTests: XCTestCase {
-    let macros: [String: Macro.Type] = ["StatelessNode": StatelessNodeMacro.self]
+final class ShellSyntaxTests: XCTestCase {
+    let macros: [String: Macro.Type] = ["Shell": ShellMacro.self]
 
     func testMixOfPlainQueryEnvironmentStateAndBindingFields() {
         assertMacroExpansion(
             """
-            @StatelessNode
+            @Shell
             struct Card {
                 @Query private var items: [Item]
                 @Environment(\\.colorScheme) private var colorScheme: ColorScheme
@@ -27,16 +27,16 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     @Binding var isOn: Bool
                     let title: String
 
-                    struct StatelessNode {
-                        let items: (result: [Item], fetchError: Error?, modelContext: ModelContext)
+                    struct Core {
+                        let items: (wrappedValue: [Item], fetchError: Error?)
                         let colorScheme: ColorScheme
                         @Binding var isExpanded: Bool
                         @Binding var isOn: Bool
                         let title: String
                     }
 
-                    var statelessNode: StatelessNode {
-                        StatelessNode(items: (result: items, fetchError: _items.fetchError, modelContext: _items.modelContext), colorScheme: colorScheme, isExpanded: $isExpanded, isOn: _isOn, title: title)
+                    var core: Core {
+                        Core(items: #pick(from: _items, \\.wrappedValue, \\.fetchError), colorScheme: colorScheme, isExpanded: $isExpanded, isOn: $isOn, title: title)
                     }
                 }
                 """,
@@ -49,11 +49,11 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         // not @Binding — since @FocusState's own projectedValue is
         // FocusState<T>.Binding, not Binding<T> (verified directly, no public
         // conversion between the two). The real FocusState<T>.Binding is itself
-        // @propertyWrapper-attributed, so it redeclares onto StatelessNode the
+        // @propertyWrapper-attributed, so it redeclares onto Core the
         // same way @Binding does for @State/@AppStorage.
         assertMacroExpansion(
             """
-            @StatelessNode
+            @Shell
             struct SearchField {
                 @FocusState private var isFocused: Bool
                 let title: String
@@ -64,13 +64,13 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     @FocusState private var isFocused: Bool
                     let title: String
 
-                    struct StatelessNode {
+                    struct Core {
                         @FocusState<Bool>.Binding var isFocused: Bool
                         let title: String
                     }
 
-                    var statelessNode: StatelessNode {
-                        StatelessNode(isFocused: $isFocused, title: title)
+                    var core: Core {
+                        Core(isFocused: $isFocused, title: title)
                     }
                 }
                 """,
@@ -85,7 +85,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         // substitution, no separate case needed unlike @FocusState.
         assertMacroExpansion(
             """
-            @StatelessNode
+            @Shell
             struct SearchField {
                 @SceneStorage("isPinned") private var isPinned: Bool = false
                 let title: String
@@ -96,13 +96,13 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     @SceneStorage("isPinned") private var isPinned: Bool = false
                     let title: String
 
-                    struct StatelessNode {
+                    struct Core {
                         @Binding var isPinned: Bool
                         let title: String
                     }
 
-                    var statelessNode: StatelessNode {
-                        StatelessNode(isPinned: $isPinned, title: title)
+                    var core: Core {
+                        Core(isPinned: $isPinned, title: title)
                     }
                 }
                 """,
@@ -121,7 +121,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         // in itself rather than diagnosing a missing type.
         assertMacroExpansion(
             """
-            @StatelessNode
+            @Shell
             struct HeroCard {
                 @Namespace private var ns
                 let title: String
@@ -132,13 +132,13 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     @Namespace private var ns
                     let title: String
 
-                    struct StatelessNode {
+                    struct Core {
                         let ns: Namespace.ID
                         let title: String
                     }
 
-                    var statelessNode: StatelessNode {
-                        StatelessNode(ns: ns, title: title)
+                    var core: Core {
+                        Core(ns: ns, title: title)
                     }
                 }
                 """,
@@ -146,24 +146,25 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         )
     }
 
-    func testZeroEligibleFieldsStillGeneratesAnEmptyStatelessNodeStruct() {
+    func testZeroEligibleFieldsStillGeneratesAnEmptyCoreStruct() {
+        // No plain private fallthrough field here — a private property with no
+        // recognized wrapper is a compile error now (see
+        // testDiagnosesPlainPrivatePropertyWithNoWrapper), so zero eligible fields
+        // means zero stored properties at all.
         assertMacroExpansion(
             """
-            @StatelessNode
-            struct Empty {
-                private var cache = 0
-            }
+            @Shell
+            struct Empty {}
             """,
             expandedSource: """
                 struct Empty {
-                    private var cache = 0
 
-                    struct StatelessNode {
+                    struct Core {
 
                     }
 
-                    var statelessNode: StatelessNode {
-                        StatelessNode()
+                    var core: Core {
+                        Core()
                     }
                 }
                 """,
@@ -181,7 +182,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         // through with no wrapping on either side.
         assertMacroExpansion(
             """
-            @StatelessNode
+            @Shell
             struct ProfileCard<Content: View> {
                 var subtitle: String?
                 @Bindable var model: Settings
@@ -196,15 +197,15 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     @ViewBuilder let content: () -> Content
                     @ViewBuilder let footer: Content
 
-                    struct StatelessNode {
+                    struct Core {
                         let subtitle: String?
                         @Bindable var model: Settings
                         @ViewBuilder let content: () -> Content
                         let footer: Content
                     }
 
-                    var statelessNode: StatelessNode {
-                        StatelessNode(subtitle: subtitle, model: model, content: content, footer: footer)
+                    var core: Core {
+                        Core(subtitle: subtitle, model: model, content: content, footer: footer)
                     }
                 }
                 """,
@@ -215,7 +216,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
     func testViewConformanceIsDetectedAndDelegatingBodyIsGenerated() {
         assertMacroExpansion(
             """
-            @StatelessNode
+            @Shell
             struct Card: View {
                 let title: String
             }
@@ -224,19 +225,19 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                 struct Card: View {
                     let title: String
 
-                    /// Conforms to `View`, declared by `@StatelessNode` — implement its real
-                    /// `body` in a separate extension, e.g. `extension YourType.StatelessNode {
+                    /// Conforms to `View`, declared by `@Shell` — implement its real
+                    /// `body` in a separate extension, e.g. `extension YourType.Core {
                     /// var body: some View { ... } }`.
-                    struct StatelessNode: View {
+                    struct Core: View {
                         let title: String
                     }
 
-                    var statelessNode: StatelessNode {
-                        StatelessNode(title: title)
+                    var core: Core {
+                        Core(title: title)
                     }
 
                     var body: some View {
-                        statelessNode
+                        core
                     }
                 }
                 """,
@@ -247,7 +248,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
     func testViewModifierConformanceIsDetectedAndDelegatingBodyIsGenerated() {
         assertMacroExpansion(
             """
-            @StatelessNode
+            @Shell
             struct VM: ViewModifier {
                 @State private var c: Int = 0
             }
@@ -256,20 +257,20 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                 struct VM: ViewModifier {
                     @State private var c: Int = 0
 
-                    /// Conforms to `ViewModifier`, declared by `@StatelessNode` — implement its
+                    /// Conforms to `ViewModifier`, declared by `@Shell` — implement its
                     /// real `body(content:)` in a separate extension, e.g. `extension
-                    /// YourType.StatelessNode { func body(content: Content) -> some View
+                    /// YourType.Core { func body(content: Content) -> some View
                     /// { ... } }`.
-                    struct StatelessNode: ViewModifier {
+                    struct Core: ViewModifier {
                         @Binding var c: Int
                     }
 
-                    var statelessNode: StatelessNode {
-                        StatelessNode(c: $c)
+                    var core: Core {
+                        Core(c: $c)
                     }
 
                     func body(content: Content) -> some View {
-                        content.modifier(statelessNode)
+                        content.modifier(core)
                     }
                 }
                 """,
@@ -281,10 +282,10 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         // Syntax-only detection reads the attached declaration's own inheritance
         // clause — conformance added elsewhere (a separate `extension Card: View`)
         // is invisible to it, since macros never get a type checker. Documented
-        // limitation, not a bug: no `body` member, no `: View` on StatelessNode.
+        // limitation, not a bug: no `body` member, no `: View` on Core.
         assertMacroExpansion(
             """
-            @StatelessNode
+            @Shell
             struct Card {
                 let title: String
             }
@@ -293,12 +294,12 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                 struct Card {
                     let title: String
 
-                    struct StatelessNode {
+                    struct Core {
                         let title: String
                     }
 
-                    var statelessNode: StatelessNode {
-                        StatelessNode(title: title)
+                    var core: Core {
+                        Core(title: title)
                     }
                 }
                 """,
@@ -306,15 +307,15 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         )
     }
 
-    func testPublicViewHostStillGetsAPublicBodyDelegatingToAnInternalStatelessNode() {
+    func testPublicViewHostStillGetsAPublicBodyDelegatingToAnInternalCore() {
         // `body`'s own access still mirrors the host (public), verified directly
-        // that this compiles even though it returns `statelessNode`, an
+        // that this compiles even though it returns `core`, an
         // internal concrete type — `some View`'s opaque return type only exposes
         // the `View` conformance, never the concrete type, so a public `body` can
         // freely return an internal value.
         assertMacroExpansion(
             """
-            @StatelessNode
+            @Shell
             public struct Card: View {
                 let title: String
             }
@@ -323,19 +324,19 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                 public struct Card: View {
                     let title: String
 
-                    /// Conforms to `View`, declared by `@StatelessNode` — implement its real
-                    /// `body` in a separate extension, e.g. `extension YourType.StatelessNode {
+                    /// Conforms to `View`, declared by `@Shell` — implement its real
+                    /// `body` in a separate extension, e.g. `extension YourType.Core {
                     /// var body: some View { ... } }`.
-                    struct StatelessNode: View {
+                    struct Core: View {
                         let title: String
                     }
 
-                    var statelessNode: StatelessNode {
-                        StatelessNode(title: title)
+                    var core: Core {
+                        Core(title: title)
                     }
 
                     public var body: some View {
-                        statelessNode
+                        core
                     }
                 }
                 """,
@@ -343,10 +344,10 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         )
     }
 
-    func testStatelessNodeIsAlwaysInternalRegardlessOfTheStructsAccess() {
+    func testCoreIsAlwaysInternalRegardlessOfTheStructsAccess() {
         assertMacroExpansion(
             """
-            @StatelessNode
+            @Shell
             public struct Point {
                 var x: Int
                 var y: Int
@@ -357,13 +358,13 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     var x: Int
                     var y: Int
 
-                    struct StatelessNode {
+                    struct Core {
                         let x: Int
                         let y: Int
                     }
 
-                    var statelessNode: StatelessNode {
-                        StatelessNode(x: x, y: y)
+                    var core: Core {
+                        Core(x: x, y: y)
                     }
                 }
                 """,

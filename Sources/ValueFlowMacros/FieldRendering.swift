@@ -40,15 +40,27 @@ func fieldAssignment(_ p: StoredProperty, source: String) -> String {
 
 /// The expression reading a field's *current* value, for the `inFlow` computed
 /// property — the reverse of `fieldAssignment`. A `@Binding` reads its
-/// projected form (`_x`, type `Binding<T>`, matching `baseTypeText`'s
+/// projected form (`$x`, type `Binding<T>`, matching `baseTypeText`'s
 /// `Binding<T>` field type); everything else — including a `@ViewBuilder` field, in
 /// either form — reads `x` directly.
+///
+/// `$x`, not `_x`, on this read side — same `$`-projection convention every
+/// other `Binding`-producing wrapper in this file already uses
+/// (`@State`/`@AppStorage`/`@SceneStorage` in `outFlowFieldReadExpression`,
+/// `DataLayoutRendering.swift`), rather than a `@Binding`-only special case.
+/// Verified directly: `Binding`'s own `projectedValue` is `{ self }` — reading
+/// `$x` from inside the type gives back the identical `Binding<T>` `_x`
+/// would, real write-through included. `_x` is kept only on the *assignment*
+/// side (`fieldAssignment`, above) — verified directly that `self.$x = x` is
+/// a compile error ("'$x' is immutable"), since `projectedValue` has no
+/// setter; the backing storage `_x` is the only assignable form there, so
+/// there's no `$`-unifying it away.
 ///
 /// No `self.` prefix, unlike `fieldAssignment`: every caller of this function
 /// reads inside a computed property's getter with no parameters at all (no
 /// local name can shadow a property there), unlike the init, where the
 /// parameter genuinely does share the field's name and `self.` is what
-/// disambiguates the two. Verified directly — bare `_x`/`$x`/`x` all resolve
+/// disambiguates the two. Verified directly — bare `$x`/`x` both resolve
 /// correctly via implicit `self` with no parameter list in scope to collide
 /// with.
 ///
@@ -59,5 +71,5 @@ func fieldAssignment(_ p: StoredProperty, source: String) -> String {
 /// `@ViewBuilder` only ever reshapes the *init parameter*, never the property's own
 /// storage.
 func fieldReadExpression(_ p: StoredProperty) -> String {
-    p.isBinding ? "_\(p.name)" : "\(p.name)"
+    p.isBinding ? "$\(p.name)" : "\(p.name)"
 }

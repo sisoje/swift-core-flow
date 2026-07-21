@@ -5,7 +5,7 @@ import SwiftSyntaxMacros
 /// conformance to, detected syntactically off its own inheritance clause (see
 /// `detectHostKind`) — not a real semantic conformance check (macros never get
 /// one; see `detectHostKind`'s own doc comment for exactly what that misses).
-enum StatelessNodeHostKind {
+enum ShellHostKind {
     case view
     case viewModifier
     case none
@@ -25,7 +25,7 @@ enum StatelessNodeHostKind {
 /// conformance via a typealias or protocol composition, and qualified spellings
 /// (`SwiftUI.View`) — only a bare `View`/`ViewModifier` identifier directly in the
 /// attached declaration's own inheritance clause is recognized.
-func detectHostKind(of declaration: some DeclGroupSyntax) -> StatelessNodeHostKind {
+func detectHostKind(of declaration: some DeclGroupSyntax) -> ShellHostKind {
     let inherited =
         declaration.inheritanceClause?.inheritedTypes.compactMap {
             $0.type.as(IdentifierTypeSyntax.self)?.name.text
@@ -35,7 +35,7 @@ func detectHostKind(of declaration: some DeclGroupSyntax) -> StatelessNodeHostKi
     return .none
 }
 
-/// Adds a nested `StatelessNode` struct plus a `statelessNode` computed property to the
+/// Adds a nested `Core` struct plus a `core` computed property to the
 /// struct, class, or actor it's attached to — the same field set `@DataLayout`'s
 /// own `OutFlow`/`outFlow` capture (every non-private participating property,
 /// plus private `@Environment`/`@Query`/`@State`/`@AppStorage`/`@FocusState`
@@ -46,29 +46,29 @@ func detectHostKind(of declaration: some DeclGroupSyntax) -> StatelessNodeHostKi
 /// type's stored properties itself.
 ///
 /// When the attached type's own inheritance clause spells `View` or
-/// `ViewModifier` (`detectHostKind`), `StatelessNode` is additionally declared to
+/// `ViewModifier` (`detectHostKind`), `Core` is additionally declared to
 /// conform to the same protocol, and the attached type gets one more generated
 /// member: the mechanical delegation from the real `body`/`body(content:)`
-/// requirement down to `self.statelessNode` — `var body: some View { self.statelessNode }`
+/// requirement down to `self.core` — `var body: some View { self.core }`
 /// for `View`, `func body(content: Content) -> some View {
-/// content.modifier(self.statelessNode) }` for `ViewModifier` (via `View.modifier(_:)`,
+/// content.modifier(self.core) }` for `ViewModifier` (via `View.modifier(_:)`,
 /// which needs no `Content`-type unification between the two types' independent
 /// `ViewModifier.Content`s — verified directly that forwarding `content` straight
-/// into `StatelessNode`'s own `body(content:)` instead does *not* compile: `Content`
+/// into `Core`'s own `body(content:)` instead does *not* compile: `Content`
 /// is `typealias Content = _ViewModifier_Content<Self>`, keyed to the conforming
 /// type itself, so two different conforming types' `Content`s are unrelated
-/// concrete types no constraint can unify). `StatelessNode` conforming to the
+/// concrete types no constraint can unify). `Core` conforming to the
 /// protocol only *declares* the requirement — its actual `body`/`body(content:)`
 /// implementation is left for hand-written code in a separate extension, same as
-/// every other `@DataLayout`/`@StatelessNode` member split between generated
+/// every other `@DataLayout`/`@Shell` member split between generated
 /// boilerplate and hand-written logic elsewhere in this package.
 ///
 /// Entry-point boilerplate is `validatedProperties`, shared with `@DataLayout`;
-/// `renderStatelessNode` (in `StatelessNodeRendering.swift`) does the actual work, reusing
+/// `renderShell` (in `ShellRendering.swift`) does the actual work, reusing
 /// `@DataLayout`'s own `outFlowProperties`/`outFlowFieldType`/
 /// `outFlowFieldReadExpression` (`DataLayoutRendering.swift`) rather than
 /// re-deriving the same field set.
-public enum StatelessNodeMacro: MemberMacro {
+public enum ShellMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
@@ -77,12 +77,12 @@ public enum StatelessNodeMacro: MemberMacro {
     ) throws -> [DeclSyntax] {
         guard
             let (properties, access) = validatedProperties(
-                of: declaration, attachedTo: node, macroName: "StatelessNode", in: context
+                of: declaration, attachedTo: node, macroName: "Shell", in: context
             )
         else {
             return []
         }
-        return renderStatelessNode(
+        return renderShell(
             properties: properties, access: access, hostKind: detectHostKind(of: declaration))
     }
 }

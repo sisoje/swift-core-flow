@@ -9,6 +9,7 @@ import ValueFlow
 @DataLayout
 struct Card: View {
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
+    @Namespace private var ns
     @State private var isExpanded: Bool = false
     @SceneStorage("isPinned") private var isPinned: Bool = false
     @FocusState private var isFocused: Bool
@@ -32,16 +33,19 @@ struct Card: View {
         let card = Card(isOn: isOnBinding, title: "Settings")
 
         let out = card.outFlow
-        // No colorScheme here — @Environment is deliberately excluded from
-        // OutFlow (a captured snapshot would go stale, and its own mocking
-        // story doesn't need this package's help), even though it's fully
-        // capturable as a plain value — @StatelessNode captures it exactly that
-        // way (see StatelessNodeTests.swift).
+        // Every private source-of-truth wrapper this package recognizes
+        // belongs in OutFlow, no exceptions — including @Environment and
+        // @Namespace, captured as plain values the same way any non-private
+        // field is (a captured snapshot going stale, or @Environment's own
+        // mocking story, are reasons to know that going in, not reasons to
+        // leave the field out of the snapshot entirely).
         #expect(out.isOn.wrappedValue == true)
         #expect(out.isExpanded.wrappedValue == false)
         #expect(out.isPinned.wrappedValue == false)
         #expect(out.isFocused.wrappedValue == false)
         #expect(out.title == "Settings")
+        #expect(out.colorScheme == .light)  // default EnvironmentValues, no live view installed
+        _ = out.ns  // just needs to be reachable — see ShellTests.swift for its own instability note
     }
 
     @Test func outFlowsBindingForARealBindingFieldWritesThrough() {
