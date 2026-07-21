@@ -57,6 +57,8 @@ public struct User {
 @Shell
 public struct ProfileCard<Content: View>: View {
     @GestureState private var dragOffset: CGSize = .zero
+    @AccessibilityFocusState private var a11yFocused: Bool
+    @ScaledMetric private var iconSize: CGFloat = 24
     @Namespace private var ns  // no explicit type needed — always Namespace.ID
     @FocusState private var focused: Bool  // no init(wrappedValue:) — no inline default allowed
     @Query(animation: Animation.bouncy) private var items: [Item]
@@ -74,14 +76,19 @@ public struct ProfileCard<Content: View>: View {
 extension ProfileCard.Core {
     // Gesture wiring is byte-identical to what it would be against the live
     // @GestureState: `dragOffset` reads the mid-gesture value, `$dragOffset`
-    // hands `.updating(_:)` the real GestureState<CGSize>.
+    // hands `.updating(_:)` the real GestureState<CGSize>. Same for
+    // accessibility focus: `$a11yFocused` is a real
+    // AccessibilityFocusState<Bool>.Binding, fed to .accessibilityFocused(_:).
     var body: some View {
         Text(colorScheme == .dark ? title.uppercased() : title)
+            .font(.system(size: iconSize))
             .offset(dragOffset)
             .gesture(
                 DragGesture().updating($dragOffset) { value, state, _ in
                     state = value.translation
-                })
+                }
+            )
+            .accessibilityFocused($a11yFocused)
     }
 }
 
@@ -181,6 +188,8 @@ let profileCardCoreFooter = profileCardCore.footer  // @ViewBuilder stored value
 let profileCardCoreFocused = profileCardCore.focused  // bare Bool via @FocusState<Bool>.Binding
 _ = Text("search").focused(profileCardCore.$focused)  // real FocusState<Bool>.Binding
 let profileCardCoreDrag = profileCardCore.dragOffset  // bare CGSize via @GestureStateCore
+let profileCardCoreA11y = profileCardCore.a11yFocused  // bare Bool via @AccessibilityFocusState<Bool>.Binding
+let profileCardCoreIconSize = profileCardCore.iconSize  // bare CGFloat — @ScaledMetric captured as plain let
 
 // Mocking a mid-gesture render: seed a GestureState, wrap it, read it back.
 let mockedDrag = GestureStateCore(GestureState(wrappedValue: CGSize(width: 50, height: 7)))

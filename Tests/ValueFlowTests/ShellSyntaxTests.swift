@@ -110,6 +110,71 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
+    func testAccessibilityFocusStateGetsFocusStatesExactTreatment() {
+        // An exact @FocusState clone — verified directly against the real
+        // SwiftUI interface: same nested @propertyWrapper Binding shape,
+        // settable wrappedValue, no conversion to Binding<T> — so it gets the
+        // same substituted-attribute treatment, and snap.$x feeds
+        // .accessibilityFocused(_:) directly.
+        assertMacroExpansion(
+            """
+            @Shell
+            struct SearchField {
+                @AccessibilityFocusState private var a11yFocused: Bool
+                let title: String
+            }
+            """,
+            expandedSource: """
+                struct SearchField {
+                    @AccessibilityFocusState private var a11yFocused: Bool
+                    let title: String
+
+                    struct Core {
+                        @AccessibilityFocusState<Bool>.Binding var a11yFocused: Bool
+                        let title: String
+                    }
+
+                    var core: Core {
+                        Core(a11yFocused: $a11yFocused, title: title)
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
+    func testScaledMetricIsCapturedAsAPlainLetLikeEnvironment() {
+        // Get-only wrappedValue, no projectedValue at all (verified directly)
+        // — a one-time capture of the current scaled value. Redeclaring
+        // @ScaledMetric on Core would double-scale: its init takes the *base*
+        // value, but the host reads back the already-scaled one.
+        assertMacroExpansion(
+            """
+            @Shell
+            struct IconRow {
+                @ScaledMetric private var iconSize: CGFloat = 24
+                let title: String
+            }
+            """,
+            expandedSource: """
+                struct IconRow {
+                    @ScaledMetric private var iconSize: CGFloat = 24
+                    let title: String
+
+                    struct Core {
+                        let iconSize: CGFloat
+                        let title: String
+                    }
+
+                    var core: Core {
+                        Core(iconSize: iconSize, title: title)
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
     func testSceneStorageFoldsIntoTheSameBindingSubstitutionAsAppStorage() {
         // @SceneStorage shares @State/@AppStorage's exact shape (settable
         // wrappedValue, projectedValue genuinely Binding<T> — verified directly

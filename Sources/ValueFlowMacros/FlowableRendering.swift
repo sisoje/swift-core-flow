@@ -256,6 +256,7 @@ func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
     properties.filter {
         !$0.isPrivate || $0.isQuery || $0.isBindingBackedStorage || $0.isFocusState
             || $0.isEnvironment || $0.isNamespace || $0.isGestureState
+            || $0.isAccessibilityFocusState || $0.isScaledMetric
     }
 }
 
@@ -305,6 +306,9 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
     if p.isFocusState {
         return "FocusState<\(p.type?.trimmedDescription ?? "")>.Binding"
     }
+    if p.isAccessibilityFocusState {
+        return "AccessibilityFocusState<\(p.type?.trimmedDescription ?? "")>.Binding"
+    }
     if p.isQuery {
         return "QueryCore<\(p.type?.trimmedDescription ?? "")>"
     }
@@ -341,7 +345,7 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
 ///   instance, captured as-is; `GestureStateCore` forwards its
 ///   `wrappedValue`/`projectedValue` (see `outFlowFieldType` above).
 func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
-    if p.isBindingBackedStorage || p.isFocusState {
+    if p.isBindingBackedStorage || p.isFocusState || p.isAccessibilityFocusState {
         return "$\(p.name)"
     }
     if p.isQuery {

@@ -139,6 +139,30 @@ public struct StoredProperty {
     public var isGestureState: Bool {
         wrapperName == "GestureState"
     }
+
+    /// `@AccessibilityFocusState` — an exact `@FocusState` clone, verified
+    /// directly against the real SwiftUI interface: `wrappedValue` is `{ get
+    /// nonmutating set }` and `projectedValue` is its own nested
+    /// `AccessibilityFocusState<Value>.Binding` — itself `@propertyWrapper`
+    /// with a settable `wrappedValue`, no conversion to `Binding<T>` — so it
+    /// gets `@FocusState`'s exact treatment: the projected type in `OutFlow`,
+    /// its own substituted attribute on `Core`, read via `$x`, and `snap.$x`
+    /// feeds `.accessibilityFocused(_:)` directly.
+    public var isAccessibilityFocusState: Bool {
+        wrapperName == "AccessibilityFocusState"
+    }
+
+    /// `@ScaledMetric` — treated exactly like `@Environment`/`@Namespace`: a
+    /// plain value in `OutFlow`, a plain unattributed `let` on `Core`.
+    /// Verified directly against the real SwiftUI interface: `wrappedValue`
+    /// is get-only and there's **no `projectedValue` at all**, so a one-time
+    /// capture of the current *scaled* value is the only option — and the
+    /// right one: redeclaring `@ScaledMetric` on `Core` would double-scale
+    /// (its `init(wrappedValue:)` takes the *base* value, but the host reads
+    /// back the already-scaled one), and `relativeTo:` can't be carried over.
+    public var isScaledMetric: Bool {
+        wrapperName == "ScaledMetric"
+    }
 }
 
 // MARK: - Collection
@@ -234,6 +258,7 @@ public func collectStoredProperties(
             let isSourceOfTruth =
                 property.isEnvironment || property.isQuery || property.isBindingBackedStorage
                 || property.isFocusState || property.isNamespace || property.isGestureState
+                || property.isAccessibilityFocusState || property.isScaledMetric
             if isSourceOfTruth, !property.isPrivate {
                 context.diagnose(
                     Diagnostic(
@@ -324,7 +349,8 @@ public func collectStoredProperties(
             let needsType =
                 !property.isPrivate || property.isEnvironment || property.isQuery
                 || property.isBindingBackedStorage || property.isFocusState
-                || property.isGestureState
+                || property.isGestureState || property.isAccessibilityFocusState
+                || property.isScaledMetric
             if needsType, property.type == nil {
                 context.diagnose(
                     Diagnostic(
@@ -452,7 +478,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-                "'\(propertyName)' must be private — @State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                "'\(propertyName)' must be private — @State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState/@AccessibilityFocusState/@ScaledMetric are a view's own source of truth, not something a caller supplies (use @Binding for that).",
             id: "sourceOfTruthMustBePrivate"
         )
     }
@@ -462,7 +488,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-                "'\(propertyName)' is private with no property wrapper — @\(macroName) has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState).",
+                "'\(propertyName)' is private with no property wrapper — @\(macroName) has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState/@AccessibilityFocusState/@ScaledMetric).",
             id: "plainPrivatePropertyNotAllowed"
         )
     }

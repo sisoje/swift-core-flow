@@ -362,19 +362,19 @@ final class FlowableTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'cache' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState).",
+                        "'cache' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState/@AccessibilityFocusState/@ScaledMetric).",
                     line: 4,
                     column: 17
                 ),
                 DiagnosticSpec(
                     message:
-                        "'scratch' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState).",
+                        "'scratch' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState/@AccessibilityFocusState/@ScaledMetric).",
                     line: 5,
                     column: 21
                 ),
                 DiagnosticSpec(
                     message:
-                        "'seed' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState).",
+                        "'seed' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState/@AccessibilityFocusState/@ScaledMetric).",
                     line: 6,
                     column: 17
                 ),
@@ -767,6 +767,54 @@ final class FlowableTests: XCTestCase {
         )
     }
 
+    func testOutFlowMapsAccessibilityFocusStateAndScaledMetric() {
+        // @AccessibilityFocusState → its own projected Binding type, read $x
+        // (an exact @FocusState clone — verified directly). @ScaledMetric →
+        // the bare declared type, read x (get-only wrappedValue, no
+        // projectedValue at all — verified directly), same plain-capture rule
+        // @Environment/@Namespace already follow.
+        assertMacroExpansion(
+            """
+            @Flowable
+            public struct IconRow {
+                @AccessibilityFocusState private var a11yFocused: Bool
+                @ScaledMetric private var iconSize: CGFloat = 24
+                public let title: String
+            }
+            """,
+            expandedSource: """
+                public struct IconRow {
+                    @AccessibilityFocusState private var a11yFocused: Bool
+                    @ScaledMetric private var iconSize: CGFloat = 24
+                    public let title: String
+
+                    public init(title: String) {
+                        self.title = title
+                    }
+
+                    public typealias InFlowSplat = String
+
+                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
+                        Self(title: flow)
+                    }
+
+                    public typealias InFlow = String
+
+                    public var inFlow: InFlow {
+                        title
+                    }
+
+                    public typealias OutFlow = (a11yFocused: AccessibilityFocusState<Bool>.Binding, iconSize: CGFloat, title: String)
+
+                    public var outFlow: OutFlow {
+                        (a11yFocused: $a11yFocused, iconSize: iconSize, title: title)
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
     func testOutFlowFoldsSceneStorageIntoTheSameBindingMappingAsAppStorage() {
         // @SceneStorage's own wrappedValue is get/nonmutating-set and its
         // projectedValue genuinely IS Binding<T> — verified directly against
@@ -939,7 +987,7 @@ final class FlowableTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'isExpanded' must be private — @State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                        "'isExpanded' must be private — @State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState/@AccessibilityFocusState/@ScaledMetric are a view's own source of truth, not something a caller supplies (use @Binding for that).",
                     line: 3,
                     column: 16
                 )

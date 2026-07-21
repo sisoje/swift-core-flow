@@ -108,8 +108,8 @@ The init:
   recognize" one — these three ARE recognized, just never allowed private.
   Every *other* private property still needs a recognized source-of-truth
   wrapper (`@State`/`@Environment`/`@Query`/`@AppStorage`/`@SceneStorage`/
-  `@FocusState`/`@Namespace`/`@GestureState`) to be legal at all — that's the
-  pre-existing
+  `@FocusState`/`@Namespace`/`@GestureState`/`@AccessibilityFocusState`/
+  `@ScaledMetric`) to be legal at all — that's the pre-existing
   `sourceOfTruthMustBePrivate`/`unsupportedPrivateWrapper` pair, now narrowed
   to fire only once the two checks above have ruled out the caller-supplied and
   no-wrapper cases. `private(set)`/`fileprivate(set)` fall into these same
@@ -341,6 +341,18 @@ the two was itself the defect, not a deliberate design choice worth keeping.
     rejected, since it would satisfy neither `.focused(_:)` (which specifically
     wants `FocusState<T>.Binding`) nor anything else expecting the real
     projection back.
+  - `@AccessibilityFocusState` (`isAccessibilityFocusState`) → an exact
+    `@FocusState` clone — verified directly against the real SwiftUI
+    interface: same nested `@propertyWrapper` `Binding` shape, settable
+    `wrappedValue`, no conversion to `Binding<T>` — so it gets the identical
+    treatment (`AccessibilityFocusState<T>.Binding`, read `$x`), and `snap.$x`
+    feeds `.accessibilityFocused(_:)` directly.
+  - `@ScaledMetric` (`isScaledMetric`) → the bare declared type, read `x` —
+    get-only `wrappedValue`, **no `projectedValue` at all** (verified
+    directly), same plain-capture rule `@Environment`/`@Namespace` follow.
+    Deliberately never redeclared on `Core`: its `init(wrappedValue:)` takes
+    the *base* value, but the host reads back the already-scaled one, so a
+    redeclare would double-scale — and `relativeTo:` can't be carried over.
   - Everything else (non-private fields) uses `baseTypeText` unchanged — the same
     rule `InFlow` already applies.
 - **Matching read-expression mappings, in `outFlowFieldReadExpression`**:
@@ -417,7 +429,7 @@ calls `outFlowProperties` directly rather than duplicating the filter (see
 `FlowableRendering.swift`): every non-private participating property, plus
 every recognized private source-of-truth wrapper —
 `@Environment`/`@Query`/`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState`/
-`@GestureState`/`@Namespace` — each captured once as a plain value.
+`@GestureState`/`@AccessibilityFocusState`/`@ScaledMetric`/`@Namespace` — each captured once as a plain value.
 
 - **Why a second, nominal member alongside `OutFlow`'s tuple at all**: tuples
   can't conform to protocols — verified directly, `type '(x: Int, y: String)'
@@ -490,13 +502,13 @@ every recognized private source-of-truth wrapper —
   unlike the `@Binding`-substituted wrappers or `@FocusState` it has **no
   `projectedValue` at all** to fall back on, so a plain `let` is the only
   option.
-- **`@State`/`@Environment`/`@Query`/`@AppStorage`/`@SceneStorage`/`@FocusState`/`@GestureState`/
+- **`@State`/`@Environment`/`@Query`/`@AppStorage`/`@SceneStorage`/`@FocusState`/`@GestureState`/`@AccessibilityFocusState`/`@ScaledMetric`/
   `@Namespace` must be private — enforced with a diagnostic, not
   accommodated.** `sourceOfTruthMustBePrivate` (`StoredProperty.swift`, checked
-  in `collectStoredProperties`) rejects any of these eight declared
+  in `collectStoredProperties`) rejects any of these ten declared
   non-private: they're a view's own source of truth, never something a caller
   supplies (`@Binding` is for that). Every renderer downstream can assume all
-  eight are always private with no "what if it's also public" case to reason
+  ten are always private with no "what if it's also public" case to reason
   about or test — an earlier revision's field-set filters (`!$0.isPrivate ||
   $0.isQuery || …`) technically already handled a hypothetical non-private
   case correctly, but there was no reason to leave that door open when it's

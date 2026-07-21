@@ -135,7 +135,18 @@ func renderShell(
             let type = p.type?.trimmedDescription ?? ""
             return "@FocusState<\(type)>.Binding var \(p.name): \(type)"
         }
-        if p.isEnvironment || p.isNamespace {
+        if p.isAccessibilityFocusState {
+            // An exact @FocusState clone (verified directly — same nested
+            // @propertyWrapper Binding shape), so the same substitution:
+            // snap.$x feeds .accessibilityFocused(_:) directly.
+            let type = p.type?.trimmedDescription ?? ""
+            return "@AccessibilityFocusState<\(type)>.Binding var \(p.name): \(type)"
+        }
+        if p.isEnvironment || p.isNamespace || p.isScaledMetric {
+            // Get-only wrappedValue, no projectedValue to substitute — a plain
+            // one-time capture. For @ScaledMetric specifically, redeclaring it
+            // would double-scale: its init takes the *base* value, but the
+            // host reads back the already-scaled one.
             return "let \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         if p.isQuery {

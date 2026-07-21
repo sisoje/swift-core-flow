@@ -89,12 +89,14 @@ diagnostic, not just convention.
 | `@Bindable` | `@Bindable` | `x` |
 | `@Environment` | `let` | `x` |
 | `@Namespace` | `let` | `x` |
+| `@ScaledMetric` | `let` | `x` |
 | `@Query` | `@QueryCore` | `QueryCore(_x)` |
 | `@GestureState` | `@GestureStateCore` | `GestureStateCore(_x)` |
 | `@State` | `@Binding` | `$x` |
 | `@AppStorage` | `@Binding` | `$x` |
 | `@SceneStorage` | `@Binding` | `$x` |
 | `@FocusState` | `@FocusState.Binding` | `$x` |
+| `@AccessibilityFocusState` | `@AccessibilityFocusState.Binding` | `$x` |
 
 > **`@StateObject` and `@ObservedObject` are NOT supported, on purpose.**
 > They're Combine-era `ObservableObject` wrappers, and this package doesn't
@@ -124,7 +126,9 @@ diagnostic, not just convention.
   (verified directly), so it redeclares onto `Core` the same way
   `@Binding` does, just spelling a different wrapper — `snap.x` reads the
   unwrapped value, `snap.$x` hands back a real `FocusState<T>.Binding` usable
-  directly with `.focused(_:)`.
+  directly with `.focused(_:)`. `@AccessibilityFocusState` is an exact clone
+  of this shape (verified directly) and gets the identical treatment —
+  `snap.$x` feeds `.accessibilityFocused(_:)`.
 - **`@QueryCore` is a real, one-to-one drop-in for the live `@Query`.**
   Verified directly against the `_SwiftData_SwiftUI` interface: `Query`'s
   instance surface is exactly `wrappedValue`, `fetchError`, and
