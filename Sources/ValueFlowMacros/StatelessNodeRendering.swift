@@ -19,12 +19,13 @@ import SwiftSyntax
 /// behavior for every kind of field here — verified directly: a property-wrapper
 /// field with no `init(wrappedValue:)` (`@Binding`) synthesizes a parameter of the
 /// *wrapper's* type, one that does (`@Bindable`) synthesizes a parameter of the
-/// *wrapped* type, and `@ViewBuilder` directly on a stored `let` synthesizes a
-/// builder-closure parameter for a value-typed field exactly like `@DataLayout`'s
-/// own hand-written logic does. The one thing genuinely lost by skipping
-/// `@DataLayout` is `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on
-/// `StatelessNode` itself — accepted, since nothing here needs to round-trip a
-/// snapshot back into itself.
+/// *wrapped* type, and `@ViewBuilder` directly on a stored `let` (the
+/// stored-closure form, still mirrored — see below) synthesizes a real
+/// builder parameter, no different from `@DataLayout`'s own hand-written
+/// logic. The one thing genuinely lost by skipping `@DataLayout` is
+/// `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on `StatelessNode` itself —
+/// accepted, since nothing here needs to round-trip a snapshot back into
+/// itself.
 ///
 /// Because `StatelessNode`'s own type is always internal, `statelessNode`'s access
 /// is forced internal too (Swift rejects a more-accessible property with a
@@ -90,13 +91,18 @@ import SwiftSyntax
 ///   no attribute on the copy (see above) and is `let` for the same reason.
 /// - `@ViewBuilder` is **not** a `@propertyWrapper` — it's a result-builder
 ///   attribute, legal directly on a stored `let` (verified directly:
-///   `@ViewBuilder let vb: () -> Text` compiles) — so it mirrors verbatim
-///   including `let`, and unlike `OutFlow`'s tuple (nowhere to attach
-///   trailing-closure sugar), that's a real win here: Swift's own synthesized
-///   init reproduces `@ViewBuilder`'s builder-closure parameter for a
-///   value-typed field (verified directly), so `@ViewBuilder` on `StatelessNode`'s
-///   field genuinely buys real builder syntax at its own init call site, not
-///   just documentation.
+///   `@ViewBuilder let vb: () -> Text` compiles) — but it's mirrored only for
+///   the stored-*closure* form (`let content: () -> Content`): the field type
+///   is already a closure there, so the attribute is pure upside — real
+///   builder syntax (`if`/`for` inside the closure body) at its own init call
+///   site, not just documentation. For the stored-*value* form (`let footer:
+///   Content`), mirroring the attribute would make Swift's own synthesized
+///   init wrap the parameter in a builder closure purely to satisfy it
+///   (verified directly) — overhead with no benefit for a value that's
+///   already built and just being copied through — so it's dropped there
+///   entirely: `footer` stays a plain `let footer: Content`, and its
+///   synthesized init parameter is the bare value, no closure needed on
+///   either side.
 /// - `@Bindable` mirrors verbatim, `var` included — needs no special handling
 ///   beyond the general "genuine wrapper forces var" rule above. Swift's
 ///   synthesized init handles `@Bindable` the same way `@DataLayout`'s
@@ -148,7 +154,17 @@ func renderStatelessNode(
         // else is `let`, a deterministic snapshot field.
         let requiresVar = p.wrapperName != nil && !p.isQuery && !p.isViewBuilder
         let keyword = requiresVar ? "var" : "let"
-        let attributePrefix = p.isQuery ? "" : p.wrapperName.map { "@\($0) " } ?? ""
+        // @ViewBuilder is mirrored only for the stored-*closure* form — its
+        // field type is already `() -> Content`, so the attribute just buys
+        // real builder syntax (if/for inside the closure body) at zero cost.
+        // For the stored-*value* form, mirroring it would make Swift's own
+        // synthesized init wrap the parameter in a builder closure (verified
+        // directly) purely to satisfy the attribute — pure overhead for a
+        // value that's already built and just being copied through, so it's
+        // dropped entirely here, same treatment `OutFlow` already gives it.
+        let isStoredValueViewBuilder = p.isViewBuilder && !(p.type.map(isFunctionType) ?? false)
+        let attributePrefix =
+            (p.isQuery || isStoredValueViewBuilder) ? "" : p.wrapperName.map { "@\($0) " } ?? ""
         return "\(attributePrefix)\(keyword) \(p.name): \(outFlowFieldType(p))"
     }.joined(separator: "\n")
 
@@ -197,23 +213,14 @@ func renderStatelessNode(
             """
     )
 
-    // Constructing `StatelessNode`: each field reads the way `outFlow` does
-    // (`outFlowFieldReadExpression`) — including `@Environment`, which falls
-    // through to that function's plain `x` default, exactly right for a
-    // plain captured `let` field — with one addition mirroring
-    // `renderInFlowSplatFactory`'s own reverse-direction trick: a
-    // `@ViewBuilder`-stored *value* field reads as its already-built plain value
-    // (`footer`, type `Content`), but `StatelessNode`'s own `@ViewBuilder` field
-    // — mirrored verbatim above — means its generated init parameter is a
-    // builder closure (`() -> Content`), not the bare value. So that one case
-    // gets wrapped in a trivial closure on the way in; every other field is
-    // passed through unchanged.
+    // Constructing `StatelessNode`: every field reads the way `outFlow` does
+    // (`outFlowFieldReadExpression`) and is passed straight through, no
+    // wrapping needed anywhere — including a `@ViewBuilder`-stored *value*
+    // field, which (per the field-decl comment above) isn't mirrored with the
+    // attribute at all, so its synthesized init parameter is just the plain
+    // `Content` value, not a builder closure.
     let args = fields.map { p -> String in
-        let value = outFlowFieldReadExpression(p)
-        if p.isViewBuilder, !(p.type.map(isFunctionType) ?? false) {
-            return "\(p.name): { \(value) }"
-        }
-        return "\(p.name): \(value)"
+        "\(p.name): \(outFlowFieldReadExpression(p))"
     }.joined(separator: ", ")
     // Always internal, never `access` — `statelessNode`'s type (`StatelessNode`)
     // is itself always internal, and Swift rejects a more-accessible property

@@ -62,9 +62,9 @@
 /// `init(wrappedValue:)` (`@Binding`, `@FocusState<T>.Binding`) synthesizes a
 /// parameter of the *wrapper's* type, one that does (`@Bindable`) synthesizes a
 /// parameter of the *wrapped* type, and `@ViewBuilder` directly on a stored
-/// `let` synthesizes a builder-closure parameter for a value-typed field —
-/// exactly what `@DataLayout` would hand-write. The one thing genuinely lost by
-/// skipping `@DataLayout` is `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on
+/// `let` synthesizes a real builder parameter for the stored-closure form
+/// (see below) — exactly what `@DataLayout` would hand-write. The one thing
+/// genuinely lost by skipping `@DataLayout` is `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on
 /// `StatelessNode` itself, accepted since nothing here needs to round-trip a
 /// snapshot back into itself.
 ///
@@ -139,13 +139,16 @@
 ///   case specifically. `@Binding` is itself a genuine property wrapper, so it
 ///   keeps `var`.
 /// - `@ViewBuilder` mirroring is a real win here, unlike `OutFlow`'s tuple —
-///   `OutFlow` has no parameter position for trailing-closure sugar to attach
-///   to, so it strips `@ViewBuilder` down to a bare type. `StatelessNode` has a
-///   real init (Swift's own synthesized one), so `@ViewBuilder` mirrored onto
-///   its field genuinely buys real builder syntax at `StatelessNode`'s own
-///   init call site. `@ViewBuilder` is *not* a `@propertyWrapper` — it's a
-///   result-builder attribute, legal directly on `let` (verified directly:
-///   `@ViewBuilder let vb: () -> Text` compiles) — so it keeps `let`.
+///   but only for the stored-*closure* form (`let content: () -> Content`):
+///   the field type is already a closure there, so the attribute is pure
+///   upside — real builder syntax at `StatelessNode`'s own init call site, not
+///   just documentation. For a stored *value* (`let footer: Content`),
+///   mirroring the attribute would make Swift's own synthesized init wrap the
+///   parameter in a builder closure purely to satisfy it (verified directly)
+///   — overhead with no benefit for a value that's already built and just
+///   being copied through — so it's dropped there entirely: `footer` stays a
+///   plain `let footer: Content`, passed straight through with no wrapping on
+///   either side.
 /// - `@Bindable` needs no special handling beyond the general "genuine wrapper
 ///   keeps var" rule above — no init logic here ever recognized `@Bindable`
 ///   specially even on the *original* type (it just does `self.model = model`,

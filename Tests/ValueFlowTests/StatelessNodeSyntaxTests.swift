@@ -172,6 +172,13 @@ final class StatelessNodeSyntaxTests: XCTestCase {
     }
 
     func testPlainAndViewBuilderFieldsAreLetWhileBindableStaysVar() {
+        // @ViewBuilder is mirrored only for the stored-closure form (content) —
+        // its field type is already a closure, so the attribute is pure upside.
+        // For the stored-value form (footer), mirroring it would force Swift's
+        // synthesized init to wrap the parameter in a builder closure purely to
+        // satisfy the attribute (verified directly) — dropped entirely instead,
+        // so footer stays a plain `let footer: Content`, passed straight
+        // through with no wrapping on either side.
         assertMacroExpansion(
             """
             @StatelessNode
@@ -193,13 +200,11 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                         let subtitle: String?
                         @Bindable var model: Settings
                         @ViewBuilder let content: () -> Content
-                        @ViewBuilder let footer: Content
+                        let footer: Content
                     }
 
                     var statelessNode: StatelessNode {
-                        StatelessNode(subtitle: subtitle, model: model, content: content, footer: {
-                                footer
-                            })
+                        StatelessNode(subtitle: subtitle, model: model, content: content, footer: footer)
                     }
                 }
                 """,

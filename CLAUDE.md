@@ -453,19 +453,24 @@ non-private participating property, plus private
   above** — it already *is* that declaration in the original source, so
   mirroring it lands on the same shape with no extra logic, and Swift's
   synthesized init picks up every case identically (verified directly).
-- **`@ViewBuilder` mirroring is a real win here, unlike `OutFlow`'s tuple.**
-  `OutFlow`'s tuple has no parameter position for trailing-closure sugar to
-  attach to, so it deliberately strips `@ViewBuilder` down to a bare type.
-  Swift's own synthesized init reproduces `@ViewBuilder`'s builder-closure
-  parameter for a value-typed field (verified directly), so `@ViewBuilder`
-  mirrored onto `StatelessNode`'s field genuinely buys real builder syntax at
-  its own init call site — not just documentation. One asymmetry this
-  introduces: constructing `StatelessNode` in the `statelessNode` computed property must
-  wrap a `@ViewBuilder`-stored-*value* field's already-built value back into a
-  trivial closure (`footer: { footer }`) — the exact same trick
-  `renderInFlowSplatFactory`'s `makeFlow(_:)` already uses for its own reverse
-  direction, reusing `isFunctionType` to detect which of `@ViewBuilder`'s two
-  forms (stored closure vs. stored value) applies.
+- **`@ViewBuilder` mirroring is a real win here, unlike `OutFlow`'s tuple —
+  but only for the stored-*closure* form.** `OutFlow`'s tuple has no parameter
+  position for trailing-closure sugar to attach to, so it deliberately strips
+  `@ViewBuilder` down to a bare type. `StatelessNode` mirrors `@ViewBuilder`
+  for a stored closure (`let content: () -> Content`): the field type is
+  already a closure, so the attribute is pure upside — real builder syntax
+  (`if`/`for` inside the body) at its own init call site, not just
+  documentation. For a stored *value* (`let footer: Content`), mirroring the
+  attribute would make Swift's own synthesized init wrap the parameter in a
+  builder closure purely to satisfy it (verified directly) — overhead with no
+  benefit for a value that's already built and just being copied through — so
+  it's dropped there entirely: `footer` stays a plain `let footer: Content`,
+  and constructing `StatelessNode` in the `statelessNode` computed property
+  passes it straight through (`footer: footer`), no wrapping needed on either
+  side. `isFunctionType` is what tells the two forms apart, the same check
+  `renderInFlowSplatFactory`'s `makeFlow(_:)` uses for its own reverse
+  direction (which *does* still need the trivial-closure trick, since
+  `@DataLayout`'s init keeps `@ViewBuilder` on both forms).
 - **Zero eligible fields still generates a (near-empty) `StatelessNode`** —
   `struct StatelessNode {}` plus `var statelessNode: StatelessNode {
   StatelessNode() }` — no diagnostic, mirroring `@DataLayout`'s own graceful

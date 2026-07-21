@@ -297,8 +297,14 @@ let profileCardStatelessNodeIsPinned = profileCardStatelessNode.isPinned
 // snapshot read is the only way to see a different value, not an in-place mutation.
 let profileCardStatelessNodeSubtitle = profileCardStatelessNode.subtitle
 
-// @ViewBuilder/@Bindable mirror verbatim too — content/footer/model are declared
-// on StatelessNode exactly as ProfileCard declares them, so this compiles unchanged.
+// @Bindable mirrors verbatim — model is declared on StatelessNode exactly as
+// ProfileCard declares it. @ViewBuilder mirrors too, but only for content
+// (a stored closure, () -> Content) — footer (a stored value, Content) drops
+// the attribute entirely instead: mirroring it there would make Swift's own
+// synthesized init wrap the parameter in a builder closure just to satisfy
+// it, for a value that's already built and just being copied through. So
+// footer stays a plain `let footer: Content`, passed straight through with
+// no wrapping needed on either side.
 let profileCardStatelessNodeModel = profileCardStatelessNode.model
 let profileCardStatelessNodeFooter = profileCardStatelessNode.footer
 
