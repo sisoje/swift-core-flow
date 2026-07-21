@@ -187,10 +187,12 @@ let profileCardCoreModel = profileCardCore.model  // @Bindable mirrors verbatim
 let profileCardCoreFooter = profileCardCore.footer  // @ViewBuilder stored value → plain let
 let profileCardCoreFocused = profileCardCore.focused  // bare Bool via @FocusState<Bool>.Binding
 _ = Text("search").focused(profileCardCore.$focused)  // real FocusState<Bool>.Binding
-let profileCardCoreDrag = profileCardCore.dragOffset  // bare CGSize via @GestureStateCore
+let profileCardCoreDrag = profileCardCore.dragOffset  // bare CGSize via Core's own @GestureState
 let profileCardCoreA11y = profileCardCore.a11yFocused  // bare Bool via @AccessibilityFocusState<Bool>.Binding
 let profileCardCoreIconSize = profileCardCore.iconSize  // bare CGFloat — @ScaledMetric captured as plain let
 
-// Mocking a mid-gesture render: seed a GestureState, wrap it, read it back.
-let mockedDrag = GestureStateCore(GestureState(wrappedValue: CGSize(width: 50, height: 7)))
+// Mocking a mid-gesture render: @GestureState mirrors onto Core as a real
+// @GestureState var whose synthesized init takes the bare value — a
+// never-installed GestureState reads back its seed.
+let mockedDrag = GestureState(wrappedValue: CGSize(width: 50, height: 7))
 print("mocked mid-gesture value:", mockedDrag.wrappedValue)

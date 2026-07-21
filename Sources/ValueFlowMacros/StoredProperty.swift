@@ -126,16 +126,16 @@ public struct StoredProperty {
         wrapperName == "Namespace"
     }
 
-    /// `@GestureState` — the `OutFlow`/`Core` field is
-    /// `GestureStateCore<WrappedType>`, this package's own drop-in stand-in
-    /// (see `GestureStateCore.swift` in `Sources/ValueFlow`) wrapping the
-    /// captured live wrapper *instance*. Verified directly against the real
-    /// SwiftUI interface: `GestureState<Value>` exposes exactly `wrappedValue`
-    /// (get-only, the mid-gesture rendering input) and `projectedValue`
-    /// (itself — the value `.updating(_:)` takes), so the stand-in forwards
-    /// both and body code moves onto `Core` unchanged. Mockable by seeding:
-    /// `GestureStateCore(GestureState(wrappedValue: mock))` reads back the
-    /// mock outside a live view (verified directly).
+    /// `@GestureState` — mirrored verbatim onto `Core` as a real
+    /// `@GestureState var x: T` (the general mirror-the-attribute path, like
+    /// `@Bindable`): `Core` is the rendered view, so its own storage is where
+    /// the gesture belongs — `.updating($x)` in `Core`'s body, used exactly
+    /// as SwiftUI intends. Since `GestureState` has `init(wrappedValue:)`,
+    /// the synthesized init takes the bare value: the host's (always-at-reset)
+    /// value seeds it, and a test/preview mocks any mid-gesture value by
+    /// passing it straight to `Core`'s init — a never-installed `GestureState`
+    /// reads back its seed (verified directly). This flag exists only for the
+    /// must-be-private/needs-type enforcement, not for any rendering branch.
     public var isGestureState: Bool {
         wrapperName == "GestureState"
     }

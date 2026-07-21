@@ -157,14 +157,20 @@ func renderShell(
             // wrapper, so `var` is forced, same as every other wrapper here.
             return "@QueryCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
-        if p.isGestureState {
-            // @GestureStateCore — same drop-in move, wrapping the captured live
-            // GestureState instance: `core.x` reads the mid-gesture value,
-            // `$x` hands back the real GestureState<T> that `.updating(_:)`
-            // takes, so gesture wiring in Core's body is byte-identical to the
-            // live property's. Mockable by seeding the wrapped instance.
-            return "@GestureStateCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
-        }
+        // @GestureState deliberately has NO branch — it falls through to the
+        // general mirror-the-attribute path below, landing on a real
+        // `@GestureState var x: T`, exactly like @Bindable. That's the design:
+        // Core is the rendered view, so its own GestureState storage is where
+        // the gesture belongs (`.updating($x)` in Core's body, Core-local
+        // invalidation per gesture tick — GestureState used exactly as SwiftUI
+        // intends, declared on the view that renders the gesture). Since
+        // GestureState has init(wrappedValue:), the synthesized init takes the
+        // bare value — the host's (always-at-reset) value seeds it via the
+        // plain `x` read, and a test/preview mocks any mid-gesture value by
+        // passing it straight to Core's init. One documented limitation: a
+        // custom reset closure on the host's declaration (@GestureState(reset:))
+        // can't carry over — the synthesized init passes only the value.
+        //
         // Everything else reuses outFlowFieldType — it already reduces to the
         // property's own bare declared type once Binding/Query are excluded —
         // and carries its original wrapper attribute along, verbatim.

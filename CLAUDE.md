@@ -24,7 +24,7 @@ concurrency) throughout.
 | Target | Kind | Contents |
 |---|---|---|
 | `ValueFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `ValueFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`), plus three small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below), and `QueryCore.swift`/`GestureStateCore.swift` (`@Query`/`@GestureState`'s drop-in stand-ins on `Core`/`OutFlow`, see the `@Flowable` OutFlow notes) |
+| `ValueFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`.s drop-in stand-in on `Core`/`OutFlow`, see the `@Flowable` OutFlow notes) |
 | `ValueFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites |
 | `Examples` | executable | combined playground for every macro (and Reflector) |
 
@@ -312,20 +312,17 @@ the two was itself the defect, not a deliberate design choice worth keeping.
     would make Swift's synthesized memberwise init take the bare value and
     drop `fetchError`/`modelContext`; with all three required it takes the
     wrapper type itself, the same mechanism `@Binding` fields rely on.
-  - `@GestureState` (`isGestureState`) → `GestureStateCore<WrappedType>` —
-    the same drop-in move (`Sources/ValueFlow/GestureStateCore.swift`),
-    wrapping the captured live wrapper *instance* whole
-    (`GestureStateCore($x)`) and forwarding its exact surface — verified
-    directly against the SwiftUI interface: `GestureState<Value>` exposes
-    exactly `wrappedValue` (get-only, the mid-gesture rendering input) and
-    `projectedValue` (itself — the value `.updating(_:)` takes), nothing
-    else. So `core.x` reads the in-flight value and `.updating($x)` in
-    `Core`'s body wires the real gesture, byte-identical to the live
-    property's wiring. Mockable by seeding:
-    `GestureStateCore(GestureState(wrappedValue: mock))` reads back the mock
-    outside a live view — verified directly (a never-installed
-    `GestureState` returns its seed) — so a test/preview renders `Core` as
-    if mid-gesture.
+  - `@GestureState` (`isGestureState`) → the bare declared type, read `x`
+    (both the general fallthroughs — no special case anywhere in rendering):
+    the host's storage always holds the at-reset value, since the gesture
+    itself lives on `Core`, which mirrors a real `@GestureState var` — see
+    the `@Shell` section below. An earlier revision wrapped the captured
+    live instance in a dedicated `GestureStateCore` stand-in instead —
+    deleted: mirroring the real wrapper onto `Core` (the rendered view, where
+    the gesture belongs) is how SwiftUI intends `GestureState` to be used,
+    invalidates only `Core` per gesture tick instead of routing every tick
+    through the host's body, mocks with a bare value instead of a seeded
+    wrapper, and costs one less public type.
   - `@State`/`@AppStorage`/`@SceneStorage` (`isBindingBackedStorage`) →
     `Binding<WrappedType>`, since these are the view's own externally
     read-*and-write*-able storage — all three wrappers' own `projectedValue`
@@ -465,15 +462,19 @@ every recognized private source-of-truth wrapper —
   substituted attribute — or a plain `let` where no substitution exists.**
   `@Query` → `@QueryCore var name: T`, this package's own drop-in stand-in
   (see the `OutFlow` section above — same wrapper, same capture, `core.name`
-  reads the fetched value directly). `@GestureState` → `@GestureStateCore var
-  name: T`, the same drop-in move wrapping the captured live instance whole:
-  `core.name` reads the mid-gesture value, `$name` hands `.updating(_:)` the
-  real `GestureState<T>` (its `projectedValue` is itself — verified directly),
-  so gesture wiring in `Core`'s body is byte-identical to the live property's,
-  and a seeded instance (`GestureStateCore(GestureState(wrappedValue: mock))`)
-  mocks any mid-gesture value in a test/preview (a seeded `GestureState` reads
-  back its seed outside a live view — verified directly).
-  `@State`/`@AppStorage`/`@SceneStorage` →
+  reads the fetched value directly). `@GestureState` → mirrored **verbatim**
+  as a real `@GestureState var name: T` (the general mirror-the-attribute
+  path, like `@Bindable` — no rendering branch at all): `Core` is the
+  rendered view, so its own storage is where the gesture belongs
+  (`.updating($name)` in `Core`'s body, `Core`-local invalidation per tick,
+  `GestureState` used exactly as SwiftUI intends). Since it has
+  `init(wrappedValue:)`, the synthesized init takes the bare value — the
+  host's (always-at-reset) value seeds it via the plain `name` read, and a
+  test/preview mocks any mid-gesture value by passing it straight to `Core`'s
+  init (a never-installed `GestureState` reads back its seed — verified
+  directly). One documented limitation: a custom `@GestureState(reset:)`
+  closure on the host's declaration can't carry over — the synthesized init
+  passes only the value. `@State`/`@AppStorage`/`@SceneStorage` →
   `@Binding var name: T` (substituted since their storage
   can't be redeclared as itself on a plain struct — all three share this one
   case since all three share the same shape, verified directly against the

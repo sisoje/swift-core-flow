@@ -721,12 +721,11 @@ final class FlowableTests: XCTestCase {
         )
     }
 
-    func testOutFlowSynthesizesGestureStateAsAGestureStateCoreDropIn() {
-        // @GestureState → GestureStateCore<WrappedType>, wrapping the captured
-        // live wrapper instance whole (_dragOffset) — its surface is exactly
-        // wrappedValue (get-only) + projectedValue (itself, what .updating(_:)
-        // takes), verified directly against the SwiftUI interface, and
-        // GestureStateCore forwards both.
+    func testOutFlowCapturesGestureStateAsAPlainValue() {
+        // @GestureState in OutFlow is a plain value capture (the general
+        // fallthrough — bare declared type, read `x`): the host's storage
+        // always holds the at-reset value, since the gesture itself lives on
+        // Core (which mirrors a real @GestureState var — see the Shell tests).
         assertMacroExpansion(
             """
             @Flowable
@@ -756,10 +755,10 @@ final class FlowableTests: XCTestCase {
                         title
                     }
 
-                    public typealias OutFlow = (dragOffset: GestureStateCore<CGSize>, title: String)
+                    public typealias OutFlow = (dragOffset: CGSize, title: String)
 
                     public var outFlow: OutFlow {
-                        (dragOffset: GestureStateCore($dragOffset), title: title)
+                        (dragOffset: dragOffset, title: title)
                     }
                 }
                 """,

@@ -78,11 +78,14 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
-    func testGestureStateRedeclaresAsGestureStateCoreWrappingTheLiveInstance() {
-        // @GestureStateCore wraps the captured live GestureState instance and
-        // forwards wrappedValue/projectedValue to it — so `core.dragOffset`
-        // reads the mid-gesture value and `.updating($dragOffset)` in Core's
-        // body wires the real gesture, byte-identical to the live property.
+    func testGestureStateMirrorsVerbatimOntoCoreLikeBindable() {
+        // No special case — the general mirror-the-attribute path lands on a
+        // real `@GestureState var` on Core, used exactly as SwiftUI intends
+        // (declared on the view that renders the gesture: `.updating($x)` in
+        // Core's body, Core-local invalidation per tick). The synthesized init
+        // takes the bare value (GestureState has init(wrappedValue:)), so the
+        // host's at-reset value seeds it and a test mocks any mid-gesture
+        // value by passing it straight to Core's init.
         assertMacroExpansion(
             """
             @Shell
@@ -97,12 +100,12 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @GestureStateCore var dragOffset: CGSize
+                        @GestureState var dragOffset: CGSize
                         let title: String
                     }
 
                     var core: Core {
-                        Core(dragOffset: GestureStateCore($dragOffset), title: title)
+                        Core(dragOffset: dragOffset, title: title)
                     }
                 }
                 """,

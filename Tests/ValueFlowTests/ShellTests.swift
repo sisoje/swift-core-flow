@@ -150,24 +150,36 @@ extension StatefulCard.Core {
         #expect(ns == ns)
     }
 
-    @Test func statelessGestureStateIsMockableViaASeededInstance() {
-        // @GestureStateCore wraps the live GestureState instance and forwards
-        // its exact surface (wrappedValue + projectedValue — verified directly
-        // against the SwiftUI interface, nothing else exists). Outside a live
-        // view a GestureState reads back its seed (verified directly), so a
-        // test/preview can render Core as if mid-gesture by seeding one.
+    @Test func statelessGestureStateIsMockableViaCoresOwnInit() {
+        // @GestureState mirrors verbatim onto Core as a real @GestureState var
+        // — Core is the rendered view, so its own storage is where the gesture
+        // belongs. Since GestureState has init(wrappedValue:), Core's
+        // synthesized init takes the BARE value, and a never-installed
+        // GestureState reads back its seed (verified directly) — so a
+        // test/preview mocks any mid-gesture value by passing it straight to
+        // Core's init.
         let isOnBinding = Binding<Bool>(get: { true }, set: { _ in })
         let card = StatefulCard(isOn: isOnBinding, title: "x")
 
         // Captured off the host: reads the host's (at-reset) value.
         #expect(card.core.dragOffset == .zero)
 
-        // Mocked mid-gesture: seed the wrapped instance directly.
-        let mocked = GestureStateCore(GestureState(wrappedValue: CGSize(width: 50, height: 7)))
-        #expect(mocked.wrappedValue == CGSize(width: 50, height: 7))
+        // Mocked mid-gesture: pass the bare value to Core's synthesized init.
+        let snap = StatefulCard.Core(
+            colorScheme: .light,
+            ns: card.core.ns,
+            isExpanded: isOnBinding,
+            isPinned: isOnBinding,
+            isFocused: card.core.$isFocused,
+            dragOffset: CGSize(width: 50, height: 7),
+            isOn: isOnBinding,
+            title: "x",
+            subtitle: nil
+        )
+        #expect(snap.dragOffset == CGSize(width: 50, height: 7))
 
         // $x hands back the real GestureState<CGSize> that .updating(_:) takes.
-        let projected: GestureState<CGSize> = mocked.projectedValue
+        let projected: GestureState<CGSize> = snap.$dragOffset
         #expect(projected.wrappedValue == CGSize(width: 50, height: 7))
     }
 }
