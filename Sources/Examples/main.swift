@@ -103,9 +103,11 @@ public struct ProfileCard<Content: View>: View {
 // macro above), so this extension only needs to satisfy the requirement, not
 // redeclare the conformance.
 extension ProfileCard.StatelessNode {
-    // colorScheme is a plain, public `let` on StatelessNode — captured once when
-    // `.statelessNode` was computed, same as every other field.
-    public var body: some View {
+    // colorScheme is a plain, internal `let` on StatelessNode — captured once when
+    // `.statelessNode` was computed, same as every other field. StatelessNode itself
+    // is always internal, regardless of ProfileCard's own `public` access — this
+    // is a testing/internal-body seam, not part of ProfileCard's public API.
+    var body: some View {
         Text(colorScheme == .dark ? title.uppercased() : title)
     }
 }
@@ -123,7 +125,7 @@ public struct VM: ViewModifier {
 }
 
 extension VM.StatelessNode {
-    public func body(content: Content) -> some View {
+    func body(content: Content) -> some View {
         content.opacity(c == 0 ? 1 : 0.5)
     }
 }
@@ -234,33 +236,35 @@ let profileCardOutFlow = profileCard.outFlow
 // @StatelessNode is a separate macro from @DataLayout — doesn't replace OutFlow,
 // works alongside it. Same field set as OutFlow, PLUS @Environment (which
 // OutFlow leaves out but StatelessNode captures anyway), as a real nominal
-// `StatelessNode` struct (carrying @DataLayout itself) instead of a tuple. The
-// rule: every field mirrors its ORIGINAL declaration verbatim (attribute,
-// type, let/var), except @Query (a synthesized type, no attribute applies).
-// @State/@AppStorage is the one substitution, not a mirror — declared @Binding
-// instead, since their storage can't be redeclared as itself on a plain
-// struct; a genuine @Binding field like isOn already mirrors into that same
-// form on its own. @Environment becomes a plain `let` — no attribute at all,
-// since @Environment's wrappedValue has no public setter and the attribute
-// can't be preserved, but a plain unattributed value has no such restriction
-// (see ProfileCard.StatelessNode above). @State/@Environment/@Query/@AppStorage
-// must all be private — enforced with a diagnostic if violated, not
-// accommodated.
+// `StatelessNode` struct instead of a tuple — always internal (struct, fields, and
+// the `statelessNode` property itself), regardless of ProfileCard's own `public`
+// access: this is a testing/internal-body seam, not a public API surface, and
+// carries no @DataLayout — Swift's own memberwise-init synthesis already handles
+// every field kind here the same way @DataLayout's hand-written logic would. The
+// rule: every field mirrors its ORIGINAL declaration's attribute and type, but
+// NEVER its mutability — StatelessNode is a deterministic snapshot, so a field is
+// `var` only where Swift's own property-wrapper rule forces it (a genuine
+// @propertyWrapper type requires `var` storage); everything else is `let`,
+// regardless of what the original was declared as. @State/@AppStorage is the one
+// substitution, not a mirror — declared @Binding instead, since their storage
+// can't be redeclared as itself on a plain struct; a genuine @Binding field like
+// isOn already mirrors into that same form on its own (and stays `var`, since
+// @Binding is itself a genuine property wrapper). @Environment becomes a plain
+// `let` — no attribute at all, since @Environment's wrappedValue has no public
+// setter and the attribute can't be preserved, but a plain unattributed value has
+// no such restriction (see ProfileCard.StatelessNode above).
+// @State/@Environment/@Query/@AppStorage must all be private — enforced with a
+// diagnostic if violated, not accommodated.
 let profileCardStatelessNode = profileCard.statelessNode
 let profileCardStatelessNodeTitle = profileCardStatelessNode.title
 profileCardStatelessNode.isOn = false  // writes straight through to the caller's Binding
 
-// subtitle is a plain `var` on ProfileCard, so it stays a mutable `var` on
-// StatelessNode too (not `let`) — a snapshot can be tweaked directly, useful for UI
-// test/preview setup without rebuilding it via makeFlow(_:).
-var mutableProfileCardStatelessNode = profileCard.statelessNode
-mutableProfileCardStatelessNode.subtitle = "Custom"
+// subtitle is a plain `var` on ProfileCard, but StatelessNode is a deterministic
+// snapshot — it's `let subtitle: String?` here (not mirrored as `var`), so a fresh
+// snapshot read is the only way to see a different value, not an in-place mutation.
+let profileCardStatelessNodeSubtitle = profileCardStatelessNode.subtitle
 
 // @ViewBuilder/@Bindable mirror verbatim too — content/footer/model are declared
 // on StatelessNode exactly as ProfileCard declares them, so this compiles unchanged.
 let profileCardStatelessNodeModel = profileCardStatelessNode.model
 let profileCardStatelessNodeFooter = profileCardStatelessNode.footer
-
-// StatelessNode carries @DataLayout, so it has its own inFlow/makeFlow(_:) too —
-// round-tripping a snapshot's public fields back into a fresh StatelessNode value.
-let rebuiltStatelessNode = ProfileCard<Text>.StatelessNode.makeFlow(profileCardStatelessNode.inFlow)

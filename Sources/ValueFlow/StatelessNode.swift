@@ -21,11 +21,11 @@
 ///     // generates:
 ///     // @DataLayout
 ///     // struct StatelessNode {
-///     //     var items: (result: [Item], fetchError: Error?, modelContext: ModelContext)
+///     //     let items: (result: [Item], fetchError: Error?, modelContext: ModelContext)
 ///     //     let colorScheme: ColorScheme
 ///     //     @Binding var isExpanded: Bool
 ///     //     let title: String
-///     //     var subtitle: String?
+///     //     let subtitle: String?
 ///     // }
 ///     // var statelessNode: StatelessNode {
 ///     //     StatelessNode(items: (result: self.items, fetchError: self._items.fetchError,
@@ -86,32 +86,36 @@
 /// assume all four are always private, with no "what if it's also public" case
 /// to reason about.
 ///
-/// ## The rule for everything else: mirror the original declaration, except `@Query`
+/// ## The rule for everything else: mirror the attribute and type, never the mutability
 /// Every field except `@Query` (and `@Environment`, above) is declared on
-/// `StatelessNode` *exactly* as the original property was — same attribute (if it has
-/// one), same declared type, same `let`/`var`. Only `@Query` (a synthesized
-/// `(result:, fetchError:, modelContext:)` tuple) gets a genuinely different
-/// type, with no attribute.
-///
-/// This one rule covers several things at once:
-/// - A plain `var subtitle: String?` stays a mutable `var` on `StatelessNode`, not a
-///   `let` — a snapshot can be tweaked directly after construction, useful for
-///   UI test/preview setup without rebuilding it via `makeFlow(_:)`.
+/// `StatelessNode` with the *original* property's own attribute (if it has one) and
+/// declared type — but never its `let`/`var`. `StatelessNode` is a deterministic
+/// snapshot, so a field is `var` only where Swift's own property-wrapper rule
+/// forces it (a genuine `@propertyWrapper` type requires `var` storage; verified
+/// directly, `@Bindable let model: Settings` is a compile error: "property
+/// wrapper can only be applied to a 'var'"). Everything else — including `@Query`
+/// above — is `let`, regardless of what the original property was declared as:
+/// - A plain `var subtitle: String?` becomes `let subtitle: String?` on
+///   `StatelessNode` — a captured value, not a re-tweakable one.
 /// - A genuine, already-public `@Binding` field mirrors verbatim into exactly
 ///   the same `@Binding var name: T` form `@State`/`@AppStorage` are
 ///   *substituted* into above — same payoff, same `@DataLayout` handling, no
-///   extra logic needed for this case specifically.
+///   extra logic needed for this case specifically. `@Binding` is itself a
+///   genuine property wrapper, so it keeps `var`.
 /// - `@ViewBuilder` mirroring is a real win here, unlike `OutFlow`'s tuple —
 ///   `OutFlow` has no parameter position for trailing-closure sugar to attach
 ///   to, so it strips `@ViewBuilder` down to a bare type. `StatelessNode` has a real
 ///   init (from its own `@DataLayout` expansion), so `@ViewBuilder` mirrored
 ///   onto its field genuinely buys real builder syntax at `StatelessNode`'s own
-///   init call site.
-/// - `@Bindable` needs no special handling at all — `@DataLayout`'s init logic
-///   never recognized `@Bindable` specially even on the *original* type (it
-///   just does `self.model = model`, legal since `@Bindable`'s wrappedValue is
-///   a plain get/set), so mirroring it onto `StatelessNode` reuses that exact
-///   unmodified path.
+///   init call site. `@ViewBuilder` is *not* a `@propertyWrapper` — it's a
+///   result-builder attribute, legal directly on `let` (verified directly:
+///   `@ViewBuilder let vb: () -> Text` compiles) — so it keeps `let`.
+/// - `@Bindable` needs no special handling beyond the general "genuine wrapper
+///   keeps var" rule above — `@DataLayout`'s init logic never recognized
+///   `@Bindable` specially even on the *original* type (it just does
+///   `self.model = model`, legal since `@Bindable`'s wrappedValue is a plain
+///   get/set), so mirroring it onto `StatelessNode` reuses that exact unmodified
+///   path.
 ///
 /// ## Automatic `View`/`ViewModifier` detection
 /// When the attached type's own inheritance clause spells `View` or

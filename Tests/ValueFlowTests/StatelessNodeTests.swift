@@ -5,7 +5,10 @@ import ValueFlow
 // Real, compiled usage — same reasoning as OutFlowTests: exercise actual runtime
 // behavior, not just the syntactic shape assertMacroExpansion checks (see
 // StatelessNodeSyntaxTests for that side). @DataLayout and @StatelessNode coexist on one
-// type here specifically to verify they don't interfere with each other.
+// type here specifically to verify they don't interfere with each other — even
+// though StatelessNode itself never carries @DataLayout (see
+// StatelessNodeRendering.swift), relying instead on Swift's own memberwise-init
+// synthesis.
 
 @DataLayout
 @StatelessNode
@@ -22,9 +25,10 @@ struct StatefulCard: View {
 }
 
 extension StatefulCard.StatelessNode {
-    // colorScheme is a plain, public `let` on StatelessNode — captured once when
+    // colorScheme is a plain, internal `let` on StatelessNode — captured once when
     // `.statelessNode` was computed, same as every other field, not live/
-    // self-installing.
+    // self-installing. StatelessNode itself is always internal, regardless of
+    // StatefulCard's own access — a testing/internal-body seam, not public API.
     var body: some View { Text(colorScheme == .dark ? title.uppercased() : title) }
 }
 
@@ -63,29 +67,16 @@ extension StatefulCard.StatelessNode {
         #expect(card.statelessNode.isExpanded == false)
     }
 
-    @Test func statelessPlainVarFieldStaysMutableForEasierUITesting() {
-        // subtitle is a plain `var` on StatefulCard, not `let` — StatelessNode mirrors
-        // that mutability, so a snapshot can be tweaked directly after
-        // construction instead of only being rebuildable via makeFlow(_:).
+    @Test func statelessPlainFieldIsLetRegardlessOfTheOriginalsMutability() {
+        // subtitle is a plain `var` on StatefulCard, but StatelessNode is a
+        // deterministic snapshot — mutability is never mirrored for a field with
+        // no genuine property-wrapper attribute, so it's `let` here, only
+        // observable via a fresh `.statelessNode` read.
         let isOnBinding = Binding<Bool>(get: { true }, set: { _ in })
         let card = StatefulCard(isOn: isOnBinding, title: "x")
 
-        var snap = card.statelessNode
+        let snap = card.statelessNode
         #expect(snap.subtitle == nil)
-        snap.subtitle = "Custom"
-        #expect(snap.subtitle == "Custom")
-    }
-
-    @Test func statelessStructCarriesItsOwnDataLayoutGeneratedMembers() {
-        // StatelessNode is declared with @DataLayout attached to it, not hand-written
-        // members — this exercises that the nested struct's own macro expansion
-        // genuinely ran (inFlow/makeFlow(_:)), not just that StatelessNode compiles.
-        var isOnStorage = true
-        let isOnBinding = Binding<Bool>(get: { isOnStorage }, set: { isOnStorage = $0 })
-        let card = StatefulCard(isOn: isOnBinding, title: "Settings")
-
-        let rebuilt = StatefulCard.StatelessNode.makeFlow(card.statelessNode.inFlow)
-        #expect(rebuilt.title == "Settings")
     }
 
     @Test func statelessCapturesEnvironmentAsAPlainLetField() {
@@ -99,17 +90,5 @@ extension StatefulCard.StatelessNode {
 
         let snap = card.statelessNode
         #expect(snap.colorScheme == .light)  // default EnvironmentValues, no live view installed
-    }
-
-    @Test func statelessColorSchemeParticipatesInInFlowSinceItsNoLongerPrivate() {
-        // colorScheme is a plain, non-private field on StatelessNode now — it's
-        // not special-cased away from @DataLayout's usual !isPrivate-based
-        // InFlow/InFlowSplat/makeFlow(_:) collection, so it round-trips the
-        // same way title/isOn/isExpanded do.
-        let isOnBinding = Binding<Bool>(get: { true }, set: { _ in })
-        let card = StatefulCard(isOn: isOnBinding, title: "x")
-
-        let rebuilt = StatefulCard.StatelessNode.makeFlow(card.statelessNode.inFlow)
-        #expect(rebuilt.colorScheme == .light)
     }
 }

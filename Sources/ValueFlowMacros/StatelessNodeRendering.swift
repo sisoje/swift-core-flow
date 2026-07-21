@@ -7,11 +7,35 @@ import SwiftSyntax
 /// differently than `OutFlow` ever did), plus a `statelessNode` computed property
 /// building one from the current instance.
 ///
-/// `StatelessNode` carries `@DataLayout` itself, so its own memberwise init,
-/// `InFlowSplat`/`makeFlow(_:)`, and `InFlow`/`inFlow` all come from that second
-/// expansion — verified directly that a macro-generated declaration carrying
-/// another macro's attribute really does get expanded by the compiler, no
-/// different from writing it by hand. Nothing here hand-renders an init.
+/// `StatelessNode` is always internal — its own access, every field's, and
+/// `statelessNode`'s — regardless of the attached type's own access level, and it
+/// carries no `@DataLayout`. This is a purely internal testing/snapshot seam
+/// (`.statelessNode` for assertions and `StatelessNode`-hosted `body`/
+/// `body(content:)` implementations, both reachable from the same module or a
+/// `@testable import`), not a public API surface even when the attached type
+/// itself is `public` — consumers of a public host type never need the snapshot,
+/// only the package's own tests do. No hand-rolled init is needed either: Swift's
+/// own memberwise-init synthesis already reproduces `@DataLayout`'s field-specific
+/// behavior for every kind of field here — verified directly: a property-wrapper
+/// field with no `init(wrappedValue:)` (`@Binding`) synthesizes a parameter of the
+/// *wrapper's* type, one that does (`@Bindable`) synthesizes a parameter of the
+/// *wrapped* type, and `@ViewBuilder` directly on a stored `let` synthesizes a
+/// builder-closure parameter for a value-typed field exactly like `@DataLayout`'s
+/// own hand-written logic does. The one thing genuinely lost by skipping
+/// `@DataLayout` is `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on
+/// `StatelessNode` itself — accepted, since nothing here needs to round-trip a
+/// snapshot back into itself.
+///
+/// Because `StatelessNode`'s own type is always internal, `statelessNode`'s access
+/// is forced internal too (Swift rejects a more-accessible property with a
+/// less-accessible type — verified directly: "property must be declared internal
+/// because its type uses an internal type"). `body`/`body(content:)` on the
+/// *attached* type, by contrast, still mirrors the attached type's own access
+/// (`public` included) — verified directly that this compiles even though it
+/// reads `self.statelessNode` (internal) and returns it: `some View`'s opaque
+/// return type only exposes the `View` conformance, never the concrete
+/// `StatelessNode` type, so a `public` `body` can freely return an internal
+/// concrete value.
 ///
 /// Every private wrapper kind becomes a *plain, constructed* field on
 /// `StatelessNode` — never the original attribute, always captured as an ordinary
@@ -27,29 +51,41 @@ import SwiftSyntax
 ///   `@Environment`'s `wrappedValue` has no public setter (verified directly:
 ///   `error: cannot assign to property: 'colorScheme' is a get-only
 ///   property`), but that only blocks preserving the *attribute*; a plain,
-///   unattributed `let` has no such restriction; `@DataLayout`'s init just
+///   unattributed `let` has no such restriction; the synthesized init just
 ///   assigns `self.name = name` like any other field. Always `let`, not
 ///   mirroring the original's `let`/`var` — the original is *always* `var`
 ///   (every property wrapper requires it), but the captured copy is a
 ///   one-time snapshot, immutable by design.
 ///
-/// Every other field — plain, `@Binding`, `@ViewBuilder`, `@Bindable`, or any
-/// other property wrapper — mirrors the *original* property's own declaration on
-/// `StatelessNode` verbatim: same attribute (if it has one), same declared type,
-/// same `let`/`var`. Concretely:
-/// - A plain `var subtitle: String?` field stays a mutable `var` on `StatelessNode`,
-///   not a `let` — useful for constructing/tweaking a snapshot directly for UI
-///   testing.
-/// - `@ViewBuilder` mirrors verbatim, and unlike `OutFlow`'s tuple (nowhere to
-///   attach trailing-closure sugar), it's a real win here: `StatelessNode` has a
-///   real init (from its own `@DataLayout` expansion), so `@ViewBuilder` on its
-///   field genuinely buys real builder syntax at `StatelessNode`'s own init call
-///   site, not just documentation.
-/// - `@Bindable` mirrors verbatim and needs no special handling at all —
-///   `@DataLayout`'s init logic never recognized `@Bindable` specially even on
-///   the *original* type (it just assigns `self.model = model`, legal since
-///   `@Bindable`'s wrappedValue is a plain get/set), so reusing that exact
-///   unmodified path on `StatelessNode`'s copy works identically.
+/// Every other field — plain, `@ViewBuilder`, `@Query`, `@Bindable`, or any other
+/// property wrapper — mirrors the *original* property's own attribute (if it has
+/// one) and declared type onto `StatelessNode` verbatim, but **not** its
+/// mutability: `StatelessNode` is a deterministic snapshot, so a field gets `var`
+/// only where Swift's own property-wrapper rule forces it (a real
+/// `@propertyWrapper` type — `@Bindable`, or any other genuine wrapper — requires
+/// `var` storage; verified directly, `@Bindable let model: Settings` is a compile
+/// error: "property wrapper can only be applied to a 'var'"). Every field that
+/// doesn't carry a genuine wrapper attribute is `let`, regardless of whether the
+/// *original* property was declared `let` or `var`:
+/// - A plain `var subtitle: String?` on the original type becomes `let subtitle:
+///   String?` on `StatelessNode` — a captured value, not a re-tweakable one.
+/// - `@Query`'s synthesized `(result:, fetchError:, modelContext:)` tuple carries
+///   no attribute on the copy (see above) and is `let` for the same reason.
+/// - `@ViewBuilder` is **not** a `@propertyWrapper` — it's a result-builder
+///   attribute, legal directly on a stored `let` (verified directly:
+///   `@ViewBuilder let vb: () -> Text` compiles) — so it mirrors verbatim
+///   including `let`, and unlike `OutFlow`'s tuple (nowhere to attach
+///   trailing-closure sugar), that's a real win here: Swift's own synthesized
+///   init reproduces `@ViewBuilder`'s builder-closure parameter for a
+///   value-typed field (verified directly), so `@ViewBuilder` on `StatelessNode`'s
+///   field genuinely buys real builder syntax at its own init call site, not
+///   just documentation.
+/// - `@Bindable` mirrors verbatim, `var` included — needs no special handling
+///   beyond the general "genuine wrapper forces var" rule above. Swift's
+///   synthesized init handles `@Bindable` the same way `@DataLayout`'s
+///   hand-written one would (`self.model = model`, legal since `@Bindable`'s
+///   wrappedValue is a plain get/set — verified directly), so mirroring it onto
+///   `StatelessNode`'s copy works with no extra logic anywhere in this file.
 func renderStatelessNode(
     properties: [StoredProperty], access: String, hostKind: StatelessNodeHostKind = .none
 ) -> [DeclSyntax] {
@@ -63,22 +99,31 @@ func renderStatelessNode(
         !$0.isPrivate || $0.isQuery || $0.isStateOrAppStorage || $0.isEnvironment
     }
 
+    // Every field is internal — never `access` — regardless of the attached
+    // type's own access level; see this file's own doc comment for why
+    // `StatelessNode` is deliberately never public.
     let fieldDecls = fields.map { p -> String in
         if p.isStateOrAppStorage || p.isBinding {
-            let keyword = p.isLet ? "let" : "var"
-            return "@Binding \(access)\(keyword) \(p.name): \(p.type?.trimmedDescription ?? "")"
+            // Always `var` — `@Binding` is a genuine `@propertyWrapper`, and Swift
+            // requires `var` storage for any property-wrapper-attributed field
+            // (verified directly: `@Binding let x: Int` is a compile error).
+            return "@Binding var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         if p.isEnvironment {
-            return "\(access)let \(p.name): \(p.type?.trimmedDescription ?? "")"
+            return "let \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         // Query gets its OutFlow-synthesized type with no attribute (no wrapper
         // of its own could apply to that resulting shape); everything else
         // reuses outFlowFieldType too — it already reduces to the property's own
         // bare declared type once Binding/Query are excluded — but carries its
-        // original wrapper attribute along, verbatim.
-        let keyword = p.isLet ? "let" : "var"
+        // original wrapper attribute along, verbatim. Mutability is never
+        // mirrored: `var` only where a genuine `@propertyWrapper` (anything
+        // other than `@ViewBuilder`, which isn't one) forces it — everything
+        // else is `let`, a deterministic snapshot field.
+        let requiresVar = p.wrapperName != nil && !p.isQuery && !p.isViewBuilder
+        let keyword = requiresVar ? "var" : "let"
         let attributePrefix = p.isQuery ? "" : p.wrapperName.map { "@\($0) " } ?? ""
-        return "\(attributePrefix)\(access)\(keyword) \(p.name): \(outFlowFieldType(p))"
+        return "\(attributePrefix)\(keyword) \(p.name): \(outFlowFieldType(p))"
     }.joined(separator: "\n")
 
     let conformance: String
@@ -104,13 +149,13 @@ func renderStatelessNode(
         hostDocLines = [
             "/// Conforms to `View`, declared by `@StatelessNode` — implement its real",
             "/// `body` in a separate extension, e.g. `extension YourType.StatelessNode {",
-            "/// public var body: some View { ... } }`.",
+            "/// var body: some View { ... } }`.",
         ]
     case .viewModifier:
         hostDocLines = [
             "/// Conforms to `ViewModifier`, declared by `@StatelessNode` — implement its",
             "/// real `body(content:)` in a separate extension, e.g. `extension",
-            "/// YourType.StatelessNode { public func body(content: Content) -> some View",
+            "/// YourType.StatelessNode { func body(content: Content) -> some View",
             "/// { ... } }`.",
         ]
     case .none:
@@ -120,8 +165,7 @@ func renderStatelessNode(
 
     let statelessStruct = DeclSyntax(
         stringLiteral: """
-            \(hostDocComment)@DataLayout
-            \(access)struct StatelessNode\(conformance) {
+            \(hostDocComment)struct StatelessNode\(conformance) {
             \(fieldDecls)
             }
             """
@@ -145,9 +189,12 @@ func renderStatelessNode(
         }
         return "\(p.name): \(value)"
     }.joined(separator: ", ")
+    // Always internal, never `access` — `statelessNode`'s type (`StatelessNode`)
+    // is itself always internal, and Swift rejects a more-accessible property
+    // with a less-accessible type.
     let statelessProperty = DeclSyntax(
         stringLiteral: """
-            \(access)var statelessNode: StatelessNode {
+            var statelessNode: StatelessNode {
                 StatelessNode(\(args))
             }
             """

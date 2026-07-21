@@ -450,9 +450,11 @@ flowchart TD
 
 A `member` macro, separate from `@DataLayout` — it doesn't replace `OutFlow`/
 `outFlow`, and works with or without `@DataLayout` also attached (it collects the
-type's stored properties itself). It generates a nested `StatelessNode` struct — which
-carries `@DataLayout` itself — plus a `statelessNode` computed property building one
-from the current instance, sharing its constructed-field set with what `OutFlow`
+type's stored properties itself). It generates a nested `StatelessNode` struct —
+always internal (the struct, every field, and the `statelessNode` property
+itself), regardless of the attached type's own access level, and carrying no
+`@DataLayout` — plus a `statelessNode` computed property building one from the
+current instance, sharing its constructed-field set with what `OutFlow`
 already computes, *plus* `@Environment` (which `OutFlow` deliberately leaves out
 — see above — but `StatelessNode` still captures): every non-private participating
 property, plus private `@Environment`/`@Query`/`@State`/`@AppStorage` state,
@@ -469,11 +471,11 @@ struct Card: View {
     // generates:
     // @DataLayout
     // struct StatelessNode {
-    //     var items: (result: [Item], fetchError: Error?, modelContext: ModelContext)
+    //     let items: (result: [Item], fetchError: Error?, modelContext: ModelContext)
     //     let colorScheme: ColorScheme
     //     @Binding var isExpanded: Bool
     //     let title: String
-    //     var subtitle: String?
+    //     let subtitle: String?
     // }
     // var statelessNode: StatelessNode {
     //     StatelessNode(items: (result: self.items, fetchError: self._items.fetchError,
@@ -498,17 +500,36 @@ So `OutFlow` alone can never be `Equatable`, `Codable`, or conform to a shared
 real nominal struct capturing the same data, so it can — for free, the moment it's
 declared as a real `struct`.
 
-### Why `StatelessNode` carries `@DataLayout`, not hand-written members
+### Why `StatelessNode` is always internal, and carries no `@DataLayout`
 
-Rather than re-deriving an init/accessors for the nested struct by hand,
-`@StatelessNode` just declares `StatelessNode`'s stored properties and attaches
-`@DataLayout` to it. A macro-generated declaration that itself carries another
-macro's attribute really does get expanded by the compiler — verified directly
-with a real build: a member macro emitting `@DataLayout public struct Snapshot {
-... }` produces a fully working `inFlow`/`makeFlow(_:)`/`InFlowSplat` on
-`Snapshot`, no different from writing it by hand. `@DataLayout`'s own
-memberwise-init rendering does the rest, with no new init/accessor logic anywhere
-in `@StatelessNode`'s own implementation.
+`StatelessNode` is a purely internal testing/snapshot seam — `.statelessNode` for
+assertions, plus a `StatelessNode`-hosted `body`/`body(content:)` implementation
+— not part of the attached type's public API, even when that type itself is
+`public`: consumers of a public host never need the snapshot, only the
+package's own tests do (reachable from the same module, or a `@testable
+import`). So the struct, every field, and `statelessNode`'s own access are
+always internal, never mirroring the attached type's access level.
+
+No hand-rolled init is needed either. Swift's own memberwise-init synthesis
+already reproduces every field-specific behavior `@DataLayout` would generate
+by hand — verified directly: a property-wrapper field with no
+`init(wrappedValue:)` (`@Binding`) synthesizes a parameter of the *wrapper's*
+type, one that does (`@Bindable`) synthesizes a parameter of the *wrapped*
+type, and `@ViewBuilder` directly on a stored `let` synthesizes a
+builder-closure parameter for a value-typed field — exactly what `@DataLayout`
+would hand-write. The one thing genuinely lost by skipping `@DataLayout` is
+`InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on `StatelessNode` itself,
+accepted since nothing here needs to round-trip a snapshot back into itself.
+
+Because `StatelessNode`'s own type is always internal, `statelessNode`'s access
+is forced internal too — Swift rejects a more-accessible property with a
+less-accessible type (verified directly: "property must be declared internal
+because its type uses an internal type"). `body`/`body(content:)` on the
+*attached* type, by contrast, still mirrors that type's own access (`public`
+included) — verified directly that this compiles even though it reads
+`self.statelessNode` (internal) and returns it: `some View`'s opaque return
+type only exposes the `View` conformance, never the concrete `StatelessNode`
+type, so a `public` `body` can freely return an internal concrete value.
 
 ### Every source-of-truth wrapper becomes a plain, constructed value
 
@@ -526,7 +547,7 @@ attribute, except `@State`/`@AppStorage`'s substitution into `@Binding`:
   the value doesn't change — because the *attribute* can't be preserved:
   `@Environment`'s `wrappedValue` has no public setter (verified directly:
   `error: cannot assign to property: 'colorScheme' is a get-only property`),
-  and `@DataLayout`'s init always assigns `self.x = x` — a plain, unattributed
+  and the synthesized init always assigns `self.x = x` — a plain, unattributed
   `let` has no such restriction. Always `let`, not mirroring the original's
   `let`/`var` (always `var`, every property wrapper requires it) — the
   captured copy is a one-time snapshot, immutable by design.
@@ -538,21 +559,24 @@ one non-private is a compile error, so every renderer downstream can assume
 all four are always private, with no "what if it's also public" case to
 reason about.
 
-### The rule for everything else: mirror the original declaration, except `@Query`
+### The rule for everything else: mirror the attribute and type, never the mutability
 
 Every field except `@Query` (and `@Environment`, above) is declared on
-`StatelessNode` *exactly* as the original property was — same attribute (if it has
-one), same declared type, same `let`/`var`. Only `@Query` (a synthesized
-`(result:, fetchError:, modelContext:)` tuple) gets a genuinely different type,
-with no attribute — everything else is a direct mirror, reusing `OutFlow`'s own
-field-computing functions (`outFlowProperties`/`outFlowFieldType`/
-`outFlowFieldReadExpression`) unchanged to decide *what* each field's type is.
+`StatelessNode` with the *original* property's own attribute (if it has one) and
+declared type — reusing `OutFlow`'s own field-computing functions
+(`outFlowProperties`/`outFlowFieldType`/`outFlowFieldReadExpression`) unchanged to
+decide *what* each field's type is — but never the original's `let`/`var`.
+`StatelessNode` is a deterministic snapshot, so a field is `var` only where Swift's
+own property-wrapper rule forces it (a genuine `@propertyWrapper` type requires
+`var` storage; verified directly, `@Bindable let model: Settings` is a compile
+error: "property wrapper can only be applied to a 'var'"). Everything else —
+including `@Query`'s synthesized tuple above — is `let`, regardless of what the
+original property was declared as.
 
 This one rule covers several things at once:
 
-- **A plain `var subtitle: String?` stays a mutable `var` on `StatelessNode`**, not a
-  `let` — so a snapshot can be tweaked directly after construction, useful for
-  setting up UI test/preview state without rebuilding it via `makeFlow(_:)`.
+- **A plain `var subtitle: String?` becomes `let subtitle: String?` on
+  `StatelessNode`** — a captured value, not a re-tweakable one.
 - **A genuine, already-public `@Binding` field mirrors verbatim** into exactly
   the same `@Binding var name: T` form `@State`/`@AppStorage` are substituted
   into above — it already *is* that declaration in the original source, so no
@@ -561,16 +585,22 @@ This one rule covers several things at once:
   picks up both cases identically. The payoff: `statelessNode.name` reads the
   wrapped value directly, no `.wrappedValue` unwrap — and `statelessNode.name =
   newValue` writes straight through to whatever storage the original binding
-  pointed at, genuinely two-way.
+  pointed at, genuinely two-way. `@Binding` is itself a genuine property
+  wrapper, so it keeps `var`.
 - **`@ViewBuilder` mirroring is a real win here, unlike `OutFlow`'s tuple** —
   `OutFlow` has no parameter position for trailing-closure sugar to attach to,
-  so it strips `@ViewBuilder` down to a bare type. `StatelessNode` has a real init
-  (from its own `@DataLayout` expansion), so `@ViewBuilder` mirrored onto its
-  field genuinely buys real builder syntax at `StatelessNode`'s own init call site.
-- **`@Bindable` needs no special handling at all** — `@DataLayout`'s init logic
-  never recognized `@Bindable` specially even on the *original* type (it just
-  does `self.model = model`, legal since `@Bindable`'s wrappedValue is a plain
-  get/set), so mirroring it onto `StatelessNode` reuses that exact unmodified path.
+  so it strips `@ViewBuilder` down to a bare type. Swift's own synthesized init
+  reproduces `@ViewBuilder`'s builder-closure parameter for a value-typed field
+  (verified directly), so `@ViewBuilder` mirrored onto `StatelessNode`'s field
+  genuinely buys real builder syntax at its own init call site. `@ViewBuilder`
+  is *not* a `@propertyWrapper` — it's a result-builder attribute, legal
+  directly on `let` (verified directly: `@ViewBuilder let vb: () -> Text`
+  compiles) — so it keeps `let`.
+- **`@Bindable` needs no special handling beyond the general "genuine wrapper
+  keeps var" rule above** — no init logic here ever recognized `@Bindable`
+  specially even on the *original* type (it just does `self.model = model`,
+  legal since `@Bindable`'s wrappedValue is a plain get/set), so mirroring it
+  onto `StatelessNode` works identically under Swift's own synthesized init.
 
 ### Automatic `View`/`ViewModifier` detection
 

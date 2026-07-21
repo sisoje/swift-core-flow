@@ -27,9 +27,8 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     @Binding var isOn: Bool
                     let title: String
 
-                    @DataLayout
                     struct StatelessNode {
-                        var items: (result: [Item], fetchError: Error?, modelContext: ModelContext)
+                        let items: (result: [Item], fetchError: Error?, modelContext: ModelContext)
                         let colorScheme: ColorScheme
                         @Binding var isExpanded: Bool
                         @Binding var isOn: Bool
@@ -57,7 +56,6 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                 struct Empty {
                     private var cache = 0
 
-                    @DataLayout
                     struct StatelessNode {
 
                     }
@@ -71,7 +69,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         )
     }
 
-    func testViewBuilderAndBindablePropertiesMirrorVerbatimIncludingLetVsVar() {
+    func testPlainAndViewBuilderFieldsAreLetWhileBindableStaysVar() {
         assertMacroExpansion(
             """
             @StatelessNode
@@ -89,9 +87,8 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     @ViewBuilder let content: () -> Content
                     @ViewBuilder let footer: Content
 
-                    @DataLayout
                     struct StatelessNode {
-                        var subtitle: String?
+                        let subtitle: String?
                         @Bindable var model: Settings
                         @ViewBuilder let content: () -> Content
                         @ViewBuilder let footer: Content
@@ -122,8 +119,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
 
                     /// Conforms to `View`, declared by `@StatelessNode` — implement its real
                     /// `body` in a separate extension, e.g. `extension YourType.StatelessNode {
-                    /// public var body: some View { ... } }`.
-                    @DataLayout
+                    /// var body: some View { ... } }`.
                     struct StatelessNode: View {
                         let title: String
                     }
@@ -155,9 +151,8 @@ final class StatelessNodeSyntaxTests: XCTestCase {
 
                     /// Conforms to `ViewModifier`, declared by `@StatelessNode` — implement its
                     /// real `body(content:)` in a separate extension, e.g. `extension
-                    /// YourType.StatelessNode { public func body(content: Content) -> some View
+                    /// YourType.StatelessNode { func body(content: Content) -> some View
                     /// { ... } }`.
-                    @DataLayout
                     struct StatelessNode: ViewModifier {
                         @Binding var c: Int
                     }
@@ -191,7 +186,6 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                 struct Card {
                     let title: String
 
-                    @DataLayout
                     struct StatelessNode {
                         let title: String
                     }
@@ -205,7 +199,44 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         )
     }
 
-    func testAccessLevelMirrorsTheStruct() {
+    func testPublicViewHostStillGetsAPublicBodyDelegatingToAnInternalStatelessNode() {
+        // `body`'s own access still mirrors the host (public), verified directly
+        // that this compiles even though it returns `self.statelessNode`, an
+        // internal concrete type — `some View`'s opaque return type only exposes
+        // the `View` conformance, never the concrete type, so a public `body` can
+        // freely return an internal value.
+        assertMacroExpansion(
+            """
+            @StatelessNode
+            public struct Card: View {
+                let title: String
+            }
+            """,
+            expandedSource: """
+                public struct Card: View {
+                    let title: String
+
+                    /// Conforms to `View`, declared by `@StatelessNode` — implement its real
+                    /// `body` in a separate extension, e.g. `extension YourType.StatelessNode {
+                    /// var body: some View { ... } }`.
+                    struct StatelessNode: View {
+                        let title: String
+                    }
+
+                    var statelessNode: StatelessNode {
+                        StatelessNode(title: self.title)
+                    }
+
+                    public var body: some View {
+                        self.statelessNode
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
+    func testStatelessNodeIsAlwaysInternalRegardlessOfTheStructsAccess() {
         assertMacroExpansion(
             """
             @StatelessNode
@@ -219,13 +250,12 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     var x: Int
                     var y: Int
 
-                    @DataLayout
-                    public struct StatelessNode {
-                        public var x: Int
-                        public var y: Int
+                    struct StatelessNode {
+                        let x: Int
+                        let y: Int
                     }
 
-                    public var statelessNode: StatelessNode {
+                    var statelessNode: StatelessNode {
                         StatelessNode(x: self.x, y: self.y)
                     }
                 }
