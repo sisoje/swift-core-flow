@@ -1,14 +1,13 @@
 import XCTest
 
-/// Launches the app, forwarding EXAMPLE_SCENARIO from this test process's own
-/// environment into the app-under-test's `launchEnvironment` — a separate
-/// process that doesn't see this one's environment unless told to (verified
-/// directly). The shell sets it as `TEST_RUNNER_EXAMPLE_SCENARIO`; xcodebuild
-/// strips that prefix when handing it to this process (also verified
-/// directly — see testGestureState.sh).
-func launchExampleApp() -> XCUIApplication {
+/// Launches the app, forwarding `scenario` into the app-under-test's
+/// `launchEnvironment` as `EXAMPLE_SCENARIO` — a separate process that
+/// doesn't see this one's environment unless told to (verified directly).
+/// Every test states the scenario it needs explicitly; nothing is inherited
+/// from the shell that invoked xcodebuild.
+func launchExampleApp(scenario: String) -> XCUIApplication {
     let app = XCUIApplication()
-    app.launchEnvironment["EXAMPLE_SCENARIO"] = ProcessInfo.processInfo.environment["EXAMPLE_SCENARIO"]
+    app.launchEnvironment["EXAMPLE_SCENARIO"] = scenario
     app.launch()
     return app
 }

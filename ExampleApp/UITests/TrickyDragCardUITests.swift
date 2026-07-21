@@ -10,7 +10,7 @@ final class TrickyDragCardUITests: XCTestCase {
     // whole, which carries the closure inside it.
     @MainActor
     func testCustomResetClosureFiresWhenGestureEnds() {
-        let app = launchExampleApp()
+        let app = launchExampleApp(scenario: "GestureState")
 
         let box = app.otherElements["trickyDragBox"]
         let resets = app.staticTexts["trickyResetsLabel"]

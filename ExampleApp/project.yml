@@ -40,5 +40,10 @@ schemes:
       config: Debug
     test:
       config: Debug
+      # No lldb attach on Cmd-U — attaching to the UI-test runner is denied on
+      # this macOS/Xcode beta pair even with developer mode enabled, and the
+      # xcodebuild path (test*.sh) never attaches anyway. Cost: no breakpoints
+      # inside tests.
+      debugEnabled: false
       targets:
         - ExampleAppUITests
