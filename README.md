@@ -662,38 +662,62 @@ extension is written.
 
 ### How a StatelessNode relates to its host
 
+Every value a stateful host needs comes from exactly one of two places — supplied
+from *outside* by a caller, or held as the runtime's own *source of truth* — and
+both kinds converge on the host, which does nothing with them itself beyond
+handing them to `StatelessNode`. All the real rendering logic, and every view
+modifier, lives in `StatelessNode`'s own hand-written `body`/`body(content:)` —
+which is why it's constructible and testable with no live view in the picture
+at all:
+
 ```mermaid
-flowchart LR
-    subgraph Card["Card — stateful"]
-        SOT["@Query / @State /<br/>@Environment / @AppStorage"]
-        Plain["plain fields"]
+flowchart TD
+    subgraph Outside["from outside — caller-supplied"]
+        Bind["@Binding<br/>e.g. isOn"]
+        Plain["plain fields<br/>e.g. title"]
+    end
+
+    subgraph SOT["source of truth — runtime-managed"]
+        State["@State / @AppStorage"]
+        Query["@Query"]
+        Env["@Environment"]
+    end
+
+    Outside --> Card
+    SOT --> Card
+
+    subgraph Card["Card — stateful, live"]
         CardBody["body<br/>(generated delegation)"]
     end
-    subgraph SN["Card.StatelessNode — pure value"]
-        Fields["captured fields<br/>tuple · @Binding · let"]
-        SNBody["body<br/>(hand-written)"]
+
+    subgraph SN["Card.StatelessNode — pure value, real View"]
+        Fields["captured fields<br/>@Binding (writes through) · let (frozen)"]
+        SNBody["body<br/>hand-written — ALL rendering logic<br/>and view modifiers live here"]
+        Fields --> SNBody
     end
-    SOT -- "captured once" --> Fields
-    Plain -- "mirrored verbatim" --> Fields
-    Fields --> SNBody
-    CardBody -. "self.statelessNode" .-> SNBody
-    Test(["unit test"]) -. "construct directly,<br/>no live view" .-> Fields
+
+    CardBody -. "self.statelessNode<br/>captures every value once" .-> SN
+    Test(["unit test / preview"]) -. "construct StatelessNode directly —<br/>no live view, no environment, no ModelContext" .-> Fields
 ```
 
-- **`SOT`/`Plain` → `Fields`** — every field, live source-of-truth or not, ends
-  up captured on `StatelessNode` as a plain value (or `@Binding`, for
-  `@State`/`@AppStorage`) — the mirroring/substitution rules above, in one
-  picture.
-- **`Fields` → `SNBody`** — the part you write by hand: real rendering logic,
-  reading only already-captured, plain data — no live view, no environment
-  injection, no `ModelContext` required to exercise it.
-- **`CardBody -.-> SNBody`** (dotted, generated automatically) — exists only
-  when `Card` is detected as `View`/`ViewModifier`; this is the one path that
-  actually renders `Card` for real, and it's pure mechanical delegation, not
-  hand-written.
-- **`Test -.-> Fields`** (dotted, the other way in) — the path that doesn't go
-  through `Card` at all: construct a `StatelessNode` directly and assert on its
-  captured fields — no live rendering pipeline needed.
+- **`Outside`/`SOT` → `Card`** — `Card` is just where the two kinds of input
+  meet, not where any logic lives: values the caller supplies (`@Binding`,
+  plain fields) and values the runtime itself owns and can change underneath
+  it (`@State`/`@Query`/`@Environment`/`@AppStorage`) arrive the same way, as
+  far as anything downstream is concerned.
+- **`CardBody -.-> SN`** (dotted, generated automatically) — the one moment
+  every value gets captured, once, into `Fields`: a live `@Binding` becomes a
+  writable `@Binding` field (genuinely two-way), everything else freezes into
+  a `let`. Exists only when `Card` is detected as `View`/`ViewModifier`, and
+  it's pure mechanical delegation — nothing hand-written on `Card`'s side.
+- **`Fields` → `SNBody`** — the part you *do* write by hand: real rendering
+  logic and every view modifier, reading only already-captured, plain data —
+  no live view, no environment injection, no `ModelContext` required to
+  exercise it.
+- **`Test -.-> Fields`** (dotted, the other way in) — the path that skips
+  `Card` entirely: construct a `StatelessNode` directly — in a unit test, or a
+  `#Preview` — and assert on or render its captured fields, no live rendering
+  pipeline required.
 
 ---
 
