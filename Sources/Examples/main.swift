@@ -8,9 +8,9 @@ import ValueFlow
     init() {}
 }
 
-// MARK: - DataLayout
+// MARK: - Flowable
 
-// @DataLayout writes the memberwise initializer at the struct's own access
+// @Flowable writes the memberwise initializer at the struct's own access
 // level — the `public init` Swift refuses to synthesize for a public type — plus an
 // `InFlowSplat` typealias bundling the same properties into an UNLABELED tuple
 // alongside it:
@@ -23,13 +23,13 @@ import ValueFlow
 // Unlabeled specifically so ANY structurally-compatible tuple converts in, not just
 // one built with these exact field names/order in mind:
 
-@DataLayout
+@Flowable
 public struct Point {
     var x: Int
     var y: Int
 }
 
-@DataLayout
+@Flowable
 public struct OneValur {
     var x: Int
 }
@@ -42,7 +42,7 @@ let keke = (xxx: 1, yyy: 1)
 
 let p = Point.makeFlow(keke)
 
-@DataLayout
+@Flowable
 public struct User {
     static let x: Int = 0
     static var y: Int {
@@ -62,7 +62,7 @@ public struct User {
     public var onDone: (() -> Void)?  // optional var → `= nil` param, no @escaping
 }
 
-@DataLayout
+@Flowable
 @Observable public final class Settings {
     var count: Int = 0  // one property → `typealias InFlowSplat = Int`, no 1-tuple
 }
@@ -85,7 +85,7 @@ public struct User {
 // a generated `var body: some View { core }` for free — the mechanical
 // delegation, not hand-written. Only the *real* body implementation, on
 // `Core` itself, is left for hand-written code below.
-@DataLayout
+@Flowable
 @Shell
 public struct ProfileCard<Content: View>: View {
     // Namespace.wrappedValue has no setter and no projectedValue at all (verified
@@ -131,7 +131,7 @@ extension ProfileCard.Core {
 // no need to unify VM's own `Content` with VM.Core's (verified directly
 // that forwarding `content` straight into Core's own `body(content:)`
 // instead does not compile — see ShellMacro.swift's doc comment).
-@DataLayout
+@Flowable
 @Shell
 public struct VM: ViewModifier {
     @State private var c: Int = 0
@@ -162,7 +162,7 @@ let twoOfEleven = #pick(from: big, \.val3, \.val11)
 
 // @Capability bundles every eligible computed property/method into one
 // `Capability` tuple typealias + `capability` computed property. Unlike
-// @DataLayout, it works fine on an extension — it collects
+// @Flowable, it works fine on an extension — it collects
 // COMPUTED members (which extensions can declare), not stored ones (which they
 // can't). `me`, `zola`, `zola2` (stored) don't participate; `x` (computed),
 // `doSomething`, `doSomethingElse`, `meme` (methods) do. Generated:
@@ -264,14 +264,14 @@ let profileCardOutFlowIsPinned = profileCardOutFlow.isPinned.wrappedValue
 
 // MARK: - Core
 
-// @Shell is a separate macro from @DataLayout — doesn't replace OutFlow,
+// @Shell is a separate macro from @Flowable — doesn't replace OutFlow,
 // works alongside it. Same field set as OutFlow, PLUS @Environment (which
 // OutFlow leaves out but Core captures anyway), as a real nominal
 // `Core` struct instead of a tuple — always internal (struct, fields, and
 // the `core` property itself), regardless of ProfileCard's own `public`
 // access: this is a testing/internal-body seam, not a public API surface, and
-// carries no @DataLayout — Swift's own memberwise-init synthesis already handles
-// every field kind here the same way @DataLayout's hand-written logic would. The
+// carries no @Flowable — Swift's own memberwise-init synthesis already handles
+// every field kind here the same way @Flowable's hand-written logic would. The
 // rule: every field mirrors its ORIGINAL declaration's attribute and type, but
 // NEVER its mutability — Core is a deterministic snapshot, so a field is
 // `var` only where Swift's own property-wrapper rule forces it (a genuine

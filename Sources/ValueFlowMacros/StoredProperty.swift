@@ -4,8 +4,8 @@ import SwiftSyntaxMacros
 
 // MARK: - Stored-property model
 
-/// A stored property that participates in `@DataLayout`'s generated init and
-/// `DataLayout` typealias.
+/// A stored property that participates in `@Flowable`'s generated init and
+/// `Flowable` typealias.
 public struct StoredProperty {
     public let name: String
     public let type: TypeSyntax?
@@ -58,7 +58,7 @@ public struct StoredProperty {
     /// which keep `@Binding`). Not because the value doesn't change — because
     /// the *attribute* can't be preserved: `@Environment`'s `wrappedValue` has
     /// no public setter (verified directly: `error: cannot assign to property:
-    /// 'colorScheme' is a get-only property`), and `@DataLayout`'s init always
+    /// 'colorScheme' is a get-only property`), and `@Flowable`'s init always
     /// assigns `self.x = x` — a plain, unattributed `let` has no such
     /// restriction, so the value is captured once, like every other field.
     public var isEnvironment: Bool {
@@ -104,7 +104,7 @@ public struct StoredProperty {
     /// folded into `isBindingBackedStorage`, both for the field *type* (`OutFlow`)
     /// and because `@Shell` redeclares it as its own real attribute
     /// (`@FocusState<T>.Binding var x: T`, not `@Binding var x: T`) — see
-    /// `outFlowFieldType`/`outFlowFieldReadExpression` (`DataLayoutRendering.swift`)
+    /// `outFlowFieldType`/`outFlowFieldReadExpression` (`FlowableRendering.swift`)
     /// and `renderShell` (`ShellRendering.swift`).
     public var isFocusState: Bool {
         wrapperName == "FocusState"
@@ -136,7 +136,7 @@ public struct StoredProperty {
 /// Skips computed properties, `static`/`class` members, and non-identifier bindings
 /// (tuple destructuring). Returns `nil` if a diagnostic was emitted — an init
 /// parameter lacking an explicit type (this is syntax-only and can't infer it).
-/// `macroName` (e.g. `"DataLayout"`) names the attribute in the diagnostic.
+/// `macroName` (e.g. `"Flowable"`) names the attribute in the diagnostic.
 public func collectStoredProperties(
     of decl: some DeclGroupSyntax,
     in context: some MacroExpansionContext,
@@ -402,7 +402,7 @@ public func isComputed(_ accessorBlock: AccessorBlockSyntax) -> Bool {
 // MARK: - Diagnostics
 
 /// Shared diagnostics for member macros generating an init from stored properties.
-/// `macroName` (e.g. `"DataLayout"`) names the offending attribute in the
+/// `macroName` (e.g. `"Flowable"`) names the offending attribute in the
 /// message.
 public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     public let message: String

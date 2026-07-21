@@ -1,9 +1,9 @@
 /// Reads a value type's stored-property names without needing an instance — just
-/// `T.self`. Pairs naturally with `@DataLayout`: `Reflector.fieldNames(of:
+/// `T.self`. Pairs naturally with `@Flowable`: `Reflector.fieldNames(of:
 /// Point.InFlow.self)` lists the same names `inFlow` returns values for.
 ///
 /// Not a macro — a plain runtime utility, kept in this package because it's a small,
-/// natural companion to `@DataLayout`'s generated members rather than because it
+/// natural companion to `@Flowable`'s generated members rather than because it
 /// needs code generation itself.
 public enum Reflector {
     /// Allocates one uninitialized `T` and reads its stored-property labels via

@@ -36,13 +36,13 @@ func detectHostKind(of declaration: some DeclGroupSyntax) -> ShellHostKind {
 }
 
 /// Adds a nested `Core` struct plus a `core` computed property to the
-/// struct, class, or actor it's attached to — the same field set `@DataLayout`'s
+/// struct, class, or actor it's attached to — the same field set `@Flowable`'s
 /// own `OutFlow`/`outFlow` capture (every non-private participating property,
 /// plus private `@Environment`/`@Query`/`@State`/`@AppStorage`/`@FocusState`
 /// state), as a real nominal type instead of a tuple.
 ///
-/// A separate macro from `@DataLayout` — doesn't replace `OutFlow`/`outFlow`, and
-/// works with or without `@DataLayout` also attached, since it collects the
+/// A separate macro from `@Flowable` — doesn't replace `OutFlow`/`outFlow`, and
+/// works with or without `@Flowable` also attached, since it collects the
 /// type's stored properties itself.
 ///
 /// When the attached type's own inheritance clause spells `View` or
@@ -60,13 +60,13 @@ func detectHostKind(of declaration: some DeclGroupSyntax) -> ShellHostKind {
 /// concrete types no constraint can unify). `Core` conforming to the
 /// protocol only *declares* the requirement — its actual `body`/`body(content:)`
 /// implementation is left for hand-written code in a separate extension, same as
-/// every other `@DataLayout`/`@Shell` member split between generated
+/// every other `@Flowable`/`@Shell` member split between generated
 /// boilerplate and hand-written logic elsewhere in this package.
 ///
-/// Entry-point boilerplate is `validatedProperties`, shared with `@DataLayout`;
+/// Entry-point boilerplate is `validatedProperties`, shared with `@Flowable`;
 /// `renderShell` (in `ShellRendering.swift`) does the actual work, reusing
-/// `@DataLayout`'s own `outFlowProperties`/`outFlowFieldType`/
-/// `outFlowFieldReadExpression` (`DataLayoutRendering.swift`) rather than
+/// `@Flowable`'s own `outFlowProperties`/`outFlowFieldType`/
+/// `outFlowFieldReadExpression` (`FlowableRendering.swift`) rather than
 /// re-deriving the same field set.
 public enum ShellMacro: MemberMacro {
     public static func expansion(

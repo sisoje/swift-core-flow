@@ -17,10 +17,10 @@ let package = Package(
     ],
     targets: [
         // Every macro's implementation, compiled as one compiler plugin; never ships
-        // to consumers. One file per macro (DataLayoutMacro.swift,
+        // to consumers. One file per macro (FlowableMacro.swift,
         // CapabilityMacro.swift, PickMacro.swift), plus the shared stored-property
         // collection + rendering helpers (StoredProperty.swift, MemberMacroEntry.swift,
-        // FieldRendering.swift, DataLayoutRendering.swift) that @DataLayout
+        // FieldRendering.swift, FlowableRendering.swift) that @Flowable
         // builds on, and TuplePicker's own key-path parsing (KeyPathPick.swift,
         // TuplePickerSupport.swift). One Plugin.swift lists every macro type.
         .macro(
@@ -33,7 +33,7 @@ let package = Package(
             ]
         ),
         // The public-facing library: every macro's attribute/expression declaration,
-        // one file per macro (DataLayout.swift, Capability.swift,
+        // one file per macro (Flowable.swift, Capability.swift,
         // TuplePicker.swift).
         .target(name: "ValueFlow", dependencies: ["ValueFlowMacros"]),
         // All tests — macro-expansion + diagnostic coverage per macro, plus

@@ -19,15 +19,15 @@ together in `Sources/Examples/main.swift` (`swift run Examples`).
 
 | Macro | Form | Does |
 |---|---|---|
-| [`@DataLayout`](#datalayout) | member | writes a memberwise `init` at the type's own access level, plus `InFlowSplat`/`InFlow` typealiases bundling the same properties into a tuple, unlabeled and labeled, plus a wider `OutFlow` for a private-state-inclusive view |
-| [`@Shell`](#shell) | member | a separate macro from `@DataLayout` (doesn't replace `OutFlow`) generating a nested, nominal `Core` struct over the same wider field set — real `Equatable`/`Codable`/protocol conformance a tuple can never have |
+| [`@Flowable`](#flowable) | member | writes a memberwise `init` at the type's own access level, plus `InFlowSplat`/`InFlow` typealiases bundling the same properties into a tuple, unlabeled and labeled, plus a wider `OutFlow` for a private-state-inclusive view |
+| [`@Shell`](#shell) | member | a separate macro from `@Flowable` (doesn't replace `OutFlow`) generating a nested, nominal `Core` struct over the same wider field set — real `Equatable`/`Codable`/protocol conformance a tuple can never have |
 | [`@Capability`](#capability) | member | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
 | [`#pick`](#pick-tuplepicker) | expression | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
-| [`Reflector`](#reflector) | runtime utility (not a macro) | lists a value type's field names off its type alone, no instance needed — pairs with `@DataLayout`'s `InFlow` |
+| [`Reflector`](#reflector) | runtime utility (not a macro) | lists a value type's field names off its type alone, no instance needed — pairs with `@Flowable`'s `InFlow` |
 
 ---
 
-## DataLayout
+## Flowable
 
 A `member` macro that writes a memberwise `init` for the type it's attached to, **at
 the type's own access level**. It fills the initializers Swift won't synthesize: the
@@ -46,7 +46,7 @@ See the [diagram below](#how-inflow-and-outflow-relate) for how the whole shape
 fits together.
 
 ```swift
-@DataLayout
+@Flowable
 public struct User {
     public let id: UUID
     public var isActive: Bool = false
@@ -65,7 +65,7 @@ public struct User {
 Works the same on a `class` or `actor`:
 
 ```swift
-@DataLayout
+@Flowable
 @Observable final class Counter {
     var count: Int = 0
 }
@@ -100,7 +100,7 @@ Works the same on a `class` or `actor`:
   init calls it (`self.footer = footer()`).
 
 ```swift
-@DataLayout
+@Flowable
 struct Card<Content: View>: View {
     @Environment(\.colorScheme) private var scheme   // excluded (private)
     @State private var expanded = false              // excluded (private)
@@ -135,13 +135,13 @@ struct Card<Content: View>: View {
 
 ### The InFlowSplat typealias
 
-Alongside the init, `@DataLayout` declares `InFlowSplat` — the same properties
+Alongside the init, `@Flowable` declares `InFlowSplat` — the same properties
 bundled into a tuple type, for API uniformity/discoverability (e.g. `Foo.InFlowSplat`
 is always there to reference generically) rather than as a second constructor;
 nothing in the init routes through it.
 
 ```swift
-@DataLayout
+@Flowable
 public struct User {
     public let id: UUID
     public let name: String
@@ -288,7 +288,7 @@ leave the field out of it — `@Shell` never excluded either one, and
 `OutFlow` shouldn't either.
 
 ```swift
-@DataLayout
+@Flowable
 struct Card: View {
     @Query private var items: [Item]
     @State private var isExpanded: Bool = false
@@ -320,7 +320,7 @@ struct Card: View {
   `OutFlow` reads the type to build its field. `@Namespace` is the one
   exception — see the [wrapper mapping reference](#wrapper-mapping-reference).
 - **`@State`'s `Binding` doesn't write through outside a live SwiftUI view
-  render** — verified directly: construct a `@DataLayout` type in plain code
+  render** — verified directly: construct a `@Flowable` type in plain code
   (never installed into a real view hierarchy) and mutate
   `outFlow.someStateField.wrappedValue` — it silently no-ops instead of
   persisting. That's `@State`'s own behavior, not a bug here; a genuine
@@ -367,7 +367,7 @@ must be private, enforced with a diagnostic, not just convention.
 > They're Combine-era `ObservableObject` wrappers, and this package doesn't
 > recognize either one — declaring one `private` (their normal form) hits the
 > `unsupportedPrivateWrapper` diagnostic below, by design. This isn't a gap to
-> fill in later: this package's whole `@DataLayout`/`@Shell` model is
+> fill in later: this package's whole `@Flowable`/`@Shell` model is
 > built for plain, `Equatable`-friendly data and SwiftUI's own native property
 > wrappers, not `ObservableObject`/MVVM-style state containers.
 
@@ -410,7 +410,7 @@ must be private, enforced with a diagnostic, not just convention.
   stays a plain `let footer: Content`, passed straight through with no
   wrapping needed on either side.
 
-### Testing a @DataLayout type's state
+### Testing a @Flowable type's state
 
 `OutFlow` in practice: construct the type directly, no `ModelContainer`, no
 `WindowGroup`, no live rendering — just read `.outFlow` and assert:
@@ -489,7 +489,7 @@ where they came from, with no shared nominal declaration needed. That's
 exactly what a data-flow shape wants: `InFlow` and `InFlowSplat` need to
 convert into each other, and any external, differently-labeled tuple needs to
 splat into `makeFlow(_:)`, without this package generating (and you naming) a
-bespoke struct type for every field combination across every `@DataLayout`
+bespoke struct type for every field combination across every `@Flowable`
 type. A nominal type would need its own declaration, its own name, and
 explicit conversion code between every pair that should interoperate — an
 independent named type *per shape*, i.e. type explosion. Tuples sidestep all
@@ -503,13 +503,13 @@ show *why* each one is there. They don't all have the same reason:
 ```mermaid
 flowchart TD
     props(["stored properties<br/>collected once"])
-    props --> init["init<br/>the actual reason @DataLayout exists —<br/>Swift won't synthesize a public one"]
+    props --> init["init<br/>the actual reason @Flowable exists —<br/>Swift won't synthesize a public one"]
     props --> flow["InFlowSplat / makeFlow(_:)<br/>InFlow / inFlow<br/>free once properties are collected —<br/>symmetry and Mirror support,<br/>not proven demand yet"]
     props --> out["OutFlow / outFlow<br/>earns its keep: construct directly,<br/>assert on private state, no live view"]
     out --> node["Core<br/>same field set, plus @Environment —<br/>a real type: View / ViewModifier,<br/>Equatable, Codable, ..."]
 ```
 
-- **`init`** — not optional, not speculative: it's the specific gap `@DataLayout`
+- **`init`** — not optional, not speculative: it's the specific gap `@Flowable`
   fills (Swift only synthesizes an *internal* memberwise init, never a public
   one).
 - **`InFlowSplat`/`makeFlow(_:)`/`InFlow`/`inFlow`** — a byproduct of already
@@ -520,8 +520,8 @@ flowchart TD
   work, not because another feature in this package needed them to. Unlike
   everything below, nothing else here depends on `InFlow` existing.
 - **`OutFlow`/`outFlow`** — the one with a demonstrated reason: testability
-  without a live view (see [Testing a @DataLayout type's
-  state](#testing-a-datalayout-types-state) and
+  without a live view (see [Testing a @Flowable type's
+  state](#testing-a-flowable-types-state) and
   `Tests/ValueFlowTests/OutFlowTests.swift`).
 - **`Core`** — builds on `OutFlow`'s same motivation, one step
   further: a real type where `OutFlow`'s tuple structurally can't follow (real
@@ -532,12 +532,12 @@ flowchart TD
 
 ## Shell
 
-A `member` macro, separate from `@DataLayout` — it doesn't replace `OutFlow`/
-`outFlow`, and works with or without `@DataLayout` also attached (it collects the
+A `member` macro, separate from `@Flowable` — it doesn't replace `OutFlow`/
+`outFlow`, and works with or without `@Flowable` also attached (it collects the
 type's stored properties itself). It generates a nested `Core` struct —
 always internal (the struct, every field, and the `core` property
 itself), regardless of the attached type's own access level, and carrying no
-`@DataLayout` — plus a `core` computed property building one from the
+`@Flowable` — plus a `core` computed property building one from the
 current instance. Its field set is identical to `OutFlow`'s (see the
 [wrapper mapping reference](#wrapper-mapping-reference)): every non-private
 participating property, plus every recognized private source-of-truth
@@ -581,7 +581,7 @@ So `OutFlow` alone can never be `Equatable`, `Codable`, or conform to a shared
 real nominal struct capturing the same data, so it can — for free, the moment it's
 declared as a real `struct`.
 
-### Why `Core` is always internal, and carries no `@DataLayout`
+### Why `Core` is always internal, and carries no `@Flowable`
 
 `Core` is a purely internal testing/snapshot seam — `.core` for
 assertions, plus a `Core`-hosted `body`/`body(content:)` implementation
@@ -592,14 +592,14 @@ import`). So the struct, every field, and `core`'s own access are
 always internal, never mirroring the attached type's access level.
 
 No hand-rolled init is needed either. Swift's own memberwise-init synthesis
-already reproduces every field-specific behavior `@DataLayout` would generate
+already reproduces every field-specific behavior `@Flowable` would generate
 by hand — verified directly: a property-wrapper field with no
 `init(wrappedValue:)` (`@Binding`) synthesizes a parameter of the *wrapper's*
 type, one that does (`@Bindable`) synthesizes a parameter of the *wrapped*
 type, and `@ViewBuilder` directly on a stored `let` synthesizes a real
 builder parameter for the stored-closure form (see below) — exactly what
-`@DataLayout` would hand-write. The one thing genuinely lost by skipping
-`@DataLayout` is
+`@Flowable` would hand-write. The one thing genuinely lost by skipping
+`@Flowable` is
 `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on `Core` itself,
 accepted since nothing here needs to round-trip a snapshot back into itself.
 
@@ -660,7 +660,7 @@ This one rule covers several things at once:
 - **A genuine, already-public `@Binding` field mirrors verbatim** into exactly
   the same `@Binding var name: T` form `@State`/`@AppStorage` are substituted
   into above — it already *is* that declaration in the original source, so no
-  extra logic is needed. `@DataLayout`'s existing `@Binding` handling (a
+  extra logic is needed. `@Flowable`'s existing `@Binding` handling (a
   `Binding<T>` init parameter, assigned to the backing `_name` storage)
   picks up both cases identically. The payoff: `core.name` reads the
   wrapped value directly, no `.wrappedValue` unwrap — and `core.name =
@@ -809,7 +809,7 @@ flowchart TD
 A `member` macro that bundles every eligible **computed** property and method of the
 type — or extension — it's attached to into one `Capability` tuple typealias and a
 `capability` computed property: a lightweight "protocol witness"-style bundle of
-*behavior*, as opposed to `@DataLayout`'s `InFlowSplat` typealias, which bundles
+*behavior*, as opposed to `@Flowable`'s `InFlowSplat` typealias, which bundles
 *data*.
 
 ```swift
@@ -830,9 +830,9 @@ extension Counter {
 // }
 ```
 
-### Works on an extension — unlike @DataLayout, on purpose
+### Works on an extension — unlike @Flowable, on purpose
 
-`@DataLayout` collects **stored** properties, and extensions can never declare
+`@Flowable` collects **stored** properties, and extensions can never declare
 those — so there's nothing for it to find if attached to one; that's a hard Swift
 rule, not a missing feature. `@Capability` collects **computed** members instead,
 which extensions declare just as freely as a primary type body, so it works equally
@@ -852,7 +852,7 @@ well attached directly to a struct/class/actor or to an extension of one.
   compile.
 
 One eligible member collapses `Capability` to that member's bare type/value — same
-1-tuple collapse `@DataLayout`'s `InFlowSplat` typealias does, for the same reason
+1-tuple collapse `@Flowable`'s `InFlowSplat` typealias does, for the same reason
 (Swift has no 1-tuples). Zero eligible members is a diagnostic, not an empty
 `Capability`.
 
@@ -906,7 +906,7 @@ Swift's own overload resolution (argument count), backed by a single implementat
 ### Run it
 
 - `swift run Examples` — `#pick` combining multiple sources into one tuple, on plain
-  tuple values, alongside the `@DataLayout` examples.
+  tuple values, alongside the `@Flowable` examples.
 - `swift test` — macro-expansion + diagnostic tests (`assertMacroExpansion`) and an
   end-to-end suite that compiles and runs real `#pick` calls, across arities.
 - Open `Package.swift` in Xcode, right-click a `#pick` call → **Expand Macro** to see the
@@ -1108,7 +1108,7 @@ same way regardless of how many sources are present.
 ## Reflector
 
 Not a macro — a small runtime utility (`Sources/ValueFlow/Reflector.swift`) shipped
-alongside the macros because it's a natural companion to `@DataLayout`, not because
+alongside the macros because it's a natural companion to `@Flowable`, not because
 it needs code generation.
 
 ```swift
@@ -1156,12 +1156,12 @@ verified directly, both ways:
   uninitialized-memory read, but `Mirror` never needs to validate or retain that
   child just to report its label.
 
-### Pairs with @DataLayout
+### Pairs with @Flowable
 
 Point it at `InFlow`, not `InFlowSplat`:
 
 ```swift
-@DataLayout
+@Flowable
 struct Point {
     var x: Int
     var y: Int
@@ -1177,15 +1177,15 @@ is the one built for this.
 
 ---
 
-## DataLayoutRepresentable — removed
+## FlowableRepresentable — removed
 
 An earlier revision had a protocol here (`associatedtype InFlowSplat`,
 `associatedtype InFlow`, `static func makeFlow(_ flow: InFlowSplat) -> Self`,
-`var inFlow: InFlow { get }`) naming `@DataLayout`'s generated shape, so generic
-code could be written against "any `@DataLayout` type" by constraint — opt-in,
-via an empty `extension Point: DataLayoutRepresentable {}`. Removed: not enough
+`var inFlow: InFlow { get }`) naming `@Flowable`'s generated shape, so generic
+code could be written against "any `@Flowable` type" by constraint — opt-in,
+via an empty `extension Point: FlowableRepresentable {}`. Removed: not enough
 real generic-code use cases materialized to justify keeping a protocol whose
-only value was naming a shape `@DataLayout` already generates concretely on
+only value was naming a shape `@Flowable` already generates concretely on
 every type it's attached to.
 
 ---
@@ -1196,8 +1196,8 @@ One target pair for every macro — not one pair per macro:
 
 | Target | Kind | Contents |
 |---|---|---|
-| `ValueFlowMacros` | macro plugin | every macro's implementation: `DataLayoutMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`DataLayoutRendering.swift`, covering the init, `InFlowSplat`/`InFlow`, and `OutFlow`) that `@DataLayout` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `ValueFlow` | library (the one product) | every macro's public declaration — `DataLayout.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift` — plus `Reflector.swift`, a small non-macro addition |
+| `ValueFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `InFlowSplat`/`InFlow`, and `OutFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `ValueFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift` — plus `Reflector.swift`, a small non-macro addition |
 | `ValueFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites — both test frameworks coexist fine in one target |
 | `Examples` | executable | one playground exercising every macro in the package, plus Reflector |
 

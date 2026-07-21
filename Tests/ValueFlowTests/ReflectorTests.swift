@@ -14,7 +14,7 @@ private struct SingleField {
     let value: Int
 }
 
-@DataLayout
+@Flowable
 struct Point {
     var x: Int
     var y: Int

@@ -1,8 +1,8 @@
 /// Generates a nested `Core` struct — always internal (the struct,
 /// every field, and the `core` property itself), regardless of the
-/// attached type's own access level, and carrying no `@DataLayout` — plus a
+/// attached type's own access level, and carrying no `@Flowable` — plus a
 /// `core` computed property building one from the current instance.
-/// Shares its constructed-field set with `@DataLayout`'s own `OutFlow`/
+/// Shares its constructed-field set with `@Flowable`'s own `OutFlow`/
 /// `outFlow`, plus `@Environment`/`@Namespace` (which `OutFlow` deliberately
 /// leaves out — see its own doc comment — but `Core` still
 /// captures): every non-private participating property, plus private
@@ -10,8 +10,8 @@
 /// `@Namespace` state, each captured once as a plain value when
 /// `.core` is computed.
 ///
-/// Independent of `@DataLayout` — doesn't replace `OutFlow`/`outFlow`, and works
-/// with or without `@DataLayout` also attached (it collects the type's stored
+/// Independent of `@Flowable` — doesn't replace `OutFlow`/`outFlow`, and works
+/// with or without `@Flowable` also attached (it collects the type's stored
 /// properties itself).
 ///
 /// ```swift
@@ -46,7 +46,7 @@
 /// same data, so it can — `Equatable`/`Codable`/a shared "any stateless snapshot"
 /// protocol are all reachable on it in a way they never can be on `OutFlow`.
 ///
-/// ## Why `Core` is always internal, and carries no `@DataLayout`
+/// ## Why `Core` is always internal, and carries no `@Flowable`
 /// `Core` is a purely internal testing/snapshot seam — `.core`
 /// for assertions, plus a `Core`-hosted `body`/`body(content:)`
 /// implementation — not part of the attached type's public API, even when
@@ -57,14 +57,14 @@
 /// level.
 ///
 /// No hand-rolled init is needed either. Swift's own memberwise-init synthesis
-/// already reproduces every field-specific behavior `@DataLayout` would generate
+/// already reproduces every field-specific behavior `@Flowable` would generate
 /// by hand — verified directly: a property-wrapper field with no
 /// `init(wrappedValue:)` (`@Binding`, `@FocusState<T>.Binding`) synthesizes a
 /// parameter of the *wrapper's* type, one that does (`@Bindable`) synthesizes a
 /// parameter of the *wrapped* type, and `@ViewBuilder` directly on a stored
 /// `let` synthesizes a real builder parameter for the stored-closure form
-/// (see below) — exactly what `@DataLayout` would hand-write. The one thing
-/// genuinely lost by skipping `@DataLayout` is `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on
+/// (see below) — exactly what `@Flowable` would hand-write. The one thing
+/// genuinely lost by skipping `@Flowable` is `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on
 /// `Core` itself, accepted since nothing here needs to round-trip a
 /// snapshot back into itself.
 ///

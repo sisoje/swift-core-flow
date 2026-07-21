@@ -6,7 +6,7 @@ import SwiftSyntax
 /// footer: Content`, not a closure) becomes a `() -> T` builder when `wrapViewBuilder`
 /// is true.
 ///
-/// `@DataLayout` calls this twice, for two different purposes, with opposite
+/// `@Flowable` calls this twice, for two different purposes, with opposite
 /// settings: once per init parameter with `wrapViewBuilder: true` (the default) —
 /// that's what buys real trailing-closure call-site sugar (`Card(...) { content }`)
 /// — and once per `InFlowSplat` typealias field with `wrapViewBuilder: false`.
@@ -47,7 +47,7 @@ func fieldAssignment(_ p: StoredProperty, source: String) -> String {
 /// `$x`, not `_x`, on this read side — same `$`-projection convention every
 /// other `Binding`-producing wrapper in this file already uses
 /// (`@State`/`@AppStorage`/`@SceneStorage` in `outFlowFieldReadExpression`,
-/// `DataLayoutRendering.swift`), rather than a `@Binding`-only special case.
+/// `FlowableRendering.swift`), rather than a `@Binding`-only special case.
 /// Verified directly: `Binding`'s own `projectedValue` is `{ self }` — reading
 /// `$x` from inside the type gives back the identical `Binding<T>` `_x`
 /// would, real write-through included. `_x` is kept only on the *assignment*

@@ -3,26 +3,26 @@ import SwiftSyntax
 /// Renders `@Shell`'s two generated members: a nested `Core` struct
 /// over `OutFlow`'s field set *plus* `@Environment`/`@Namespace`
 /// (`outFlowProperties` itself excludes both — see its own doc comment, in
-/// `DataLayoutRendering.swift` — but `@Shell` still captures them, just
+/// `FlowableRendering.swift` — but `@Shell` still captures them, just
 /// differently than `OutFlow` ever did), plus a `core` computed property
 /// building one from the current instance.
 ///
 /// `Core` is always internal — its own access, every field's, and
 /// `core`'s — regardless of the attached type's own access level, and it
-/// carries no `@DataLayout`. This is a purely internal testing/snapshot seam
+/// carries no `@Flowable`. This is a purely internal testing/snapshot seam
 /// (`.core` for assertions and `Core`-hosted `body`/
 /// `body(content:)` implementations, both reachable from the same module or a
 /// `@testable import`), not a public API surface even when the attached type
 /// itself is `public` — consumers of a public host type never need the snapshot,
 /// only the package's own tests do. No hand-rolled init is needed either: Swift's
-/// own memberwise-init synthesis already reproduces `@DataLayout`'s field-specific
+/// own memberwise-init synthesis already reproduces `@Flowable`'s field-specific
 /// behavior for every kind of field here — verified directly: a property-wrapper
 /// field with no `init(wrappedValue:)` (`@Binding`) synthesizes a parameter of the
 /// *wrapper's* type, one that does (`@Bindable`) synthesizes a parameter of the
 /// *wrapped* type, and `@ViewBuilder` directly on a stored `let` (the
 /// stored-closure form, still mirrored — see below) synthesizes a real
-/// builder parameter, no different from `@DataLayout`'s own hand-written
-/// logic. The one thing genuinely lost by skipping `@DataLayout` is
+/// builder parameter, no different from `@Flowable`'s own hand-written
+/// logic. The one thing genuinely lost by skipping `@Flowable` is
 /// `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on `Core` itself —
 /// accepted, since nothing here needs to round-trip a snapshot back into
 /// itself.
@@ -105,7 +105,7 @@ import SwiftSyntax
 ///   either side.
 /// - `@Bindable` mirrors verbatim, `var` included — needs no special handling
 ///   beyond the general "genuine wrapper forces var" rule above. Swift's
-///   synthesized init handles `@Bindable` the same way `@DataLayout`'s
+///   synthesized init handles `@Bindable` the same way `@Flowable`'s
 ///   hand-written one would (`self.model = model`, legal since `@Bindable`'s
 ///   wrappedValue is a plain get/set — verified directly), so mirroring it onto
 ///   `Core`'s copy works with no extra logic anywhere in this file.

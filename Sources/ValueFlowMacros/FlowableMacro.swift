@@ -2,7 +2,7 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 
 /// Adds a memberwise `init` to the struct, class, or actor it is attached to, at the
-/// type's own access level — plus a `DataLayout` typealias bundling the same
+/// type's own access level — plus a `Flowable` typealias bundling the same
 /// properties into a tuple, for API uniformity alongside it.
 ///
 /// Swift only *synthesizes* an `internal` memberwise initializer for a struct, and
@@ -11,10 +11,10 @@ import SwiftSyntaxMacros
 /// gets the `public init` Swift won't synthesize, and an `@Observable final class`
 /// gets the memberwise `init` it otherwise needs by hand.
 ///
-/// Entry-point boilerplate is `validatedProperties`; `renderDataLayout` does the
-/// actual work (including the `DataLayout` typealias — see its own doc comment in
-/// `DataLayoutRendering.swift`). This type is just the `MemberMacro` conformance.
-public enum DataLayoutMacro: MemberMacro {
+/// Entry-point boilerplate is `validatedProperties`; `renderFlowable` does the
+/// actual work (including the `Flowable` typealias — see its own doc comment in
+/// `FlowableRendering.swift`). This type is just the `MemberMacro` conformance.
+public enum FlowableMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
@@ -23,11 +23,11 @@ public enum DataLayoutMacro: MemberMacro {
     ) throws -> [DeclSyntax] {
         guard
             let (properties, access) = validatedProperties(
-                of: declaration, attachedTo: node, macroName: "DataLayout", in: context
+                of: declaration, attachedTo: node, macroName: "Flowable", in: context
             )
         else {
             return []
         }
-        return renderDataLayout(properties: properties, access: access)
+        return renderFlowable(properties: properties, access: access)
     }
 }

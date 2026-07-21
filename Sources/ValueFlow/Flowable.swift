@@ -5,12 +5,12 @@
 /// reading the current instance's data back *out*.
 ///
 /// Swift only ever synthesizes an **internal** memberwise initializer, and only
-/// when you write no init of your own. `@DataLayout` writes an explicit one that
+/// when you write no init of your own. `@Flowable` writes an explicit one that
 /// matches the struct's access — the `public` memberwise init Swift refuses to give
 /// a public type:
 ///
 /// ```swift
-/// @DataLayout
+/// @Flowable
 /// public struct User {
 ///     public let id: UUID
 ///     public var isActive: Bool = false
@@ -43,7 +43,7 @@
 /// wrapper — `@State`, `@Environment`, `@Query`, `@AppStorage`, `@SceneStorage`,
 /// `@FocusState`, `@Namespace` — is view-owned or injected, must be `private`,
 /// and is **excluded** from the init (though not from `OutFlow`/`Core`
-/// — see below), so `@DataLayout` works cleanly on a `View`. A private property
+/// — see below), so `@Flowable` works cleanly on a `View`. A private property
 /// with no property wrapper at all (`private var cache = 0`) is also a compile
 /// error — pure data flow has no room for opaque private state that's neither
 /// a source of truth nor caller-supplied.
@@ -54,7 +54,7 @@
 /// `var label = "x"` are inferred straight off the literal's own syntax.
 ///
 /// ## The `InFlowSplat` typealias (in) and `makeFlow(_:)`
-/// Alongside the init, `@DataLayout` declares `InFlowSplat` — the same
+/// Alongside the init, `@Flowable` declares `InFlowSplat` — the same
 /// properties bundled into a tuple type — and a `static func
 /// makeFlow(_ flow: InFlowSplat) -> Self` that builds an instance from one.
 /// Both are independent of the init's own rendering, and both are declared
@@ -113,13 +113,13 @@
 ///   directly — an `InFlow` value converts into `InFlowSplat`'s unlabeled
 ///   parameter the same way any differently-labeled tuple does.
 ///
-/// ## `DataLayoutRepresentable` — removed
+/// ## `FlowableRepresentable` — removed
 /// An earlier revision had a separate, opt-in protocol naming this whole shape
 /// (`associatedtype InFlowSplat`, `associatedtype InFlow`, `static func
 /// makeFlow(_ flow: InFlowSplat) -> Self`, `var inFlow: InFlow { get }`) for
-/// generic code written against "any `@DataLayout` type" by constraint. Removed —
+/// generic code written against "any `@Flowable` type" by constraint. Removed —
 /// not enough real generic-code use cases materialized to justify keeping a
-/// protocol whose only value was naming a shape `@DataLayout` already generates
+/// protocol whose only value was naming a shape `@Flowable` already generates
 /// concretely on every type it's attached to.
 ///
 /// ## `allFieldNames` — removed
@@ -148,7 +148,7 @@
 /// property-collection stage, not silently excluded here.
 ///
 /// ```swift
-/// @DataLayout
+/// @Flowable
 /// struct Card: View {
 ///     @Query private var items: [Item]
 ///     @State private var isExpanded: Bool = false
@@ -197,8 +197,8 @@
     member, names: named(init), named(InFlowSplat), named(makeFlow), named(InFlow),
     named(inFlow), named(OutFlow), named(outFlow)
 )
-public macro DataLayout() =
+public macro Flowable() =
     #externalMacro(
         module: "ValueFlowMacros",
-        type: "DataLayoutMacro"
+        type: "FlowableMacro"
     )

@@ -4,13 +4,13 @@ import XCTest
 
 @testable import ValueFlowMacros
 
-final class DataLayoutTests: XCTestCase {
-    let macros: [String: Macro.Type] = ["DataLayout": DataLayoutMacro.self]
+final class FlowableTests: XCTestCase {
+    let macros: [String: Macro.Type] = ["Flowable": FlowableMacro.self]
 
     func testPublicStructGetsPublicInit() {
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct User {
                 public let id: UUID
                 public var isActive: Bool = false
@@ -53,7 +53,7 @@ final class DataLayoutTests: XCTestCase {
         // A plain (internal) struct gets an init and typealias with no access modifier.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             struct Point {
                 let x: Int
                 let y: Int
@@ -98,7 +98,7 @@ final class DataLayoutTests: XCTestCase {
         // One property collapses InFlowSplat to its bare type, not a 1-tuple.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             @Observable final class Zola {
                 var ii: Int = 0
             }
@@ -139,7 +139,7 @@ final class DataLayoutTests: XCTestCase {
         // before isolation applies). Access level mirrors the type.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public actor Counter {
                 public var count: Int = 0
             }
@@ -181,7 +181,7 @@ final class DataLayoutTests: XCTestCase {
         // escaping — @escaping is only legal directly on a function parameter).
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct Handler {
                 public var onChange: () -> Void
                 public var onMain: @MainActor () -> Void
@@ -231,7 +231,7 @@ final class DataLayoutTests: XCTestCase {
         // carries none of these defaults — tuple element types can't have them.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct Handler {
                 public var nickname: String?
                 public var onChange: (() -> Void)?
@@ -292,7 +292,7 @@ final class DataLayoutTests: XCTestCase {
         // package recognizes belongs in OutFlow, no exceptions.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct ProfileCard: View {
                 @Environment(\\.colorScheme) private var colorScheme: ColorScheme
                 @Binding public var isOn: Bool
@@ -343,7 +343,7 @@ final class DataLayoutTests: XCTestCase {
         // something a caller supplies.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct V {
                 public var title: String
                 private var cache: Int = 0
@@ -362,19 +362,19 @@ final class DataLayoutTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'cache' is private with no property wrapper — @DataLayout has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace).",
+                        "'cache' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace).",
                     line: 4,
                     column: 17
                 ),
                 DiagnosticSpec(
                     message:
-                        "'scratch' is private with no property wrapper — @DataLayout has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace).",
+                        "'scratch' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace).",
                     line: 5,
                     column: 21
                 ),
                 DiagnosticSpec(
                     message:
-                        "'seed' is private with no property wrapper — @DataLayout has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace).",
+                        "'seed' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace).",
                     line: 6,
                     column: 17
                 ),
@@ -391,7 +391,7 @@ final class DataLayoutTests: XCTestCase {
         // diagnostic (these three ARE recognized, just never allowed private).
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             struct V {
                 @Binding private var isOn: Bool
             }
@@ -404,7 +404,7 @@ final class DataLayoutTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'isOn' uses @Binding, which a caller supplies through @DataLayout's generated init — declaring it private makes it unreachable. Remove `private`/`fileprivate` from 'isOn'.",
+                        "'isOn' uses @Binding, which a caller supplies through @Flowable's generated init — declaring it private makes it unreachable. Remove `private`/`fileprivate` from 'isOn'.",
                     line: 3,
                     column: 26
                 )
@@ -428,7 +428,7 @@ final class DataLayoutTests: XCTestCase {
         // value regardless of what the init's parameter looks like.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct ProfileCard<Content: View>: View {
                 public let title: String
                 @ViewBuilder let content: () -> Content
@@ -475,7 +475,7 @@ final class DataLayoutTests: XCTestCase {
     func testComputedAndStaticAreSkipped() {
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct Point {
                 public let x: Double
                 public let y: Double
@@ -525,7 +525,7 @@ final class DataLayoutTests: XCTestCase {
         // InFlow, since there's no label left to preserve either.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct Box {
                 public let value: Int
             }
@@ -564,7 +564,7 @@ final class DataLayoutTests: XCTestCase {
     func testTwoPropertiesGetATupleInFlowSplat() {
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct Point {
                 public let x: Int
                 public let y: Int
@@ -609,7 +609,7 @@ final class DataLayoutTests: XCTestCase {
         // rule, so a zero-property type gets only the bare init, nothing else.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct Empty {
             }
             """,
@@ -638,7 +638,7 @@ final class DataLayoutTests: XCTestCase {
         // snapshot value worth asserting on.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct ItemList {
                 @Query private var items: [Item]
                 public let title: String
@@ -685,7 +685,7 @@ final class DataLayoutTests: XCTestCase {
         // mapping rather than folded into @State/@AppStorage's.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct SearchField {
                 @FocusState private var isFocused: Bool
                 public let title: String
@@ -731,7 +731,7 @@ final class DataLayoutTests: XCTestCase {
         // (unlike @FocusState, which genuinely can't share it).
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct SearchField {
                 @SceneStorage("isPinned") private var isPinned: Bool = false
                 public let title: String
@@ -772,7 +772,7 @@ final class DataLayoutTests: XCTestCase {
     func testDiagnosesNotAStruct() {
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public enum E {
                 case a
             }
@@ -784,7 +784,7 @@ final class DataLayoutTests: XCTestCase {
                 """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "@DataLayout can only be attached to a struct, class, or actor.",
+                    message: "@Flowable can only be attached to a struct, class, or actor.",
                     line: 1,
                     column: 1
                 )
@@ -801,7 +801,7 @@ final class DataLayoutTests: XCTestCase {
         // recognized literal kinds, to keep testing the genuine missing-type path.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             public struct Thing {
                 public var count = someDefault()
             }
@@ -814,7 +814,7 @@ final class DataLayoutTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "Stored property 'count' needs an explicit type annotation so @DataLayout can generate the initializer/stateless snapshot.",
+                        "Stored property 'count' needs an explicit type annotation so @Flowable can generate the initializer/stateless snapshot.",
                     line: 3,
                     column: 16
                 )
@@ -832,7 +832,7 @@ final class DataLayoutTests: XCTestCase {
         // giving up the macro's syntax-only design.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             struct Flags {
                 var isOn = false
                 var count = 0
@@ -882,7 +882,7 @@ final class DataLayoutTests: XCTestCase {
         // no "what if it's also public" case to handle.
         assertMacroExpansion(
             """
-            @DataLayout
+            @Flowable
             struct Card {
                 @State var isExpanded = false
             }

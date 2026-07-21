@@ -12,7 +12,7 @@ import SwiftSyntax
 /// `@AppStorage`/`@SceneStorage`/`@FocusState` — see `outFlowProperties`), in declaration order (see
 /// `renderOutFlowTypealias`/`renderOutFlowProperty`). `access` is a modifier
 /// prefix such as `"public "` or `""` (internal).
-public func renderDataLayout(properties: [StoredProperty], access: String) -> [DeclSyntax] {
+public func renderFlowable(properties: [StoredProperty], access: String) -> [DeclSyntax] {
     let initParams = properties.filter { !$0.isPrivate }
 
     let params = initParams.map { p -> String in

@@ -4,13 +4,13 @@ import ValueFlow
 
 // Real, compiled usage — same reasoning as OutFlowTests: exercise actual runtime
 // behavior, not just the syntactic shape assertMacroExpansion checks (see
-// ShellSyntaxTests for that side). @DataLayout and @Shell coexist on one
+// ShellSyntaxTests for that side). @Flowable and @Shell coexist on one
 // type here specifically to verify they don't interfere with each other — even
-// though Core itself never carries @DataLayout (see
+// though Core itself never carries @Flowable (see
 // ShellRendering.swift), relying instead on Swift's own memberwise-init
 // synthesis.
 
-@DataLayout
+@Flowable
 @Shell
 struct StatefulCard: View {
     @Environment(\.colorScheme) private var colorScheme: ColorScheme

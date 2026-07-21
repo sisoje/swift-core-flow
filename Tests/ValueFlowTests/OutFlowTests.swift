@@ -4,9 +4,9 @@ import ValueFlow
 
 // Real, compiled usage — same reasoning as EndToEndTests/ReflectorTests: exercise
 // actual runtime behavior, not just the syntactic shape assertMacroExpansion
-// checks (see DataLayoutTests for that side).
+// checks (see FlowableTests for that side).
 
-@DataLayout
+@Flowable
 struct Card: View {
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
     @Namespace private var ns
@@ -27,7 +27,7 @@ struct Card: View {
 @MainActor
 @Suite struct OutFlowTests {
 
-    @Test func outFlowReadsDataLayoutFieldsAndRecognizedPrivateWrappersTogether() {
+    @Test func outFlowReadsFlowableFieldsAndRecognizedPrivateWrappersTogether() {
         var isOnStorage = true
         let isOnBinding = Binding<Bool>(get: { isOnStorage }, set: { isOnStorage = $0 })
         let card = Card(isOn: isOnBinding, title: "Settings")

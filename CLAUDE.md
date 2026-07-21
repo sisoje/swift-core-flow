@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 A small, growing collection of independent Swift macros (plus `Reflector`, a small
-non-macro addition that pairs with `@DataLayout`), all in ONE package/target
+non-macro addition that pairs with `@Flowable`), all in ONE package/target
 pair — not one target per macro. Consumers add a single dependency
 (`.product(name: "ValueFlow", package: "ValueFlow")`) and get every macro; adding a
 new macro is "add a file to each of two targets," not "add a product + three targets
@@ -23,8 +23,8 @@ concurrency) throughout.
 
 | Target | Kind | Contents |
 |---|---|---|
-| `ValueFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`DataLayoutMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `DataLayoutRendering.swift`) that `@DataLayout` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `ValueFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`DataLayout.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`), plus `Reflector.swift` — a small non-macro addition that pairs with `@DataLayout` (see below) |
+| `ValueFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `ValueFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`), plus `Reflector.swift` — a small non-macro addition that pairs with `@Flowable` (see below) |
 | `ValueFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites |
 | `Examples` | executable | combined playground for every macro (and Reflector) |
 
@@ -35,27 +35,27 @@ Adding a new macro: one new file in `ValueFlowMacros` for the implementation
 "ValueFlowMacros", type: "FooMacro")`, a new `XCTestCase`/`@Suite` in
 `ValueFlowTests`, and a `// MARK: -` section in `Examples/main.swift`. No new
 Package.swift targets or products. If the macro generates something from a type's
-stored properties (like `@DataLayout` does), build it on `StoredProperty.swift`'s
+stored properties (like `@Flowable` does), build it on `StoredProperty.swift`'s
 collection (`validatedProperties` in `MemberMacroEntry.swift`) and
-`DataLayoutRendering.swift`'s functions rather than re-deriving them —
+`FlowableRendering.swift`'s functions rather than re-deriving them —
 everything being one module is exactly what makes that free (no cross-target
 `public`, no extra target wiring).
 
 This package has gone through a few macro-boundary redesigns worth knowing about if
 you're extending it further:
 
-- **`@DataLayoutInit` used to be its own macro** — an init taking every stored
+- **`@FlowableInit` used to be its own macro** — an init taking every stored
   property as one tuple-typed parameter, plus the `InFlowSplat` typealias
   describing that tuple. It's gone as a standalone macro now: the typealias half
-  was folded directly into `@DataLayout` (every `@DataLayout` type gets an
+  was folded directly into `@Flowable` (every `@Flowable` type gets an
   `InFlowSplat` typealias alongside its init, for free), and the "one tuple
   *parameter*" half was dropped entirely rather than carried over —
-  `@DataLayout`'s own init is unchanged, `InFlowSplat` is declared but nothing
+  `@Flowable`'s own init is unchanged, `InFlowSplat` is declared but nothing
   consumes it as a single init argument anymore. If a future macro wants that
-  back, `renderInFlowSplatTypealias` in `DataLayoutRendering.swift` already has
+  back, `renderInFlowSplatTypealias` in `FlowableRendering.swift` already has
   the tuple-vs-bare-type collapse logic to build on.
-- **`@DataInit`** generated both `@DataLayout`'s and `@DataLayoutInit`'s
-  initializers from one attribute — removed even before `@DataLayoutInit` was (see
+- **`@DataInit`** generated both `@Flowable`'s and `@FlowableInit`'s
+  initializers from one attribute — removed even before `@FlowableInit` was (see
   git history for both). If you want a macro that combines what two existing macros
   generate, the lesson from it still applies: collect stored properties **once** and
   call each renderer directly, rather than spelling it as "stack the two existing
@@ -63,7 +63,7 @@ you're extending it further:
   members don't collide, but it collects (and diagnoses) the same properties once
   per stacked macro.
 
-## @DataLayout — tricky points
+## @Flowable — tricky points
 
 `member` macro that writes a memberwise `init` at the type's own access level, for a
 struct, class, or actor — plus two typealias/accessor pairs bridging to/from it (an
@@ -71,11 +71,11 @@ unlabeled `InFlowSplat` typealias with a `makeFlow(_:)` factory building
 `Self` *from* one — splat-friendly construction — and a labeled `InFlow` typealias
 with an `inFlow` computed property reading the current instance's data back
 *out* — readable/reflectable), plus a wider `OutFlow`/`outFlow` pair (see below).
-Entry point: `Sources/ValueFlowMacros/DataLayoutMacro.swift`. Rendering: all six —
-`renderDataLayout` (the init), `renderInFlowSplatTypealias`,
+Entry point: `Sources/ValueFlowMacros/FlowableMacro.swift`. Rendering: all six —
+`renderFlowable` (the init), `renderInFlowSplatTypealias`,
 `renderInFlowSplatFactory`, `renderInFlowTypealias`,
 `renderInFlowProperty`, `renderOutFlowTypealias`, and `renderOutFlowProperty` — live in
-`Sources/ValueFlowMacros/DataLayoutRendering.swift`; the last five are called
+`Sources/ValueFlowMacros/FlowableRendering.swift`; the last five are called
 from inside the first, so one macro expansion always produces all six together (or
 just the bare init, if there are zero properties to alias/build from).
 
@@ -162,7 +162,7 @@ rendered differently:
   rendering passes `false`.
 - **The init doesn't route through the typealias** — `InFlowSplat` isn't a
   parameter of the init above. It's declared for API uniformity/discoverability
-  (every `@DataLayout` type has one to reference, e.g. in generic code) independent
+  (every `@Flowable` type has one to reference, e.g. in generic code) independent
   of the init's own signature.
 - **Why unlabeled: verified directly, both ways.** A tuple *value* already bound
   with different labels (`let t = (xxx: 1, yyy: 2)`) fails to convert into a
@@ -238,11 +238,11 @@ dedicated member — the gap that removal opened (a plain private field
 genuinely has no tuple anywhere to reflect over) is moot now anyway: that kind
 of field is a compile error (`plainPrivatePropertyNotAllowed`, above), not a
 silently-excluded one. See the equivalent note in
-`Sources/ValueFlow/DataLayout.swift`.
+`Sources/ValueFlow/Flowable.swift`.
 
 `OutFlow`/`outFlow` — a labeled tuple typealias + computed property (`outFlowFieldType`,
 `outFlowFieldReadExpression`, `renderOutFlowTypealias`, `renderOutFlowProperty`, all
-in `DataLayoutRendering.swift`) wider than `InFlow`/`inFlow`, for
+in `FlowableRendering.swift`) wider than `InFlow`/`inFlow`, for
 "give me a view's full externally-relevant *capturable* state, not just its
 constructor data":
 
@@ -256,7 +256,7 @@ type, read `.outFlow`, assert on the fields — no live view hierarchy required.
 That's the actual motivating idea behind targeting exactly these wrapper kinds,
 not "read private state too" for its own sake. See
 `Tests/ValueFlowTests/OutFlowTests.swift` for this property demonstrated
-directly (`outFlowReadsDataLayoutFieldsAndRecognizedPrivateWrappersTogether`
+directly (`outFlowReadsFlowableFieldsAndRecognizedPrivateWrappersTogether`
 constructs a `Card` and reads `.outFlow.isExpanded`/`.isOn` with no live view
 ever installed).
 
@@ -347,7 +347,7 @@ the two was itself the defect, not a deliberate design choice worth keeping.
   shared diagnostic message was reworded to say "initializer/stateless
   snapshot" to cover both reasons a type might be required.
 - **Verified directly that a `@State`-derived `OutFlow` binding doesn't write
-  through outside a live SwiftUI view render** — constructing a `@DataLayout` type
+  through outside a live SwiftUI view render** — constructing a `@Flowable` type
   directly in plain code (never installed into a real view hierarchy) and mutating
   `outFlow.someStateField.wrappedValue` silently no-ops instead of persisting. This
   is `@State`'s own behavior (its storage only installs once SwiftUI actually
@@ -368,10 +368,10 @@ the two was itself the defect, not a deliberate design choice worth keeping.
 
 ## NOT SUPPORTED: `@StateObject` / `@ObservedObject`
 
-Neither wrapper is recognized by `@DataLayout`/`@Shell`, on purpose,
+Neither wrapper is recognized by `@Flowable`/`@Shell`, on purpose,
 not as a gap to fill in later. Both are Combine-era `ObservableObject`
 wrappers — MVVM/ViewModel-shaped state, exactly what this package's
-`@DataLayout` (plain, `Equatable`-friendly data) and `@Shell`
+`@Flowable` (plain, `Equatable`-friendly data) and `@Shell`
 (deterministic snapshots of SwiftUI's own native property wrappers) exist to
 avoid. Declaring either one `private` — their normal form — hits the
 `unsupportedPrivateWrapper` diagnostic below, same as any other unrecognized
@@ -380,17 +380,17 @@ argument against `ObservableObject`/ViewModel patterns in SwiftUI generally.
 
 ## @Shell — tricky points
 
-A separate `member` macro from `@DataLayout` — not a mode of it, doesn't replace
-`OutFlow`/`outFlow`, can be attached with or without `@DataLayout` also present
+A separate `member` macro from `@Flowable` — not a mode of it, doesn't replace
+`OutFlow`/`outFlow`, can be attached with or without `@Flowable` also present
 (it collects the type's stored properties itself via the same shared
 `validatedProperties`). Entry point: `Sources/ValueFlowMacros/ShellMacro.swift`.
 Rendering: `renderShell`, in `Sources/ValueFlowMacros/ShellRendering.swift`.
 
 Generates a nested `Core` struct — always internal, carrying no
-`@DataLayout` — plus a `core` computed property building one from the
+`@Flowable` — plus a `core` computed property building one from the
 current instance. Its field set is *identical* to `OutFlow`'s — `renderShell`
 calls `outFlowProperties` directly rather than duplicating the filter (see
-`DataLayoutRendering.swift`): every non-private participating property, plus
+`FlowableRendering.swift`): every non-private participating property, plus
 every recognized private source-of-truth wrapper —
 `@Environment`/`@Query`/`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState`/
 `@Namespace` — each captured once as a plain value.
@@ -403,19 +403,19 @@ every recognized private source-of-truth wrapper —
   nominal struct can, for free, once declared.
 - **`Core` is always internal — the struct itself, every field, and
   `core`'s own access — regardless of the attached type's own access
-  level, and never `@DataLayout`.** This is a purely internal testing/snapshot
+  level, and never `@Flowable`.** This is a purely internal testing/snapshot
   seam (`.core` for assertions, plus a `Core`-hosted `body`/
   `body(content:)` implementation), not part of the attached type's public API
   even when that type itself is `public` — consumers of a public host never need
   the snapshot, only the package's own tests do (from the same module, or a
   `@testable import`). No hand-rolled init is needed either: Swift's own
   memberwise-init synthesis already reproduces every field-specific behavior
-  `@DataLayout` would — verified directly: a property-wrapper field with no
+  `@Flowable` would — verified directly: a property-wrapper field with no
   `init(wrappedValue:)` (`@Binding`) synthesizes a parameter of the *wrapper's*
   type, one that does (`@Bindable`) synthesizes a parameter of the *wrapped*
   type, and `@ViewBuilder` directly on a stored `let` synthesizes a
   builder-closure parameter for a value-typed field, exactly like
-  `@DataLayout`'s own hand-written logic. Because `Core`'s own type is
+  `@Flowable`'s own hand-written logic. Because `Core`'s own type is
   always internal, `core`'s access is forced internal too — Swift
   rejects a more-accessible property with a less-accessible type (verified
   directly: "property must be declared internal because its type uses an
@@ -515,10 +515,10 @@ every recognized private source-of-truth wrapper —
   side. `isFunctionType` is what tells the two forms apart, the same check
   `renderInFlowSplatFactory`'s `makeFlow(_:)` uses for its own reverse
   direction (which *does* still need the trivial-closure trick, since
-  `@DataLayout`'s init keeps `@ViewBuilder` on both forms).
+  `@Flowable`'s init keeps `@ViewBuilder` on both forms).
 - **Zero eligible fields still generates a (near-empty) `Core`** —
   `struct Core {}` plus `var core: Core {
-  Core() }` — no diagnostic, mirroring `@DataLayout`'s own graceful
+  Core() }` — no diagnostic, mirroring `@Flowable`'s own graceful
   zero-property `init()` rather than `@Capability`'s "zero is an error" stance;
   an empty core snapshot is a sensible, if trivial, concept (Swift
   synthesizes the empty `init()` here on its own, same result).
@@ -577,8 +577,8 @@ share `StoredProperty.swift`'s model at all (that's for *stored* properties; thi
 macro is deliberately about the opposite thing, and mixes properties with methods,
 which `StoredProperty` has no concept of).
 
-- **Works on an extension, unlike `@DataLayout` — and that's not an oversight on
-  its part.** `@DataLayout` collects *stored* properties, and extensions can
+- **Works on an extension, unlike `@Flowable` — and that's not an oversight on
+  its part.** `@Flowable` collects *stored* properties, and extensions can
   never declare those, so there's nothing it could ever find there. `@Capability`
   collects *computed* members, which extensions declare freely — so it's useful on
   an extension specifically, and works identically attached directly to the
@@ -593,7 +593,7 @@ which `StoredProperty` has no concept of).
   value type (`error: cannot reference 'mutating' method as function value`,
   verified directly), so including one would generate code that doesn't compile.
 - **One eligible member collapses `Capability` to its bare type/value**, same
-  1-tuple collapse `@DataLayout`'s `InFlowSplat` typealias does. **Zero** is a
+  1-tuple collapse `@Flowable`'s `InFlowSplat` typealias does. **Zero** is a
   diagnostic, not an empty tuple — there's no sensible "empty capability."
 - **Deliberately no `@Sendable`** on the generated closure fields. Verified directly
   both ways: marking them unconditionally makes the generated code fail to compile
@@ -645,7 +645,7 @@ same flat, `from:`-labeled argument list. Impl:
 
 `Sources/ValueFlow/Reflector.swift`. Not a macro — a plain runtime `enum` with one
 static generic function, `fieldNames<T>(of: T.Type) -> [String]`, kept in this
-package because it's a small, natural companion to `@DataLayout`'s generated members
+package because it's a small, natural companion to `@Flowable`'s generated members
 rather than because it needs code generation of its own. No paired
 `ValueFlowMacros` file, no `@attached`/`@freestanding` declaration — it's ordinary
 Swift, so it doesn't follow the "one file per macro, two targets" pattern the rest of
@@ -674,15 +674,15 @@ this doc describes.
   memory read as a class reference isn't. A **struct** containing a class-typed (or
   closure, or array) field is fine — same uninitialized-memory read, but `Mirror`
   never needs to validate/retain that child to report its label.
-- **Pairs with `@DataLayout`** by pointing it at `InFlow`, not `InFlowSplat`:
+- **Pairs with `@Flowable`** by pointing it at `InFlow`, not `InFlowSplat`:
   `Reflector.fieldNames(of: Point.InFlow.self)` reports real field names
   (`["x", "y"]`) because `InFlow` is labeled; the same call against
   `InFlowSplat` would report positional labels (`[".0", ".1"]`) instead, since
-  `InFlowSplat` is deliberately unlabeled (see `@DataLayout` above) — not a bug,
+  `InFlowSplat` is deliberately unlabeled (see `@Flowable` above) — not a bug,
   just the wrong typealias for this use.
 - **A top-level `private`/`fileprivate` type still restricts its own generated
   members' access to itself** — a `private struct Point` inside a test file means
-  `@DataLayout`'s generated `InFlow` is `private` too, which is scoped to
+  `@Flowable`'s generated `InFlow` is `private` too, which is scoped to
   `Point`'s own body/extensions, *not* file-wide like a top-level `private`
   declaration is. Reaching `Point.InFlow` from elsewhere in the same file
   needs `Point` to not be `private` (or the reference to live inside `Point`
