@@ -9,7 +9,8 @@ import SwiftSyntax
 /// `renderInFlowTypealias`/`renderInFlowProperty`), and an `OutFlow` typealias
 /// with an `outFlow` computed property: `InFlow`'s fields plus every recognized
 /// private source-of-truth wrapper (`@Query`/`@State`/`@AppStorage`/
-/// `@SceneStorage`/`@FocusState`/`@Environment`/`@Namespace` — see
+/// `@SceneStorage`/`@FocusState`/`@AccessibilityFocusState`/`@GestureState`/
+/// `@ScaledMetric`/`@Environment`/`@Namespace` — see
 /// `outFlowProperties`), in declaration order (see
 /// `renderOutFlowTypealias`/`renderOutFlowProperty`). `access` is a modifier
 /// prefix such as `"public "` or `""` (internal).
@@ -341,7 +342,7 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
 ///   `modelContext` outside a live container works — verified directly, no
 ///   crash — so capturing it eagerly here is safe even for snapshots built in
 ///   plain code.
-/// - **`@GestureState`** reads `GestureStateCore(_x)` — the whole live wrapper
+/// - **`@GestureState`** reads `GestureStateCore($x)` — the whole live wrapper
 ///   instance, captured as-is; `GestureStateCore` forwards its
 ///   `wrappedValue`/`projectedValue` (see `outFlowFieldType` above).
 func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
@@ -353,7 +354,7 @@ func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
             "QueryCore(wrappedValue: _\(p.name).wrappedValue, fetchError: _\(p.name).fetchError, modelContext: _\(p.name).modelContext)"
     }
     if p.isGestureState {
-        return "GestureStateCore(_\(p.name))"
+        return "GestureStateCore($\(p.name))"
     }
     return fieldReadExpression(p)
 }

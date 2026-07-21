@@ -102,7 +102,7 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     var core: Core {
-                        Core(dragOffset: GestureStateCore(_dragOffset), title: title)
+                        Core(dragOffset: GestureStateCore($dragOffset), title: title)
                     }
                 }
                 """,

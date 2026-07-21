@@ -91,7 +91,7 @@ diagnostic, not just convention.
 | `@Namespace` | `let` | `x` |
 | `@ScaledMetric` | `let` | `x` |
 | `@Query` | `@QueryCore` | `QueryCore(_x)` |
-| `@GestureState` | `@GestureStateCore` | `GestureStateCore(_x)` |
+| `@GestureState` | `@GestureStateCore` | `GestureStateCore($x)` |
 | `@State` | `@Binding` | `$x` |
 | `@AppStorage` | `@Binding` | `$x` |
 | `@SceneStorage` | `@Binding` | `$x` |

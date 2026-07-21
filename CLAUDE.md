@@ -315,7 +315,7 @@ the two was itself the defect, not a deliberate design choice worth keeping.
   - `@GestureState` (`isGestureState`) → `GestureStateCore<WrappedType>` —
     the same drop-in move (`Sources/ValueFlow/GestureStateCore.swift`),
     wrapping the captured live wrapper *instance* whole
-    (`GestureStateCore(_x)`) and forwarding its exact surface — verified
+    (`GestureStateCore($x)`) and forwarding its exact surface — verified
     directly against the SwiftUI interface: `GestureState<Value>` exposes
     exactly `wrappedValue` (get-only, the mid-gesture rendering input) and
     `projectedValue` (itself — the value `.updating(_:)` takes), nothing

@@ -759,7 +759,7 @@ final class FlowableTests: XCTestCase {
                     public typealias OutFlow = (dragOffset: GestureStateCore<CGSize>, title: String)
 
                     public var outFlow: OutFlow {
-                        (dragOffset: GestureStateCore(_dragOffset), title: title)
+                        (dragOffset: GestureStateCore($dragOffset), title: title)
                     }
                 }
                 """,
