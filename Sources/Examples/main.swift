@@ -99,6 +99,11 @@ public struct ProfileCard<Content: View>: View {
     @Query(animation: Animation.bouncy) private var items: [Item]
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
     @State private var isExpanded: Bool = false
+    // @SceneStorage's wrappedValue is get/nonmutating-set and its projectedValue
+    // genuinely IS Binding<Bool> (verified directly, same shape as @AppStorage) —
+    // so it shares @State/@AppStorage's exact treatment: Binding<Bool> in OutFlow,
+    // @Binding var in StatelessNode, both read via self.$isPinned.
+    @SceneStorage("isPinned") private var isPinned: Bool = false
     @Binding var isOn: Bool
     let title: String
     var subtitle: String? = "x"
@@ -204,11 +209,11 @@ let pointFieldNames = Reflector.fieldNames(of: Point.InFlow.self)  // ["x", "y"]
 // being a class, not about what its fields are.
 let profileCardFieldNames = Reflector.fieldNames(of: ProfileCard<Text>.InFlow.self)
 
-// Point OutFlow, not InFlow, to see isExpanded too — @State is private, so
-// InFlow excludes it entirely, but OutFlow includes @Query/@State/@AppStorage
-// alongside the public data. colorScheme is NOT here — @Environment is
-// deliberately excluded from OutFlow (see below), even though `StatelessNode`
-// (below) captures it fine.
+// Point OutFlow, not InFlow, to see isExpanded/isPinned too — @State/
+// @SceneStorage are private, so InFlow excludes them entirely, but OutFlow
+// includes @Query/@State/@AppStorage/@SceneStorage alongside the public data.
+// colorScheme is NOT here — @Environment is deliberately excluded from OutFlow
+// (see below), even though `StatelessNode` (below) captures it fine.
 let profileCardOutFlowFieldNames = Reflector.fieldNames(of: ProfileCard<Text>.OutFlow.self)
 
 // MARK: - OutFlow
@@ -223,9 +228,11 @@ let profileCardOutFlowFieldNames = Reflector.fieldNames(of: ProfileCard<Text>.Ou
 // Error?, modelContext: ModelContext). fetchError/modelContext are real
 // members of SwiftData's Query wrapper instance
 // (self._items.fetchError/.modelContext), not synthesized placeholders.
-// @State/@AppStorage read as Binding<T> via the projected $ value; @FocusState
-// reads via that same `self.$x` shortcut, but resolves to its OWN projected
-// type, FocusState<Bool>.Binding — not Binding<Bool> — since @FocusState's
+// @State/@AppStorage/@SceneStorage all read as Binding<T> via the projected $
+// value — @SceneStorage's own projectedValue genuinely IS Binding<T>, verified
+// directly, same shape as @State/@AppStorage exactly. @FocusState reads via
+// that same `self.$x` shortcut, but resolves to its OWN projected type,
+// FocusState<Bool>.Binding — not Binding<Bool> — since @FocusState's
 // projectedValue has no public conversion to Binding<T> (verified directly).
 //
 // @Environment is excluded: not because it's uncapturable (a plain value works
@@ -248,6 +255,10 @@ let profileCardOutFlow = profileCard.outFlow
 // any other OutFlow binding field despite not being Binding<Bool>.
 let profileCardOutFlowFocused = profileCardOutFlow.focused.wrappedValue
 
+// isPinned: Binding<Bool> — @SceneStorage folds into the exact same OutFlow
+// mapping @State/@AppStorage already get, no separate case needed.
+let profileCardOutFlowIsPinned = profileCardOutFlow.isPinned.wrappedValue
+
 // MARK: - StatelessNode
 
 // @StatelessNode is a separate macro from @DataLayout — doesn't replace OutFlow,
@@ -262,19 +273,24 @@ let profileCardOutFlowFocused = profileCardOutFlow.focused.wrappedValue
 // NEVER its mutability — StatelessNode is a deterministic snapshot, so a field is
 // `var` only where Swift's own property-wrapper rule forces it (a genuine
 // @propertyWrapper type requires `var` storage); everything else is `let`,
-// regardless of what the original was declared as. @State/@AppStorage is the one
-// substitution, not a mirror — declared @Binding instead, since their storage
-// can't be redeclared as itself on a plain struct; a genuine @Binding field like
-// isOn already mirrors into that same form on its own (and stays `var`, since
-// @Binding is itself a genuine property wrapper). @Environment becomes a plain
-// `let` — no attribute at all, since @Environment's wrappedValue has no public
-// setter and the attribute can't be preserved, but a plain unattributed value has
-// no such restriction (see ProfileCard.StatelessNode above).
-// @State/@Environment/@Query/@AppStorage must all be private — enforced with a
-// diagnostic if violated, not accommodated.
+// regardless of what the original was declared as. @State/@AppStorage/
+// @SceneStorage are the one substitution, not a mirror — declared @Binding
+// instead, since their storage can't be redeclared as itself on a plain
+// struct; a genuine @Binding field like isOn already mirrors into that same
+// form on its own (and stays `var`, since @Binding is itself a genuine
+// property wrapper). @Environment becomes a plain `let` — no attribute at
+// all, since @Environment's wrappedValue has no public setter and the
+// attribute can't be preserved, but a plain unattributed value has no such
+// restriction (see ProfileCard.StatelessNode above).
+// @State/@Environment/@Query/@AppStorage/@SceneStorage must all be private —
+// enforced with a diagnostic if violated, not accommodated.
 let profileCardStatelessNode = profileCard.statelessNode
 let profileCardStatelessNodeTitle = profileCardStatelessNode.title
 profileCardStatelessNode.isOn = false  // writes straight through to the caller's Binding
+
+// isPinned reads as a bare Bool here too — @SceneStorage folds into the exact
+// same @Binding var substitution @State/@AppStorage already get.
+let profileCardStatelessNodeIsPinned = profileCardStatelessNode.isPinned
 
 // subtitle is a plain `var` on ProfileCard, but StatelessNode is a deterministic
 // snapshot — it's `let subtitle: String?` here (not mirrored as `var`), so a fresh

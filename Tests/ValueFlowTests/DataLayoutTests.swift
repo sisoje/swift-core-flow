@@ -688,6 +688,52 @@ final class DataLayoutTests: XCTestCase {
         )
     }
 
+    func testOutFlowFoldsSceneStorageIntoTheSameBindingMappingAsAppStorage() {
+        // @SceneStorage's own wrappedValue is get/nonmutating-set and its
+        // projectedValue genuinely IS Binding<T> — verified directly against
+        // the real SwiftUI interface, the same shape @State/@AppStorage have —
+        // so it folds into their exact mapping, no separate case needed
+        // (unlike @FocusState, which genuinely can't share it).
+        assertMacroExpansion(
+            """
+            @DataLayout
+            public struct SearchField {
+                @SceneStorage("isPinned") private var isPinned: Bool = false
+                public let title: String
+            }
+            """,
+            expandedSource: """
+                public struct SearchField {
+                    @SceneStorage("isPinned") private var isPinned: Bool = false
+                    public let title: String
+
+                    public init(title: String) {
+                        self.title = title
+                    }
+
+                    public typealias InFlowSplat = String
+
+                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
+                        Self(title: flow)
+                    }
+
+                    public typealias InFlow = String
+
+                    public var inFlow: InFlow {
+                        self.title
+                    }
+
+                    public typealias OutFlow = (isPinned: Binding<Bool>, title: String)
+
+                    public var outFlow: OutFlow {
+                        (isPinned: self.$isPinned, title: self.title)
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
     func testDiagnosesNotAStruct() {
         assertMacroExpansion(
             """
@@ -738,11 +784,11 @@ final class DataLayoutTests: XCTestCase {
     }
 
     func testDiagnosesNonPrivateSourceOfTruthWrappers() {
-        // @State/@Environment/@Query/@AppStorage/@FocusState/@Namespace are a
-        // view's own source of truth, never something a caller supplies —
-        // enforced here rather than accommodated: every downstream renderer can
-        // assume these six are always private, with no "what if it's also
-        // public" case to handle.
+        // @State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/
+        // @Namespace are a view's own source of truth, never something a
+        // caller supplies — enforced here rather than accommodated: every
+        // downstream renderer can assume these seven are always private, with
+        // no "what if it's also public" case to handle.
         assertMacroExpansion(
             """
             @DataLayout
@@ -758,7 +804,7 @@ final class DataLayoutTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'isExpanded' must be private — @State/@Environment/@Query/@AppStorage/@FocusState/@Namespace are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                        "'isExpanded' must be private — @State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace are a view's own source of truth, not something a caller supplies (use @Binding for that).",
                     line: 3,
                     column: 16
                 )

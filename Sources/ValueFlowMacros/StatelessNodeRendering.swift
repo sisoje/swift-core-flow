@@ -41,12 +41,12 @@ import SwiftSyntax
 /// `StatelessNode` — never the original attribute, always captured as an ordinary
 /// value read once when `.statelessNode` is computed:
 /// - `@Query` → the synthesized `(result:, fetchError:, modelContext:)` tuple.
-/// - `@State`/`@AppStorage` → `@Binding var name: T` (the one case that keeps
-///   an attribute — substituted, not mirrored, since their own storage only
-///   installs inside a live SwiftUI view and can't be redeclared as itself on
-///   a plain struct; `@Binding` is the injectable/settable form a genuine
-///   `@Binding` field already uses verbatim, which is why both share one
-///   condition below).
+/// - `@State`/`@AppStorage`/`@SceneStorage` → `@Binding var name: T` (the one
+///   case that keeps an attribute — substituted, not mirrored, since their own
+///   storage only installs inside a live SwiftUI view and can't be redeclared
+///   as itself on a plain struct; `@Binding` is the injectable/settable form a
+///   genuine `@Binding` field already uses verbatim, which is why all three
+///   share one condition below).
 /// - `@FocusState` → `@FocusState<T>.Binding var name: T`, its own substituted
 ///   attribute, distinct from `@Binding var name: T` above. `@FocusState`'s own
 ///   `projectedValue` is `FocusState<T>.Binding`, **not** `Binding<T>` — verified
@@ -70,7 +70,7 @@ import SwiftSyntax
 ///   one-time snapshot, immutable by design. `@Namespace` is grouped with
 ///   `@Environment` here rather than getting its own case: same get-only
 ///   `wrappedValue` problem (verified directly), and unlike
-///   `@State`/`@AppStorage`/`@FocusState` it has no `projectedValue` at all to
+///   `@State`/`@AppStorage`/`@SceneStorage`/`@FocusState` it has no `projectedValue` at all to
 ///   fall back on for a `@Binding`-style substitution, so a plain `let` is the
 ///   only option.
 ///
@@ -113,7 +113,7 @@ func renderStatelessNode(
     // as a single interleaved list, matching the same principle
     // `outFlowProperties` documents for OutFlow/InFlow.
     let fields = properties.filter {
-        !$0.isPrivate || $0.isQuery || $0.isStateOrAppStorage || $0.isEnvironment
+        !$0.isPrivate || $0.isQuery || $0.isBindingBackedStorage || $0.isEnvironment
             || $0.isFocusState || $0.isNamespace
     }
 
@@ -121,7 +121,7 @@ func renderStatelessNode(
     // type's own access level; see this file's own doc comment for why
     // `StatelessNode` is deliberately never public.
     let fieldDecls = fields.map { p -> String in
-        if p.isStateOrAppStorage || p.isBinding {
+        if p.isBindingBackedStorage || p.isBinding {
             // Always `var` — `@Binding` is a genuine `@propertyWrapper`, and Swift
             // requires `var` storage for any property-wrapper-attributed field
             // (verified directly: `@Binding let x: Int` is a compile error).

@@ -9,7 +9,7 @@ import SwiftSyntax
 /// `renderInFlowTypealias`/`renderInFlowProperty`), and an `OutFlow` typealias
 /// with an `outFlow` computed property: `InFlow`'s fields plus the view's own
 /// externally-relevant *capturable* private state (`@Query`/`@State`/
-/// `@AppStorage`/`@FocusState` — see `outFlowProperties`), in declaration order (see
+/// `@AppStorage`/`@SceneStorage`/`@FocusState` — see `outFlowProperties`), in declaration order (see
 /// `renderOutFlowTypealias`/`renderOutFlowProperty`). `access` is a modifier
 /// prefix such as `"public "` or `""` (internal).
 public func renderDataLayout(properties: [StoredProperty], access: String) -> [DeclSyntax] {
@@ -226,10 +226,10 @@ func renderInFlowProperty(properties: [StoredProperty], access: String) -> DeclS
 
 /// The properties `OutFlow`/`outFlow` (below) include: every non-private
 /// participating property (same set `InFlow` has), plus every private
-/// `@Query`/`@State`/`@AppStorage`/`@FocusState` property — the view's own
-/// externally-relevant *capturable* state, alongside its public data. In
-/// declaration order, same as `properties` itself; not data-layout fields first
-/// and wrapper fields appended after.
+/// `@Query`/`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState` property — the
+/// view's own externally-relevant *capturable* state, alongside its public
+/// data. In declaration order, same as `properties` itself; not data-layout
+/// fields first and wrapper fields appended after.
 ///
 /// **`@Environment` is deliberately excluded**, unlike the other private
 /// wrapper kinds — not because it's technically uncapturable (a plain,
@@ -239,25 +239,25 @@ func renderInFlowProperty(properties: [StoredProperty], access: String) -> DeclS
 /// needs no help from this package anyway — `@Environment`'s own mocking story
 /// (inject a different value where the type is constructed/hosted) already
 /// covers it natively. `OutFlow` stays scoped to `@Query`/`@State`/
-/// `@AppStorage`/`@FocusState`; `@StatelessNode` makes the opposite call and
-/// captures it too, for the same reason it treats every field uniformly (see
-/// its own doc comment).
+/// `@AppStorage`/`@SceneStorage`/`@FocusState`; `@StatelessNode` makes the
+/// opposite call and captures it too, for the same reason it treats every
+/// field uniformly (see its own doc comment).
 ///
 /// Everything else private (a plain `private var cache = 0`, `@StateObject`, …) is
 /// excluded too — `OutFlow` is deliberately scoped to `@Query`/`@State`/
-/// `@AppStorage`/`@FocusState`, not "every private property" (there's no such
-/// unconditional, unfiltered member in this package — see `allFieldNames`'s
-/// removal note in `DataLayout.swift`).
+/// `@AppStorage`/`@SceneStorage`/`@FocusState`, not "every private property"
+/// (there's no such unconditional, unfiltered member in this package — see
+/// `allFieldNames`'s removal note in `DataLayout.swift`).
 func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
     properties.filter {
-        !$0.isPrivate || $0.isQuery || $0.isStateOrAppStorage || $0.isFocusState
+        !$0.isPrivate || $0.isQuery || $0.isBindingBackedStorage || $0.isFocusState
     }
 }
 
 /// A field's `OutFlow` type — distinct from `baseTypeText` (used by
-/// `InFlowSplat`/`InFlow`), since `@Query`/`@State`/`@AppStorage`/`@FocusState`
-/// need their own mapping, not the `@Binding`/`@ViewBuilder` one `baseTypeText`
-/// knows:
+/// `InFlowSplat`/`InFlow`), since `@Query`/`@State`/`@AppStorage`/
+/// `@SceneStorage`/`@FocusState` need their own mapping, not the
+/// `@Binding`/`@ViewBuilder` one `baseTypeText` knows:
 /// - **Non-private fields** use `baseTypeText` unchanged — same rules `InFlow`
 ///   already applies (`Binding<T>` for `@Binding`, `@ViewBuilder` unwrapped to its
 ///   bare type, everything else as declared).
@@ -271,22 +271,24 @@ func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
 ///   the SwiftData interface), not synthesized placeholders — reached the same
 ///   way `@Binding`'s own wrapper instance is reached elsewhere in this file, via
 ///   the underscore-prefixed backing storage.
-/// - **`@State`/`@AppStorage`** (`isStateOrAppStorage`) → `Binding<T>`, since
-///   these are the view's own read-*and-write*-able storage from the outside —
-///   `self.$x` already gives the real thing, since these two wrappers'
-///   `projectedValue` genuinely *is* `Binding<T>`.
+/// - **`@State`/`@AppStorage`/`@SceneStorage`** (`isBindingBackedStorage`) →
+///   `Binding<T>`, since these are the view's own read-*and-write*-able
+///   storage from the outside — `self.$x` already gives the real thing, since
+///   all three wrappers' `projectedValue` genuinely *is* `Binding<T>`
+///   (verified directly against the real SwiftUI interface, `@SceneStorage`
+///   included).
 /// - **`@FocusState`** (`isFocusState`) → `FocusState<T>.Binding`, **not**
 ///   `Binding<T>` — a deliberately different type from the row above it, even
 ///   though both are read via `self.$x`. Verified directly against the real
 ///   SwiftUI interface: `FocusState<T>.Binding` exposes only `wrappedValue` and
 ///   `projectedValue` (itself), no public initializer at all and no conversion
 ///   to `Binding<T>` — so `self.$x` here resolves to a different concrete type
-///   than it does for `@State`/`@AppStorage`, and there's no way to normalize
-///   the two into one shared type without fabricating a fake `Binding<T>` that
-///   satisfies neither `.focused(_:)` nor anything else expecting the real
-///   projection back.
+///   than it does for `@State`/`@AppStorage`/`@SceneStorage`, and there's no
+///   way to normalize the two into one shared type without fabricating a fake
+///   `Binding<T>` that satisfies neither `.focused(_:)` nor anything else
+///   expecting the real projection back.
 func outFlowFieldType(_ p: StoredProperty) -> String {
-    if p.isStateOrAppStorage {
+    if p.isBindingBackedStorage {
         return "Binding<\(p.type?.trimmedDescription ?? "")>"
     }
     if p.isFocusState {
@@ -303,12 +305,13 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
 /// `outFlowFieldType` above:
 /// - **Non-private fields** use `fieldReadExpression` unchanged (`self.x`, or
 ///   `self._x` for `@Binding`).
-/// - **`@State`/`@AppStorage`/`@FocusState`** all read the *projected* value,
-///   `self.$x` — not `self._x`, which gives the wrapper instance itself
-///   (`State<T>`, not `Binding<T>`; verified directly). Same expression for all
-///   three; only the resulting *type* differs (see `outFlowFieldType` above) —
-///   `@FocusState`'s own `projectedValue` happens to be `FocusState<T>.Binding`
-///   rather than `Binding<T>`, but it's still reached the exact same way.
+/// - **`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState`** all read the
+///   *projected* value, `self.$x` — not `self._x`, which gives the wrapper
+///   instance itself (`State<T>`, not `Binding<T>`; verified directly). Same
+///   expression for all four; only the resulting *type* differs (see
+///   `outFlowFieldType` above) — `@FocusState`'s own `projectedValue` happens
+///   to be `FocusState<T>.Binding` rather than `Binding<T>`, but it's still
+///   reached the exact same way.
 /// - **`@Query`** reads `(result: self.x, fetchError: self._x.fetchError,
 ///   modelContext: self._x.modelContext)` — `self.x` is the wrapper's
 ///   `wrappedValue` (the fetched array); `fetchError`/`modelContext` are real
@@ -316,7 +319,7 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
 ///   Result>`), the same underscore-prefixed access `@Binding` already uses
 ///   elsewhere in this file — not synthesized.
 func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
-    if p.isStateOrAppStorage || p.isFocusState {
+    if p.isBindingBackedStorage || p.isFocusState {
         return "self.$\(p.name)"
     }
     if p.isQuery {

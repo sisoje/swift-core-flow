@@ -16,6 +16,7 @@ struct StatefulCard: View {
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
     @Namespace private var ns: Namespace.ID
     @State private var isExpanded: Bool = false
+    @SceneStorage("isPinned") private var isPinned: Bool = false
     @FocusState private var isFocused: Bool
     @Binding var isOn: Bool
     let title: String
@@ -45,6 +46,7 @@ extension StatefulCard.StatelessNode {
         let snap = card.statelessNode
         #expect(snap.isOn == true)  // bare Bool, unlike OutFlow's Binding<Bool> — genuine @Binding too
         #expect(snap.isExpanded == false)  // bare Bool, unlike OutFlow's Binding<Bool>
+        #expect(snap.isPinned == false)  // bare Bool too, same @Binding substitution as @State
         #expect(snap.isFocused == false)  // bare Bool too, via @FocusState<Bool>.Binding's own unwrap
         #expect(snap.title == "Settings")
     }
@@ -68,6 +70,17 @@ extension StatefulCard.StatelessNode {
 
         card.statelessNode.isExpanded = true
         #expect(card.statelessNode.isExpanded == false)
+    }
+
+    @Test func statelessSceneStorageDoesNotWriteThroughOutsideALiveView() {
+        // Same caveat as @State's — verified directly for @SceneStorage too,
+        // even though it's backed by persistent storage rather than in-memory
+        // view identity: a write here silently no-ops instead of persisting.
+        let isOnBinding = Binding<Bool>(get: { true }, set: { _ in })
+        let card = StatefulCard(isOn: isOnBinding, title: "x")
+
+        card.statelessNode.isPinned = true
+        #expect(card.statelessNode.isPinned == false)
     }
 
     @Test func statelessFocusStateDoesNotWriteThroughOutsideALiveView() {

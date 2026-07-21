@@ -78,6 +78,38 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         )
     }
 
+    func testSceneStorageFoldsIntoTheSameBindingSubstitutionAsAppStorage() {
+        // @SceneStorage shares @State/@AppStorage's exact shape (settable
+        // wrappedValue, projectedValue genuinely Binding<T> — verified directly
+        // against the real SwiftUI interface), so it gets the same @Binding var
+        // substitution, no separate case needed unlike @FocusState.
+        assertMacroExpansion(
+            """
+            @StatelessNode
+            struct SearchField {
+                @SceneStorage("isPinned") private var isPinned: Bool = false
+                let title: String
+            }
+            """,
+            expandedSource: """
+                struct SearchField {
+                    @SceneStorage("isPinned") private var isPinned: Bool = false
+                    let title: String
+
+                    struct StatelessNode {
+                        @Binding var isPinned: Bool
+                        let title: String
+                    }
+
+                    var statelessNode: StatelessNode {
+                        StatelessNode(isPinned: self.$isPinned, title: self.title)
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
     func testNamespaceIsGroupedWithEnvironmentAsAPlainLetAndNeedsNoExplicitType() {
         // @Namespace has no projectedValue at all (unlike @State/@AppStorage/
         // @FocusState) and a get-only wrappedValue (like @Environment) —
