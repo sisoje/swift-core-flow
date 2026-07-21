@@ -214,7 +214,7 @@ present under the same collapse/zero rules as `InFlowSplat` above:
   can.
 - **`inFlow` reads every field straight off `self`** via
   `fieldReadExpression` (`FieldRendering.swift`) — `x` for everything except
-  `@Binding`, which reads its projected form `_x` to match `InFlowSplat`'s
+  `@Binding`, which reads its projected form `$x` to match `InFlowSplat`'s
   `Binding<T>` field type.
 - **No `@ViewBuilder` wrapping needed here, unlike `makeFlow(_:)`'s reverse
   direction.** A stored property already holds exactly its own declared type
@@ -373,10 +373,11 @@ not as a gap to fill in later. Both are Combine-era `ObservableObject`
 wrappers — MVVM/ViewModel-shaped state, exactly what this package's
 `@Flowable` (plain, `Equatable`-friendly data) and `@Shell`
 (deterministic snapshots of SwiftUI's own native property wrappers) exist to
-avoid. Declaring either one `private` — their normal form — hits the
-`unsupportedPrivateWrapper` diagnostic below, same as any other unrecognized
-private wrapper. See the `swiftui-mv-architecture` skill for the broader
-argument against `ObservableObject`/ViewModel patterns in SwiftUI generally.
+avoid. Declaring either one `private` — their normal form — is a compile
+error (`unsupportedPrivateWrapper`, see `@Flowable — tricky points` above),
+same as any other unrecognized private wrapper. See the
+`swiftui-mv-architecture` skill for the broader argument against
+`ObservableObject`/ViewModel patterns in SwiftUI generally.
 
 ## @Shell — tricky points
 

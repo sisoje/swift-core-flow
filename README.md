@@ -19,354 +19,86 @@ together in `Sources/Examples/main.swift` (`swift run Examples`).
 
 | Macro | Form | Does |
 |---|---|---|
-| [`@Flowable`](#flowable) | member | writes a memberwise `init` at the type's own access level, plus `InFlowSplat`/`InFlow` typealiases bundling the same properties into a tuple, unlabeled and labeled, plus a wider `OutFlow` for a private-state-inclusive view |
-| [`@Shell`](#shell) | member | a separate macro from `@Flowable` (doesn't replace `OutFlow`) generating a nested, nominal `Core` struct over the same wider field set — real `Equatable`/`Codable`/protocol conformance a tuple can never have |
+| [`@Shell`](#shell) | member | generates a nested, nominal `Core` struct capturing a `View`/`ViewModifier`'s full externally-relevant state — real `Equatable`/`Codable`/protocol conformance a tuple can never have |
+| [`@Flowable`](#flowable) | member | writes a memberwise `init` at the type's own access level, plus `InFlowSplat`/`InFlow` typealiases bundling the same properties into a tuple, unlabeled and labeled, plus a wider `OutFlow` — the tuple `@Shell`'s `Core` doesn't replace |
 | [`@Capability`](#capability) | member | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
 | [`#pick`](#pick-tuplepicker) | expression | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
 | [`Reflector`](#reflector) | runtime utility (not a macro) | lists a value type's field names off its type alone, no instance needed — pairs with `@Flowable`'s `InFlow` |
 
 ---
 
-## Flowable
+## Shell
 
-A `member` macro that writes a memberwise `init` for the type it's attached to, **at
-the type's own access level**. It fills the initializers Swift won't synthesize: the
-`public init` a public struct needs, and *any* init for a `class` or `actor` —
-including an `@Observable final class`. Alongside the init, it also declares two
-typealias/accessor pairs — an unlabeled `InFlowSplat` with a `makeFlow(_:)`
-factory building `Self` back *from* one, and a labeled `InFlow` with an
-`inFlow` computed property reading the current instance's data back *out* —
-plus a wider `OutFlow`/`outFlow` pair mixing `InFlow`'s
-fields with a view's own externally-relevant private state. See
-[below](#the-inflowsplat-typealias), [below that](#the-makeflow_-factory),
-[below that](#the-inflow-typealias), [below that](#the-inflow-property), and
-[below that](#the-outflow-typealias-and-outflow-property).
-
-See the [diagram below](#how-inflow-and-outflow-relate) for how the whole shape
-fits together.
+A `member` macro, separate from `@Flowable` — it doesn't replace `OutFlow`/
+`outFlow`, and works with or without `@Flowable` also attached (it collects the
+type's stored properties itself). It generates a nested `Core` struct —
+always internal (the struct, every field, and the `core` property
+itself), regardless of the attached type's own access level, and carrying no
+`@Flowable` — plus a `core` computed property building one from the
+current instance. Its field set is identical to `OutFlow`'s (see the
+[wrapper mapping reference](#wrapper-mapping-reference)): every non-private
+participating property, plus every recognized private source-of-truth
+wrapper, each captured once as a plain value.
 
 ```swift
-@Flowable
-public struct User {
-    public let id: UUID
-    public var isActive: Bool = false
-}
-// generates:
-// public init(id: UUID, isActive: Bool = false) {
-//     self.id = id
-//     self.isActive = isActive
-// }
-// public typealias InFlowSplat = (UUID, Bool)
-// public static func makeFlow(_ flow: InFlowSplat) -> Self {
-//     Self(id: flow.0, isActive: flow.1)
-// }
-```
-
-Works the same on a `class` or `actor`:
-
-```swift
-@Flowable
-@Observable final class Counter {
-    var count: Int = 0
-}
-// init(count: Int = 0) { self.count = count }
-// typealias InFlowSplat = Int          // one property → bare type, not a 1-tuple
-// static func makeFlow(_ flow: InFlowSplat) -> Self { Self(count: flow) }
-```
-
-### What it does
-
-- **Mirrors the access level** — `public struct` → `public init`, an internal type →
-  unmodified `init`, and so on.
-- **`var` defaults carry through** — `var x: Int = 0` → parameter `x: Int = 0`. An
-  optional `var` is implicitly nil-initialized, so `var name: String?` → parameter
-  `name: String? = nil`, just like Swift's own memberwise init.
-- **Function-typed properties get `@escaping`**, attributed types included
-  (`@MainActor () -> Void`, `@Sendable (Int) -> Void`). Optional closures
-  (`(() -> Void)?`) pass through as-is — they're already escaping.
-- **Skips** computed properties and `static`/`class` members; keeps stored properties
-  that have only `willSet`/`didSet` observers.
-
-### SwiftUI
-
-- **`private` properties are excluded** from the init. Since SwiftUI's view-owned
-  wrappers — `@State`, `@Environment`, `@StateObject`, … — are always `private`, they
-  fall out automatically. No configuration, no per-wrapper list.
-- **`@Binding`** is threaded in as a projected `Binding<T>` parameter, assigned to the
-  backing storage (`self._x = x`).
-- **`@ViewBuilder`** carries onto the parameter so callers get trailing-closure syntax.
-  A stored closure (`let content: () -> Content`) becomes `@ViewBuilder content: @escaping () -> Content`;
-  a stored value (`let footer: Content`) becomes `@ViewBuilder footer: () -> Content` and the
-  init calls it (`self.footer = footer()`).
-
-```swift
-@Flowable
-struct Card<Content: View>: View {
-    @Environment(\.colorScheme) private var scheme   // excluded (private)
-    @State private var expanded = false              // excluded (private)
-    @Binding var isOn: Bool                           // init param: Binding<Bool>
-    let title: String
-    @ViewBuilder let footer: Content                  // init param: @ViewBuilder () -> Content
-
-    var body: some View { /* ... */ }
-}
-// init(isOn: Binding<Bool>, title: String, @ViewBuilder footer: () -> Content)
-```
-
-### Design: for pure data
-
-- **No real type inference — except three unambiguous literal kinds.** It's
-  syntax-only: a property needing an explicit type must have one, *unless* its
-  inline default is a bare `Bool`/`Int`/`String` literal (`var isOn = false`,
-  `var count = 0`, `var label = "x"`) — those three are inferred straight off
-  the literal's own syntax, no type checker involved. Anything else uninferable
-  (a call, an identifier, `nil`, a collection literal, …) still needs an
-  explicit annotation.
-- **No stored `let` constants.** A constant isn't per-instance data — use `static let`.
-  The macro doesn't special-case an instance `let`: `let version: Int = 1` generates
-  `self.version = version` (a `let`-reassignment error) whether or not `version`'s type
-  is written explicitly or inferred from the literal above. Either way it won't compile.
-- **`private` means private, and it must mean something.** If a value is meant to be
-  passed in, it isn't private — `@Binding`/`@Bindable`/`@ViewBuilder` declared private
-  are unreachable by any caller and are rejected outright. And a private property with
-  no recognized wrapper at all (`private var cache = 0`) isn't quietly excluded
-  anymore either — it's neither a source of truth nor something a caller supplies, so
-  pure data flow has no room for it: give it a real wrapper, or make it non-private.
-
-### The InFlowSplat typealias
-
-Alongside the init, `@Flowable` declares `InFlowSplat` — the same properties
-bundled into a tuple type, for API uniformity/discoverability (e.g. `Foo.InFlowSplat`
-is always there to reference generically) rather than as a second constructor;
-nothing in the init routes through it.
-
-```swift
-@Flowable
-public struct User {
-    public let id: UUID
-    public let name: String
-}
-// public typealias InFlowSplat = (UUID, String)
-
-let flow: User.InFlowSplat = (id: someID, name: "Ada")
-```
-
-It's built independently of the init, so it diverges from it in a few ways:
-
-- **Unlabeled** — `(UUID, String)`, not `(id: UUID, name: String)` — deliberately,
-  so any structurally-compatible tuple converts into it, not just one built with
-  these exact field names ("splat" in the name). Verified directly: a tuple
-  *value* already bound with different labels (`let t = (xxx: 1, yyy: 2)`) fails
-  to convert into a *labeled* tuple type of the same shape (`error: cannot
-  convert value of type '(xxx: Int, yyy: Int)' to expected argument type '(x:
-  Int, y: Int)'`), but succeeds once the target is unlabeled — Swift only
-  enforces label agreement between two *labeled* tuple types. A labeled tuple
-  *literal* (`(id: someID, name: "Ada")`, as above) converts into an unlabeled
-  target either way, so you can still write field names for your own
-  readability when constructing the value — only a pre-existing,
-  differently-labeled variable needed the loosening. The real cost: with no
-  labels, the compiler no longer catches two same-typed fields passed in the
-  wrong order.
-- **No per-field defaults.** Tuple element types can't carry `= default` — so an
-  inline `var` default, and an optional `var`'s implicit `nil`, are both dropped,
-  unlike the init right above it.
-- **One property still gets an `InFlowSplat` — just not a tuple.** Swift has no
-  1-tuples — `(Int)` as a type collapses to plain `Int` regardless of labels — so
-  with exactly one participating property, `InFlowSplat` aliases the bare field
-  type directly (`typealias InFlowSplat = Int`).
-- **Zero properties → no typealias at all.** There's nothing to alias, and the init
-  already covers the zero-property case on its own (`init() {}`).
-- **Never `@escaping`**, even on function-typed fields — a closure nested inside a
-  tuple type is already escaping; writing the attribute there is a compile error.
-- **`@ViewBuilder` is ignored entirely.** A stored-value field
-  (`@ViewBuilder let footer: Content`) keeps its own type in the typealias
-  (`Content`, not `() -> Content`) and would be assigned directly if anything
-  consumed it. The init wraps that field in a builder closure specifically to get
-  trailing-closure syntax at the call site; a tuple type has no parameter position
-  for that syntax to attach to, so the wrapping would buy nothing here — and would
-  actively work against the point of `InFlowSplat`, which is data you pass
-  around, store, or diff, not a closure.
-
-### The makeFlow(_:) factory
-
-A `static func makeFlow(_ flow: InFlowSplat) -> Self` that builds an instance from
-an `InFlowSplat` value — declared whenever `InFlowSplat` itself is (same
-collapse/absence rules). It forwards each field directly:
-
-```swift
-let flow: User.InFlowSplat = (id: someID, name: "Ada")
-let user = User.makeFlow(flow)
-
-// Any structurally-compatible tuple works, not just one built with these field
-// names — InFlowSplat is unlabeled:
-let differentlyLabeled = (uuid: someID, label: "Ada")
-let user2 = User.makeFlow(differentlyLabeled)
-```
-
-- **A static function, not a second `init`** — deliberately, so it works the same on
-  a struct, class, or actor. A delegating second `init` (`init(...)`) requires
-  the `convenience` keyword on a class/actor and drags in Swift's
-  designated/convenience init rules; a plain static function returning `Self(...)`
-  sidesteps that entirely.
-- **Direct field forwarding**, not a trick. `Self(x: flow.0, y: flow.1)`
-  — not `[layout].map(Self.init).first!`, which is what you'd reach for by hand to
-  get an *unapplied* `Self.init` reference to accept a tuple positionally (it works,
-  but the macro doesn't need it: it already knows every field's position).
-- **Fields are read positionally** — `flow.0`, `flow.1`, … in field
-  order — since `InFlowSplat` itself is unlabeled.
-- **A `@ViewBuilder`-stored value is the one field that isn't forwarded as-is.**
-  `InFlowSplat` holds it as a plain value, but the primary init still wants a
-  `() -> Content` builder for it — so `makeFlow(_:)` wraps it back into a
-  trivial closure: `footer: { flow.2 }`.
-- **Positional, unlabeled parameter (`_ flow:`)**, not a labeled `make(inFlowSplatted:)`
-  — a deliberate naming choice, so the call site reads `Type.makeFlow(someFlow)`.
-
-### The InFlow typealias
-
-The reverse direction from `InFlowSplat`: the same fields and types, but **labeled**
-— `(id: UUID, name: String)`, not `(UUID, String)`. Same collapse/absence rules
-(one property → bare type, zero → nothing).
-
-```swift
-let named: User.InFlow = (id: someID, name: "Ada")
-```
-
-Labeled specifically for readable field access (`named.id`, not `named.0`) and real
-reflection support — verified directly: `Mirror(reflecting:)` reports each field's
-actual name over a *labeled* tuple, but only positional labels (`.0`, `.1`) over an
-*unlabeled* one, so `InFlowSplat` alone can't back a generic field-name utility.
-`InFlow` can — see [`Reflector`](#reflector) below.
-
-### The inFlow property
-
-A computed property extracting the *current* instance's values into an
-`InFlow` — the reverse of `makeFlow(_:)`. Declared whenever
-`InFlow` is.
-
-```swift
-let user = User(id: someID, name: "Ada")
-user.inFlow   // (id: someID, name: "Ada")
-
-// Round-trips through makeFlow(_:) with no manual conversion — an
-// InFlow value converts into InFlowSplat's unlabeled parameter the same
-// way any differently-labeled tuple does:
-let copy = User.makeFlow(user.inFlow)
-```
-
-- Every field reads straight off `self` (`x`) — except `@Binding`, which
-  reads its projected form (`$x`) to match `InFlowSplat`'s `Binding<T>` field
-  type.
-- **No `@ViewBuilder` wrapping needed here**, unlike `makeFlow(_:)`'s reverse
-  direction: a stored property already holds exactly its own declared type
-  regardless of `@ViewBuilder` — that attribute only ever reshapes the *init
-  parameter*, never the property's own storage.
-
-
-### The OutFlow typealias and outFlow property
-
-Wider than `InFlow`/`inFlow`: `InFlow`'s fields, **plus every recognized
-private source-of-truth wrapper** — `@Query`/`@State`/`@AppStorage`/
-`@SceneStorage`/`@FocusState`/`@Environment`/`@Namespace` — a view's own
-externally-relevant *capturable* state, alongside its public data, no
-exceptions. There's no such thing as "everything else private" left over —
-a private property either carries one of these recognized wrappers or it's a
-compile error (see [Design: for pure data](#design-for-pure-data)) — see the
-[wrapper mapping reference](#wrapper-mapping-reference) for exactly what each
-recognized kind becomes.
-
-**Why this exists: testability.** Any SwiftUI node that owns or reads live
-state via one of these wrappers introduces a source of truth that only really
-works inside a live render pipeline — view identity, a real `ModelContext`,
-the current environment. That makes it hard to test directly. `OutFlow`
-converts that state into a plain, stateless snapshot: construct the type,
-read `.outFlow`, assert on the fields — no live view hierarchy needed. That's
-the actual point of targeting exactly these wrapper kinds, not "expose
-private state" for its own sake — and it's also why there's no exception for
-`@Environment`/`@Namespace`: a captured value going stale, or `@Environment`'s
-own mocking story, are things to know about the *snapshot*, not reasons to
-leave the field out of it — `@Shell` never excluded either one, and
-`OutFlow` shouldn't either.
-
-```swift
-@Flowable
+@Shell
 struct Card: View {
     @Query private var items: [Item]
-    @State private var isExpanded: Bool = false
+    @Environment(\.colorScheme) private var colorScheme: ColorScheme
+    @State private var isExpanded = false
     let title: String
+    var subtitle: String?
     // generates:
-    // typealias OutFlow = (items: (wrappedValue: [Item], fetchError: Error?),
-    //                       isExpanded: Binding<Bool>, title: String)
-    // var outFlow: OutFlow {
-    //     (items: #pick(from: _items, \.wrappedValue, \.fetchError),
-    //      isExpanded: $isExpanded, title: title)
+    // struct Core {
+    //     let items: (wrappedValue: [Item], fetchError: Error?)
+    //     let colorScheme: ColorScheme
+    //     @Binding var isExpanded: Bool
+    //     let title: String
+    //     let subtitle: String?
+    // }
+    // var core: Core {
+    //     Core(items: #pick(from: _items, \.wrappedValue, \.fetchError),
+    //               colorScheme: colorScheme, isExpanded: $isExpanded,
+    //               title: title, subtitle: subtitle)
     // }
 }
 ```
 
-- **Declaration order, as one interleaved list** — not data-layout fields first
-  with wrapper fields appended after. `items` comes first above because it's
-  declared first.
-- **`@Query` → always `(wrappedValue: WrappedType, fetchError: Error?)`,
-  synthesized via `#pick`** — not a passthrough of the declared type, and no
-  `modelContext` (see the [wrapper mapping reference](#wrapper-mapping-reference)
-  for why). `WrappedType` is the property's own declared type (`[Item]`
-  above); `wrappedValue`/`fetchError` are real members of SwiftData's `Query`
-  wrapper instance, picked verbatim — not synthesized placeholders.
-- **`@State`/`@AppStorage`/`@SceneStorage` → `Binding<WrappedType>`**, read via
-  the *projected* value (`$x`) — not `_x`, which gives the wrapper instance
-  itself (`State<T>`, not `Binding<T>`; verified directly).
-- **Every recognized wrapper needs an explicit type even though it's
-  private** — every other private property is exempt from that rule, but
-  `OutFlow` reads the type to build its field. `@Namespace` is the one
-  exception — see the [wrapper mapping reference](#wrapper-mapping-reference).
-- **`@State`'s `Binding` doesn't write through outside a live SwiftUI view
-  render** — verified directly: construct a `@Flowable` type in plain code
-  (never installed into a real view hierarchy) and mutate
-  `outFlow.someStateField.wrappedValue` — it silently no-ops instead of
-  persisting. That's `@State`'s own behavior, not a bug here; a genuine
-  caller-supplied `@Binding` field, by contrast, really does write through.
-- **On a `View`-conforming type, reading `outFlow` needs `@MainActor`** — `View`
-  conformance implicitly infers `@MainActor` isolation for the whole type, so
-  touching its members from a nonisolated context (a plain function, a
-  non-`@MainActor` test) crosses that isolation boundary at runtime and can trap
-  under Swift 6 strict concurrency. A plain top-level script doesn't hit this —
-  top-level code already runs on the main actor.
-
 ### Wrapper mapping reference
 
 Every wrapper kind this package recognizes, and exactly what it becomes on
-`OutFlow` and on `@Shell`'s nested struct — one row each, no grouping.
-`OutFlow` and `Core` always share the same read expression for a
-given field (the same function generates both), so that's one column, not two.
+`@Shell`'s nested `Core` struct — one row each, no grouping. Types are left
+out below on purpose: each attribute already implies its own type (`@Binding`
+→ `Binding<T>`, `(wrappedValue, fetchError)` → that exact tuple, and so on —
+spelled out in full later in this doc). `OutFlow` follows the same shape,
+minus the `let`/`var`/attribute keyword.
 
 This table is every *source of truth* this package recognizes, plus the plain
 `let`/`var` baseline they're all measured against — `@Binding` and `@Bindable`
-are the two public exceptions, since both still need their `OutFlow`/
-`Core` mapping spelled out (`$x` for `@Binding`, a mirrored attribute
-for both). `@ViewBuilder` is deliberately **not** a row here: it's not a source
-of truth, and its `OutFlow`/read-expression columns would be identical to plain
-`let`/`var`'s (`declared type as-is`, `x`) — its only real nuance is the
-`Core` field declaration, already covered in the [SwiftUI](#swiftui)
-section above and the second bullet below the table. Every source-of-truth row
-must be private, enforced with a diagnostic, not just convention.
+are the two public exceptions, included because they still need a row.
+`@ViewBuilder` isn't one: it's not a source of truth, and its only real nuance
+is covered in the [SwiftUI](#swiftui) section below and the last bullet below
+the table. Every source-of-truth row must be private, enforced with a
+diagnostic, not just convention.
 
-| Wrapper | `OutFlow` / `Core` field type | `Core` field declaration | Read expression |
-|---|---|---|---|
-| plain `let`/`var` | declared type as-is | always `let` on `Core`, regardless of the original's `let`/`var` | `x` |
-| `@Binding` | `Binding<T>` | `@Binding var x: T` (mirrored verbatim) — `var`, a genuine property wrapper requires it | `$x` |
-| `@Bindable` | declared type as-is (e.g. `Settings`) | `@Bindable var x: T` (mirrored verbatim) — `var`, a genuine property wrapper requires it | `x` |
-| `@Environment` | declared type as-is (e.g. `ColorScheme`) | plain `let x: T`, no attribute | `x` |
-| `@Namespace` | `Namespace.ID` (always — no explicit type needed, unlike every other row) | plain `let x: T`, no attribute | `x` |
-| `@Query` | `(wrappedValue: T, fetchError: Error?)`, via `#pick` | same tuple, no attribute — `let` | `#pick(from: _x, \.wrappedValue, \.fetchError)` |
-| `@State` | `Binding<T>` | `@Binding var x: T` (substituted attribute) — `var` | `$x` |
-| `@AppStorage` | `Binding<T>` | `@Binding var x: T` (substituted attribute) — `var` | `$x` |
-| `@SceneStorage` | `Binding<T>` | `@Binding var x: T` (substituted attribute) — `var` | `$x` |
-| `@FocusState` | `FocusState<T>.Binding` — **not** `Binding<T>` | `@FocusState<T>.Binding var x: T` (its own substituted attribute) — `var` | `$x` |
+| Shell | Core | Read as |
+|---|---|---|
+| `let`/`var` | `let` | `x` |
+| `@Binding` | `@Binding` | `$x` |
+| `@Bindable` | `@Bindable` | `x` |
+| `@Environment` | `let` | `x` |
+| `@Namespace` | `let` | `x` |
+| `@Query` | `(wrappedValue, fetchError)` | `#pick(_x)` |
+| `@State` | `@Binding` | `$x` |
+| `@AppStorage` | `@Binding` | `$x` |
+| `@SceneStorage` | `@Binding` | `$x` |
+| `@FocusState` | `@FocusState.Binding` | `$x` |
 
 > **`@StateObject` and `@ObservedObject` are NOT supported, on purpose.**
 > They're Combine-era `ObservableObject` wrappers, and this package doesn't
-> recognize either one — declaring one `private` (their normal form) hits the
-> `unsupportedPrivateWrapper` diagnostic below, by design. This isn't a gap to
+> recognize either one — declaring one `private` (their normal form) is a
+> compile error (an unrecognized private wrapper), by design, rather than
+> silently falling out of `OutFlow`/`Core` unnoticed. This isn't a gap to
 > fill in later: this package's whole `@Flowable`/`@Shell` model is
 > built for plain, `Equatable`-friendly data and SwiftUI's own native property
 > wrappers, not `ObservableObject`/MVVM-style state containers.
@@ -374,12 +106,10 @@ must be private, enforced with a diagnostic, not just convention.
 **Four things worth spelling out beyond the table above — the last one is about
 `@ViewBuilder`, which isn't a row in it at all (see why above):**
 
-- **`@Binding`'s read is `$x`, not `_x`, on purpose.** Verified directly:
-  `Binding`'s own `projectedValue` is `{ self }`, so `$x` and the backing
-  storage `_x` give the identical `Binding<T>`, write-through included — `$x`
-  is just the one convention every `Binding`-producing row already uses, no
-  `@Binding`-only special case. `_x` survives only on the generated *init*'s
-  assignment side (`self._x = x`), where `$x` is immutable.
+- **`@Binding` reads `$x`, not `_x`.** Verified: `Binding`'s own
+  `projectedValue` is `{ self }`, so both give the identical `Binding<T>` —
+  `$x` is just the same convention every `Binding`-producing row already
+  uses, no `@Binding`-only special case.
 - **`@FocusState` can't share `@State`/`@AppStorage`/`@SceneStorage`'s field
   type, even though all four are read via `$x`.** Those three wrappers'
   `projectedValue` genuinely *is* `Binding<T>`. `@FocusState`'s is a distinct
@@ -409,163 +139,6 @@ must be private, enforced with a diagnostic, not just convention.
   a value that's already built and just being copied through. So `footer`
   stays a plain `let footer: Content`, passed straight through with no
   wrapping needed on either side.
-
-### Testing a @Flowable type's state
-
-`OutFlow` in practice: construct the type directly, no `ModelContainer`, no
-`WindowGroup`, no live rendering — just read `.outFlow` and assert:
-
-```swift
-@MainActor
-@Suite struct CardTests {
-    @Test func startsCollapsed() {
-        let card = Card(title: "Settings")  // items/isExpanded are private, excluded from init
-        #expect(card.outFlow.isExpanded.wrappedValue == false)
-        #expect(card.outFlow.title == "Settings")
-    }
-}
-```
-
-`@MainActor` on the suite is required, not stylistic, whenever the type
-conforms to `View` — see the bullet above. See
-`Tests/ValueFlowTests/OutFlowTests.swift` for the real version of this pattern,
-including the one genuine caveat: a `@State`-derived binding read through
-`outFlow` doesn't write back outside a live view (see two bullets up) — reading
-its *value* for assertions works fine, mutating it in a test doesn't stick.
-
-An earlier revision also had an `allFieldNames` static var here, unconditionally
-listing *every* stored property's name with no filtering — including plain
-private fields with no recognized wrapper (`private var cache = 0`, legal at
-the time), which never appeared in `InFlowSplat`/`InFlow`/`OutFlow` either. It
-was removed once it became clear [`Reflector`](#reflector) already covers the
-same need for any *specific* generated tuple
-(`Reflector.fieldNames(of: SomeType.OutFlow.self)`, say) without a dedicated
-member. The gap that removal opened — a totally-private, non-wrapper field has
-no tuple anywhere to reflect over — is moot now anyway: that kind of field is a
-compile error (see [Design: for pure data](#design-for-pure-data)), not a
-silently-excluded one.
-
-### How InFlow and OutFlow relate
-
-```mermaid
-flowchart LR
-    subgraph in["in — construction"]
-        IFS["InFlowSplat<br/>(unlabeled tuple)"]
-    end
-    subgraph out["out — reading"]
-        IF["InFlow<br/>(labeled tuple)"]
-        OF["OutFlow<br/>(labeled tuple, wider)"]
-    end
-    IFS -- "makeFlow(_:)" --> T((Self))
-    T -- "inFlow" --> IF
-    T -- "outFlow" --> OF
-    IF -. "converts into<br/>(unlabeled accepts any label)" .-> IFS
-```
-
-- **`InFlowSplat`/`makeFlow(_:)`** — data flowing *in*, to build a `Self`.
-- **`InFlow`/`inFlow`** — the same fields flowing back *out*, labeled for
-  reading — and, since it's structurally the same shape as `InFlowSplat`
-  minus labels, it converts right back into `makeFlow(_:)`'s parameter with no
-  manual conversion.
-- **`OutFlow`/`outFlow`** — a wider *out*, adding the view's own
-  externally-relevant *capturable* private state (`@Query`/`@State`/
-  `@AppStorage` — not `@Environment`, which isn't captured at all; see its own
-  section above) alongside the same public fields `InFlow` has. There's no
-  `OutFlow`-shaped *in* direction — nothing constructs a `Self` from private
-  view state, so this side of the diagram is deliberately one-way.
-
-**Honest caveat on `InFlow`/`inFlow` specifically:** it's declared mainly
-*because the properties are already collected* for the init and `InFlowSplat`
-right next to it — free API symmetry, and real `Mirror` support (see
-[Reflector](#reflector)) — not because real code has actually needed a
-labeled, readable *out* tuple yet. `OutFlow` is the member with a proven
-reason to exist (testability, demonstrated below); `InFlow` is closer to "it
-costs nothing extra to generate, so it's here if you want it." The diagram
-below makes that distinction explicit.
-
-**Why tuples, not a dedicated generated struct per type:** a tuple is a
-*structural* type — two tuples with the same element types match regardless of
-where they came from, with no shared nominal declaration needed. That's
-exactly what a data-flow shape wants: `InFlow` and `InFlowSplat` need to
-convert into each other, and any external, differently-labeled tuple needs to
-splat into `makeFlow(_:)`, without this package generating (and you naming) a
-bespoke struct type for every field combination across every `@Flowable`
-type. A nominal type would need its own declaration, its own name, and
-explicit conversion code between every pair that should interoperate — an
-independent named type *per shape*, i.e. type explosion. Tuples sidestep all
-of it: the shape itself *is* the type.
-
-### Why each member exists — structure vs. motivation
-
-The diagram above shows how the pieces convert into each other; it doesn't
-show *why* each one is there. They don't all have the same reason:
-
-```mermaid
-flowchart TD
-    props(["stored properties<br/>collected once"])
-    props --> init["init<br/>the actual reason @Flowable exists —<br/>Swift won't synthesize a public one"]
-    props --> flow["InFlowSplat / makeFlow(_:)<br/>InFlow / inFlow<br/>free once properties are collected —<br/>symmetry and Mirror support,<br/>not proven demand yet"]
-    props --> out["OutFlow / outFlow<br/>earns its keep: construct directly,<br/>assert on private state, no live view"]
-    out --> node["Core<br/>same field set, plus @Environment —<br/>a real type: View / ViewModifier,<br/>Equatable, Codable, ..."]
-```
-
-- **`init`** — not optional, not speculative: it's the specific gap `@Flowable`
-  fills (Swift only synthesizes an *internal* memberwise init, never a public
-  one).
-- **`InFlowSplat`/`makeFlow(_:)`/`InFlow`/`inFlow`** — a byproduct of already
-  having collected the properties for the init. Cheap to generate, genuinely
-  useful *if* you need splat-construction or `Mirror`-based field names — this
-  package's own Examples/tests do exercise them (`Point.makeFlow(keke)`,
-  `Reflector.fieldNames(of: Point.InFlow.self)`), but only to demonstrate they
-  work, not because another feature in this package needed them to. Unlike
-  everything below, nothing else here depends on `InFlow` existing.
-- **`OutFlow`/`outFlow`** — the one with a demonstrated reason: testability
-  without a live view (see [Testing a @Flowable type's
-  state](#testing-a-flowable-types-state) and
-  `Tests/ValueFlowTests/OutFlowTests.swift`).
-- **`Core`** — builds on `OutFlow`'s same motivation, one step
-  further: a real type where `OutFlow`'s tuple structurally can't follow (real
-  `View`/`ViewModifier` conformance, `Equatable`/`Codable`, generic code
-  needing a shared protocol).
-
----
-
-## Shell
-
-A `member` macro, separate from `@Flowable` — it doesn't replace `OutFlow`/
-`outFlow`, and works with or without `@Flowable` also attached (it collects the
-type's stored properties itself). It generates a nested `Core` struct —
-always internal (the struct, every field, and the `core` property
-itself), regardless of the attached type's own access level, and carrying no
-`@Flowable` — plus a `core` computed property building one from the
-current instance. Its field set is identical to `OutFlow`'s (see the
-[wrapper mapping reference](#wrapper-mapping-reference)): every non-private
-participating property, plus every recognized private source-of-truth
-wrapper, each captured once as a plain value.
-
-```swift
-@Shell
-struct Card: View {
-    @Query private var items: [Item]
-    @Environment(\.colorScheme) private var colorScheme: ColorScheme
-    @State private var isExpanded: Bool = false
-    let title: String
-    var subtitle: String?
-    // generates:
-    // struct Core {
-    //     let items: (wrappedValue: [Item], fetchError: Error?)
-    //     let colorScheme: ColorScheme
-    //     @Binding var isExpanded: Bool
-    //     let title: String
-    //     let subtitle: String?
-    // }
-    // var core: Core {
-    //     Core(items: #pick(from: _items, \.wrappedValue, \.fetchError),
-    //               colorScheme: colorScheme, isExpanded: $isExpanded,
-    //               title: title, subtitle: subtitle)
-    // }
-}
-```
 
 ### Why a nominal struct alongside `OutFlow`'s tuple
 
@@ -801,6 +374,432 @@ flowchart TD
   `Card` entirely: construct a `Core` directly — in a unit test, or a
   `#Preview` — and assert on or render its captured fields, no live rendering
   pipeline required.
+
+---
+
+## Flowable
+
+A `member` macro that writes a memberwise `init` for the type it's attached to, **at
+the type's own access level**. It fills the initializers Swift won't synthesize: the
+`public init` a public struct needs, and *any* init for a `class` or `actor` —
+including an `@Observable final class`. Alongside the init, it also declares two
+typealias/accessor pairs — an unlabeled `InFlowSplat` with a `makeFlow(_:)`
+factory building `Self` back *from* one, and a labeled `InFlow` with an
+`inFlow` computed property reading the current instance's data back *out* —
+plus a wider `OutFlow`/`outFlow` pair mixing `InFlow`'s
+fields with a view's own externally-relevant private state. See
+[below](#the-inflowsplat-typealias), [below that](#the-makeflow_-factory),
+[below that](#the-inflow-typealias), [below that](#the-inflow-property), and
+[below that](#the-outflow-typealias-and-outflow-property).
+
+See the [diagram below](#how-inflow-and-outflow-relate) for how the whole shape
+fits together.
+
+```swift
+@Flowable
+public struct User {
+    public let id: UUID
+    public var isActive = false
+}
+// generates:
+// public init(id: UUID, isActive: Bool = false) {
+//     self.id = id
+//     self.isActive = isActive
+// }
+// public typealias InFlowSplat = (UUID, Bool)
+// public static func makeFlow(_ flow: InFlowSplat) -> Self {
+//     Self(id: flow.0, isActive: flow.1)
+// }
+```
+
+Works the same on a `class` or `actor`:
+
+```swift
+@Flowable
+@Observable final class Counter {
+    var count = 0
+}
+// init(count: Int = 0) { self.count = count }
+// typealias InFlowSplat = Int          // one property → bare type, not a 1-tuple
+// static func makeFlow(_ flow: InFlowSplat) -> Self { Self(count: flow) }
+```
+
+### What it does
+
+- **Mirrors the access level** — `public struct` → `public init`, an internal type →
+  unmodified `init`, and so on.
+- **`var` defaults carry through** — `var x: Int = 0` → parameter `x: Int = 0`. An
+  optional `var` is implicitly nil-initialized, so `var name: String?` → parameter
+  `name: String? = nil`, just like Swift's own memberwise init.
+- **Function-typed properties get `@escaping`**, attributed types included
+  (`@MainActor () -> Void`, `@Sendable (Int) -> Void`). Optional closures
+  (`(() -> Void)?`) pass through as-is — they're already escaping.
+- **Skips** computed properties and `static`/`class` members; keeps stored properties
+  that have only `willSet`/`didSet` observers.
+
+### SwiftUI
+
+- **`private` properties are excluded** from the init. Since SwiftUI's view-owned
+  wrappers — `@State`, `@Environment`, `@StateObject`, … — are always `private`, they
+  fall out automatically. No configuration, no per-wrapper list.
+- **`@Binding`** is threaded in as a projected `Binding<T>` parameter, assigned to the
+  backing storage (`self._x = x`).
+- **`@ViewBuilder`** carries onto the parameter so callers get trailing-closure syntax.
+  A stored closure (`let content: () -> Content`) becomes `@ViewBuilder content: @escaping () -> Content`;
+  a stored value (`let footer: Content`) becomes `@ViewBuilder footer: () -> Content` and the
+  init calls it (`self.footer = footer()`).
+
+```swift
+@Flowable
+struct Card<Content: View>: View {
+    @Environment(\.colorScheme) private var scheme   // excluded (private)
+    @State private var expanded = false              // excluded (private)
+    @Binding var isOn: Bool                           // init param: Binding<Bool>
+    let title: String
+    @ViewBuilder let footer: Content                  // init param: @ViewBuilder () -> Content
+
+    var body: some View { /* ... */ }
+}
+// init(isOn: Binding<Bool>, title: String, @ViewBuilder footer: () -> Content)
+```
+
+### Design: for pure data
+
+- **No real type inference — except three unambiguous literal kinds.** It's
+  syntax-only: a property needing an explicit type must have one, *unless* its
+  inline default is a bare `Bool`/`Int`/`String` literal (`var isOn = false`,
+  `var count = 0`, `var label = "x"`) — those three are inferred straight off
+  the literal's own syntax, no type checker involved. Anything else uninferable
+  (a call, an identifier, `nil`, a collection literal, …) still needs an
+  explicit annotation.
+- **No stored `let` constants.** A constant isn't per-instance data — use `static let`.
+  The macro doesn't special-case an instance `let`: `let version = 1` generates
+  `self.version = version` (a `let`-reassignment error) — the type gets inferred as
+  `Int` just fine (see above), it just doesn't help; either way it won't compile.
+- **`private` means private, and it must mean something.** If a value is meant to be
+  passed in, it isn't private — `@Binding`/`@Bindable`/`@ViewBuilder` declared private
+  are unreachable by any caller and are rejected outright. And a private property with
+  no recognized wrapper at all (`private var cache = 0`) isn't quietly excluded
+  anymore either — it's neither a source of truth nor something a caller supplies, so
+  pure data flow has no room for it: give it a real wrapper, or make it non-private.
+
+### The InFlowSplat typealias
+
+Alongside the init, `@Flowable` declares `InFlowSplat` — the same properties
+bundled into a tuple type, for API uniformity/discoverability (e.g. `Foo.InFlowSplat`
+is always there to reference generically) rather than as a second constructor;
+nothing in the init routes through it.
+
+```swift
+@Flowable
+public struct User {
+    public let id: UUID
+    public let name: String
+}
+// public typealias InFlowSplat = (UUID, String)
+
+let flow: User.InFlowSplat = (id: someID, name: "Ada")
+```
+
+It's built independently of the init, so it diverges from it in a few ways:
+
+- **Unlabeled** — `(UUID, String)`, not `(id: UUID, name: String)` — deliberately,
+  so any structurally-compatible tuple converts into it, not just one built with
+  these exact field names ("splat" in the name). Verified directly: a tuple
+  *value* already bound with different labels (`let t = (xxx: 1, yyy: 2)`) fails
+  to convert into a *labeled* tuple type of the same shape (`error: cannot
+  convert value of type '(xxx: Int, yyy: Int)' to expected argument type '(x:
+  Int, y: Int)'`), but succeeds once the target is unlabeled — Swift only
+  enforces label agreement between two *labeled* tuple types. A labeled tuple
+  *literal* (`(id: someID, name: "Ada")`, as above) converts into an unlabeled
+  target either way, so you can still write field names for your own
+  readability when constructing the value — only a pre-existing,
+  differently-labeled variable needed the loosening. The real cost: with no
+  labels, the compiler no longer catches two same-typed fields passed in the
+  wrong order.
+- **No per-field defaults.** Tuple element types can't carry `= default` — so an
+  inline `var` default, and an optional `var`'s implicit `nil`, are both dropped,
+  unlike the init right above it.
+- **One property still gets an `InFlowSplat` — just not a tuple.** Swift has no
+  1-tuples — `(Int)` as a type collapses to plain `Int` regardless of labels — so
+  with exactly one participating property, `InFlowSplat` aliases the bare field
+  type directly (`typealias InFlowSplat = Int`).
+- **Zero properties → no typealias at all.** There's nothing to alias, and the init
+  already covers the zero-property case on its own (`init() {}`).
+- **Never `@escaping`**, even on function-typed fields — a closure nested inside a
+  tuple type is already escaping; writing the attribute there is a compile error.
+- **`@ViewBuilder` is ignored entirely.** A stored-value field
+  (`@ViewBuilder let footer: Content`) keeps its own type in the typealias
+  (`Content`, not `() -> Content`) and would be assigned directly if anything
+  consumed it. The init wraps that field in a builder closure specifically to get
+  trailing-closure syntax at the call site; a tuple type has no parameter position
+  for that syntax to attach to, so the wrapping would buy nothing here — and would
+  actively work against the point of `InFlowSplat`, which is data you pass
+  around, store, or diff, not a closure.
+
+### The makeFlow(_:) factory
+
+A `static func makeFlow(_ flow: InFlowSplat) -> Self` that builds an instance from
+an `InFlowSplat` value — declared whenever `InFlowSplat` itself is (same
+collapse/absence rules). It forwards each field directly:
+
+```swift
+let flow: User.InFlowSplat = (id: someID, name: "Ada")
+let user = User.makeFlow(flow)
+
+// Any structurally-compatible tuple works, not just one built with these field
+// names — InFlowSplat is unlabeled:
+let differentlyLabeled = (uuid: someID, label: "Ada")
+let user2 = User.makeFlow(differentlyLabeled)
+```
+
+- **A static function, not a second `init`** — deliberately, so it works the same on
+  a struct, class, or actor. A delegating second `init` (`init(...)`) requires
+  the `convenience` keyword on a class/actor and drags in Swift's
+  designated/convenience init rules; a plain static function returning `Self(...)`
+  sidesteps that entirely.
+- **Direct field forwarding**, not a trick. `Self(x: flow.0, y: flow.1)`
+  — not `[layout].map(Self.init).first!`, which is what you'd reach for by hand to
+  get an *unapplied* `Self.init` reference to accept a tuple positionally (it works,
+  but the macro doesn't need it: it already knows every field's position).
+- **Fields are read positionally** — `flow.0`, `flow.1`, … in field
+  order — since `InFlowSplat` itself is unlabeled.
+- **A `@ViewBuilder`-stored value is the one field that isn't forwarded as-is.**
+  `InFlowSplat` holds it as a plain value, but the primary init still wants a
+  `() -> Content` builder for it — so `makeFlow(_:)` wraps it back into a
+  trivial closure: `footer: { flow.2 }`.
+- **Positional, unlabeled parameter (`_ flow:`)**, not a labeled `make(inFlowSplatted:)`
+  — a deliberate naming choice, so the call site reads `Type.makeFlow(someFlow)`.
+
+### The InFlow typealias
+
+The reverse direction from `InFlowSplat`: the same fields and types, but **labeled**
+— `(id: UUID, name: String)`, not `(UUID, String)`. Same collapse/absence rules
+(one property → bare type, zero → nothing).
+
+```swift
+let named: User.InFlow = (id: someID, name: "Ada")
+```
+
+Labeled specifically for readable field access (`named.id`, not `named.0`) and real
+reflection support — verified directly: `Mirror(reflecting:)` reports each field's
+actual name over a *labeled* tuple, but only positional labels (`.0`, `.1`) over an
+*unlabeled* one, so `InFlowSplat` alone can't back a generic field-name utility.
+`InFlow` can — see [`Reflector`](#reflector) below.
+
+### The inFlow property
+
+A computed property extracting the *current* instance's values into an
+`InFlow` — the reverse of `makeFlow(_:)`. Declared whenever
+`InFlow` is.
+
+```swift
+let user = User(id: someID, name: "Ada")
+user.inFlow   // (id: someID, name: "Ada")
+
+// Round-trips through makeFlow(_:) with no manual conversion — an
+// InFlow value converts into InFlowSplat's unlabeled parameter the same
+// way any differently-labeled tuple does:
+let copy = User.makeFlow(user.inFlow)
+```
+
+- Every field reads straight off `self` (`x`) — except `@Binding`, which
+  reads its projected form (`$x`) to match `InFlowSplat`'s `Binding<T>` field
+  type.
+- **No `@ViewBuilder` wrapping needed here**, unlike `makeFlow(_:)`'s reverse
+  direction: a stored property already holds exactly its own declared type
+  regardless of `@ViewBuilder` — that attribute only ever reshapes the *init
+  parameter*, never the property's own storage.
+
+### The OutFlow typealias and outFlow property
+
+Wider than `InFlow`/`inFlow`: `InFlow`'s fields, **plus every recognized
+private source-of-truth wrapper** — `@Query`/`@State`/`@AppStorage`/
+`@SceneStorage`/`@FocusState`/`@Environment`/`@Namespace` — a view's own
+externally-relevant *capturable* state, alongside its public data, no
+exceptions. There's no such thing as "everything else private" left over —
+a private property either carries one of these recognized wrappers or it's a
+compile error (see [Design: for pure data](#design-for-pure-data)) — see the
+[wrapper mapping reference](#wrapper-mapping-reference) for exactly what each
+recognized kind becomes.
+
+**Why this exists: testability.** Any SwiftUI node that owns or reads live
+state via one of these wrappers introduces a source of truth that only really
+works inside a live render pipeline — view identity, a real `ModelContext`,
+the current environment. That makes it hard to test directly. `OutFlow`
+converts that state into a plain, stateless snapshot: construct the type,
+read `.outFlow`, assert on the fields — no live view hierarchy needed. That's
+the actual point of targeting exactly these wrapper kinds, not "expose
+private state" for its own sake — and it's also why there's no exception for
+`@Environment`/`@Namespace`: a captured value going stale, or `@Environment`'s
+own mocking story, are things to know about the *snapshot*, not reasons to
+leave the field out of it — `@Shell` never excluded either one, and
+`OutFlow` shouldn't either.
+
+```swift
+@Flowable
+struct Card: View {
+    @Query private var items: [Item]
+    @State private var isExpanded = false
+    let title: String
+    // generates:
+    // typealias OutFlow = (items: (wrappedValue: [Item], fetchError: Error?),
+    //                       isExpanded: Binding<Bool>, title: String)
+    // var outFlow: OutFlow {
+    //     (items: #pick(from: _items, \.wrappedValue, \.fetchError),
+    //      isExpanded: $isExpanded, title: title)
+    // }
+}
+```
+
+- **Declaration order, as one interleaved list** — not data-layout fields first
+  with wrapper fields appended after. `items` comes first above because it's
+  declared first.
+- **`@Query` → always `(wrappedValue: WrappedType, fetchError: Error?)`,
+  synthesized via `#pick`** — not a passthrough of the declared type, and no
+  `modelContext` (see the [wrapper mapping reference](#wrapper-mapping-reference)
+  for why). `WrappedType` is the property's own declared type (`[Item]`
+  above); `wrappedValue`/`fetchError` are real members of SwiftData's `Query`
+  wrapper instance, picked verbatim — not synthesized placeholders.
+- **`@State`/`@AppStorage`/`@SceneStorage` → `Binding<WrappedType>`**, read via
+  the *projected* value (`$x`) — not `_x`, which gives the wrapper instance
+  itself (`State<T>`, not `Binding<T>`; verified directly).
+- **Every recognized wrapper needs an explicit type even though it's
+  private** — every other private property is exempt from that rule, but
+  `OutFlow` reads the type to build its field. `@Namespace` is the one
+  exception: its wrapped type is always `Namespace.ID`, so there's nothing to
+  annotate.
+- **`@State`'s `Binding` doesn't write through outside a live SwiftUI view
+  render** — verified directly: construct a `@Flowable` type in plain code
+  (never installed into a real view hierarchy) and mutate
+  `outFlow.someStateField.wrappedValue` — it silently no-ops instead of
+  persisting. That's `@State`'s own behavior, not a bug here; a genuine
+  caller-supplied `@Binding` field, by contrast, really does write through.
+- **On a `View`-conforming type, reading `outFlow` needs `@MainActor`** — `View`
+  conformance implicitly infers `@MainActor` isolation for the whole type, so
+  touching its members from a nonisolated context (a plain function, a
+  non-`@MainActor` test) crosses that isolation boundary at runtime and can trap
+  under Swift 6 strict concurrency. A plain top-level script doesn't hit this —
+  top-level code already runs on the main actor.
+
+### Testing a @Flowable type's state
+
+`OutFlow` in practice: construct the type directly, no `ModelContainer`, no
+`WindowGroup`, no live rendering — just read `.outFlow` and assert:
+
+```swift
+@MainActor
+@Suite struct CardTests {
+    @Test func startsCollapsed() {
+        let card = Card(title: "Settings")  // items/isExpanded are private, excluded from init
+        #expect(card.outFlow.isExpanded.wrappedValue == false)
+        #expect(card.outFlow.title == "Settings")
+    }
+}
+```
+
+`@MainActor` on the suite is required, not stylistic, whenever the type
+conforms to `View` — see the bullet above. See
+`Tests/ValueFlowTests/OutFlowTests.swift` for the real version of this pattern,
+including the one genuine caveat: a `@State`-derived binding read through
+`outFlow` doesn't write back outside a live view (see two bullets up) — reading
+its *value* for assertions works fine, mutating it in a test doesn't stick.
+
+An earlier revision also had an `allFieldNames` static var here, unconditionally
+listing *every* stored property's name with no filtering — including plain
+private fields with no recognized wrapper (`private var cache = 0`, legal at
+the time), which never appeared in `InFlowSplat`/`InFlow`/`OutFlow` either. It
+was removed once it became clear [`Reflector`](#reflector) already covers the
+same need for any *specific* generated tuple
+(`Reflector.fieldNames(of: SomeType.OutFlow.self)`, say) without a dedicated
+member. The gap that removal opened — a totally-private, non-wrapper field has
+no tuple anywhere to reflect over — is moot now anyway: that kind of field is a
+compile error (see [Design: for pure data](#design-for-pure-data)), not a
+silently-excluded one.
+
+### How InFlow and OutFlow relate
+
+```mermaid
+flowchart LR
+    subgraph in["in — construction"]
+        IFS["InFlowSplat<br/>(unlabeled tuple)"]
+    end
+    subgraph out["out — reading"]
+        IF["InFlow<br/>(labeled tuple)"]
+        OF["OutFlow<br/>(labeled tuple, wider)"]
+    end
+    IFS -- "makeFlow(_:)" --> T((Self))
+    T -- "inFlow" --> IF
+    T -- "outFlow" --> OF
+    IF -. "converts into<br/>(unlabeled accepts any label)" .-> IFS
+```
+
+- **`InFlowSplat`/`makeFlow(_:)`** — data flowing *in*, to build a `Self`.
+- **`InFlow`/`inFlow`** — the same fields flowing back *out*, labeled for
+  reading — and, since it's structurally the same shape as `InFlowSplat`
+  minus labels, it converts right back into `makeFlow(_:)`'s parameter with no
+  manual conversion.
+- **`OutFlow`/`outFlow`** — a wider *out*, adding the view's own
+  externally-relevant *capturable* private state — every recognized
+  source-of-truth wrapper (`@Query`/`@State`/`@AppStorage`/`@SceneStorage`/
+  `@FocusState`/`@Environment`/`@Namespace`, no exceptions; see its own
+  section above) — alongside the same public fields `InFlow` has. There's no
+  `OutFlow`-shaped *in* direction — nothing constructs a `Self` from private
+  view state, so this side of the diagram is deliberately one-way.
+
+**Honest caveat on `InFlow`/`inFlow` specifically:** it's declared mainly
+*because the properties are already collected* for the init and `InFlowSplat`
+right next to it — free API symmetry, and real `Mirror` support (see
+[Reflector](#reflector)) — not because real code has actually needed a
+labeled, readable *out* tuple yet. `OutFlow` is the member with a proven
+reason to exist (testability, demonstrated below); `InFlow` is closer to "it
+costs nothing extra to generate, so it's here if you want it." The diagram
+below makes that distinction explicit.
+
+**Why tuples, not a dedicated generated struct per type:** a tuple is a
+*structural* type — two tuples with the same element types match regardless of
+where they came from, with no shared nominal declaration needed. That's
+exactly what a data-flow shape wants: `InFlow` and `InFlowSplat` need to
+convert into each other, and any external, differently-labeled tuple needs to
+splat into `makeFlow(_:)`, without this package generating (and you naming) a
+bespoke struct type for every field combination across every `@Flowable`
+type. A nominal type would need its own declaration, its own name, and
+explicit conversion code between every pair that should interoperate — an
+independent named type *per shape*, i.e. type explosion. Tuples sidestep all
+of it: the shape itself *is* the type.
+
+### Why each member exists — structure vs. motivation
+
+The diagram above shows how the pieces convert into each other; it doesn't
+show *why* each one is there. They don't all have the same reason:
+
+```mermaid
+flowchart TD
+    props(["stored properties<br/>collected once"])
+    props --> init["init<br/>the actual reason @Flowable exists —<br/>Swift won't synthesize a public one"]
+    props --> flow["InFlowSplat / makeFlow(_:)<br/>InFlow / inFlow<br/>free once properties are collected —<br/>symmetry and Mirror support,<br/>not proven demand yet"]
+    props --> out["OutFlow / outFlow<br/>earns its keep: construct directly,<br/>assert on private state, no live view"]
+    out --> node["Core<br/>same field set, plus @Environment —<br/>a real type: View / ViewModifier,<br/>Equatable, Codable, ..."]
+```
+
+- **`init`** — not optional, not speculative: it's the specific gap `@Flowable`
+  fills (Swift only synthesizes an *internal* memberwise init, never a public
+  one).
+- **`InFlowSplat`/`makeFlow(_:)`/`InFlow`/`inFlow`** — a byproduct of already
+  having collected the properties for the init. Cheap to generate, genuinely
+  useful *if* you need splat-construction or `Mirror`-based field names — this
+  package's own Examples/tests do exercise them (`Point.makeFlow(keke)`,
+  `Reflector.fieldNames(of: Point.InFlow.self)`), but only to demonstrate they
+  work, not because another feature in this package needed them to. Unlike
+  everything below, nothing else here depends on `InFlow` existing.
+- **`OutFlow`/`outFlow`** — the one with a demonstrated reason: testability
+  without a live view (see [Testing a @Flowable type's
+  state](#testing-a-flowable-types-state) and
+  `Tests/ValueFlowTests/OutFlowTests.swift`).
+- **`Core`** — builds on `OutFlow`'s same motivation, one step
+  further: a real type where `OutFlow`'s tuple structurally can't follow (real
+  `View`/`ViewModifier` conformance, `Equatable`/`Codable`, generic code
+  needing a shared protocol).
 
 ---
 
