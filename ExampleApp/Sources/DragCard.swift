@@ -1,20 +1,12 @@
 import SwiftUI
 import ValueFlow
 
-@main
-struct GestureStateExampleApp: App {
-    var body: some Scene {
-        WindowGroup {
-            DragCard()
-        }
-    }
-}
-
-// The live-drag verification target: @GestureState declared on the host,
+// The live-drag verification view: @GestureState declared on the host,
 // mirrored by @Shell onto Core as a real `@GestureState var`, gesture wired in
 // Core's hand-written body. A drag must stream nonzero offsets (maxDistance
 // grows — also live-verifying @State→@Binding write-through from Core) and
-// snap back to zero when it ends (GestureState's own reset).
+// snap back to zero when it ends (GestureState's own reset). See
+// UITests/DragCardUITests.swift.
 @Flowable
 @Shell
 struct DragCard: View {
