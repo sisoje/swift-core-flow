@@ -78,6 +78,38 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
+    func testGestureStateRedeclaresAsGestureStateCoreWrappingTheLiveInstance() {
+        // @GestureStateCore wraps the captured live GestureState instance and
+        // forwards wrappedValue/projectedValue to it — so `core.dragOffset`
+        // reads the mid-gesture value and `.updating($dragOffset)` in Core's
+        // body wires the real gesture, byte-identical to the live property.
+        assertMacroExpansion(
+            """
+            @Shell
+            struct Draggable {
+                @GestureState private var dragOffset: CGSize = .zero
+                let title: String
+            }
+            """,
+            expandedSource: """
+                struct Draggable {
+                    @GestureState private var dragOffset: CGSize = .zero
+                    let title: String
+
+                    struct Core {
+                        @GestureStateCore var dragOffset: CGSize
+                        let title: String
+                    }
+
+                    var core: Core {
+                        Core(dragOffset: GestureStateCore(_dragOffset), title: title)
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
     func testSceneStorageFoldsIntoTheSameBindingSubstitutionAsAppStorage() {
         // @SceneStorage shares @State/@AppStorage's exact shape (settable
         // wrappedValue, projectedValue genuinely Binding<T> — verified directly

@@ -146,6 +146,14 @@ func renderShell(
             // wrapper, so `var` is forced, same as every other wrapper here.
             return "@QueryCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
+        if p.isGestureState {
+            // @GestureStateCore — same drop-in move, wrapping the captured live
+            // GestureState instance: `core.x` reads the mid-gesture value,
+            // `$x` hands back the real GestureState<T> that `.updating(_:)`
+            // takes, so gesture wiring in Core's body is byte-identical to the
+            // live property's. Mockable by seeding the wrapped instance.
+            return "@GestureStateCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
+        }
         // Everything else reuses outFlowFieldType — it already reduces to the
         // property's own bare declared type once Binding/Query are excluded —
         // and carries its original wrapper attribute along, verbatim.

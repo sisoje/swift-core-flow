@@ -56,6 +56,7 @@ public struct User {
 @Flowable
 @Shell
 public struct ProfileCard<Content: View>: View {
+    @GestureState private var dragOffset: CGSize = .zero
     @Namespace private var ns  // no explicit type needed — always Namespace.ID
     @FocusState private var focused: Bool  // no init(wrappedValue:) — no inline default allowed
     @Query(animation: Animation.bouncy) private var items: [Item]
@@ -71,8 +72,16 @@ public struct ProfileCard<Content: View>: View {
 }
 
 extension ProfileCard.Core {
+    // Gesture wiring is byte-identical to what it would be against the live
+    // @GestureState: `dragOffset` reads the mid-gesture value, `$dragOffset`
+    // hands `.updating(_:)` the real GestureState<CGSize>.
     var body: some View {
         Text(colorScheme == .dark ? title.uppercased() : title)
+            .offset(dragOffset)
+            .gesture(
+                DragGesture().updating($dragOffset) { value, state, _ in
+                    state = value.translation
+                })
     }
 }
 
@@ -171,3 +180,8 @@ let profileCardCoreModel = profileCardCore.model  // @Bindable mirrors verbatim
 let profileCardCoreFooter = profileCardCore.footer  // @ViewBuilder stored value → plain let
 let profileCardCoreFocused = profileCardCore.focused  // bare Bool via @FocusState<Bool>.Binding
 _ = Text("search").focused(profileCardCore.$focused)  // real FocusState<Bool>.Binding
+let profileCardCoreDrag = profileCardCore.dragOffset  // bare CGSize via @GestureStateCore
+
+// Mocking a mid-gesture render: seed a GestureState, wrap it, read it back.
+let mockedDrag = GestureStateCore(GestureState(wrappedValue: CGSize(width: 50, height: 7)))
+print("mocked mid-gesture value:", mockedDrag.wrappedValue)

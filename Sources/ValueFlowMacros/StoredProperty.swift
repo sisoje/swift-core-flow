@@ -125,6 +125,20 @@ public struct StoredProperty {
     public var isNamespace: Bool {
         wrapperName == "Namespace"
     }
+
+    /// `@GestureState` — the `OutFlow`/`Core` field is
+    /// `GestureStateCore<WrappedType>`, this package's own drop-in stand-in
+    /// (see `GestureStateCore.swift` in `Sources/ValueFlow`) wrapping the
+    /// captured live wrapper *instance*. Verified directly against the real
+    /// SwiftUI interface: `GestureState<Value>` exposes exactly `wrappedValue`
+    /// (get-only, the mid-gesture rendering input) and `projectedValue`
+    /// (itself — the value `.updating(_:)` takes), so the stand-in forwards
+    /// both and body code moves onto `Core` unchanged. Mockable by seeding:
+    /// `GestureStateCore(GestureState(wrappedValue: mock))` reads back the
+    /// mock outside a live view (verified directly).
+    public var isGestureState: Bool {
+        wrapperName == "GestureState"
+    }
 }
 
 // MARK: - Collection
@@ -219,7 +233,7 @@ public func collectStoredProperties(
             // precedent for.
             let isSourceOfTruth =
                 property.isEnvironment || property.isQuery || property.isBindingBackedStorage
-                || property.isFocusState || property.isNamespace
+                || property.isFocusState || property.isNamespace || property.isGestureState
             if isSourceOfTruth, !property.isPrivate {
                 context.diagnose(
                     Diagnostic(
@@ -310,6 +324,7 @@ public func collectStoredProperties(
             let needsType =
                 !property.isPrivate || property.isEnvironment || property.isQuery
                 || property.isBindingBackedStorage || property.isFocusState
+                || property.isGestureState
             if needsType, property.type == nil {
                 context.diagnose(
                     Diagnostic(
@@ -437,7 +452,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-                "'\(propertyName)' must be private — @State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                "'\(propertyName)' must be private — @State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState are a view's own source of truth, not something a caller supplies (use @Binding for that).",
             id: "sourceOfTruthMustBePrivate"
         )
     }
@@ -447,7 +462,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-                "'\(propertyName)' is private with no property wrapper — @\(macroName) has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace).",
+                "'\(propertyName)' is private with no property wrapper — @\(macroName) has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState).",
             id: "plainPrivatePropertyNotAllowed"
         )
     }

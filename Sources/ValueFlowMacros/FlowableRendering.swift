@@ -255,7 +255,7 @@ func renderInFlowProperty(properties: [StoredProperty], access: String) -> DeclS
 func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
     properties.filter {
         !$0.isPrivate || $0.isQuery || $0.isBindingBackedStorage || $0.isFocusState
-            || $0.isEnvironment || $0.isNamespace
+            || $0.isEnvironment || $0.isNamespace || $0.isGestureState
     }
 }
 
@@ -276,6 +276,12 @@ func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
 ///   synthesized a bare `(wrappedValue:, fetchError:)` tuple via `#pick`
 ///   instead — replaced by the real wrapper so `Core`'s field reads the
 ///   fetched value directly (`core.items`, not `.items.wrappedValue`).
+/// - **`@GestureState`** (`isGestureState`) → `GestureStateCore<WrappedType>` —
+///   the same drop-in move (see `GestureStateCore.swift`), wrapping the
+///   captured live wrapper *instance* and forwarding its exact surface
+///   (`wrappedValue` get-only + `projectedValue`, itself — verified directly
+///   against the SwiftUI interface), so `.updating($x)` in `Core`'s body wires
+///   the real gesture and a seeded instance mocks any mid-gesture value.
 /// - **`@State`/`@AppStorage`/`@SceneStorage`** (`isBindingBackedStorage`) →
 ///   `Binding<T>`, since these are the view's own read-*and-write*-able
 ///   storage from the outside — `$x` already gives the real thing, since
@@ -301,6 +307,9 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
     }
     if p.isQuery {
         return "QueryCore<\(p.type?.trimmedDescription ?? "")>"
+    }
+    if p.isGestureState {
+        return "GestureStateCore<\(p.type?.trimmedDescription ?? "")>"
     }
     return baseTypeText(p, wrapViewBuilder: false)
 }
@@ -328,6 +337,9 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
 ///   `modelContext` outside a live container works — verified directly, no
 ///   crash — so capturing it eagerly here is safe even for snapshots built in
 ///   plain code.
+/// - **`@GestureState`** reads `GestureStateCore(_x)` — the whole live wrapper
+///   instance, captured as-is; `GestureStateCore` forwards its
+///   `wrappedValue`/`projectedValue` (see `outFlowFieldType` above).
 func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
     if p.isBindingBackedStorage || p.isFocusState {
         return "$\(p.name)"
@@ -335,6 +347,9 @@ func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
     if p.isQuery {
         return
             "QueryCore(wrappedValue: _\(p.name).wrappedValue, fetchError: _\(p.name).fetchError, modelContext: _\(p.name).modelContext)"
+    }
+    if p.isGestureState {
+        return "GestureStateCore(_\(p.name))"
     }
     return fieldReadExpression(p)
 }

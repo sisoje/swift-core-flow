@@ -90,6 +90,7 @@ diagnostic, not just convention.
 | `@Environment` | `let` | `x` |
 | `@Namespace` | `let` | `x` |
 | `@Query` | `@QueryCore` | `QueryCore(_x)` |
+| `@GestureState` | `@GestureStateCore` | `GestureStateCore(_x)` |
 | `@State` | `@Binding` | `$x` |
 | `@AppStorage` | `@Binding` | `$x` |
 | `@SceneStorage` | `@Binding` | `$x` |
@@ -104,7 +105,7 @@ diagnostic, not just convention.
 > built for plain, `Equatable`-friendly data and SwiftUI's own native property
 > wrappers, not `ObservableObject`/MVVM-style state containers.
 
-**Four things worth spelling out beyond the table above — the last one is about
+**A few things worth spelling out beyond the table above — the last one is about
 `@ViewBuilder`, which isn't a row in it at all (see why above):**
 
 - **`@Binding` reads `$x`, not `_x`.** Verified: `Binding`'s own
@@ -133,6 +134,15 @@ diagnostic, not just convention.
   the live wrapper — body code moves onto `Core` unchanged. Capturing
   `modelContext` outside a live container is safe (verified directly, no
   crash).
+- **`@GestureStateCore` is the same drop-in move for `@GestureState`,
+  wrapping the captured live instance whole.** Its surface is exactly
+  `wrappedValue` (get-only) + `projectedValue` (itself, what `.updating(_:)`
+  takes) — verified directly against the SwiftUI interface — and both are
+  forwarded, so `.updating($dragOffset)` in `Core`'s body is byte-identical
+  to the live property's wiring. Mockable by seeding:
+  `GestureStateCore(GestureState(wrappedValue: mock))` reads back the mock
+  outside a live view (verified directly), so a test/preview renders `Core`
+  as if mid-gesture.
 - **`@ViewBuilder`'s two stored forms get opposite treatment, on purpose.** A
   stored *closure* (`let content: () -> Content`) already has a closure-typed
   field, so mirroring `@ViewBuilder` is pure upside — real builder syntax at
@@ -1199,7 +1209,7 @@ One target pair for every macro — not one pair per macro:
 | Target | Kind | Contents |
 |---|---|---|
 | `ValueFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `InFlowSplat`/`InFlow`, and `OutFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `ValueFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift` — plus two small non-macro additions: `Reflector.swift` and `QueryCore.swift` |
+| `ValueFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift` — plus three small non-macro additions: `Reflector.swift`, `QueryCore.swift`, and `GestureStateCore.swift` |
 | `ValueFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites — both test frameworks coexist fine in one target |
 | `Examples` | executable | one playground exercising every macro in the package, plus Reflector |
 

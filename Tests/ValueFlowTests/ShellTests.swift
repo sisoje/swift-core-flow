@@ -18,6 +18,7 @@ struct StatefulCard: View {
     @State private var isExpanded: Bool = false
     @SceneStorage("isPinned") private var isPinned: Bool = false
     @FocusState private var isFocused: Bool
+    @GestureState private var dragOffset: CGSize = .zero
     @Binding var isOn: Bool
     let title: String
     var subtitle: String?
@@ -147,5 +148,26 @@ extension StatefulCard.Core {
         let snap = card.core
         let ns: Namespace.ID = snap.ns
         #expect(ns == ns)
+    }
+
+    @Test func statelessGestureStateIsMockableViaASeededInstance() {
+        // @GestureStateCore wraps the live GestureState instance and forwards
+        // its exact surface (wrappedValue + projectedValue — verified directly
+        // against the SwiftUI interface, nothing else exists). Outside a live
+        // view a GestureState reads back its seed (verified directly), so a
+        // test/preview can render Core as if mid-gesture by seeding one.
+        let isOnBinding = Binding<Bool>(get: { true }, set: { _ in })
+        let card = StatefulCard(isOn: isOnBinding, title: "x")
+
+        // Captured off the host: reads the host's (at-reset) value.
+        #expect(card.core.dragOffset == .zero)
+
+        // Mocked mid-gesture: seed the wrapped instance directly.
+        let mocked = GestureStateCore(GestureState(wrappedValue: CGSize(width: 50, height: 7)))
+        #expect(mocked.wrappedValue == CGSize(width: 50, height: 7))
+
+        // $x hands back the real GestureState<CGSize> that .updating(_:) takes.
+        let projected: GestureState<CGSize> = mocked.projectedValue
+        #expect(projected.wrappedValue == CGSize(width: 50, height: 7))
     }
 }

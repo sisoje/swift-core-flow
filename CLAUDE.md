@@ -24,7 +24,7 @@ concurrency) throughout.
 | Target | Kind | Contents |
 |---|---|---|
 | `ValueFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `ValueFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`'s drop-in stand-in on `Core`/`OutFlow`, see the `@Flowable` OutFlow notes) |
+| `ValueFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`), plus three small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below), and `QueryCore.swift`/`GestureStateCore.swift` (`@Query`/`@GestureState`'s drop-in stand-ins on `Core`/`OutFlow`, see the `@Flowable` OutFlow notes) |
 | `ValueFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites |
 | `Examples` | executable | combined playground for every macro (and Reflector) |
 
@@ -108,7 +108,8 @@ The init:
   recognize" one — these three ARE recognized, just never allowed private.
   Every *other* private property still needs a recognized source-of-truth
   wrapper (`@State`/`@Environment`/`@Query`/`@AppStorage`/`@SceneStorage`/
-  `@FocusState`/`@Namespace`) to be legal at all — that's the pre-existing
+  `@FocusState`/`@Namespace`/`@GestureState`) to be legal at all — that's the
+  pre-existing
   `sourceOfTruthMustBePrivate`/`unsupportedPrivateWrapper` pair, now narrowed
   to fire only once the two checks above have ruled out the caller-supplied and
   no-wrapper cases. `private(set)`/`fileprivate(set)` fall into these same
@@ -289,7 +290,7 @@ the two was itself the defect, not a deliberate design choice worth keeping.
   first with wrapper fields appended after. `outFlowProperties` filters
   `properties` (already declaration-ordered) in place, so a `@Query` field declared
   before a plain `public let` one comes first in `OutFlow` too.
-- **Three type mappings, all in `outFlowFieldType`**:
+- **The type mappings, all in `outFlowFieldType`**:
   - `@Query` (`isQuery`) → **always** `QueryCore<WrappedType>` — this
     package's own drop-in stand-in for the live wrapper
     (`Sources/ValueFlow/QueryCore.swift`, a plain non-macro `@propertyWrapper`
@@ -311,6 +312,20 @@ the two was itself the defect, not a deliberate design choice worth keeping.
     would make Swift's synthesized memberwise init take the bare value and
     drop `fetchError`/`modelContext`; with all three required it takes the
     wrapper type itself, the same mechanism `@Binding` fields rely on.
+  - `@GestureState` (`isGestureState`) → `GestureStateCore<WrappedType>` —
+    the same drop-in move (`Sources/ValueFlow/GestureStateCore.swift`),
+    wrapping the captured live wrapper *instance* whole
+    (`GestureStateCore(_x)`) and forwarding its exact surface — verified
+    directly against the SwiftUI interface: `GestureState<Value>` exposes
+    exactly `wrappedValue` (get-only, the mid-gesture rendering input) and
+    `projectedValue` (itself — the value `.updating(_:)` takes), nothing
+    else. So `core.x` reads the in-flight value and `.updating($x)` in
+    `Core`'s body wires the real gesture, byte-identical to the live
+    property's wiring. Mockable by seeding:
+    `GestureStateCore(GestureState(wrappedValue: mock))` reads back the mock
+    outside a live view — verified directly (a never-installed
+    `GestureState` returns its seed) — so a test/preview renders `Core` as
+    if mid-gesture.
   - `@State`/`@AppStorage`/`@SceneStorage` (`isBindingBackedStorage`) →
     `Binding<WrappedType>`, since these are the view's own externally
     read-*and-write*-able storage — all three wrappers' own `projectedValue`
@@ -402,7 +417,7 @@ calls `outFlowProperties` directly rather than duplicating the filter (see
 `FlowableRendering.swift`): every non-private participating property, plus
 every recognized private source-of-truth wrapper —
 `@Environment`/`@Query`/`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState`/
-`@Namespace` — each captured once as a plain value.
+`@GestureState`/`@Namespace` — each captured once as a plain value.
 
 - **Why a second, nominal member alongside `OutFlow`'s tuple at all**: tuples
   can't conform to protocols — verified directly, `type '(x: Int, y: String)'
@@ -438,7 +453,15 @@ every recognized private source-of-truth wrapper —
   substituted attribute — or a plain `let` where no substitution exists.**
   `@Query` → `@QueryCore var name: T`, this package's own drop-in stand-in
   (see the `OutFlow` section above — same wrapper, same capture, `core.name`
-  reads the fetched value directly). `@State`/`@AppStorage`/`@SceneStorage` →
+  reads the fetched value directly). `@GestureState` → `@GestureStateCore var
+  name: T`, the same drop-in move wrapping the captured live instance whole:
+  `core.name` reads the mid-gesture value, `$name` hands `.updating(_:)` the
+  real `GestureState<T>` (its `projectedValue` is itself — verified directly),
+  so gesture wiring in `Core`'s body is byte-identical to the live property's,
+  and a seeded instance (`GestureStateCore(GestureState(wrappedValue: mock))`)
+  mocks any mid-gesture value in a test/preview (a seeded `GestureState` reads
+  back its seed outside a live view — verified directly).
+  `@State`/`@AppStorage`/`@SceneStorage` →
   `@Binding var name: T` (substituted since their storage
   can't be redeclared as itself on a plain struct — all three share this one
   case since all three share the same shape, verified directly against the
@@ -467,13 +490,13 @@ every recognized private source-of-truth wrapper —
   unlike the `@Binding`-substituted wrappers or `@FocusState` it has **no
   `projectedValue` at all** to fall back on, so a plain `let` is the only
   option.
-- **`@State`/`@Environment`/`@Query`/`@AppStorage`/`@SceneStorage`/`@FocusState`/
+- **`@State`/`@Environment`/`@Query`/`@AppStorage`/`@SceneStorage`/`@FocusState`/`@GestureState`/
   `@Namespace` must be private — enforced with a diagnostic, not
   accommodated.** `sourceOfTruthMustBePrivate` (`StoredProperty.swift`, checked
-  in `collectStoredProperties`) rejects any of these seven declared
+  in `collectStoredProperties`) rejects any of these eight declared
   non-private: they're a view's own source of truth, never something a caller
   supplies (`@Binding` is for that). Every renderer downstream can assume all
-  seven are always private with no "what if it's also public" case to reason
+  eight are always private with no "what if it's also public" case to reason
   about or test — an earlier revision's field-set filters (`!$0.isPrivate ||
   $0.isQuery || …`) technically already handled a hypothetical non-private
   case correctly, but there was no reason to leave that door open when it's
