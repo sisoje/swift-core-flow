@@ -9,7 +9,6 @@ import ValueFlow
 // our read (system → Core), and the toggle button — executed from Core's own
 // body — writes back out to the host's real storage (Core → system). See
 // UITests/FocusFieldUITests.swift.
-@Flowable
 @Shell
 struct FocusField: View {
     @FocusState private var isFocused: Bool

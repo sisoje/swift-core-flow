@@ -16,7 +16,6 @@ enum ResetProbe {
 // `@GestureState var` onto Core, silently swapping this closure for the
 // default reset (the test was red); wrapping the host's live instance whole
 // carries the closure inside it, and the test went green.
-@Flowable
 @Shell
 struct TrickyDragCard: View {
     @GestureState(reset: { _, _ in ResetProbe.count += 1 })

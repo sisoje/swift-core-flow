@@ -7,7 +7,6 @@ import ValueFlow
 // nonzero offsets (maxDistance grows — also live-verifying @State→@Binding
 // write-through from Core) and snap back to zero when it ends (GestureState's
 // own reset). See UITests/DragCardUITests.swift.
-@Flowable
 @Shell
 struct DragCard: View {
     @GestureState private var dragOffset: CGSize = .zero
