@@ -37,3 +37,20 @@ extension DragCard.Core {
         }
     }
 }
+
+// Previewing the Core directly, frozen mid-drag: the bare CGSize seeds the
+// mirrored @GestureState, the .constant feeds the @Binding substituted for
+// the host's @State. A PreviewProvider struct, not #Preview, on purpose:
+// Swift forbids one macro expansion (#Preview) from resolving names generated
+// by another (@Shell's `Core` and its macro-derived memberwise init) —
+// verified directly, spelled inline, through a typealias, and via a helper
+// func (only the func worked). PreviewProvider is pure ordinary code — no
+// macro anywhere — so it constructs the Core inline with no bridge at all.
+struct DragCardCoreMidDrag: PreviewProvider {
+    static var previews: some View {
+        DragCard.Core(
+            dragOffset: CGSize(width: 60, height: 40),
+            maxDistance: .constant(123)
+        )
+    }
+}
