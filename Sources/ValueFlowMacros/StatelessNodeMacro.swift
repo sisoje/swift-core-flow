@@ -38,8 +38,8 @@ func detectHostKind(of declaration: some DeclGroupSyntax) -> StatelessNodeHostKi
 /// Adds a nested `StatelessNode` struct plus a `statelessNode` computed property to the
 /// struct, class, or actor it's attached to — the same field set `@DataLayout`'s
 /// own `OutFlow`/`outFlow` capture (every non-private participating property,
-/// plus private `@Environment`/`@Query`/`@State`/`@AppStorage` state), as a real
-/// nominal type instead of a tuple.
+/// plus private `@Environment`/`@Query`/`@State`/`@AppStorage`/`@FocusState`
+/// state), as a real nominal type instead of a tuple.
 ///
 /// A separate macro from `@DataLayout` — doesn't replace `OutFlow`/`outFlow`, and
 /// works with or without `@DataLayout` also attached, since it collects the

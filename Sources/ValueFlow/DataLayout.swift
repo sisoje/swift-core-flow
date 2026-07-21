@@ -129,9 +129,9 @@
 ///
 /// ## `OutFlow` and the `outFlow` property
 /// A wider version of `InFlow`/`inFlow`: every non-private participating property,
-/// **plus** private `@Query`/`@State`/`@AppStorage` properties — a view's own
-/// externally-relevant *capturable* state, alongside its public data — in
-/// declaration order (not data-layout fields first, wrapper fields appended
+/// **plus** private `@Query`/`@State`/`@AppStorage`/`@FocusState` properties — a
+/// view's own externally-relevant *capturable* state, alongside its public data —
+/// in declaration order (not data-layout fields first, wrapper fields appended
 /// after). Everything else private (a plain `private var cache = 0`,
 /// `@StateObject`, …) stays excluded.
 ///
@@ -160,7 +160,14 @@
 ///   value** (`self.$x`, not `self._x` — verified directly that `_x` gives the
 ///   wrapper instance itself, `State<T>`, not `Binding<T>`) — the view's own
 ///   externally read-*and-write*-able storage.
-/// - **`@Environment` is deliberately excluded**, unlike the other two — not
+/// - **`@FocusState` → `FocusState<WrappedType>.Binding`, read the same way**
+///   (`self.$x`) — **not** `Binding<WrappedType>`, despite the identical read
+///   expression. Verified directly against the real SwiftUI interface:
+///   `FocusState<T>.Binding` (its own `projectedValue` type) exposes only
+///   `wrappedValue`, no public initializer at all and no conversion to
+///   `Binding<T>` — so it can't share the row above, even though both are
+///   reached via `self.$x`.
+/// - **`@Environment` is deliberately excluded**, unlike the other three — not
 ///   because it's technically uncapturable (a plain, unattributed value works
 ///   fine; `@StatelessNode`, a separate macro, captures it exactly that way), but
 ///   because a captured snapshot goes stale the moment the real environment
@@ -168,7 +175,7 @@
 ///   where the type is constructed/hosted) already covers testing it without
 ///   this package's help. `@StatelessNode` makes the opposite call and captures it
 ///   anyway, for the same reason it treats every field uniformly.
-/// - **These three wrapper kinds need an explicit type even though they're
+/// - **These four wrapper kinds need an explicit type even though they're
 ///   private** — every other private property is exempt from the "needs a type"
 ///   rule, but `OutFlow` reads their type to build its field, so the exemption
 ///   doesn't extend to them. (`@Environment` also needs an explicit type, for

@@ -641,6 +641,53 @@ final class DataLayoutTests: XCTestCase {
         )
     }
 
+    func testOutFlowReadsFocusStateAsItsOwnProjectedBindingTypeNotBindingT() {
+        // @FocusState reads via the same `self.$x` shortcut @State/@AppStorage
+        // use, but resolves to a genuinely different type: FocusState<T>.Binding,
+        // not Binding<T> — verified directly against the real SwiftUI interface
+        // that FocusState<T>.Binding has no public conversion to Binding<T> (and
+        // no public initializer at all), so it's kept as its own distinct
+        // mapping rather than folded into @State/@AppStorage's.
+        assertMacroExpansion(
+            """
+            @DataLayout
+            public struct SearchField {
+                @FocusState private var isFocused: Bool
+                public let title: String
+            }
+            """,
+            expandedSource: """
+                public struct SearchField {
+                    @FocusState private var isFocused: Bool
+                    public let title: String
+
+                    public init(title: String) {
+                        self.title = title
+                    }
+
+                    public typealias InFlowSplat = String
+
+                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
+                        Self(title: flow)
+                    }
+
+                    public typealias InFlow = String
+
+                    public var inFlow: InFlow {
+                        self.title
+                    }
+
+                    public typealias OutFlow = (isFocused: FocusState<Bool>.Binding, title: String)
+
+                    public var outFlow: OutFlow {
+                        (isFocused: self.$isFocused, title: self.title)
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
     func testDiagnosesNotAStruct() {
         assertMacroExpansion(
             """
@@ -691,10 +738,11 @@ final class DataLayoutTests: XCTestCase {
     }
 
     func testDiagnosesNonPrivateSourceOfTruthWrappers() {
-        // @State/@Environment/@Query/@AppStorage are a view's own source of
-        // truth, never something a caller supplies — enforced here rather than
-        // accommodated: every downstream renderer can assume these four are
-        // always private, with no "what if it's also public" case to handle.
+        // @State/@Environment/@Query/@AppStorage/@FocusState are a view's own
+        // source of truth, never something a caller supplies — enforced here
+        // rather than accommodated: every downstream renderer can assume these
+        // five are always private, with no "what if it's also public" case to
+        // handle.
         assertMacroExpansion(
             """
             @DataLayout
@@ -710,7 +758,7 @@ final class DataLayoutTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'isExpanded' must be private — @State/@Environment/@Query/@AppStorage are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                        "'isExpanded' must be private — @State/@Environment/@Query/@AppStorage/@FocusState are a view's own source of truth, not something a caller supplies (use @Binding for that).",
                     line: 3,
                     column: 16
                 )

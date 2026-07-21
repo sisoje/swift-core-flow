@@ -328,6 +328,46 @@ struct Card: View {
   under Swift 6 strict concurrency. A plain top-level script doesn't hit this —
   top-level code already runs on the main actor.
 
+### Wrapper mapping reference
+
+Every private source-of-truth wrapper kind this package recognizes, and exactly
+what it becomes on `OutFlow` and on `@StatelessNode`'s nested struct.
+
+| Wrapper | Must be private? | `OutFlow` field type | `OutFlow` read expression | `StatelessNode` field | `StatelessNode` construction |
+|---|---|---|---|---|---|
+| *(plain, no wrapper)* | no | declared type as-is | `self.x` | same attribute (if any) + declared type, but **`let`**, never mirroring `var` | `self.x` |
+| `@Binding` | no — caller-supplied | `Binding<T>` | `self._x` | `@Binding var x: T` (mirrored verbatim) | `self._x` |
+| `@Environment` | yes | *excluded* (see above) | — | plain `let x: T`, no attribute | `self.x` |
+| `@Query` (SwiftData) | yes | `(result: T, fetchError: Error?, modelContext: ModelContext)` | `(result: self.x, fetchError: self._x.fetchError, modelContext: self._x.modelContext)` | same synthesized tuple, no attribute, `let` | same read expression |
+| `@State` | yes | `Binding<T>` | `self.$x` — its own `projectedValue` genuinely *is* `Binding<T>` | `@Binding var x: T` (substituted attribute) | `self.$x` |
+| `@AppStorage` | yes | `Binding<T>` | `self.$x` — same as `@State` | `@Binding var x: T` (substituted attribute) | `self.$x` |
+| `@FocusState` | yes | `FocusState<T>.Binding` — **not** `Binding<T>` | `self.$x` — same shortcut as `@State`/`@AppStorage`, just resolving to a different concrete type | `@FocusState<T>.Binding var x: T` — redeclaring the *real* wrapper | `self.$x` |
+
+**Why `@FocusState` doesn't collapse into the `@State`/`@AppStorage` row, even
+though all three are "read via `self.$x`."** `@State`/`@AppStorage`'s own
+`projectedValue` genuinely *is* `Binding<T>` — `self.$x` already gives the real
+thing. `@FocusState`'s `projectedValue` is a distinct type, `FocusState<T>.Binding`
+— verified directly against the real SwiftUI interface: it exposes only
+`wrappedValue` (get/`nonmutating set`) and `projectedValue` (itself), **no public
+initializer at all** and no conversion to `Binding<T>`. Two things follow:
+
+- A hand-built `Binding(get: { self.x }, set: { self.x = $0 })` is **not** an
+  acceptable stand-in — it's a different, fabricated type that satisfies neither
+  `.focused(_:)` (which specifically wants `FocusState<T>.Binding`) nor any other
+  API that expects the real wrapper's projection back. It behaves similarly, but
+  it isn't the thing this package would be claiming to hand back.
+- The real `FocusState<T>.Binding` **is itself `@propertyWrapper`-attributed**
+  (verified directly, reading the actual SwiftUI interface:
+  `@frozen @propertyWrapper public struct Binding` nested inside `FocusState`),
+  so it can be redeclared as a genuine property-wrapper attribute on
+  `StatelessNode` — `@FocusState<T>.Binding var x: T` — exactly the same shape
+  `@State`/`@AppStorage` already get with `@Binding var x: T`, just spelling a
+  different wrapper. Verified directly, end to end: this compiles, the
+  synthesized init takes a `FocusState<T>.Binding` parameter, `snap.x` reads the
+  unwrapped `Bool` directly, and `snap.$x` hands back a real
+  `FocusState<T>.Binding` that plugs straight into `.focused(snap.$x)` — full
+  round-trip fidelity, nothing fabricated.
+
 ### Testing a @DataLayout type's state
 
 `OutFlow` in practice: construct the type directly, no `ModelContainer`, no

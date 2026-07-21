@@ -10,6 +10,7 @@ import ValueFlow
 struct Card: View {
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
     @State private var isExpanded: Bool = false
+    @FocusState private var isFocused: Bool
     @Binding var isOn: Bool
     let title: String
 
@@ -37,6 +38,7 @@ struct Card: View {
         // way (see StatelessNodeTests.swift).
         #expect(out.isOn.wrappedValue == true)
         #expect(out.isExpanded.wrappedValue == false)
+        #expect(out.isFocused.wrappedValue == false)
         #expect(out.title == "Settings")
     }
 
@@ -65,5 +67,17 @@ struct Card: View {
 
         card.outFlow.isExpanded.wrappedValue = true
         #expect(card.outFlow.isExpanded.wrappedValue == false)
+    }
+
+    @Test func outFlowsFocusStateBindingDoesNotWriteThroughOutsideALiveView() {
+        // Same caveat as @State's — verified directly for @FocusState too: its
+        // storage only installs once SwiftUI actually renders the view, so a
+        // write to its own FocusState<Bool>.Binding here silently no-ops
+        // instead of persisting.
+        let isOnBinding = Binding<Bool>(get: { true }, set: { _ in })
+        let card = Card(isOn: isOnBinding, title: "x")
+
+        card.outFlow.isFocused.wrappedValue = true
+        #expect(card.outFlow.isFocused.wrappedValue == false)
     }
 }

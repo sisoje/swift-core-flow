@@ -220,9 +220,9 @@ in `DataLayoutRendering.swift`) wider than `InFlow`/`inFlow`, for
 constructor data":
 
 **Why this exists — testability, not just wider read access.** Any SwiftUI node
-that owns or reads live state via `@State`/`@Query`/`@AppStorage` introduces a
-source of truth (SOT) that only works inside a real render pipeline (view
-identity, a live `ModelContext`) — which makes it hard to test directly.
+that owns or reads live state via `@State`/`@Query`/`@AppStorage`/`@FocusState`
+introduces a source of truth (SOT) that only works inside a real render pipeline
+(view identity, a live `ModelContext`) — which makes it hard to test directly.
 `OutFlow` converts that SOT into a plain, stateless snapshot: construct the
 type, read `.outFlow`, assert on the fields — no live view hierarchy required.
 That's the actual motivating idea behind targeting exactly these wrapper kinds,
@@ -233,25 +233,26 @@ constructs a `Card` and reads `.outFlow.isExpanded`/`.isOn` with no live view
 ever installed).
 
 **`@Environment` is deliberately excluded, unlike `@Query`/`@State`/
-`@AppStorage`** — not because it's technically uncapturable (a plain,
-unattributed value works fine, same as any other field; `@StatelessNode`, below,
-captures it exactly that way), but because a captured snapshot goes stale the
-instant the real environment changes, and `@Environment`'s own mocking story
+`@AppStorage`/`@FocusState`** — not because it's technically uncapturable (a
+plain, unattributed value works fine, same as any other field; `@StatelessNode`,
+below, captures it exactly that way), but because a captured snapshot goes stale
+the instant the real environment changes, and `@Environment`'s own mocking story
 (inject a different value where the type is constructed/hosted) already covers
 testing it without this package's help. `@StatelessNode` makes the opposite call
 and captures it anyway, for the same reason it treats every field uniformly.
 
-- **Field set: `InFlow`'s fields, plus private `@Query`/`@State`/`@AppStorage`
-  properties** — `outFlowProperties(_:)` computes this as `properties.filter {
-  !$0.isPrivate || $0.isQuery || $0.isStateOrAppStorage }`. Every other private
-  property (`private var cache = 0`, `@StateObject`, `@Environment`, …) is
-  excluded — `OutFlow` is scoped to exactly `@Query`/`@State`/`@AppStorage`, not
-  "every private property."
+- **Field set: `InFlow`'s fields, plus private
+  `@Query`/`@State`/`@AppStorage`/`@FocusState` properties** —
+  `outFlowProperties(_:)` computes this as `properties.filter { !$0.isPrivate
+  || $0.isQuery || $0.isStateOrAppStorage || $0.isFocusState }`. Every other
+  private property (`private var cache = 0`, `@StateObject`, `@Environment`, …)
+  is excluded — `OutFlow` is scoped to exactly
+  `@Query`/`@State`/`@AppStorage`/`@FocusState`, not "every private property."
 - **Declaration order, preserved as one interleaved list** — not data-layout fields
   first with wrapper fields appended after. `outFlowProperties` filters
   `properties` (already declaration-ordered) in place, so a `@Query` field declared
   before a plain `public let` one comes first in `OutFlow` too.
-- **Two type mappings, both in `outFlowFieldType`**:
+- **Three type mappings, all in `outFlowFieldType`**:
   - `@Query` (`isQuery`) → **always** `(result: WrappedType, fetchError:
     Error?, modelContext: ModelContext)`, synthesized — **not** a passthrough of
     the declared type (two earlier revisions got this wrong: first shipped a bare
@@ -266,27 +267,42 @@ and captures it anyway, for the same reason it treats every field uniformly.
     (any Error)? { get }`, `public var modelContext: ModelContext { get }`,
     both declared on `Query<Element, Result>` itself (the type `self._items` has).
   - `@State`/`@AppStorage` (`isStateOrAppStorage`) → `Binding<WrappedType>`, since
-    these are the view's own externally read-*and-write*-able storage.
+    these are the view's own externally read-*and-write*-able storage — their own
+    `projectedValue` genuinely *is* `Binding<T>`.
+  - `@FocusState` (`isFocusState`) → `FocusState<WrappedType>.Binding`, **not**
+    `Binding<WrappedType>`, even though it's read via the same `self.$x`
+    shortcut as the row above. Verified directly against the real SwiftUI
+    interface: `FocusState<T>.Binding` (its own `projectedValue` type) exposes
+    only `wrappedValue`, no public initializer at all and no conversion to
+    `Binding<T>` — a hand-built `Binding(get:set:)` stand-in was considered and
+    rejected, since it would satisfy neither `.focused(_:)` (which specifically
+    wants `FocusState<T>.Binding`) nor anything else expecting the real
+    projection back.
   - Everything else (non-private fields) uses `baseTypeText` unchanged — the same
     rule `InFlow` already applies.
-- **Matching read-expression mappings, in `outFlowFieldReadExpression`**: `@State`/
-  `@AppStorage` read the *projected* value, `self.$x` — **not** `self._x`, which
-  gives the wrapper instance itself (`State<T>`, not `Binding<T>`; verified
-  directly). `@Query` reads `(result: self.x, fetchError: self._x.fetchError,
-  modelContext: self._x.modelContext)` — `self.x` is the wrapper's `wrappedValue`;
-  `fetchError`/`modelContext` are read off the wrapper instance itself (`self._x`),
-  the same underscore-prefixed access `@Binding` already uses elsewhere in this
-  file — genuinely live values, not placeholders. Every non-private field uses
-  `fieldReadExpression` unchanged (`self.x`, or `self._x` for a genuine
-  `@Binding` field, which really is its own projection).
-- **`@Query`/`@State`/`@AppStorage` need an explicit type even though they're
-  private** — relaxes the general "private properties are exempt from needing a
-  type" exemption specifically for these three, in `collectStoredProperties`
-  (`StoredProperty.swift`): `OutFlow` reads their type to build its field, so the
-  exemption can't extend to them. (`@Environment` also needs an explicit type,
-  for `@StatelessNode`'s sake, even though `OutFlow` itself no longer reads it.) The
-  shared diagnostic message was reworded to say "initializer/stateless snapshot"
-  to cover both reasons a type might be required.
+- **Matching read-expression mappings, in `outFlowFieldReadExpression`**:
+  `@State`/`@AppStorage`/`@FocusState` all read the *projected* value, `self.$x`
+  — **not** `self._x`, which gives the wrapper instance itself (`State<T>`, not
+  `Binding<T>`; verified directly). Same expression for all three; only the
+  resulting *type* differs (see above) — `@FocusState`'s own `projectedValue`
+  happens to be `FocusState<T>.Binding` rather than `Binding<T>`, but it's
+  reached the exact same way. `@Query` reads `(result: self.x, fetchError:
+  self._x.fetchError, modelContext: self._x.modelContext)` — `self.x` is the
+  wrapper's `wrappedValue`; `fetchError`/`modelContext` are read off the wrapper
+  instance itself (`self._x`), the same underscore-prefixed access `@Binding`
+  already uses elsewhere in this file — genuinely live values, not
+  placeholders. Every non-private field uses `fieldReadExpression` unchanged
+  (`self.x`, or `self._x` for a genuine `@Binding` field, which really is its
+  own projection).
+- **`@Query`/`@State`/`@AppStorage`/`@FocusState` need an explicit type even
+  though they're private** — relaxes the general "private properties are
+  exempt from needing a type" exemption specifically for these four, in
+  `collectStoredProperties` (`StoredProperty.swift`): `OutFlow` reads their
+  type to build its field, so the exemption can't extend to them.
+  (`@Environment` also needs an explicit type, for `@StatelessNode`'s sake,
+  even though `OutFlow` itself no longer reads it.) The shared diagnostic
+  message was reworded to say "initializer/stateless snapshot" to cover both
+  reasons a type might be required.
 - **Verified directly that a `@State`-derived `OutFlow` binding doesn't write
   through outside a live SwiftUI view render** — constructing a `@DataLayout` type
   directly in plain code (never installed into a real view hierarchy) and mutating
@@ -294,7 +310,8 @@ and captures it anyway, for the same reason it treats every field uniformly.
   is `@State`'s own behavior (its storage only installs once SwiftUI actually
   renders the view), not a bug in `OutFlow` — a genuine caller-supplied `@Binding`
   field, by contrast, really does write through (it's just a getter/setter pair,
-  not tied to view identity). See `OutFlowTests.swift`.
+  not tied to view identity). `@FocusState` behaves identically here — verified
+  directly, same no-op-outside-a-live-view caveat. See `OutFlowTests.swift`.
 - **`@MainActor` is required on any test suite exercising `outFlow` on a
   `View`-conforming type** — verified directly (a real crash, not a guess): `View`
   conformance implicitly infers `@MainActor` isolation for the whole type, so
@@ -319,8 +336,8 @@ current instance, sharing its constructed-field set with `OutFlow`/`outFlow`
 (which `OutFlow` deliberately leaves out — see above — but `StatelessNode` still
 captures, computed with its own filter, not `outFlowProperties`): every
 non-private participating property, plus private
-`@Environment`/`@Query`/`@State`/`@AppStorage` state, each captured once as a
-plain value.
+`@Environment`/`@Query`/`@State`/`@AppStorage`/`@FocusState` state, each
+captured once as a plain value.
 
 - **Why a second, nominal member alongside `OutFlow`'s tuple at all**: tuples
   can't conform to protocols — verified directly, `type '(x: Int, y: String)'
@@ -353,29 +370,40 @@ plain value.
   conformance, never the concrete `StatelessNode` type, so a `public` `body` can
   freely return an internal concrete value.
 - **Every source-of-truth wrapper becomes a plain, constructed value — never
-  the original attribute, except `@Binding`/`@State`/`@AppStorage`'s
-  substitution.** `@Query` → the synthesized tuple, no attribute. `@State`/
-  `@AppStorage` → `@Binding var name: T` (the one case keeping an attribute,
-  substituted since their storage can't be redeclared as itself on a plain
-  struct). `@Environment` → a plain `let name: T`, no attribute at all — not
-  because the value doesn't change, but because the *attribute* can't be
-  preserved: `@Environment`'s `wrappedValue` has no public setter (verified
-  directly: `error: cannot assign to property: 'colorScheme' is a get-only
-  property`), and the synthesized init always assigns `self.x = x`; a plain,
-  unattributed `let` has no such restriction. Always `let` for `@Environment`,
-  not mirroring the original's `let`/`var` (always `var`, every property
-  wrapper requires it) — the captured copy is a one-time snapshot, immutable by
-  design.
-- **`@State`/`@Environment`/`@Query`/`@AppStorage` must be private — enforced
-  with a diagnostic, not accommodated.** `sourceOfTruthMustBePrivate`
-  (`StoredProperty.swift`, checked in `collectStoredProperties`) rejects any of
-  these four declared non-private: they're a view's own source of truth, never
-  something a caller supplies (`@Binding` is for that). Every renderer
-  downstream can assume all four are always private with no "what if it's also
-  public" case to reason about or test — an earlier revision's field-set
-  filters (`!$0.isPrivate || $0.isQuery || …`) technically already handled a
-  hypothetical non-private case correctly, but there was no reason to leave
-  that door open when it's simply invalid usage.
+  the original attribute, except `@Binding`/`@State`/`@AppStorage`/
+  `@FocusState`'s substitution.** `@Query` → the synthesized tuple, no
+  attribute. `@State`/`@AppStorage` → `@Binding var name: T` (one case keeping
+  an attribute, substituted since their storage can't be redeclared as itself
+  on a plain struct). `@FocusState` → `@FocusState<T>.Binding var name: T` —
+  its own substituted attribute, distinct from `@Binding` above, since
+  `@FocusState`'s own `projectedValue` is `FocusState<T>.Binding`, **not**
+  `Binding<T>` (verified directly against the real SwiftUI interface: it
+  exposes only `wrappedValue` and `projectedValue` — itself — no public
+  initializer at all and no conversion to `Binding<T>`). The real
+  `FocusState<T>.Binding` is itself `@propertyWrapper`-attributed (verified
+  directly), so it redeclares the same way `@Binding` does, just spelling a
+  different wrapper — `snap.name` reads the unwrapped value, `snap.$name` hands
+  back a real `FocusState<T>.Binding` usable directly with `.focused(_:)`, no
+  fabrication involved. `@Environment` → a plain `let name: T`, no attribute at
+  all — not because the value doesn't change, but because the *attribute*
+  can't be preserved: `@Environment`'s `wrappedValue` has no public setter
+  (verified directly: `error: cannot assign to property: 'colorScheme' is a
+  get-only property`), and the synthesized init always assigns `self.x = x`; a
+  plain, unattributed `let` has no such restriction. Always `let` for
+  `@Environment`, not mirroring the original's `let`/`var` (always `var`,
+  every property wrapper requires it) — the captured copy is a one-time
+  snapshot, immutable by design.
+- **`@State`/`@Environment`/`@Query`/`@AppStorage`/`@FocusState` must be
+  private — enforced with a diagnostic, not accommodated.**
+  `sourceOfTruthMustBePrivate` (`StoredProperty.swift`, checked in
+  `collectStoredProperties`) rejects any of these five declared non-private:
+  they're a view's own source of truth, never something a caller supplies
+  (`@Binding` is for that). Every renderer downstream can assume all five are
+  always private with no "what if it's also public" case to reason about or
+  test — an earlier revision's field-set filters (`!$0.isPrivate ||
+  $0.isQuery || …`) technically already handled a hypothetical non-private
+  case correctly, but there was no reason to leave that door open when it's
+  simply invalid usage.
 - **The rule for every other field: mirror the original property's own
   attribute and declared type onto `StatelessNode`, but never its mutability.**
   `StatelessNode` is a deterministic snapshot, so a field gets `var` only where

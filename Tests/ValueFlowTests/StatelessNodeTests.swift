@@ -15,6 +15,7 @@ import ValueFlow
 struct StatefulCard: View {
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
     @State private var isExpanded: Bool = false
+    @FocusState private var isFocused: Bool
     @Binding var isOn: Bool
     let title: String
     var subtitle: String?
@@ -43,6 +44,7 @@ extension StatefulCard.StatelessNode {
         let snap = card.statelessNode
         #expect(snap.isOn == true)  // bare Bool, unlike OutFlow's Binding<Bool> — genuine @Binding too
         #expect(snap.isExpanded == false)  // bare Bool, unlike OutFlow's Binding<Bool>
+        #expect(snap.isFocused == false)  // bare Bool too, via @FocusState<Bool>.Binding's own unwrap
         #expect(snap.title == "Settings")
     }
 
@@ -65,6 +67,27 @@ extension StatefulCard.StatelessNode {
 
         card.statelessNode.isExpanded = true
         #expect(card.statelessNode.isExpanded == false)
+    }
+
+    @Test func statelessFocusStateDoesNotWriteThroughOutsideALiveView() {
+        // Same caveat as @State's: @FocusState's storage only installs once
+        // SwiftUI actually renders the view, so a write here silently no-ops.
+        let isOnBinding = Binding<Bool>(get: { true }, set: { _ in })
+        let card = StatefulCard(isOn: isOnBinding, title: "x")
+
+        card.statelessNode.isFocused = true
+        #expect(card.statelessNode.isFocused == false)
+    }
+
+    @Test func statelessFocusStateProjectsARealFocusStateBindingUsableWithFocusedModifier() {
+        // snap.$isFocused hands back a genuine FocusState<Bool>.Binding — not a
+        // fabricated stand-in — so it plugs directly into `.focused(_:)`, the
+        // same as the original @FocusState field would on a live view.
+        let isOnBinding = Binding<Bool>(get: { true }, set: { _ in })
+        let card = StatefulCard(isOn: isOnBinding, title: "x")
+
+        let snap = card.statelessNode
+        _ = Text("hi").focused(snap.$isFocused)
     }
 
     @Test func statelessPlainFieldIsLetRegardlessOfTheOriginalsMutability() {

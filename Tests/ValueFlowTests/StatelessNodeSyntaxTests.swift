@@ -44,6 +44,40 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         )
     }
 
+    func testFocusStateRedeclaresItsOwnRealBindingAttributeNotAt() {
+        // @FocusState gets its own substituted attribute — @FocusState<T>.Binding,
+        // not @Binding — since @FocusState's own projectedValue is
+        // FocusState<T>.Binding, not Binding<T> (verified directly, no public
+        // conversion between the two). The real FocusState<T>.Binding is itself
+        // @propertyWrapper-attributed, so it redeclares onto StatelessNode the
+        // same way @Binding does for @State/@AppStorage.
+        assertMacroExpansion(
+            """
+            @StatelessNode
+            struct SearchField {
+                @FocusState private var isFocused: Bool
+                let title: String
+            }
+            """,
+            expandedSource: """
+                struct SearchField {
+                    @FocusState private var isFocused: Bool
+                    let title: String
+
+                    struct StatelessNode {
+                        @FocusState<Bool>.Binding var isFocused: Bool
+                        let title: String
+                    }
+
+                    var statelessNode: StatelessNode {
+                        StatelessNode(isFocused: self.$isFocused, title: self.title)
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
     func testZeroEligibleFieldsStillGeneratesAnEmptyStatelessNodeStruct() {
         assertMacroExpansion(
             """

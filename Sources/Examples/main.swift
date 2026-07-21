@@ -88,6 +88,7 @@ public struct User {
 @DataLayout
 @StatelessNode
 public struct ProfileCard<Content: View>: View {
+    @FocusState private var focused: Bool  // @FocusState has no init(wrappedValue:) — no inline default allowed
     @Query(animation: Animation.bouncy) private var items: [Item]
     @Environment(\.colorScheme) private var colorScheme: ColorScheme
     @State private var isExpanded: Bool = false
@@ -206,15 +207,19 @@ let profileCardOutFlowFieldNames = Reflector.fieldNames(of: ProfileCard<Text>.Ou
 // MARK: - OutFlow
 
 // outFlow mixes InFlow's fields with the view's own externally-relevant
-// CAPTURABLE private state (@Query/@State/@AppStorage — NOT @Environment, see
-// below), in declaration order — not data-layout fields first, wrapper fields
-// appended after: `items` (@Query) comes first here because it's declared first
-// on ProfileCard. @Query is always synthesized as (result: WrappedType,
-// fetchError: Error?, modelContext: ModelContext) — items: [Item] becomes
-// items: (result: [Item], fetchError: Error?, modelContext: ModelContext).
-// fetchError/modelContext are real members of SwiftData's Query wrapper instance
+// CAPTURABLE private state (@Query/@State/@AppStorage/@FocusState — NOT
+// @Environment, see below), in declaration order — not data-layout fields
+// first, wrapper fields appended after: `focused` (@FocusState) comes first
+// here because it's declared first on ProfileCard. @Query is always
+// synthesized as (result: WrappedType, fetchError: Error?, modelContext:
+// ModelContext) — items: [Item] becomes items: (result: [Item], fetchError:
+// Error?, modelContext: ModelContext). fetchError/modelContext are real
+// members of SwiftData's Query wrapper instance
 // (self._items.fetchError/.modelContext), not synthesized placeholders.
-// @State/@AppStorage read as Binding<T> via the projected $ value.
+// @State/@AppStorage read as Binding<T> via the projected $ value; @FocusState
+// reads via that same `self.$x` shortcut, but resolves to its OWN projected
+// type, FocusState<Bool>.Binding — not Binding<Bool> — since @FocusState's
+// projectedValue has no public conversion to Binding<T> (verified directly).
 //
 // @Environment is excluded: not because it's uncapturable (a plain value works
 // fine — StatelessNode, below, captures it exactly that way), but because a
@@ -230,6 +235,11 @@ let profileCard = ProfileCard(
     footer: { Text("footer") }
 )
 let profileCardOutFlow = profileCard.outFlow
+
+// focused: FocusState<Bool>.Binding — its own real projected type, still
+// carrying wrappedValue get/nonmutating-set, so it reads/writes exactly like
+// any other OutFlow binding field despite not being Binding<Bool>.
+let profileCardOutFlowFocused = profileCardOutFlow.focused.wrappedValue
 
 // MARK: - StatelessNode
 
@@ -268,3 +278,11 @@ let profileCardStatelessNodeSubtitle = profileCardStatelessNode.subtitle
 // on StatelessNode exactly as ProfileCard declares them, so this compiles unchanged.
 let profileCardStatelessNodeModel = profileCardStatelessNode.model
 let profileCardStatelessNodeFooter = profileCardStatelessNode.footer
+
+// focused reads as a bare Bool here — @FocusState<Bool>.Binding var focused: Bool
+// is StatelessNode's own substituted attribute (distinct from @Binding, since
+// @FocusState's projectedValue isn't Binding<T> — see the OutFlow section above),
+// but it's the real wrapper, redeclared, not a fabricated stand-in: $focused
+// hands back a genuine FocusState<Bool>.Binding usable directly with `.focused(_:)`.
+let profileCardStatelessNodeFocused = profileCardStatelessNode.focused
+_ = Text("search").focused(profileCardStatelessNode.$focused)
