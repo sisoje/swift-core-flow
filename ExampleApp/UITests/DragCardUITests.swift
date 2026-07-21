@@ -8,8 +8,7 @@ final class DragCardUITests: XCTestCase {
     // zero (currentLabel).
     @MainActor
     func testDragUpdatesGestureStateAndResetsOnRelease() {
-        let app = XCUIApplication()
-        app.launch()
+        let app = launchExampleApp()
 
         let box = app.otherElements["dragBox"]
         let maxLabel = app.staticTexts["maxLabel"]
