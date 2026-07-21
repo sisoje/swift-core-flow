@@ -36,7 +36,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     }
 
                     var statelessNode: StatelessNode {
-                        StatelessNode(items: (result: self.items, fetchError: self._items.fetchError, modelContext: self._items.modelContext), colorScheme: self.colorScheme, isExpanded: self.$isExpanded, isOn: self._isOn, title: self.title)
+                        StatelessNode(items: (result: items, fetchError: _items.fetchError, modelContext: _items.modelContext), colorScheme: colorScheme, isExpanded: $isExpanded, isOn: _isOn, title: title)
                     }
                 }
                 """,
@@ -70,7 +70,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     }
 
                     var statelessNode: StatelessNode {
-                        StatelessNode(isFocused: self.$isFocused, title: self.title)
+                        StatelessNode(isFocused: $isFocused, title: title)
                     }
                 }
                 """,
@@ -102,7 +102,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     }
 
                     var statelessNode: StatelessNode {
-                        StatelessNode(isPinned: self.$isPinned, title: self.title)
+                        StatelessNode(isPinned: $isPinned, title: title)
                     }
                 }
                 """,
@@ -115,7 +115,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
         // @FocusState) and a get-only wrappedValue (like @Environment) —
         // verified directly against the real SwiftUI interface — so it gets
         // the exact same plain, unattributed `let` treatment @Environment does,
-        // read via a bare `self.x`. Unlike every other recognized wrapper,
+        // read via a bare `x`. Unlike every other recognized wrapper,
         // `@Namespace` needs no explicit type annotation at all: it has exactly
         // one possible wrapped type (`Namespace.ID`), so this macro fills that
         // in itself rather than diagnosing a missing type.
@@ -138,7 +138,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     }
 
                     var statelessNode: StatelessNode {
-                        StatelessNode(ns: self.ns, title: self.title)
+                        StatelessNode(ns: ns, title: title)
                     }
                 }
                 """,
@@ -197,8 +197,8 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     }
 
                     var statelessNode: StatelessNode {
-                        StatelessNode(subtitle: self.subtitle, model: self.model, content: self.content, footer: {
-                                self.footer
+                        StatelessNode(subtitle: subtitle, model: model, content: content, footer: {
+                                footer
                             })
                     }
                 }
@@ -227,11 +227,11 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     }
 
                     var statelessNode: StatelessNode {
-                        StatelessNode(title: self.title)
+                        StatelessNode(title: title)
                     }
 
                     var body: some View {
-                        self.statelessNode
+                        statelessNode
                     }
                 }
                 """,
@@ -260,11 +260,11 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     }
 
                     var statelessNode: StatelessNode {
-                        StatelessNode(c: self.$c)
+                        StatelessNode(c: $c)
                     }
 
                     func body(content: Content) -> some View {
-                        content.modifier(self.statelessNode)
+                        content.modifier(statelessNode)
                     }
                 }
                 """,
@@ -293,7 +293,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     }
 
                     var statelessNode: StatelessNode {
-                        StatelessNode(title: self.title)
+                        StatelessNode(title: title)
                     }
                 }
                 """,
@@ -303,7 +303,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
 
     func testPublicViewHostStillGetsAPublicBodyDelegatingToAnInternalStatelessNode() {
         // `body`'s own access still mirrors the host (public), verified directly
-        // that this compiles even though it returns `self.statelessNode`, an
+        // that this compiles even though it returns `statelessNode`, an
         // internal concrete type — `some View`'s opaque return type only exposes
         // the `View` conformance, never the concrete type, so a public `body` can
         // freely return an internal value.
@@ -326,11 +326,11 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     }
 
                     var statelessNode: StatelessNode {
-                        StatelessNode(title: self.title)
+                        StatelessNode(title: title)
                     }
 
                     public var body: some View {
-                        self.statelessNode
+                        statelessNode
                     }
                 }
                 """,
@@ -358,7 +358,7 @@ final class StatelessNodeSyntaxTests: XCTestCase {
                     }
 
                     var statelessNode: StatelessNode {
-                        StatelessNode(x: self.x, y: self.y)
+                        StatelessNode(x: x, y: y)
                     }
                 }
                 """,

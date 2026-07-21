@@ -199,11 +199,12 @@ func renderInFlowTypealias(properties: [StoredProperty], access: String) -> Decl
 /// `InFlow` value, the reverse direction of `makeFlow(_:)`. Present
 /// exactly when `InFlow` is.
 ///
-/// Every field reads directly off `self` via `fieldReadExpression` — unlike
-/// `makeFlow(_:)`'s reverse direction, no wrapping is needed for a
+/// Every field reads via `fieldReadExpression`, no `self.` prefix (this is a
+/// getter with no parameter list to disambiguate against — verified directly)
+/// — unlike `makeFlow(_:)`'s reverse direction, no wrapping is needed for a
 /// `@ViewBuilder` field: the stored property already holds exactly its own
 /// declared type, which is exactly what `InFlowSplat`/`InFlow` already use as
-/// that field's type. Only `@Binding` needs its projected form (`self._x`).
+/// that field's type. Only `@Binding` needs its projected form (`_x`).
 func renderInFlowProperty(properties: [StoredProperty], access: String) -> DeclSyntax? {
     let initParams = properties.filter { !$0.isPrivate }
     guard !initParams.isEmpty else { return nil }
@@ -302,29 +303,32 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
 }
 
 /// A field's `OutFlow` *read* expression, the `outFlow` property's counterpart to
-/// `outFlowFieldType` above:
-/// - **Non-private fields** use `fieldReadExpression` unchanged (`self.x`, or
-///   `self._x` for `@Binding`).
+/// `outFlowFieldType` above. No `self.` prefix anywhere here, same reasoning as
+/// `fieldReadExpression`: every caller reads inside the `outFlow`/`statelessNode`
+/// getter, neither of which has a parameter list, so there's nothing for a bare
+/// identifier to collide with (verified directly).
+/// - **Non-private fields** use `fieldReadExpression` unchanged (`x`, or
+///   `_x` for `@Binding`).
 /// - **`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState`** all read the
-///   *projected* value, `self.$x` — not `self._x`, which gives the wrapper
+///   *projected* value, `$x` — not `_x`, which gives the wrapper
 ///   instance itself (`State<T>`, not `Binding<T>`; verified directly). Same
 ///   expression for all four; only the resulting *type* differs (see
 ///   `outFlowFieldType` above) — `@FocusState`'s own `projectedValue` happens
 ///   to be `FocusState<T>.Binding` rather than `Binding<T>`, but it's still
 ///   reached the exact same way.
-/// - **`@Query`** reads `(result: self.x, fetchError: self._x.fetchError,
-///   modelContext: self._x.modelContext)` — `self.x` is the wrapper's
+/// - **`@Query`** reads `(result: x, fetchError: _x.fetchError,
+///   modelContext: _x.modelContext)` — `x` is the wrapper's
 ///   `wrappedValue` (the fetched array); `fetchError`/`modelContext` are real
-///   members of the wrapper *instance* itself (`self._x`, type `Query<Element,
+///   members of the wrapper *instance* itself (`_x`, type `Query<Element,
 ///   Result>`), the same underscore-prefixed access `@Binding` already uses
 ///   elsewhere in this file — not synthesized.
 func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
     if p.isBindingBackedStorage || p.isFocusState {
-        return "self.$\(p.name)"
+        return "$\(p.name)"
     }
     if p.isQuery {
         return
-            "(result: self.\(p.name), fetchError: self._\(p.name).fetchError, modelContext: self._\(p.name).modelContext)"
+            "(result: \(p.name), fetchError: _\(p.name).fetchError, modelContext: _\(p.name).modelContext)"
     }
     return fieldReadExpression(p)
 }

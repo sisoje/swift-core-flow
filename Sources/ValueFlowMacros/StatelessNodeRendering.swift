@@ -32,7 +32,7 @@ import SwiftSyntax
 /// because its type uses an internal type"). `body`/`body(content:)` on the
 /// *attached* type, by contrast, still mirrors the attached type's own access
 /// (`public` included) — verified directly that this compiles even though it
-/// reads `self.statelessNode` (internal) and returns it: `some View`'s opaque
+/// reads `statelessNode` (internal) and returns it: `some View`'s opaque
 /// return type only exposes the `View` conformance, never the concrete
 /// `StatelessNode` type, so a `public` `body` can freely return an internal
 /// concrete value.
@@ -199,11 +199,11 @@ func renderStatelessNode(
 
     // Constructing `StatelessNode`: each field reads the way `outFlow` does
     // (`outFlowFieldReadExpression`) — including `@Environment`, which falls
-    // through to that function's plain `self.x` default, exactly right for a
+    // through to that function's plain `x` default, exactly right for a
     // plain captured `let` field — with one addition mirroring
     // `renderInFlowSplatFactory`'s own reverse-direction trick: a
     // `@ViewBuilder`-stored *value* field reads as its already-built plain value
-    // (`self.footer`, type `Content`), but `StatelessNode`'s own `@ViewBuilder` field
+    // (`footer`, type `Content`), but `StatelessNode`'s own `@ViewBuilder` field
     // — mirrored verbatim above — means its generated init parameter is a
     // builder closure (`() -> Content`), not the bare value. So that one case
     // gets wrapped in a trivial closure on the way in; every other field is
@@ -227,18 +227,20 @@ func renderStatelessNode(
     )
 
     // The mechanical delegation from the attached type's own real `body`/
-    // `body(content:)` requirement down to `self.statelessNode`. `.modifier(_:)`
+    // `body(content:)` requirement down to `statelessNode`. `.modifier(_:)`
     // is what makes the `ViewModifier` case work at all without needing
     // `StatelessNode`'s own `Content` to unify with the attached type's — see this
     // function's doc comment (in StatelessNodeMacro.swift) for the verified reason
     // forwarding `content` directly into `StatelessNode.body(content:)` doesn't.
+    // No `self.` prefix: `content` is `body(content:)`'s only parameter, and it
+    // doesn't share `statelessNode`'s name, so there's nothing to disambiguate.
     let hostBody: DeclSyntax?
     switch hostKind {
     case .view:
         hostBody = DeclSyntax(
             stringLiteral: """
                 \(access)var body: some View {
-                    self.statelessNode
+                    statelessNode
                 }
                 """
         )
@@ -246,7 +248,7 @@ func renderStatelessNode(
         hostBody = DeclSyntax(
             stringLiteral: """
                 \(access)func body(content: Content) -> some View {
-                    content.modifier(self.statelessNode)
+                    content.modifier(statelessNode)
                 }
                 """
         )

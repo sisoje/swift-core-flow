@@ -30,10 +30,10 @@
 ///     //     let subtitle: String?
 ///     // }
 ///     // var statelessNode: StatelessNode {
-///     //     StatelessNode(items: (result: self.items, fetchError: self._items.fetchError,
-///     //                       modelContext: self._items.modelContext),
-///     //               colorScheme: self.colorScheme, isExpanded: self.$isExpanded,
-///     //               title: self.title, subtitle: self.subtitle)
+///     //     StatelessNode(items: (result: items, fetchError: _items.fetchError,
+///     //                       modelContext: _items.modelContext),
+///     //               colorScheme: colorScheme, isExpanded: $isExpanded,
+///     //               title: title, subtitle: subtitle)
 ///     // }
 /// }
 /// ```
@@ -74,7 +74,7 @@
 /// internal because its type uses an internal type"). `body`/`body(content:)`
 /// on the *attached* type, by contrast, still mirrors that type's own access
 /// (`public` included) — verified directly that this compiles even though it
-/// reads `self.statelessNode` (internal) and returns it: `some View`'s opaque
+/// reads `statelessNode` (internal) and returns it: `some View`'s opaque
 /// return type only exposes the `View` conformance, never the concrete
 /// `StatelessNode` type, so a `public` `body` can freely return an internal
 /// concrete value.
@@ -169,8 +169,8 @@
 ///   diagnostic would either nag permanently or not fire at all. The doc
 ///   comment costs nothing once the extension exists.
 /// - The attached type gets the mechanical delegation for free: `var body: some
-///   View { self.statelessNode }` for `View`, or `func body(content: Content) ->
-///   some View { content.modifier(self.statelessNode) }` for `ViewModifier`.
+///   View { statelessNode }` for `View`, or `func body(content: Content) ->
+///   some View { content.modifier(statelessNode) }` for `ViewModifier`.
 ///
 /// The `ViewModifier` case goes through `View.modifier(_:)` specifically —
 /// verified directly that forwarding `content` straight into `StatelessNode`'s own

@@ -38,11 +38,19 @@ func fieldAssignment(_ p: StoredProperty, source: String) -> String {
     return "    self.\(p.name) = \(source)"
 }
 
-/// The expression reading a field's *current* value directly off `self`, for the
-/// `inFlow` computed property — the reverse of `fieldAssignment`. A `@Binding`
-/// reads its projected form (`self._x`, type `Binding<T>`, matching `baseTypeText`'s
+/// The expression reading a field's *current* value, for the `inFlow` computed
+/// property — the reverse of `fieldAssignment`. A `@Binding` reads its
+/// projected form (`_x`, type `Binding<T>`, matching `baseTypeText`'s
 /// `Binding<T>` field type); everything else — including a `@ViewBuilder` field, in
-/// either form — reads `self.x` directly.
+/// either form — reads `x` directly.
+///
+/// No `self.` prefix, unlike `fieldAssignment`: every caller of this function
+/// reads inside a computed property's getter with no parameters at all (no
+/// local name can shadow a property there), unlike the init, where the
+/// parameter genuinely does share the field's name and `self.` is what
+/// disambiguates the two. Verified directly — bare `_x`/`$x`/`x` all resolve
+/// correctly via implicit `self` with no parameter list in scope to collide
+/// with.
 ///
 /// Unlike `makeFlow(_:)`'s reverse direction, no wrapping/unwrapping is needed
 /// here: the stored property already holds exactly its own declared type (`Content`
@@ -51,5 +59,5 @@ func fieldAssignment(_ p: StoredProperty, source: String) -> String {
 /// `@ViewBuilder` only ever reshapes the *init parameter*, never the property's own
 /// storage.
 func fieldReadExpression(_ p: StoredProperty) -> String {
-    p.isBinding ? "self._\(p.name)" : "self.\(p.name)"
+    p.isBinding ? "_\(p.name)" : "\(p.name)"
 }

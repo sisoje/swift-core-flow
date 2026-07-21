@@ -154,7 +154,7 @@ rendered differently:
 The `makeFlow(_:)` factory — a `static func` (not a second `init`) building
 `Self` from an `InFlowSplat`, present exactly when `InFlowSplat` is:
 - **A static func, not a delegating `init`, specifically to work uniformly across
-  struct/class/actor.** A second `init` calling `self.init(...)` needs the
+  struct/class/actor.** A second `init` calling `init(...)` needs the
   `convenience` keyword on a class/actor and drags in Swift's designated/convenience
   init rules; `Self(...)` inside a plain static function sidesteps that entirely.
 - **Forwards each field directly** — `Self(x: flow.0, y: flow.1)` — not
@@ -188,8 +188,8 @@ present under the same collapse/zero rules as `InFlowSplat` above:
   alone can't support generic field reflection (see `Reflector` below), `InFlow`
   can.
 - **`inFlow` reads every field straight off `self`** via
-  `fieldReadExpression` (`FieldRendering.swift`) — `self.x` for everything except
-  `@Binding`, which reads its projected form `self._x` to match `InFlowSplat`'s
+  `fieldReadExpression` (`FieldRendering.swift`) — `x` for everything except
+  `@Binding`, which reads its projected form `_x` to match `InFlowSplat`'s
   `Binding<T>` field type.
 - **No `@ViewBuilder` wrapping needed here, unlike `makeFlow(_:)`'s reverse
   direction.** A stored property already holds exactly its own declared type
@@ -268,7 +268,7 @@ reason it treats every field uniformly.
     wrapper instance**, not synthesized placeholders — verified directly against
     the SwiftData interface: `@MainActor @preconcurrency public var fetchError:
     (any Error)? { get }`, `public var modelContext: ModelContext { get }`,
-    both declared on `Query<Element, Result>` itself (the type `self._items` has).
+    both declared on `Query<Element, Result>` itself (the type `_items` has).
   - `@State`/`@AppStorage`/`@SceneStorage` (`isBindingBackedStorage`) →
     `Binding<WrappedType>`, since these are the view's own externally
     read-*and-write*-able storage — all three wrappers' own `projectedValue`
@@ -276,7 +276,7 @@ reason it treats every field uniformly.
     interface, `@SceneStorage` included — `wrappedValue` is `{ get nonmutating
     set }`, same shape as `@State`/`@AppStorage`, no separate case needed).
   - `@FocusState` (`isFocusState`) → `FocusState<WrappedType>.Binding`, **not**
-    `Binding<WrappedType>`, even though it's read via the same `self.$x`
+    `Binding<WrappedType>`, even though it's read via the same `$x`
     shortcut as the row above. Verified directly against the real SwiftUI
     interface: `FocusState<T>.Binding` (its own `projectedValue` type) exposes
     only `wrappedValue`, no public initializer at all and no conversion to
@@ -288,17 +288,17 @@ reason it treats every field uniformly.
     rule `InFlow` already applies.
 - **Matching read-expression mappings, in `outFlowFieldReadExpression`**:
   `@State`/`@AppStorage`/`@SceneStorage`/`@FocusState` all read the *projected*
-  value, `self.$x` — **not** `self._x`, which gives the wrapper instance itself
+  value, `$x` — **not** `_x`, which gives the wrapper instance itself
   (`State<T>`, not `Binding<T>`; verified directly). Same expression for all
   four; only the resulting *type* differs (see above) — `@FocusState`'s own
   `projectedValue` happens to be `FocusState<T>.Binding` rather than
   `Binding<T>`, but it's reached the exact same way. `@Query` reads `(result:
-  self.x, fetchError: self._x.fetchError, modelContext: self._x.modelContext)`
-  — `self.x` is the wrapper's `wrappedValue`; `fetchError`/`modelContext` are
-  read off the wrapper instance itself (`self._x`), the same
+  x, fetchError: _x.fetchError, modelContext: _x.modelContext)`
+  — `x` is the wrapper's `wrappedValue`; `fetchError`/`modelContext` are
+  read off the wrapper instance itself (`_x`), the same
   underscore-prefixed access `@Binding` already uses elsewhere in this file —
   genuinely live values, not placeholders. Every non-private field uses
-  `fieldReadExpression` unchanged (`self.x`, or `self._x` for a genuine
+  `fieldReadExpression` unchanged (`x`, or `_x` for a genuine
   `@Binding` field, which really is its own projection).
 - **`@Query`/`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState` need an
   explicit type even though they're private** — relaxes the general "private
@@ -376,7 +376,7 @@ non-private participating property, plus private
   directly: "property must be declared internal because its type uses an
   internal type"). `body`/`body(content:)` on the *attached* type, by contrast,
   still mirrors that type's own access (`public` included) — verified directly
-  that this compiles even though it reads `self.statelessNode` (internal) and
+  that this compiles even though it reads `statelessNode` (internal) and
   returns it: `some View`'s opaque return type only exposes the `View`
   conformance, never the concrete `StatelessNode` type, so a `public` `body` can
   freely return an internal concrete value.
@@ -462,7 +462,7 @@ non-private participating property, plus private
   its own init call site — not just documentation. One asymmetry this
   introduces: constructing `StatelessNode` in the `statelessNode` computed property must
   wrap a `@ViewBuilder`-stored-*value* field's already-built value back into a
-  trivial closure (`footer: { self.footer }`) — the exact same trick
+  trivial closure (`footer: { footer }`) — the exact same trick
   `renderInFlowSplatFactory`'s `makeFlow(_:)` already uses for its own reverse
   direction, reusing `isFunctionType` to detect which of `@ViewBuilder`'s two
   forms (stored closure vs. stored value) applies.
@@ -478,8 +478,8 @@ non-private participating property, plus private
   pair — `StatelessNode` is additionally declared `: View`/`: ViewModifier` (a
   requirement only; the real `body`/`body(content:)` is still hand-written, in a
   separate extension of `StatelessNode`), and the attached type gets the mechanical
-  delegation for free: `var body: some View { self.statelessNode }`, or `func
-  body(content: Content) -> some View { content.modifier(self.statelessNode) }`.
+  delegation for free: `var body: some View { statelessNode }`, or `func
+  body(content: Content) -> some View { content.modifier(statelessNode) }`.
   - **Discoverability of the hand-written half is a doc comment, not a
     diagnostic** — a `///` comment generated directly on the `StatelessNode` struct
     declaration (only when `hostKind != .none`) states exactly what to write

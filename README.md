@@ -195,7 +195,7 @@ let user2 = User.makeFlow(differentlyLabeled)
 ```
 
 - **A static function, not a second `init`** — deliberately, so it works the same on
-  a struct, class, or actor. A delegating second `init` (`self.init(...)`) requires
+  a struct, class, or actor. A delegating second `init` (`init(...)`) requires
   the `convenience` keyword on a class/actor and drags in Swift's
   designated/convenience init rules; a plain static function returning `Self(...)`
   sidesteps that entirely.
@@ -244,8 +244,8 @@ user.inFlow   // (id: someID, name: "Ada")
 let copy = User.makeFlow(user.inFlow)
 ```
 
-- Every field reads straight off `self` (`self.x`) — except `@Binding`, which
-  reads its projected form (`self._x`) to match `InFlowSplat`'s `Binding<T>` field
+- Every field reads straight off `self` (`x`) — except `@Binding`, which
+  reads its projected form (`_x`) to match `InFlowSplat`'s `Binding<T>` field
   type.
 - **No `@ViewBuilder` wrapping needed here**, unlike `makeFlow(_:)`'s reverse
   direction: a stored property already holds exactly its own declared type
@@ -289,8 +289,8 @@ struct Card: View {
     // typealias OutFlow = (items: (result: [Item], fetchError: Error?, modelContext: ModelContext),
     //                       isExpanded: Binding<Bool>, title: String)
     // var outFlow: OutFlow {
-    //     (items: (result: self.items, fetchError: self._items.fetchError, modelContext: self._items.modelContext),
-    //      isExpanded: self.$isExpanded, title: self.title)
+    //     (items: (result: items, fetchError: _items.fetchError, modelContext: _items.modelContext),
+    //      isExpanded: $isExpanded, title: title)
     // }
 }
 ```
@@ -302,13 +302,13 @@ struct Card: View {
   ModelContext)`, synthesized** — not a passthrough of the declared type.
   `WrappedType` is the property's own declared type (`[Item]` above);
   `fetchError`/`modelContext` are **real members of SwiftData's `Query`
-  wrapper instance** (`self._items.fetchError`, `self._items.modelContext`) — not
+  wrapper instance** (`_items.fetchError`, `_items.modelContext`) — not
   synthesized placeholders. Verified directly against the SwiftData interface:
   `Query<Element, Result>` declares `@MainActor @preconcurrency public var
   fetchError: (any Error)? { get }` and `public var modelContext: ModelContext {
   get }` on the wrapper instance itself.
 - **`@State`/`@AppStorage` → `Binding<WrappedType>`**, read via the *projected*
-  value (`self.$x`) — not `self._x`, which gives the wrapper instance itself
+  value (`$x`) — not `_x`, which gives the wrapper instance itself
   (`State<T>`, not `Binding<T>`; verified directly).
 - **`@Query`/`@State`/`@AppStorage` need an explicit type even though they're
   private** — every other private property is exempt from that rule, but
@@ -335,23 +335,23 @@ what it becomes on `OutFlow` and on `@StatelessNode`'s nested struct.
 
 | Wrapper | Must be private? | `OutFlow` field type | `OutFlow` read expression | `StatelessNode` field | `StatelessNode` construction |
 |---|---|---|---|---|---|
-| *(plain, no wrapper)* | no | declared type as-is | `self.x` | same attribute (if any) + declared type, but **`let`**, never mirroring `var` | `self.x` |
-| `@Binding` | no — caller-supplied | `Binding<T>` | `self._x` | `@Binding var x: T` (mirrored verbatim) | `self._x` |
-| `@Environment` | yes | *excluded* (see above) | — | plain `let x: T`, no attribute | `self.x` |
-| `@Query` (SwiftData) | yes | `(result: T, fetchError: Error?, modelContext: ModelContext)` | `(result: self.x, fetchError: self._x.fetchError, modelContext: self._x.modelContext)` | same synthesized tuple, no attribute, `let` | same read expression |
-| `@State` | yes | `Binding<T>` | `self.$x` — its own `projectedValue` genuinely *is* `Binding<T>` | `@Binding var x: T` (substituted attribute) | `self.$x` |
-| `@AppStorage` | yes | `Binding<T>` | `self.$x` — same as `@State` | `@Binding var x: T` (substituted attribute) | `self.$x` |
-| `@FocusState` | yes | `FocusState<T>.Binding` — **not** `Binding<T>` | `self.$x` — same shortcut as `@State`/`@AppStorage`, just resolving to a different concrete type | `@FocusState<T>.Binding var x: T` — redeclaring the *real* wrapper | `self.$x` |
+| *(plain, no wrapper)* | no | declared type as-is | `x` | same attribute (if any) + declared type, but **`let`**, never mirroring `var` | `x` |
+| `@Binding` | no — caller-supplied | `Binding<T>` | `_x` | `@Binding var x: T` (mirrored verbatim) | `_x` |
+| `@Environment` | yes | *excluded* (see above) | — | plain `let x: T`, no attribute | `x` |
+| `@Query` (SwiftData) | yes | `(result: T, fetchError: Error?, modelContext: ModelContext)` | `(result: x, fetchError: _x.fetchError, modelContext: _x.modelContext)` | same synthesized tuple, no attribute, `let` | same read expression |
+| `@State` | yes | `Binding<T>` | `$x` — its own `projectedValue` genuinely *is* `Binding<T>` | `@Binding var x: T` (substituted attribute) | `$x` |
+| `@AppStorage` | yes | `Binding<T>` | `$x` — same as `@State` | `@Binding var x: T` (substituted attribute) | `$x` |
+| `@FocusState` | yes | `FocusState<T>.Binding` — **not** `Binding<T>` | `$x` — same shortcut as `@State`/`@AppStorage`, just resolving to a different concrete type | `@FocusState<T>.Binding var x: T` — redeclaring the *real* wrapper | `$x` |
 
 **Why `@FocusState` doesn't collapse into the `@State`/`@AppStorage` row, even
-though all three are "read via `self.$x`."** `@State`/`@AppStorage`'s own
-`projectedValue` genuinely *is* `Binding<T>` — `self.$x` already gives the real
+though all three are "read via `$x`."** `@State`/`@AppStorage`'s own
+`projectedValue` genuinely *is* `Binding<T>` — `$x` already gives the real
 thing. `@FocusState`'s `projectedValue` is a distinct type, `FocusState<T>.Binding`
 — verified directly against the real SwiftUI interface: it exposes only
 `wrappedValue` (get/`nonmutating set`) and `projectedValue` (itself), **no public
 initializer at all** and no conversion to `Binding<T>`. Two things follow:
 
-- A hand-built `Binding(get: { self.x }, set: { self.x = $0 })` is **not** an
+- A hand-built `Binding(get: { x }, set: { self.x = $0 })` is **not** an
   acceptable stand-in — it's a different, fabricated type that satisfies neither
   `.focused(_:)` (which specifically wants `FocusState<T>.Binding`) nor any other
   API that expects the real wrapper's projection back. It behaves similarly, but
@@ -518,10 +518,10 @@ struct Card: View {
     //     let subtitle: String?
     // }
     // var statelessNode: StatelessNode {
-    //     StatelessNode(items: (result: self.items, fetchError: self._items.fetchError,
-    //                       modelContext: self._items.modelContext),
-    //               colorScheme: self.colorScheme, isExpanded: self.$isExpanded,
-    //               title: self.title, subtitle: self.subtitle)
+    //     StatelessNode(items: (result: items, fetchError: _items.fetchError,
+    //                       modelContext: _items.modelContext),
+    //               colorScheme: colorScheme, isExpanded: $isExpanded,
+    //               title: title, subtitle: subtitle)
     // }
 }
 ```
@@ -567,7 +567,7 @@ less-accessible type (verified directly: "property must be declared internal
 because its type uses an internal type"). `body`/`body(content:)` on the
 *attached* type, by contrast, still mirrors that type's own access (`public`
 included) — verified directly that this compiles even though it reads
-`self.statelessNode` (internal) and returns it: `some View`'s opaque return
+`statelessNode` (internal) and returns it: `some View`'s opaque return
 type only exposes the `View` conformance, never the concrete `StatelessNode`
 type, so a `public` `body` can freely return an internal concrete value.
 
@@ -621,7 +621,7 @@ This one rule covers several things at once:
   the same `@Binding var name: T` form `@State`/`@AppStorage` are substituted
   into above — it already *is* that declaration in the original source, so no
   extra logic is needed. `@DataLayout`'s existing `@Binding` handling (a
-  `Binding<T>` init parameter, assigned to the backing `self._name` storage)
+  `Binding<T>` init parameter, assigned to the backing `_name` storage)
   picks up both cases identically. The payoff: `statelessNode.name` reads the
   wrapped value directly, no `.wrappedValue` unwrap — and `statelessNode.name =
   newValue` writes straight through to whatever storage the original binding
@@ -654,7 +654,7 @@ struct Card: View {
     // generates, in addition to the usual StatelessNode struct/statelessNode property:
     // @DataLayout
     // struct StatelessNode: View { ... }       <- conformance declared, not implemented
-    // var body: some View { self.statelessNode }   <- the mechanical delegation, for free
+    // var body: some View { statelessNode }   <- the mechanical delegation, for free
 }
 
 // only the real implementation is left to write by hand:
@@ -665,7 +665,7 @@ extension Card.StatelessNode {
 
 `ViewModifier` works the same way — `struct VM: ViewModifier` gets `StatelessNode:
 ViewModifier` plus `func body(content: Content) -> some View {
-content.modifier(self.statelessNode) }`, going through `View.modifier(_:)` rather
+content.modifier(statelessNode) }`, going through `View.modifier(_:)` rather
 than forwarding `content` directly into `StatelessNode`'s own `body(content:)`. That
 detour is required, not stylistic: `ViewModifier.Content` is `typealias Content =
 _ViewModifier_Content<Self>`, a generic struct keyed on the *conforming type
@@ -736,7 +736,7 @@ flowchart TD
         Fields --> SNBody
     end
 
-    CardBody -. "self.statelessNode<br/>captures every value once" .-> SN
+    CardBody -. "statelessNode<br/>captures every value once" .-> SN
     Test(["unit test / preview"]) -. "construct StatelessNode directly —<br/>no live view, no environment, no ModelContext" .-> Fields
 ```
 

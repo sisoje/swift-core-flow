@@ -82,7 +82,7 @@ public struct User {
 // `detectHostKind`) and, when it matches, generates two more things beyond the
 // usual StatelessNode struct/statelessNode property: `StatelessNode` itself is additionally
 // declared `: View` (here) or `: ViewModifier` (VM, below), and ProfileCard gets
-// a generated `var body: some View { self.statelessNode }` for free — the mechanical
+// a generated `var body: some View { statelessNode }` for free — the mechanical
 // delegation, not hand-written. Only the *real* body implementation, on
 // `StatelessNode` itself, is left for hand-written code below.
 @DataLayout
@@ -102,7 +102,7 @@ public struct ProfileCard<Content: View>: View {
     // @SceneStorage's wrappedValue is get/nonmutating-set and its projectedValue
     // genuinely IS Binding<Bool> (verified directly, same shape as @AppStorage) —
     // so it shares @State/@AppStorage's exact treatment: Binding<Bool> in OutFlow,
-    // @Binding var in StatelessNode, both read via self.$isPinned.
+    // @Binding var in StatelessNode, both read via $isPinned.
     @SceneStorage("isPinned") private var isPinned: Bool = false
     @Binding var isOn: Bool
     let title: String
@@ -126,7 +126,7 @@ extension ProfileCard.StatelessNode {
 }
 
 // Same story for ViewModifier: @StatelessNode sees `: ViewModifier` on VM and
-// generates `func body(content: Content) -> some View { content.modifier(self.statelessNode) }`
+// generates `func body(content: Content) -> some View { content.modifier(statelessNode) }`
 // on VM, plus `: ViewModifier` on VM.StatelessNode — via `.modifier(_:)`, so there's
 // no need to unify VM's own `Content` with VM.StatelessNode's (verified directly
 // that forwarding `content` straight into StatelessNode's own `body(content:)`
@@ -227,11 +227,11 @@ let profileCardOutFlowFieldNames = Reflector.fieldNames(of: ProfileCard<Text>.Ou
 // ModelContext) — items: [Item] becomes items: (result: [Item], fetchError:
 // Error?, modelContext: ModelContext). fetchError/modelContext are real
 // members of SwiftData's Query wrapper instance
-// (self._items.fetchError/.modelContext), not synthesized placeholders.
+// (_items.fetchError/.modelContext), not synthesized placeholders.
 // @State/@AppStorage/@SceneStorage all read as Binding<T> via the projected $
 // value — @SceneStorage's own projectedValue genuinely IS Binding<T>, verified
 // directly, same shape as @State/@AppStorage exactly. @FocusState reads via
-// that same `self.$x` shortcut, but resolves to its OWN projected type,
+// that same `$x` shortcut, but resolves to its OWN projected type,
 // FocusState<Bool>.Binding — not Binding<Bool> — since @FocusState's
 // projectedValue has no public conversion to Binding<T> (verified directly).
 //

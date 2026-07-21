@@ -35,13 +35,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = (id: UUID, isActive: Bool)
 
                     public var inFlow: InFlow {
-                        (id: self.id, isActive: self.isActive)
+                        (id: id, isActive: isActive)
                     }
 
                     public typealias OutFlow = (id: UUID, isActive: Bool)
 
                     public var outFlow: OutFlow {
-                        (id: self.id, isActive: self.isActive)
+                        (id: id, isActive: isActive)
                     }
                 }
                 """,
@@ -78,13 +78,13 @@ final class DataLayoutTests: XCTestCase {
                     typealias InFlow = (x: Int, y: Int)
 
                     var inFlow: InFlow {
-                        (x: self.x, y: self.y)
+                        (x: x, y: y)
                     }
 
                     typealias OutFlow = (x: Int, y: Int)
 
                     var outFlow: OutFlow {
-                        (x: self.x, y: self.y)
+                        (x: x, y: y)
                     }
                 }
                 """,
@@ -120,13 +120,13 @@ final class DataLayoutTests: XCTestCase {
                     typealias InFlow = Int
 
                     var inFlow: InFlow {
-                        self.ii
+                        ii
                     }
 
                     typealias OutFlow = Int
 
                     var outFlow: OutFlow {
-                        self.ii
+                        ii
                     }
                 }
                 """,
@@ -161,13 +161,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = Int
 
                     public var inFlow: InFlow {
-                        self.count
+                        count
                     }
 
                     public typealias OutFlow = Int
 
                     public var outFlow: OutFlow {
-                        self.count
+                        count
                     }
                 }
                 """,
@@ -209,13 +209,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = (onChange: () -> Void, onMain: @MainActor () -> Void, onSend: @Sendable (Int) -> Void)
 
                     public var inFlow: InFlow {
-                        (onChange: self.onChange, onMain: self.onMain, onSend: self.onSend)
+                        (onChange: onChange, onMain: onMain, onSend: onSend)
                     }
 
                     public typealias OutFlow = (onChange: () -> Void, onMain: @MainActor () -> Void, onSend: @Sendable (Int) -> Void)
 
                     public var outFlow: OutFlow {
-                        (onChange: self.onChange, onMain: self.onMain, onSend: self.onSend)
+                        (onChange: onChange, onMain: onMain, onSend: onSend)
                     }
                 }
                 """,
@@ -259,13 +259,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = (nickname: String?, onChange: (() -> Void)?, onSend: (@Sendable (Int) -> Void)!)
 
                     public var inFlow: InFlow {
-                        (nickname: self.nickname, onChange: self.onChange, onSend: self.onSend)
+                        (nickname: nickname, onChange: onChange, onSend: onSend)
                     }
 
                     public typealias OutFlow = (nickname: String?, onChange: (() -> Void)?, onSend: (@Sendable (Int) -> Void)!)
 
                     public var outFlow: OutFlow {
-                        (nickname: self.nickname, onChange: self.onChange, onSend: self.onSend)
+                        (nickname: nickname, onChange: onChange, onSend: onSend)
                     }
                 }
                 """,
@@ -282,10 +282,10 @@ final class DataLayoutTests: XCTestCase {
         // includes @Environment at all (see below) — only @State/@AppStorage/
         // @Query, plus non-private fields.
         // Binding<T> carries into the InFlowSplat typealias too, and the inFlow
-        // property reads its projected form (self._isOn), not the wrapped Bool
+        // property reads its projected form (_isOn), not the wrapped Bool
         // value — OutFlow reads isOn the same way (it's non-private), but reads
-        // isExpanded via its OWN projected form (self.$isExpanded), since @State's
-        // wrapper instance (self._isExpanded) is a State<Bool>, not a Binding<Bool>.
+        // isExpanded via its OWN projected form ($isExpanded), since @State's
+        // wrapper instance (_isExpanded) is a State<Bool>, not a Binding<Bool>.
         assertMacroExpansion(
             """
             @DataLayout
@@ -317,13 +317,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = (isOn: Binding<Bool>, title: String)
 
                     public var inFlow: InFlow {
-                        (isOn: self._isOn, title: self.title)
+                        (isOn: _isOn, title: title)
                     }
 
                     public typealias OutFlow = (isOn: Binding<Bool>, isExpanded: Binding<Bool>, title: String)
 
                     public var outFlow: OutFlow {
-                        (isOn: self._isOn, isExpanded: self.$isExpanded, title: self.title)
+                        (isOn: _isOn, isExpanded: $isExpanded, title: title)
                     }
                 }
                 """,
@@ -366,13 +366,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = String
 
                     public var inFlow: InFlow {
-                        self.title
+                        title
                     }
 
                     public typealias OutFlow = String
 
                     public var outFlow: OutFlow {
-                        self.title
+                        title
                     }
                 }
                 """,
@@ -390,7 +390,7 @@ final class DataLayoutTests: XCTestCase {
         // sugar wrapping exists to enable, and a closure isn't Equatable/storable.
         // makeFlow(_:) re-wraps footer into a trivial closure to satisfy the
         // init, reading it positionally (flow.2) since InFlowSplat is unlabeled.
-        // The inFlow property is the reverse: it reads self.footer directly, no
+        // The inFlow property is the reverse: it reads footer directly, no
         // wrapping needed — the stored property already holds the plain Content
         // value regardless of what the init's parameter looks like.
         assertMacroExpansion(
@@ -425,13 +425,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = (title: String, content: () -> Content, footer: Content)
 
                     public var inFlow: InFlow {
-                        (title: self.title, content: self.content, footer: self.footer)
+                        (title: title, content: content, footer: footer)
                     }
 
                     public typealias OutFlow = (title: String, content: () -> Content, footer: Content)
 
                     public var outFlow: OutFlow {
-                        (title: self.title, content: self.content, footer: self.footer)
+                        (title: title, content: content, footer: footer)
                     }
                 }
                 """,
@@ -471,13 +471,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = (x: Double, y: Double)
 
                     public var inFlow: InFlow {
-                        (x: self.x, y: self.y)
+                        (x: x, y: y)
                     }
 
                     public typealias OutFlow = (x: Double, y: Double)
 
                     public var outFlow: OutFlow {
-                        (x: self.x, y: self.y)
+                        (x: x, y: y)
                     }
                 }
                 """,
@@ -514,13 +514,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = Int
 
                     public var inFlow: InFlow {
-                        self.value
+                        value
                     }
 
                     public typealias OutFlow = Int
 
                     public var outFlow: OutFlow {
-                        self.value
+                        value
                     }
                 }
                 """,
@@ -556,13 +556,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = (x: Int, y: Int)
 
                     public var inFlow: InFlow {
-                        (x: self.x, y: self.y)
+                        (x: x, y: y)
                     }
 
                     public typealias OutFlow = (x: Int, y: Int)
 
                     public var outFlow: OutFlow {
-                        (x: self.x, y: self.y)
+                        (x: x, y: y)
                     }
                 }
                 """,
@@ -627,13 +627,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = String
 
                     public var inFlow: InFlow {
-                        self.title
+                        title
                     }
 
                     public typealias OutFlow = (items: (result: [Item], fetchError: Error?, modelContext: ModelContext), title: String)
 
                     public var outFlow: OutFlow {
-                        (items: (result: self.items, fetchError: self._items.fetchError, modelContext: self._items.modelContext), title: self.title)
+                        (items: (result: items, fetchError: _items.fetchError, modelContext: _items.modelContext), title: title)
                     }
                 }
                 """,
@@ -642,7 +642,7 @@ final class DataLayoutTests: XCTestCase {
     }
 
     func testOutFlowReadsFocusStateAsItsOwnProjectedBindingTypeNotBindingT() {
-        // @FocusState reads via the same `self.$x` shortcut @State/@AppStorage
+        // @FocusState reads via the same `$x` shortcut @State/@AppStorage
         // use, but resolves to a genuinely different type: FocusState<T>.Binding,
         // not Binding<T> — verified directly against the real SwiftUI interface
         // that FocusState<T>.Binding has no public conversion to Binding<T> (and
@@ -674,13 +674,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = String
 
                     public var inFlow: InFlow {
-                        self.title
+                        title
                     }
 
                     public typealias OutFlow = (isFocused: FocusState<Bool>.Binding, title: String)
 
                     public var outFlow: OutFlow {
-                        (isFocused: self.$isFocused, title: self.title)
+                        (isFocused: $isFocused, title: title)
                     }
                 }
                 """,
@@ -720,13 +720,13 @@ final class DataLayoutTests: XCTestCase {
                     public typealias InFlow = String
 
                     public var inFlow: InFlow {
-                        self.title
+                        title
                     }
 
                     public typealias OutFlow = (isPinned: Binding<Bool>, title: String)
 
                     public var outFlow: OutFlow {
-                        (isPinned: self.$isPinned, title: self.title)
+                        (isPinned: $isPinned, title: title)
                     }
                 }
                 """,

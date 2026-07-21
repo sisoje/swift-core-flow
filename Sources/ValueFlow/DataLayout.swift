@@ -25,7 +25,7 @@
 ///     // }
 ///     // public typealias InFlow = (id: UUID, isActive: Bool)
 ///     // public var inFlow: InFlow {
-///     //     (id: self.id, isActive: self.isActive)
+///     //     (id: id, isActive: isActive)
 ///     // }
 /// }
 /// ```
@@ -97,8 +97,8 @@
 /// - **No wrapping needed for `@ViewBuilder` fields**, unlike
 ///   `makeFlow(_:)`'s reverse direction: the stored property already
 ///   holds exactly its own declared type regardless of `@ViewBuilder` (which only
-///   ever reshapes the *init parameter*), so every field just reads `self.x`
-///   directly — except `@Binding`, which reads its projected form `self._x` to
+///   ever reshapes the *init parameter*), so every field just reads `x`
+///   directly — except `@Binding`, which reads its projected form `_x` to
 ///   match `InFlowSplat`'s `Binding<T>` field type.
 /// - **Round-trips through `makeFlow(_:)` with no manual conversion**:
 ///   `Self.makeFlow(someInstance.inFlow)` works as-is, verified
@@ -145,8 +145,8 @@
 ///     // typealias OutFlow = (items: (result: [Item], fetchError: Error?, modelContext: ModelContext),
 ///     //                       isExpanded: Binding<Bool>, title: String)
 ///     // var outFlow: OutFlow {
-///     //     (items: (result: self.items, fetchError: self._items.fetchError, modelContext: self._items.modelContext),
-///     //      isExpanded: self.$isExpanded, title: self.title)
+///     //     (items: (result: items, fetchError: _items.fetchError, modelContext: _items.modelContext),
+///     //      isExpanded: $isExpanded, title: title)
 ///     // }
 /// }
 /// ```
@@ -154,19 +154,19 @@
 /// - **`@Query` → always `(result: WrappedType, fetchError: Error?, modelContext:
 ///   ModelContext)`, synthesized** — not a passthrough of the declared type.
 ///   `fetchError`/`modelContext` are real members of SwiftData's `Query` wrapper
-///   *instance* (`self._x.fetchError`, `self._x.modelContext`), not synthesized
+///   *instance* (`_x.fetchError`, `_x.modelContext`), not synthesized
 ///   placeholders.
 /// - **`@State`/`@AppStorage` → `Binding<WrappedType>`, read via the *projected*
-///   value** (`self.$x`, not `self._x` — verified directly that `_x` gives the
+///   value** (`$x`, not `_x` — verified directly that `_x` gives the
 ///   wrapper instance itself, `State<T>`, not `Binding<T>`) — the view's own
 ///   externally read-*and-write*-able storage.
 /// - **`@FocusState` → `FocusState<WrappedType>.Binding`, read the same way**
-///   (`self.$x`) — **not** `Binding<WrappedType>`, despite the identical read
+///   (`$x`) — **not** `Binding<WrappedType>`, despite the identical read
 ///   expression. Verified directly against the real SwiftUI interface:
 ///   `FocusState<T>.Binding` (its own `projectedValue` type) exposes only
 ///   `wrappedValue`, no public initializer at all and no conversion to
 ///   `Binding<T>` — so it can't share the row above, even though both are
-///   reached via `self.$x`.
+///   reached via `$x`.
 /// - **`@Environment` is deliberately excluded**, unlike the other three — not
 ///   because it's technically uncapturable (a plain, unattributed value works
 ///   fine; `@StatelessNode`, a separate macro, captures it exactly that way), but
