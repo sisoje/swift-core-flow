@@ -625,17 +625,15 @@ final class FlowableTests: XCTestCase {
         )
     }
 
-    func testOutFlowSynthesizesQueryAsAWrappedValueFetchErrorTupleViaPick() {
+    func testOutFlowSynthesizesQueryAsAQueryCoreDropIn() {
         // @Query is NOT a passthrough of its declared type the way @Environment
-        // is — OutFlow always synthesizes (wrappedValue: WrappedType, fetchError:
-        // Error?), via #pick — this package's own TuplePicker macro, reused here
-        // rather than hand-rolling the same tuple-literal construction.
-        // wrappedValue/fetchError are real members of SwiftData's Query wrapper
-        // *instance* (verified directly against the SwiftData interface:
-        // `@MainActor @preconcurrency public var fetchError: (any Error)? {
-        // get }`), picked verbatim, no renaming. modelContext is deliberately
-        // left out — it's plumbing for issuing further queries/saves, not a
-        // snapshot value worth asserting on.
+        // is — OutFlow always synthesizes QueryCore<WrappedType>, this package's
+        // own drop-in stand-in carrying the live wrapper's exact instance
+        // surface: wrappedValue, fetchError, and modelContext, no projectedValue
+        // (verified directly against the _SwiftData_SwiftUI interface). All
+        // three are captured verbatim off the wrapper instance (_items), and
+        // reading modelContext outside a live container works — verified
+        // directly, no crash.
         assertMacroExpansion(
             """
             @Flowable
@@ -665,10 +663,10 @@ final class FlowableTests: XCTestCase {
                         title
                     }
 
-                    public typealias OutFlow = (items: (wrappedValue: [Item], fetchError: Error?), title: String)
+                    public typealias OutFlow = (items: QueryCore<[Item]>, title: String)
 
                     public var outFlow: OutFlow {
-                        (items: #pick(from: _items, \\.wrappedValue, \\.fetchError), title: title)
+                        (items: QueryCore(wrappedValue: _items.wrappedValue, fetchError: _items.fetchError, modelContext: _items.modelContext), title: title)
                     }
                 }
                 """,

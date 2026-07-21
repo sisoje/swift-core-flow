@@ -266,17 +266,16 @@ func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
 /// - **Non-private fields** use `baseTypeText` unchanged — same rules `InFlow`
 ///   already applies (`Binding<T>` for `@Binding`, `@ViewBuilder` unwrapped to its
 ///   bare type, everything else as declared).
-/// - **`@Query`** (`isQuery`) → **always** `(wrappedValue: WrappedType,
-///   fetchError: Error?)`, synthesized via `#pick` — not a passthrough of the
-///   declared type, and not `modelContext` either: that one's plumbing for
-///   issuing further queries/saves, not a snapshot value worth asserting on,
-///   so it's left off entirely rather than picked for completeness's sake.
-///   `WrappedType` is the property's own declared type (e.g. `[Item]` for
-///   `@Query private var items: [Item]`); `wrappedValue`/`fetchError` are the
-///   wrapper *instance*'s own two real members, picked verbatim, no renaming
-///   (`fetchError`: `@MainActor @preconcurrency public var fetchError: (any
-///   Error)? { get }` — verified directly against the SwiftData interface),
-///   not synthesized placeholders.
+/// - **`@Query`** (`isQuery`) → `QueryCore<WrappedType>` — this package's own
+///   drop-in stand-in for the live wrapper (see `QueryCore.swift` in
+///   `Sources/ValueFlow`), carrying the exact instance surface the real
+///   `Query` has (`wrappedValue`/`fetchError`/`modelContext`, no
+///   `projectedValue` — verified directly against the `_SwiftData_SwiftUI`
+///   interface). `WrappedType` is the property's own declared type (e.g.
+///   `[Item]` for `@Query private var items: [Item]`). An earlier revision
+///   synthesized a bare `(wrappedValue:, fetchError:)` tuple via `#pick`
+///   instead — replaced by the real wrapper so `Core`'s field reads the
+///   fetched value directly (`core.items`, not `.items.wrappedValue`).
 /// - **`@State`/`@AppStorage`/`@SceneStorage`** (`isBindingBackedStorage`) →
 ///   `Binding<T>`, since these are the view's own read-*and-write*-able
 ///   storage from the outside — `$x` already gives the real thing, since
@@ -301,7 +300,7 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
         return "FocusState<\(p.type?.trimmedDescription ?? "")>.Binding"
     }
     if p.isQuery {
-        return "(wrappedValue: \(p.type?.trimmedDescription ?? ""), fetchError: Error?)"
+        return "QueryCore<\(p.type?.trimmedDescription ?? "")>"
     }
     return baseTypeText(p, wrapViewBuilder: false)
 }
@@ -320,23 +319,22 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
 ///   `outFlowFieldType` above) — `@FocusState`'s own `projectedValue` happens
 ///   to be `FocusState<T>.Binding` rather than `Binding<T>`, but it's still
 ///   reached the exact same way.
-/// - **`@Query`** reads `#pick(from: _x, \.wrappedValue, \.fetchError)` —
-///   `_x` is the wrapper *instance* itself (type `Query<Element, Result>`,
-///   the same underscore-prefixed access `@Binding` already uses elsewhere in
-///   this file), and `#pick` (this package's own `TuplePicker` macro) picks
-///   its `wrappedValue`/`fetchError` members verbatim into the labeled tuple
-///   `outFlowFieldType` declares — real members, not synthesized, and no
-///   `modelContext` (dropped above). Reusing `#pick` here instead of
-///   hand-writing the same tuple-literal construction is deliberate
-///   dogfooding: this package's own field-projection macro is exactly the
-///   tool for "pick a few named members off a value into a tuple," so this
-///   uses it rather than duplicating that logic.
+/// - **`@Query`** reads `QueryCore(wrappedValue: _x.wrappedValue, fetchError:
+///   _x.fetchError, modelContext: _x.modelContext)` — `_x` is the wrapper
+///   *instance* itself (type `Query<Element, Result>`, the same
+///   underscore-prefixed access `@Binding`'s assignment side already uses),
+///   and all three are its real members, captured verbatim into the drop-in
+///   `QueryCore` declared by `outFlowFieldType` above. Reading
+///   `modelContext` outside a live container works — verified directly, no
+///   crash — so capturing it eagerly here is safe even for snapshots built in
+///   plain code.
 func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
     if p.isBindingBackedStorage || p.isFocusState {
         return "$\(p.name)"
     }
     if p.isQuery {
-        return "#pick(from: _\(p.name), \\.wrappedValue, \\.fetchError)"
+        return
+            "QueryCore(wrappedValue: _\(p.name).wrappedValue, fetchError: _\(p.name).fetchError, modelContext: _\(p.name).modelContext)"
     }
     return fieldReadExpression(p)
 }

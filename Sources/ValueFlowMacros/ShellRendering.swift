@@ -39,8 +39,10 @@ import SwiftSyntax
 /// Every private wrapper kind becomes a *plain, constructed* field on
 /// `Core` — never the original attribute, always captured as an ordinary
 /// value read once when `.core` is computed:
-/// - `@Query` → the synthesized `(wrappedValue:, fetchError:)` tuple, built via
-///   `#pick` (no `modelContext` — plumbing, not a snapshot value).
+/// - `@Query` → `@QueryCore var name: T` — this package's own drop-in stand-in
+///   (see `QueryCore.swift`), carrying the live wrapper's exact instance
+///   surface: `wrappedValue`, `fetchError`, `modelContext`, no
+///   `projectedValue`.
 /// - `@State`/`@AppStorage`/`@SceneStorage` → `@Binding var name: T` (the one
 ///   case that keeps an attribute — substituted, not mirrored, since their own
 ///   storage only installs inside a live SwiftUI view and can't be redeclared
@@ -86,8 +88,6 @@ import SwiftSyntax
 /// *original* property was declared `let` or `var`:
 /// - A plain `var subtitle: String?` on the original type becomes `let subtitle:
 ///   String?` on `Core` — a captured value, not a re-tweakable one.
-/// - `@Query`'s synthesized `(wrappedValue:, fetchError:)` tuple carries
-///   no attribute on the copy (see above) and is `let` for the same reason.
 /// - `@ViewBuilder` is **not** a `@propertyWrapper` — it's a result-builder
 ///   attribute, legal directly on a stored `let` (verified directly:
 ///   `@ViewBuilder let vb: () -> Text` compiles) — but it's mirrored only for
@@ -138,15 +138,22 @@ func renderShell(
         if p.isEnvironment || p.isNamespace {
             return "let \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
-        // Query gets its OutFlow-synthesized type with no attribute (no wrapper
-        // of its own could apply to that resulting shape); everything else
-        // reuses outFlowFieldType too — it already reduces to the property's own
-        // bare declared type once Binding/Query are excluded — but carries its
-        // original wrapper attribute along, verbatim. Mutability is never
-        // mirrored: `var` only where a genuine `@propertyWrapper` (anything
-        // other than `@ViewBuilder`, which isn't one) forces it — everything
-        // else is `let`, a deterministic snapshot field.
-        let requiresVar = p.wrapperName != nil && !p.isQuery && !p.isViewBuilder
+        if p.isQuery {
+            // @QueryCore — this package's own drop-in stand-in for the live
+            // wrapper, same substitution move @Binding makes for @State above:
+            // `core.x` reads the fetched value directly, `_x.fetchError`/
+            // `_x.modelContext` keep working like on the real @Query. A genuine
+            // wrapper, so `var` is forced, same as every other wrapper here.
+            return "@QueryCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
+        }
+        // Everything else reuses outFlowFieldType — it already reduces to the
+        // property's own bare declared type once Binding/Query are excluded —
+        // and carries its original wrapper attribute along, verbatim.
+        // Mutability is never mirrored: `var` only where a genuine
+        // `@propertyWrapper` (anything other than `@ViewBuilder`, which isn't
+        // one) forces it — everything else is `let`, a deterministic snapshot
+        // field.
+        let requiresVar = p.wrapperName != nil && !p.isViewBuilder
         let keyword = requiresVar ? "var" : "let"
         // @ViewBuilder is mirrored only for the stored-*closure* form — its
         // field type is already `() -> Content`, so the attribute just buys
@@ -158,7 +165,7 @@ func renderShell(
         // dropped entirely here, same treatment `OutFlow` already gives it.
         let isStoredValueViewBuilder = p.isViewBuilder && !(p.type.map(isFunctionType) ?? false)
         let attributePrefix =
-            (p.isQuery || isStoredValueViewBuilder) ? "" : p.wrapperName.map { "@\($0) " } ?? ""
+            isStoredValueViewBuilder ? "" : p.wrapperName.map { "@\($0) " } ?? ""
         return "\(attributePrefix)\(keyword) \(p.name): \(outFlowFieldType(p))"
     }.joined(separator: "\n")
 

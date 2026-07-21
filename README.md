@@ -50,14 +50,15 @@ struct Card: View {
     var subtitle: String?
     // generates:
     // struct Core {
-    //     let items: (wrappedValue: [Item], fetchError: Error?)
+    //     @QueryCore var items: [Item]
     //     let colorScheme: ColorScheme
     //     @Binding var isExpanded: Bool
     //     let title: String
     //     let subtitle: String?
     // }
     // var core: Core {
-    //     Core(items: #pick(from: _items, \.wrappedValue, \.fetchError),
+    //     Core(items: QueryCore(wrappedValue: _items.wrappedValue,
+    //               fetchError: _items.fetchError, modelContext: _items.modelContext),
     //               colorScheme: colorScheme, isExpanded: $isExpanded,
     //               title: title, subtitle: subtitle)
     // }
@@ -69,9 +70,9 @@ struct Card: View {
 Every wrapper kind this package recognizes, and exactly what it becomes on
 `@Shell`'s nested `Core` struct — one row each, no grouping. Types are left
 out below on purpose: each attribute already implies its own type (`@Binding`
-→ `Binding<T>`, `(wrappedValue, fetchError)` → that exact tuple, and so on —
-spelled out in full later in this doc). `OutFlow` follows the same shape,
-minus the `let`/`var`/attribute keyword.
+→ `Binding<T>`, `@QueryCore` → `QueryCore<T>`, and so on — spelled out in
+full later in this doc). `OutFlow` follows the same shape, minus the
+`let`/`var`/attribute keyword.
 
 This table is every *source of truth* this package recognizes, plus the plain
 `let`/`var` baseline they're all measured against — `@Binding` and `@Bindable`
@@ -88,7 +89,7 @@ diagnostic, not just convention.
 | `@Bindable` | `@Bindable` | `x` |
 | `@Environment` | `let` | `x` |
 | `@Namespace` | `let` | `x` |
-| `@Query` | `(wrappedValue, fetchError)` | `#pick(_x)` |
+| `@Query` | `@QueryCore` | `QueryCore(_x)` |
 | `@State` | `@Binding` | `$x` |
 | `@AppStorage` | `@Binding` | `$x` |
 | `@SceneStorage` | `@Binding` | `$x` |
@@ -123,12 +124,15 @@ diagnostic, not just convention.
   `@Binding` does, just spelling a different wrapper — `snap.x` reads the
   unwrapped value, `snap.$x` hands back a real `FocusState<T>.Binding` usable
   directly with `.focused(_:)`.
-- **`@Query` reuses `#pick`, this package's own `TuplePicker` macro, instead of
-  a hand-rolled tuple literal** — dogfooding, not just avoiding duplication:
-  `#pick` already *is* "pick a few named members off a value into a tuple."
-  `modelContext` is deliberately left off — it's plumbing for issuing further
-  queries/saves, not a snapshot value worth asserting on — and `wrappedValue`/
-  `fetchError` are picked under their own real names, no renaming.
+- **`@QueryCore` is a real, one-to-one drop-in for the live `@Query`.**
+  Verified directly against the `_SwiftData_SwiftUI` interface: `Query`'s
+  instance surface is exactly `wrappedValue`, `fetchError`, and
+  `modelContext`, with **no `projectedValue`** — so `QueryCore` carries the
+  same three and nothing else. `core.items` reads the fetched value directly,
+  and `_items.fetchError`/`_items.modelContext` work the same way they do on
+  the live wrapper — body code moves onto `Core` unchanged. Capturing
+  `modelContext` outside a live container is safe (verified directly, no
+  crash).
 - **`@ViewBuilder`'s two stored forms get opposite treatment, on purpose.** A
   stored *closure* (`let content: () -> Content`) already has a closure-typed
   field, so mirroring `@ViewBuilder` is pure upside — real builder syntax at
@@ -643,10 +647,11 @@ struct Card: View {
     @State private var isExpanded = false
     let title: String
     // generates:
-    // typealias OutFlow = (items: (wrappedValue: [Item], fetchError: Error?),
+    // typealias OutFlow = (items: QueryCore<[Item]>,
     //                       isExpanded: Binding<Bool>, title: String)
     // var outFlow: OutFlow {
-    //     (items: #pick(from: _items, \.wrappedValue, \.fetchError),
+    //     (items: QueryCore(wrappedValue: _items.wrappedValue,
+    //          fetchError: _items.fetchError, modelContext: _items.modelContext),
     //      isExpanded: $isExpanded, title: title)
     // }
 }
@@ -655,12 +660,10 @@ struct Card: View {
 - **Declaration order, as one interleaved list** — not data-layout fields first
   with wrapper fields appended after. `items` comes first above because it's
   declared first.
-- **`@Query` → always `(wrappedValue: WrappedType, fetchError: Error?)`,
-  synthesized via `#pick`** — not a passthrough of the declared type, and no
-  `modelContext` (see the [wrapper mapping reference](#wrapper-mapping-reference)
-  for why). `WrappedType` is the property's own declared type (`[Item]`
-  above); `wrappedValue`/`fetchError` are real members of SwiftData's `Query`
-  wrapper instance, picked verbatim — not synthesized placeholders.
+- **`@Query` → always `QueryCore<WrappedType>`** — this package's own drop-in
+  stand-in for the live wrapper, not a passthrough of the declared type; see
+  the [wrapper mapping reference](#wrapper-mapping-reference) for the
+  one-to-one details.
 - **`@State`/`@AppStorage`/`@SceneStorage` → `Binding<WrappedType>`**, read via
   the *projected* value (`$x`) — not `_x`, which gives the wrapper instance
   itself (`State<T>`, not `Binding<T>`; verified directly).
@@ -1196,7 +1199,7 @@ One target pair for every macro — not one pair per macro:
 | Target | Kind | Contents |
 |---|---|---|
 | `ValueFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `InFlowSplat`/`InFlow`, and `OutFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `ValueFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift` — plus `Reflector.swift`, a small non-macro addition |
+| `ValueFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift` — plus two small non-macro additions: `Reflector.swift` and `QueryCore.swift` |
 | `ValueFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites — both test frameworks coexist fine in one target |
 | `Examples` | executable | one playground exercising every macro in the package, plus Reflector |
 

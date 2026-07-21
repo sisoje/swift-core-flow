@@ -154,24 +154,22 @@
 ///     @State private var isExpanded: Bool = false
 ///     let title: String
 ///     // generates:
-///     // typealias OutFlow = (items: (wrappedValue: [Item], fetchError: Error?),
+///     // typealias OutFlow = (items: QueryCore<[Item]>,
 ///     //                       isExpanded: Binding<Bool>, title: String)
 ///     // var outFlow: OutFlow {
-///     //     (items: #pick(from: _items, \.wrappedValue, \.fetchError),
+///     //     (items: QueryCore(wrappedValue: _items.wrappedValue,
+///     //          fetchError: _items.fetchError, modelContext: _items.modelContext),
 ///     //      isExpanded: $isExpanded, title: title)
 ///     // }
 /// }
 /// ```
 ///
-/// - **`@Query` → always `(wrappedValue: WrappedType, fetchError: Error?)`,
-///   synthesized via `#pick`** (this package's own `TuplePicker` macro,
-///   reused here) — not a passthrough of the declared type, and no
-///   `modelContext` either: that's plumbing for issuing further queries/
-///   saves, not a snapshot value worth asserting on, so it's left off rather
-///   than picked for completeness's sake. `wrappedValue`/`fetchError` are real
-///   members of SwiftData's `Query` wrapper *instance*, picked verbatim (no
-///   renaming) via `#pick(from: _x, \.wrappedValue, \.fetchError)`, not
-///   synthesized placeholders.
+/// - **`@Query` → always `QueryCore<WrappedType>`** — this package's own
+///   drop-in stand-in for the live wrapper (see `QueryCore.swift`), not a
+///   passthrough of the declared type. One-to-one with the real `Query`'s
+///   instance surface: `wrappedValue`, `fetchError`, and `modelContext`, no
+///   `projectedValue` — verified directly against the `_SwiftData_SwiftUI`
+///   interface — all three captured verbatim off the wrapper instance.
 /// - **`@State`/`@AppStorage`/`@SceneStorage` → `Binding<WrappedType>`, read via
 ///   the *projected* value** (`$x`, not `_x` — verified directly that `_x`
 ///   gives the wrapper instance itself, `State<T>`, not `Binding<T>`) — the

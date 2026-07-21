@@ -22,14 +22,15 @@
 ///     var subtitle: String?
 ///     // generates:
 ///     // struct Core {
-///     //     let items: (wrappedValue: [Item], fetchError: Error?)
+///     //     @QueryCore var items: [Item]
 ///     //     let colorScheme: ColorScheme
 ///     //     @Binding var isExpanded: Bool
 ///     //     let title: String
 ///     //     let subtitle: String?
 ///     // }
 ///     // var core: Core {
-///     //     Core(items: #pick(from: _items, \.wrappedValue, \.fetchError),
+///     //     Core(items: QueryCore(wrappedValue: _items.wrappedValue,
+///     //               fetchError: _items.fetchError, modelContext: _items.modelContext),
 ///     //               colorScheme: colorScheme, isExpanded: $isExpanded,
 ///     //               title: title, subtitle: subtitle)
 ///     // }
@@ -84,11 +85,12 @@
 /// computed) rather than kept live — never the original attribute, except
 /// `@Binding`/`@FocusState<T>.Binding` (below), which are deliberate
 /// substitutions:
-/// - `@Query` → the synthesized `(wrappedValue:, fetchError:)` tuple, no
-///   attribute — built via `#pick` (this package's own `TuplePicker` macro),
-///   picking those two real members verbatim, no renaming. `modelContext` is
-///   deliberately left off: plumbing for issuing further queries/saves, not a
-///   snapshot value worth asserting on.
+/// - `@Query` → `@QueryCore var name: T` — this package's own drop-in stand-in
+///   (see `QueryCore.swift`), one-to-one with the live wrapper's instance
+///   surface (`wrappedValue`/`fetchError`/`modelContext`, no `projectedValue`
+///   — verified directly against the `_SwiftData_SwiftUI` interface). So
+///   `core.name` reads the fetched value directly, and body code written
+///   against the live `@Query` property moves onto `Core` unchanged.
 /// - `@State`/`@AppStorage`/`@SceneStorage` → `@Binding var name: T` — the one
 ///   case that keeps an attribute, substituted rather than mirrored, since
 ///   their own storage only installs inside a live SwiftUI view and can't be

@@ -28,7 +28,7 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        let items: (wrappedValue: [Item], fetchError: Error?)
+                        @QueryCore var items: [Item]
                         let colorScheme: ColorScheme
                         @Binding var isExpanded: Bool
                         @Binding var isOn: Bool
@@ -36,7 +36,7 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     var core: Core {
-                        Core(items: #pick(from: _items, \\.wrappedValue, \\.fetchError), colorScheme: colorScheme, isExpanded: $isExpanded, isOn: $isOn, title: title)
+                        Core(items: QueryCore(wrappedValue: _items.wrappedValue, fetchError: _items.fetchError, modelContext: _items.modelContext), colorScheme: colorScheme, isExpanded: $isExpanded, isOn: $isOn, title: title)
                     }
                 }
                 """,

@@ -66,16 +66,15 @@ public struct StoredProperty {
         wrapperName == "Environment"
     }
 
-    /// `@Query` (SwiftData) — the `OutFlow`/`Core` field is always synthesized
-    /// as `(wrappedValue: WrappedType, fetchError: Error?)`, built via `#pick`,
-    /// regardless of the property's own declared type. `WrappedType` is the
-    /// property's own declared type (e.g. `[Item]` for `@Query private var
-    /// items: [Item]`); `wrappedValue` and `fetchError` are real members of
-    /// SwiftData's `Query` wrapper *instance* (reached via the
-    /// underscore-prefixed backing storage), picked verbatim, not synthesized
-    /// placeholders — verified directly against the SwiftData interface.
-    /// `modelContext` is deliberately left off: plumbing for issuing further
-    /// queries/saves, not a snapshot value worth asserting on.
+    /// `@Query` (SwiftData) — the `OutFlow`/`Core` field is always
+    /// `QueryCore<WrappedType>`, this package's own drop-in stand-in for the
+    /// live wrapper (see `QueryCore.swift` in `Sources/ValueFlow`), carrying
+    /// its exact instance surface: `wrappedValue`, `fetchError`, and
+    /// `modelContext`, no `projectedValue` — verified directly against the
+    /// `_SwiftData_SwiftUI` interface. All three are captured verbatim off the
+    /// wrapper instance (the underscore-prefixed backing storage);
+    /// `WrappedType` is the property's own declared type (e.g. `[Item]` for
+    /// `@Query private var items: [Item]`).
     public var isQuery: Bool {
         wrapperName == "Query"
     }

@@ -24,7 +24,7 @@ concurrency) throughout.
 | Target | Kind | Contents |
 |---|---|---|
 | `ValueFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `ValueFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`), plus `Reflector.swift` — a small non-macro addition that pairs with `@Flowable` (see below) |
+| `ValueFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`'s drop-in stand-in on `Core`/`OutFlow`, see the `@Flowable` OutFlow notes) |
 | `ValueFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites |
 | `Examples` | executable | combined playground for every macro (and Reflector) |
 
@@ -290,21 +290,27 @@ the two was itself the defect, not a deliberate design choice worth keeping.
   `properties` (already declaration-ordered) in place, so a `@Query` field declared
   before a plain `public let` one comes first in `OutFlow` too.
 - **Three type mappings, all in `outFlowFieldType`**:
-  - `@Query` (`isQuery`) → **always** `(wrappedValue: WrappedType, fetchError:
-    Error?)`, synthesized via `#pick` — **not** a passthrough of the declared
-    type, and no `modelContext` either: plumbing for issuing further
-    queries/saves, not a snapshot value worth asserting on, so it's left off
-    rather than picked for completeness's sake (an earlier revision picked it
-    too; dropped once it was clear nothing exercises it). `WrappedType` is the
-    property's own declared type — verified in the Examples playground against
-    SwiftData's real `@Query private var items: [Item]` → `OutFlow` field
-    `items: (wrappedValue: [Item], fetchError: Error?)`. `wrappedValue`/
-    `fetchError` are **real members of the `Query` wrapper instance**, picked
-    verbatim (no renaming) via `#pick`, not synthesized placeholders — verified
-    directly against the SwiftData interface: `@MainActor @preconcurrency
-    public var fetchError: (any Error)? { get }`, declared on
-    `Query<Element, Result>` itself (the type `_items` has), alongside
-    `wrappedValue` itself (every property wrapper has one).
+  - `@Query` (`isQuery`) → **always** `QueryCore<WrappedType>` — this
+    package's own drop-in stand-in for the live wrapper
+    (`Sources/ValueFlow/QueryCore.swift`, a plain non-macro `@propertyWrapper`
+    like `Reflector` is a plain non-macro utility), **not** a passthrough of
+    the declared type. One-to-one with the real `Query<Element, Result>`'s
+    instance surface — verified directly against the `_SwiftData_SwiftUI`
+    interface: exactly `wrappedValue`, `fetchError`, and `modelContext`, and
+    **no `projectedValue`**, so `QueryCore` carries the same three members and
+    no `$x` projection either. Reading `modelContext` outside a live container
+    works — verified directly in the Examples playground, no crash — so the
+    eager capture is safe even for snapshots built in plain code. An earlier
+    revision synthesized a bare `(wrappedValue:, fetchError:)` tuple via
+    `#pick` instead (and one before that dropped `modelContext` as
+    unexercised plumbing); replaced by the real wrapper so `Core`'s field
+    reads the fetched value directly — `core.items`, not
+    `.items.wrappedValue` — making body code written against the live
+    `@Query` property move onto `Core` unchanged. `QueryCore`'s init
+    deliberately has no defaults: an init callable with `wrappedValue` alone
+    would make Swift's synthesized memberwise init take the bare value and
+    drop `fetchError`/`modelContext`; with all three required it takes the
+    wrapper type itself, the same mechanism `@Binding` fields rely on.
   - `@State`/`@AppStorage`/`@SceneStorage` (`isBindingBackedStorage`) →
     `Binding<WrappedType>`, since these are the view's own externally
     read-*and-write*-able storage — all three wrappers' own `projectedValue`
@@ -334,12 +340,11 @@ the two was itself the defect, not a deliberate design choice worth keeping.
   *type* differs across these four (see above); `@FocusState`'s own
   `projectedValue` happens to be `FocusState<T>.Binding` rather than
   `Binding<T>`, but it's reached the exact same way. `@Query` reads
-  `#pick(from: _x, \.wrappedValue, \.fetchError)` — reusing this package's
-  own `TuplePicker` macro rather than hand-writing the same tuple-literal
-  construction; `_x` is the wrapper instance itself (`Query<Element,
-  Result>`), the same underscore-prefixed access `@Binding`'s *assignment*
-  side uses. Every other non-private field uses `fieldReadExpression`
-  unchanged (`x`, or `$x` for `@Binding`).
+  `QueryCore(wrappedValue: _x.wrappedValue, fetchError: _x.fetchError,
+  modelContext: _x.modelContext)` — `_x` is the wrapper instance itself
+  (`Query<Element, Result>`), the same underscore-prefixed access
+  `@Binding`'s *assignment* side uses. Every other non-private field uses
+  `fieldReadExpression` unchanged (`x`, or `$x` for `@Binding`).
 - **Every recognized private source-of-truth wrapper needs an explicit type**
   — relaxes the general "private properties are exempt from needing a type"
   exemption specifically for these, in `collectStoredProperties`
@@ -429,11 +434,12 @@ every recognized private source-of-truth wrapper —
   returns it: `some View`'s opaque return type only exposes the `View`
   conformance, never the concrete `Core` type, so a `public` `body` can
   freely return an internal concrete value.
-- **Every source-of-truth wrapper becomes a plain, constructed value — never
-  the original attribute, except `@Binding`/`@State`/`@AppStorage`/
-  `@SceneStorage`/`@FocusState`'s substitution.** `@Query` → the synthesized
-  tuple, no attribute. `@State`/`@AppStorage`/`@SceneStorage` → `@Binding var
-  name: T` (one case keeping an attribute, substituted since their storage
+- **Every source-of-truth wrapper becomes a constructed value with a
+  substituted attribute — or a plain `let` where no substitution exists.**
+  `@Query` → `@QueryCore var name: T`, this package's own drop-in stand-in
+  (see the `OutFlow` section above — same wrapper, same capture, `core.name`
+  reads the fetched value directly). `@State`/`@AppStorage`/`@SceneStorage` →
+  `@Binding var name: T` (substituted since their storage
   can't be redeclared as itself on a plain struct — all three share this one
   case since all three share the same shape, verified directly against the
   real SwiftUI interface: `wrappedValue` is `{ get nonmutating set }` and
@@ -484,9 +490,9 @@ every recognized private source-of-truth wrapper —
   Swift's own property-wrapper rule forces it (a genuine `@propertyWrapper`
   type — `@Bindable`, or any other real wrapper — requires `var` storage;
   verified directly, `@Bindable let model: Settings` is a compile error:
-  "property wrapper can only be applied to a 'var'"). Everything else,
-  including `@Query`'s synthesized tuple, is `let` regardless of what the
-  original property was declared as: a plain `var subtitle: String?` becomes
+  "property wrapper can only be applied to a 'var'"). Everything else is
+  `let` regardless of what the original property was declared as: a plain
+  `var subtitle: String?` becomes
   `let subtitle: String?` on `Core` — a captured value, not a
   re-tweakable one. `@ViewBuilder` carries across (see next bullet) with `let`
   intact — it's **not** a `@propertyWrapper`, it's a result-builder attribute,
