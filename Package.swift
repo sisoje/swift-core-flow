@@ -3,12 +3,12 @@ import PackageDescription
 import CompilerPluginSupport
 
 let package = Package(
-    name: "DataMacros",
+    name: "ValueFlow",
     platforms: [
         .macOS(.v14), .iOS(.v17), .tvOS(.v17), .watchOS(.v10), .visionOS(.v1), .macCatalyst(.v17),
     ],
     products: [
-        .library(name: "DataMacros", targets: ["DataMacros"]),
+        .library(name: "ValueFlow", targets: ["ValueFlow"]),
     ],
     dependencies: [
         // swift-syntax 6xx matches Swift 6.x toolchains (601 = 6.1, 602 = 6.2, ... 604 = 6.4).
@@ -24,7 +24,7 @@ let package = Package(
         // builds on, and TuplePicker's own key-path parsing (KeyPathPick.swift,
         // TuplePickerSupport.swift). One Plugin.swift lists every macro type.
         .macro(
-            name: "DataMacrosMacros",
+            name: "ValueFlowMacros",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
@@ -35,22 +35,22 @@ let package = Package(
         // The public-facing library: every macro's attribute/expression declaration,
         // one file per macro (DataLayout.swift, Capability.swift,
         // TuplePicker.swift).
-        .target(name: "DataMacros", dependencies: ["DataMacrosMacros"]),
+        .target(name: "ValueFlow", dependencies: ["ValueFlowMacros"]),
         // All tests — macro-expansion + diagnostic coverage per macro, plus
         // TuplePicker's real-compiled end-to-end suite. XCTest and swift-testing
         // coexist fine in one test target.
         .testTarget(
-            name: "DataMacrosTests",
+            name: "ValueFlowTests",
             dependencies: [
-                "DataMacrosMacros",
-                "DataMacros",
+                "ValueFlowMacros",
+                "ValueFlow",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
         ),
         // One playground exercising every macro in the package.
         .executableTarget(
             name: "Examples",
-            dependencies: ["DataMacros"]
+            dependencies: ["ValueFlow"]
         ),
     ],
     swiftLanguageModes: [.v6]

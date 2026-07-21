@@ -150,4 +150,4 @@
 /// `View`/`ViewModifier` identifier directly on the attached type is recognized.
 @attached(member, names: named(StatelessNode), named(statelessNode), named(body))
 public macro StatelessNode() =
-    #externalMacro(module: "DataMacrosMacros", type: "StatelessNodeMacro")
+    #externalMacro(module: "ValueFlowMacros", type: "StatelessNodeMacro")

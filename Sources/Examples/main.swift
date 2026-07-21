@@ -1,7 +1,7 @@
-import DataMacros
 import Foundation
 import SwiftData
 import SwiftUI
+import ValueFlow
 
 @Model public final class Item {
     var int = 0
@@ -93,7 +93,7 @@ public struct ProfileCard<Content: View>: View {
     @State private var isExpanded: Bool = false
     @Binding var isOn: Bool
     let title: String
-    var subtitle: String?
+    var subtitle: String? = "x"
     @Bindable var model: Settings
     @ViewBuilder let content: () -> Content
     @ViewBuilder let footer: Content

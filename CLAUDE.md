@@ -3,7 +3,7 @@
 A small, growing collection of independent Swift macros (plus `Reflector`, a small
 non-macro addition that pairs with `@DataLayout`), all in ONE package/target
 pair — not one target per macro. Consumers add a single dependency
-(`.product(name: "DataMacros", package: "DataMacros")`) and get every macro; adding a
+(`.product(name: "ValueFlow", package: "ValueFlow")`) and get every macro; adding a
 new macro is "add a file to each of two targets," not "add a product + three targets
 to Package.swift." (An earlier revision split every macro into its own
 declaration/plugin/test/product target set — deliberately flattened back to this
@@ -23,17 +23,17 @@ concurrency) throughout.
 
 | Target | Kind | Contents |
 |---|---|---|
-| `DataMacrosMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`DataLayoutMacro.swift`, `StatelessNodeMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `DataLayoutRendering.swift`) that `@DataLayout` builds on and `@StatelessNode` reuses (`StatelessNodeRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `DataMacros` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`DataLayout.swift`, `StatelessNode.swift`, `Capability.swift`, `TuplePicker.swift`), plus `Reflector.swift` — a small non-macro addition that pairs with `@DataLayout` (see below) |
-| `DataMacrosTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites |
+| `ValueFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`DataLayoutMacro.swift`, `StatelessNodeMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `DataLayoutRendering.swift`) that `@DataLayout` builds on and `@StatelessNode` reuses (`StatelessNodeRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `ValueFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`DataLayout.swift`, `StatelessNode.swift`, `Capability.swift`, `TuplePicker.swift`), plus `Reflector.swift` — a small non-macro addition that pairs with `@DataLayout` (see below) |
+| `ValueFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites |
 | `Examples` | executable | combined playground for every macro (and Reflector) |
 
-Adding a new macro: one new file in `DataMacrosMacros` for the implementation
+Adding a new macro: one new file in `ValueFlowMacros` for the implementation
 (`Foo­Macro: MemberMacro`/`ExpressionMacro`), add it to `Plugin.swift`'s
-`providingMacros`, one new file in `DataMacros` for the public
+`providingMacros`, one new file in `ValueFlow` for the public
 `@attached`/`@freestanding` declaration pointing `#externalMacro(module:
-"DataMacrosMacros", type: "FooMacro")`, a new `XCTestCase`/`@Suite` in
-`DataMacrosTests`, and a `// MARK: -` section in `Examples/main.swift`. No new
+"ValueFlowMacros", type: "FooMacro")`, a new `XCTestCase`/`@Suite` in
+`ValueFlowTests`, and a `// MARK: -` section in `Examples/main.swift`. No new
 Package.swift targets or products. If the macro generates something from a type's
 stored properties (like `@DataLayout` does), build it on `StoredProperty.swift`'s
 collection (`validatedProperties` in `MemberMacroEntry.swift`) and
@@ -71,11 +71,11 @@ unlabeled `InFlowSplat` typealias with a `makeFlow(_:)` factory building
 `Self` *from* one — splat-friendly construction — and a labeled `InFlow` typealias
 with an `inFlow` computed property reading the current instance's data back
 *out* — readable/reflectable), plus a wider `OutFlow`/`outFlow` pair (see below).
-Entry point: `Sources/DataMacrosMacros/DataLayoutMacro.swift`. Rendering: all six —
+Entry point: `Sources/ValueFlowMacros/DataLayoutMacro.swift`. Rendering: all six —
 `renderDataLayout` (the init), `renderInFlowSplatTypealias`,
 `renderInFlowSplatFactory`, `renderInFlowTypealias`,
 `renderInFlowProperty`, `renderOutFlowTypealias`, and `renderOutFlowProperty` — live in
-`Sources/DataMacrosMacros/DataLayoutRendering.swift`; the last five are called
+`Sources/ValueFlowMacros/DataLayoutRendering.swift`; the last five are called
 from inside the first, so one macro expansion always produces all six together (or
 just the bare init, if there are zero properties to alias/build from).
 
@@ -211,7 +211,7 @@ either. Removed once it was clear `Reflector.fieldNames(of:)` already covers
 the same need for any *specific* generated tuple without a dedicated member —
 the real gap that removal opens (a plain private field genuinely has no tuple
 anywhere to reflect over) was accepted as YAGNI; revisit if it actually comes
-up. See the equivalent note in `Sources/DataMacros/DataLayout.swift`.
+up. See the equivalent note in `Sources/ValueFlow/DataLayout.swift`.
 
 `OutFlow`/`outFlow` — a labeled tuple typealias + computed property (`outFlowFieldType`,
 `outFlowFieldReadExpression`, `renderOutFlowTypealias`, `renderOutFlowProperty`, all
@@ -227,7 +227,7 @@ identity, a live `ModelContext`) — which makes it hard to test directly.
 type, read `.outFlow`, assert on the fields — no live view hierarchy required.
 That's the actual motivating idea behind targeting exactly these wrapper kinds,
 not "read private state too" for its own sake. See
-`Tests/DataMacrosTests/OutFlowTests.swift` for this property demonstrated
+`Tests/ValueFlowTests/OutFlowTests.swift` for this property demonstrated
 directly (`outFlowReadsDataLayoutFieldsAndRecognizedPrivateWrappersTogether`
 constructs a `Card` and reads `.outFlow.isExpanded`/`.isOn` with no live view
 ever installed).
@@ -309,8 +309,8 @@ and captures it anyway, for the same reason it treats every field uniformly.
 A separate `member` macro from `@DataLayout` — not a mode of it, doesn't replace
 `OutFlow`/`outFlow`, can be attached with or without `@DataLayout` also present
 (it collects the type's stored properties itself via the same shared
-`validatedProperties`). Entry point: `Sources/DataMacrosMacros/StatelessNodeMacro.swift`.
-Rendering: `renderStatelessNode`, in `Sources/DataMacrosMacros/StatelessNodeRendering.swift`.
+`validatedProperties`). Entry point: `Sources/ValueFlowMacros/StatelessNodeMacro.swift`.
+Rendering: `renderStatelessNode`, in `Sources/ValueFlowMacros/StatelessNodeRendering.swift`.
 
 Generates a nested `StatelessNode` struct — carrying `@DataLayout` itself — plus a
 `statelessNode` computed property building one from the current instance, sharing
@@ -432,11 +432,11 @@ captured once as a plain value.
     repro and against this exact generated code). `.modifier(_:)` only needs its
     argument to conform to `ViewModifier`, not to share a `Content` — sidesteps
     the whole problem.
-- See `Tests/DataMacrosTests/StatelessNodeTests.swift` for this demonstrated
+- See `Tests/ValueFlowTests/StatelessNodeTests.swift` for this demonstrated
   end-to-end (including the `@MainActor` requirement on any test suite
   exercising `statelessNode` on a `View`-conforming type — same reasoning as
   `OutFlow`'s equivalent note above) and
-  `Tests/DataMacrosTests/StatelessNodeSyntaxTests.swift` for the expansion shape,
+  `Tests/ValueFlowTests/StatelessNodeSyntaxTests.swift` for the expansion shape,
   including the host-kind-detection cases and the negative case (conformance in
   a separate extension isn't detected).
 
@@ -444,7 +444,7 @@ captured once as a plain value.
 
 `member` macro that bundles every eligible *computed* property/method into a
 `Capability` typealias + `capability` computed property. Entry point + collection +
-rendering all live in `Sources/DataMacrosMacros/CapabilityMacro.swift` — doesn't
+rendering all live in `Sources/ValueFlowMacros/CapabilityMacro.swift` — doesn't
 share `StoredProperty.swift`'s model at all (that's for *stored* properties; this
 macro is deliberately about the opposite thing, and mixes properties with methods,
 which `StoredProperty` has no concept of).
@@ -485,7 +485,7 @@ which `StoredProperty` has no concept of).
 `expression` macro: `#pick(from: value, \.a, \.b)`. One implementation (`PickMacro`)
 behind three arity-generic overloads (one/two/three `from:` sources), all reading the
 same flat, `from:`-labeled argument list. Impl:
-`Sources/DataMacrosMacros/PickMacro.swift`, `KeyPathPick.swift`.
+`Sources/ValueFlowMacros/PickMacro.swift`, `KeyPathPick.swift`.
 
 - **Labels are cosmetic, not static.** The declared return type is a parameter pack
   (`repeat each V1`, concatenated per source), which can't carry per-element labels —
@@ -515,11 +515,11 @@ same flat, `from:`-labeled argument list. Impl:
 
 ## Reflector — tricky points
 
-`Sources/DataMacros/Reflector.swift`. Not a macro — a plain runtime `enum` with one
+`Sources/ValueFlow/Reflector.swift`. Not a macro — a plain runtime `enum` with one
 static generic function, `fieldNames<T>(of: T.Type) -> [String]`, kept in this
 package because it's a small, natural companion to `@DataLayout`'s generated members
 rather than because it needs code generation of its own. No paired
-`DataMacrosMacros` file, no `@attached`/`@freestanding` declaration — it's ordinary
+`ValueFlowMacros` file, no `@attached`/`@freestanding` declaration — it's ordinary
 Swift, so it doesn't follow the "one file per macro, two targets" pattern the rest of
 this doc describes.
 

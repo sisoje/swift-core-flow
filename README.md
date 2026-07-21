@@ -1,14 +1,14 @@
-# DataMacros
+# ValueFlow
 
 A small, growing collection of independent Swift macros, all shipped from one
 library — a single dependency gets you every macro below:
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/<you>/DataMacros", from: "1.0.0"),
+.package(url: "https://github.com/sisoje/swift-value-flow.git", from: "1.0.0"),
 
 // target dependency
-.product(name: "DataMacros", package: "DataMacros"),
+.product(name: "ValueFlow", package: "ValueFlow"),
 ```
 
 Requires Swift 6.3+ (`swift-tools-version: 6.3`). Builds across the whole swift-syntax
@@ -346,7 +346,7 @@ struct Card: View {
 
 `@MainActor` on the suite is required, not stylistic, whenever the type
 conforms to `View` — see the bullet above. See
-`Tests/DataMacrosTests/OutFlowTests.swift` for the real version of this pattern,
+`Tests/ValueFlowTests/OutFlowTests.swift` for the real version of this pattern,
 including the one genuine caveat: a `@State`-derived binding read through
 `outFlow` doesn't write back outside a live view (see two bullets up) — reading
 its *value* for assertions works fine, mutating it in a test doesn't stick.
@@ -390,6 +390,15 @@ flowchart LR
   `OutFlow`-shaped *in* direction — nothing constructs a `Self` from private
   view state, so this side of the diagram is deliberately one-way.
 
+**Honest caveat on `InFlow`/`inFlow` specifically:** it's declared mainly
+*because the properties are already collected* for the init and `InFlowSplat`
+right next to it — free API symmetry, and real `Mirror` support (see
+[Reflector](#reflector)) — not because real code has actually needed a
+labeled, readable *out* tuple yet. `OutFlow` is the member with a proven
+reason to exist (testability, demonstrated below); `InFlow` is closer to "it
+costs nothing extra to generate, so it's here if you want it." The diagram
+below makes that distinction explicit.
+
 **Why tuples, not a dedicated generated struct per type:** a tuple is a
 *structural* type — two tuples with the same element types match regardless of
 where they came from, with no shared nominal declaration needed. That's
@@ -401,6 +410,39 @@ type. A nominal type would need its own declaration, its own name, and
 explicit conversion code between every pair that should interoperate — an
 independent named type *per shape*, i.e. type explosion. Tuples sidestep all
 of it: the shape itself *is* the type.
+
+### Why each member exists — structure vs. motivation
+
+The diagram above shows how the pieces convert into each other; it doesn't
+show *why* each one is there. They don't all have the same reason:
+
+```mermaid
+flowchart TD
+    props(["stored properties<br/>collected once"])
+    props --> init["init<br/>the actual reason @DataLayout exists —<br/>Swift won't synthesize a public one"]
+    props --> flow["InFlowSplat / makeFlow(_:)<br/>InFlow / inFlow<br/>free once properties are collected —<br/>symmetry and Mirror support,<br/>not proven demand yet"]
+    props --> out["OutFlow / outFlow<br/>earns its keep: construct directly,<br/>assert on private state, no live view"]
+    out --> node["StatelessNode<br/>same field set, plus @Environment —<br/>a real type: View / ViewModifier,<br/>Equatable, Codable, ..."]
+```
+
+- **`init`** — not optional, not speculative: it's the specific gap `@DataLayout`
+  fills (Swift only synthesizes an *internal* memberwise init, never a public
+  one).
+- **`InFlowSplat`/`makeFlow(_:)`/`InFlow`/`inFlow`** — a byproduct of already
+  having collected the properties for the init. Cheap to generate, genuinely
+  useful *if* you need splat-construction or `Mirror`-based field names — this
+  package's own Examples/tests do exercise them (`Point.makeFlow(keke)`,
+  `Reflector.fieldNames(of: Point.InFlow.self)`), but only to demonstrate they
+  work, not because another feature in this package needed them to. Unlike
+  everything below, nothing else here depends on `InFlow` existing.
+- **`OutFlow`/`outFlow`** — the one with a demonstrated reason: testability
+  without a live view (see [Testing a @DataLayout type's
+  state](#testing-a-datalayout-types-state) and
+  `Tests/ValueFlowTests/OutFlowTests.swift`).
+- **`StatelessNode`** — builds on `OutFlow`'s same motivation, one step
+  further: a real type where `OutFlow`'s tuple structurally can't follow (real
+  `View`/`ViewModifier` conformance, `Equatable`/`Codable`, generic code
+  needing a shared protocol).
 
 ---
 
@@ -587,6 +629,41 @@ the macro has no way to know whether the extension already exists elsewhere in
 the module, so a `.note`/`.warning` would either nag forever (never clears
 once implemented) or never fire at all. A doc comment costs nothing once the
 extension is written.
+
+### How a StatelessNode relates to its host
+
+```mermaid
+flowchart LR
+    subgraph Card["Card — stateful"]
+        SOT["@Query / @State /<br/>@Environment / @AppStorage"]
+        Plain["plain fields"]
+        CardBody["body<br/>(generated delegation)"]
+    end
+    subgraph SN["Card.StatelessNode — pure value"]
+        Fields["captured fields<br/>tuple · @Binding · let"]
+        SNBody["body<br/>(hand-written)"]
+    end
+    SOT -- "captured once" --> Fields
+    Plain -- "mirrored verbatim" --> Fields
+    Fields --> SNBody
+    CardBody -. "self.statelessNode" .-> SNBody
+    Test(["unit test"]) -. "construct directly,<br/>no live view" .-> Fields
+```
+
+- **`SOT`/`Plain` → `Fields`** — every field, live source-of-truth or not, ends
+  up captured on `StatelessNode` as a plain value (or `@Binding`, for
+  `@State`/`@AppStorage`) — the mirroring/substitution rules above, in one
+  picture.
+- **`Fields` → `SNBody`** — the part you write by hand: real rendering logic,
+  reading only already-captured, plain data — no live view, no environment
+  injection, no `ModelContext` required to exercise it.
+- **`CardBody -.-> SNBody`** (dotted, generated automatically) — exists only
+  when `Card` is detected as `View`/`ViewModifier`; this is the one path that
+  actually renders `Card` for real, and it's pure mechanical delegation, not
+  hand-written.
+- **`Test -.-> Fields`** (dotted, the other way in) — the path that doesn't go
+  through `Card` at all: construct a `StatelessNode` directly and assert on its
+  captured fields — no live rendering pipeline needed.
 
 ---
 
@@ -893,7 +970,7 @@ same way regardless of how many sources are present.
 
 ## Reflector
 
-Not a macro — a small runtime utility (`Sources/DataMacros/Reflector.swift`) shipped
+Not a macro — a small runtime utility (`Sources/ValueFlow/Reflector.swift`) shipped
 alongside the macros because it's a natural companion to `@DataLayout`, not because
 it needs code generation.
 
@@ -982,9 +1059,9 @@ One target pair for every macro — not one pair per macro:
 
 | Target | Kind | Contents |
 |---|---|---|
-| `DataMacrosMacros` | macro plugin | every macro's implementation: `DataLayoutMacro`, `StatelessNodeMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`DataLayoutRendering.swift`, covering the init, `InFlowSplat`/`InFlow`, and `OutFlow`) that `@DataLayout` builds on and `@StatelessNode` reuses (`StatelessNodeRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `DataMacros` | library (the one product) | every macro's public declaration — `DataLayout.swift`, `StatelessNode.swift`, `Capability.swift`, `TuplePicker.swift` — plus `Reflector.swift`, a small non-macro addition |
-| `DataMacrosTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites — both test frameworks coexist fine in one target |
+| `ValueFlowMacros` | macro plugin | every macro's implementation: `DataLayoutMacro`, `StatelessNodeMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`DataLayoutRendering.swift`, covering the init, `InFlowSplat`/`InFlow`, and `OutFlow`) that `@DataLayout` builds on and `@StatelessNode` reuses (`StatelessNodeRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `ValueFlow` | library (the one product) | every macro's public declaration — `DataLayout.swift`, `StatelessNode.swift`, `Capability.swift`, `TuplePicker.swift` — plus `Reflector.swift`, a small non-macro addition |
+| `ValueFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites — both test frameworks coexist fine in one target |
 | `Examples` | executable | one playground exercising every macro in the package, plus Reflector |
 
 Swift tools version 6.3, Swift 6 language mode (strict concurrency), swift-syntax `600.0.0..<700.0.0`.

@@ -241,7 +241,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     public var severity: DiagnosticSeverity { .error }
 
     public var diagnosticID: MessageID {
-        MessageID(domain: "DataMacros", id: id)
+        MessageID(domain: "ValueFlow", id: id)
     }
 
     public static func notADataType(macroName: String) -> DataTypeMacroDiagnostic {

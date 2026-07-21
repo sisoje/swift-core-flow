@@ -2,7 +2,7 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 
-@testable import DataMacrosMacros
+@testable import ValueFlowMacros
 
 final class CapabilityTests: XCTestCase {
     let macros: [String: Macro.Type] = ["Capability": CapabilityMacro.self]

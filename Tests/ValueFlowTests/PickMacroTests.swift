@@ -2,7 +2,7 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import Testing
 
-@testable import DataMacrosMacros
+@testable import ValueFlowMacros
 
 private let testMacros: [String: Macro.Type] = [
     "pick": PickMacro.self

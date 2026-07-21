@@ -179,6 +179,6 @@
 )
 public macro DataLayout() =
     #externalMacro(
-        module: "DataMacrosMacros",
+        module: "ValueFlowMacros",
         type: "DataLayoutMacro"
     )

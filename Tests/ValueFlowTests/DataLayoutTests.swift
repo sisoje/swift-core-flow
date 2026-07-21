@@ -2,7 +2,7 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 
-@testable import DataMacrosMacros
+@testable import ValueFlowMacros
 
 final class DataLayoutTests: XCTestCase {
     let macros: [String: Macro.Type] = ["DataLayout": DataLayoutMacro.self]
