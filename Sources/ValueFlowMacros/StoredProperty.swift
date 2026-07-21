@@ -126,16 +126,20 @@ public struct StoredProperty {
         wrapperName == "Namespace"
     }
 
-    /// `@GestureState` — mirrored verbatim onto `Core` as a real
-    /// `@GestureState var x: T` (the general mirror-the-attribute path, like
-    /// `@Bindable`): `Core` is the rendered view, so its own storage is where
-    /// the gesture belongs — `.updating($x)` in `Core`'s body, used exactly
-    /// as SwiftUI intends. Since `GestureState` has `init(wrappedValue:)`,
-    /// the synthesized init takes the bare value: the host's (always-at-reset)
-    /// value seeds it, and a test/preview mocks any mid-gesture value by
-    /// passing it straight to `Core`'s init — a never-installed `GestureState`
-    /// reads back its seed (verified directly). This flag exists only for the
-    /// must-be-private/needs-type enforcement, not for any rendering branch.
+    /// `@GestureState` — the `OutFlow`/`Core` field is
+    /// `GestureStateCore<WrappedType>`, this package's own drop-in stand-in
+    /// (see `GestureStateCore.swift` in `Sources/ValueFlow`) wrapping the
+    /// captured live wrapper *instance* whole (`GestureStateCore($x)` —
+    /// `projectedValue` returns self). The host property stays the one source
+    /// of truth, and every argument-carrying init the host used —
+    /// `reset:`/`resetTransaction:`/the `initialValue:` spellings — carries
+    /// its behavior over inside the instance. An earlier design mirrored a
+    /// fresh `@GestureState var` onto `Core` instead; it silently swapped a
+    /// custom reset for the default one — proved live by
+    /// `TrickyDragCardUITests` in the ExampleApp, which drove this design
+    /// back. Mockable by seeding:
+    /// `GestureStateCore(GestureState(wrappedValue: mock))` reads back the
+    /// mock outside a live view (verified directly).
     public var isGestureState: Bool {
         wrapperName == "GestureState"
     }

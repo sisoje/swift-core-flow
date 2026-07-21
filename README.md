@@ -91,7 +91,7 @@ diagnostic, not just convention.
 | `@Namespace` | `let` | `x` |
 | `@ScaledMetric` | `let` | `x` |
 | `@Query` | `@QueryCore` | `QueryCore(_x)` |
-| `@GestureState` | `@GestureState` | `x` |
+| `@GestureState` | `@GestureStateCore` | `GestureStateCore($x)` |
 | `@State` | `@Binding` | `$x` |
 | `@AppStorage` | `@Binding` | `$x` |
 | `@SceneStorage` | `@Binding` | `$x` |
@@ -138,16 +138,18 @@ diagnostic, not just convention.
   the live wrapper — body code moves onto `Core` unchanged. Capturing
   `modelContext` outside a live container is safe (verified directly, no
   crash).
-- **`@GestureState` mirrors verbatim onto `Core` — the real wrapper, used
-  exactly as SwiftUI intends.** `Core` is the rendered view, so its own
-  `@GestureState var` is where the gesture belongs: `.updating($x)` in
-  `Core`'s body, `Core`-local invalidation per gesture tick. Since
-  `GestureState` has `init(wrappedValue:)`, `Core`'s synthesized init takes
-  the **bare value** — the host's (always-at-reset) value seeds it, and a
-  test/preview mocks any mid-gesture value by passing it straight to `Core`'s
-  init (a never-installed `GestureState` reads back its seed — verified
-  directly). One limitation: a custom `reset:` closure on the host's
-  declaration can't carry over.
+- **`@GestureStateCore` wraps the host's live `@GestureState` instance
+  whole — which is what keeps every one of its inits working.** The reset
+  behavior (`reset:`/`resetTransaction:`/`initialValue:` spellings) lives
+  *inside* the wrapper instance, so capturing the instance carries it for
+  free: `core.x` reads the mid-gesture value, `.updating($x)` in `Core`'s
+  body writes to the host's storage — the host property stays the one source
+  of truth. An earlier design mirrored a fresh `@GestureState var` onto
+  `Core` instead; it silently swapped a custom reset for the default one —
+  proved by a live UI test (`TrickyDragCardUITests` in the ExampleApp), which
+  drove this design back. Mockable by seeding:
+  `GestureStateCore(GestureState(wrappedValue: mock))` reads back the mock
+  outside a live view (verified directly).
 - **`@ViewBuilder`'s two stored forms get opposite treatment, on purpose.** A
   stored *closure* (`let content: () -> Content`) already has a closure-typed
   field, so mirroring `@ViewBuilder` is pure upside — real builder syntax at
@@ -1214,7 +1216,7 @@ One target pair for every macro — not one pair per macro:
 | Target | Kind | Contents |
 |---|---|---|
 | `ValueFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `InFlowSplat`/`InFlow`, and `OutFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `ValueFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift` — plus two small non-macro additions: `Reflector.swift` and `QueryCore.swift` |
+| `ValueFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift` — plus three small non-macro additions: `Reflector.swift`, `QueryCore.swift`, and `GestureStateCore.swift` |
 | `ValueFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites — both test frameworks coexist fine in one target |
 | `Examples` | executable | one playground exercising every macro in the package, plus Reflector |
 

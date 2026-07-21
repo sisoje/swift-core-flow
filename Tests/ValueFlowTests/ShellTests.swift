@@ -150,28 +150,26 @@ extension StatefulCard.Core {
         #expect(ns == ns)
     }
 
-    @Test func statelessGestureStateIsMockableViaCoresOwnInit() {
-        // @GestureState mirrors verbatim onto Core as a real @GestureState var
-        // — Core is the rendered view, so its own storage is where the gesture
-        // belongs. Since GestureState has init(wrappedValue:), Core's
-        // synthesized init takes the BARE value, and a never-installed
-        // GestureState reads back its seed (verified directly) — so a
-        // test/preview mocks any mid-gesture value by passing it straight to
-        // Core's init.
+    @Test func statelessGestureStateIsMockableViaASeededInstance() {
+        // @GestureStateCore wraps the host's live GestureState instance whole,
+        // so the host property stays the one source of truth and its reset
+        // arguments carry. Outside a live view a GestureState reads back its
+        // seed (verified directly), so a test/preview mocks any mid-gesture
+        // value by seeding one.
         let isOnBinding = Binding<Bool>(get: { true }, set: { _ in })
         let card = StatefulCard(isOn: isOnBinding, title: "x")
 
         // Captured off the host: reads the host's (at-reset) value.
         #expect(card.core.dragOffset == .zero)
 
-        // Mocked mid-gesture: pass the bare value to Core's synthesized init.
+        // Mocked mid-gesture: seed the wrapped instance in Core's init.
         let snap = StatefulCard.Core(
             colorScheme: .light,
             ns: card.core.ns,
             isExpanded: isOnBinding,
             isPinned: isOnBinding,
             isFocused: card.core.$isFocused,
-            dragOffset: CGSize(width: 50, height: 7),
+            dragOffset: GestureStateCore(GestureState(wrappedValue: CGSize(width: 50, height: 7))),
             isOn: isOnBinding,
             title: "x",
             subtitle: nil

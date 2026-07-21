@@ -322,17 +322,23 @@ the two was itself the defect, not a deliberate design choice worth keeping.
     would make Swift's synthesized memberwise init take the bare value and
     drop `fetchError`/`modelContext`; with all three required it takes the
     wrapper type itself, the same mechanism `@Binding` fields rely on.
-  - `@GestureState` (`isGestureState`) → the bare declared type, read `x`
-    (both the general fallthroughs — no special case anywhere in rendering):
-    the host's storage always holds the at-reset value, since the gesture
-    itself lives on `Core`, which mirrors a real `@GestureState var` — see
-    the `@Shell` section below. An earlier revision wrapped the captured
-    live instance in a dedicated `GestureStateCore` stand-in instead —
-    deleted: mirroring the real wrapper onto `Core` (the rendered view, where
-    the gesture belongs) is how SwiftUI intends `GestureState` to be used,
-    invalidates only `Core` per gesture tick instead of routing every tick
-    through the host's body, mocks with a bare value instead of a seeded
-    wrapper, and costs one less public type.
+  - `@GestureState` (`isGestureState`) → `GestureStateCore<WrappedType>` —
+    the same drop-in move (`Sources/ValueFlow/GestureStateCore.swift`),
+    wrapping the captured live wrapper *instance* whole
+    (`GestureStateCore($x)` — `projectedValue` returns self, same
+    `$`-projection convention as every other row). The host property stays
+    the one source of truth: `.updating($x)` in `Core`'s body writes to the
+    host's storage (verified live by `DragCardUITests`), and — the decisive
+    point — every argument-carrying init the host used
+    (`reset:`/`resetTransaction:`/the `initialValue:` spellings) carries its
+    behavior over inside the instance. This design was deleted once in favor
+    of mirroring a fresh `@GestureState var` onto `Core` (Core-local
+    invalidation, bare-value mocking), then brought back when a failing live
+    UI test (`TrickyDragCardUITests` in the ExampleApp) proved the mirror
+    silently swaps a custom reset for the default one — reset fidelity beats
+    those wins. Mockable by seeding:
+    `GestureStateCore(GestureState(wrappedValue: mock))` reads back the mock
+    outside a live view (verified directly).
   - `@State`/`@AppStorage`/`@SceneStorage` (`isBindingBackedStorage`) →
     `Binding<WrappedType>`, since these are the view's own externally
     read-*and-write*-able storage — all three wrappers' own `projectedValue`
@@ -472,19 +478,12 @@ every recognized private source-of-truth wrapper —
   substituted attribute — or a plain `let` where no substitution exists.**
   `@Query` → `@QueryCore var name: T`, this package's own drop-in stand-in
   (see the `OutFlow` section above — same wrapper, same capture, `core.name`
-  reads the fetched value directly). `@GestureState` → mirrored **verbatim**
-  as a real `@GestureState var name: T` (the general mirror-the-attribute
-  path, like `@Bindable` — no rendering branch at all): `Core` is the
-  rendered view, so its own storage is where the gesture belongs
-  (`.updating($name)` in `Core`'s body, `Core`-local invalidation per tick,
-  `GestureState` used exactly as SwiftUI intends). Since it has
-  `init(wrappedValue:)`, the synthesized init takes the bare value — the
-  host's (always-at-reset) value seeds it via the plain `name` read, and a
-  test/preview mocks any mid-gesture value by passing it straight to `Core`'s
-  init (a never-installed `GestureState` reads back its seed — verified
-  directly). One documented limitation: a custom `@GestureState(reset:)`
-  closure on the host's declaration can't carry over — the synthesized init
-  passes only the value. `@State`/`@AppStorage`/`@SceneStorage` →
+  reads the fetched value directly). `@GestureState` → `@GestureStateCore
+  var name: T`, the same drop-in move wrapping the captured live instance
+  whole — see the `OutFlow` section above for the full story (host storage
+  stays the source of truth, reset arguments carry, seeded-instance
+  mocking, and the failing-UI-test history that settled the design).
+  `@State`/`@AppStorage`/`@SceneStorage` →
   `@Binding var name: T` (substituted since their storage
   can't be redeclared as itself on a plain struct — all three share this one
   case since all three share the same shape, verified directly against the

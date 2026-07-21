@@ -3,10 +3,11 @@ import XCTest
 final class TrickyDragCardUITests: XCTestCase {
     // The host declares @GestureState(reset:) — an argument-carrying init whose
     // custom closure must fire when the gesture state resets on release; the
-    // probe label counts those firings. FAILS today: @Shell mirrors only the
-    // attribute name onto Core, silently dropping the reset closure, so the
-    // label stays "resets 0". Goes green when the macro carries the full
-    // attribute onto Core.
+    // probe label counts those firings. This test drove @GestureStateCore:
+    // it was red under the mirror-a-fresh-@GestureState design (closure
+    // silently swapped for the default reset, label stuck at "resets 0") and
+    // went green when @Shell switched to wrapping the host's live instance
+    // whole, which carries the closure inside it.
     @MainActor
     func testCustomResetClosureFiresWhenGestureEnds() {
         let app = XCUIApplication()

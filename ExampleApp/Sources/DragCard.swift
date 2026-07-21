@@ -2,11 +2,11 @@ import SwiftUI
 import ValueFlow
 
 // The live-drag verification view: @GestureState declared on the host,
-// mirrored by @Shell onto Core as a real `@GestureState var`, gesture wired in
-// Core's hand-written body. A drag must stream nonzero offsets (maxDistance
-// grows — also live-verifying @State→@Binding write-through from Core) and
-// snap back to zero when it ends (GestureState's own reset). See
-// UITests/DragCardUITests.swift.
+// captured whole by @Shell into Core's @GestureStateCore, gesture wired in
+// Core's hand-written body against the host's storage. A drag must stream
+// nonzero offsets (maxDistance grows — also live-verifying @State→@Binding
+// write-through from Core) and snap back to zero when it ends (GestureState's
+// own reset). See UITests/DragCardUITests.swift.
 @Flowable
 @Shell
 struct DragCard: View {
@@ -38,8 +38,8 @@ extension DragCard.Core {
     }
 }
 
-// Previewing the Core directly, frozen mid-drag: the bare CGSize seeds the
-// mirrored @GestureState, the .constant feeds the @Binding substituted for
+// Previewing the Core directly, frozen mid-drag: the seeded GestureState
+// feeds @GestureStateCore, the .constant feeds the @Binding substituted for
 // the host's @State. A PreviewProvider struct, not #Preview, on purpose:
 // Swift forbids one macro expansion (#Preview) from resolving names generated
 // by another (@Shell's `Core` and its macro-derived memberwise init) —
@@ -49,7 +49,7 @@ extension DragCard.Core {
 struct DragCardCoreMidDrag: PreviewProvider {
     static var previews: some View {
         DragCard.Core(
-            dragOffset: CGSize(width: 60, height: 40),
+            dragOffset: GestureStateCore(GestureState(wrappedValue: CGSize(width: 60, height: 40))),
             maxDistance: .constant(123)
         )
     }

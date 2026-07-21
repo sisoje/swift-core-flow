@@ -78,34 +78,37 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
-    func testGestureStateMirrorsVerbatimOntoCoreLikeBindable() {
-        // No special case — the general mirror-the-attribute path lands on a
-        // real `@GestureState var` on Core, used exactly as SwiftUI intends
-        // (declared on the view that renders the gesture: `.updating($x)` in
-        // Core's body, Core-local invalidation per tick). The synthesized init
-        // takes the bare value (GestureState has init(wrappedValue:)), so the
-        // host's at-reset value seeds it and a test mocks any mid-gesture
-        // value by passing it straight to Core's init.
+    func testGestureStateRedeclaresAsGestureStateCoreWrappingTheLiveInstance() {
+        // @GestureStateCore wraps the captured live GestureState instance
+        // whole and forwards wrappedValue/projectedValue to it — so
+        // `core.dragOffset` reads the mid-gesture value, `.updating($dragOffset)`
+        // in Core's body writes to the HOST's storage (the one source of
+        // truth), and every argument-carrying init the host used
+        // (reset:/resetTransaction:/initialValue: spellings) carries over for
+        // free, since the reset behavior lives inside the instance. An earlier
+        // design mirrored a fresh `@GestureState var` instead — it silently
+        // swapped a custom reset for the default one, proved live by
+        // TrickyDragCardUITests in the ExampleApp.
         assertMacroExpansion(
             """
             @Shell
             struct Draggable {
-                @GestureState private var dragOffset: CGSize = .zero
+                @GestureState(reset: { _, transaction in transaction = Transaction() }) private var dragOffset: CGSize = .zero
                 let title: String
             }
             """,
             expandedSource: """
                 struct Draggable {
-                    @GestureState private var dragOffset: CGSize = .zero
+                    @GestureState(reset: { _, transaction in transaction = Transaction() }) private var dragOffset: CGSize = .zero
                     let title: String
 
                     struct Core {
-                        @GestureState var dragOffset: CGSize
+                        @GestureStateCore var dragOffset: CGSize
                         let title: String
                     }
 
                     var core: Core {
-                        Core(dragOffset: dragOffset, title: title)
+                        Core(dragOffset: GestureStateCore($dragOffset), title: title)
                     }
                 }
                 """,
