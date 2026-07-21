@@ -7,9 +7,10 @@ import SwiftSyntax
 /// `InFlow` typealias with an `inFlow` computed property for reading the current
 /// instance's data back *out* (readable/reflectable, see
 /// `renderInFlowTypealias`/`renderInFlowProperty`), and an `OutFlow` typealias
-/// with an `outFlow` computed property: `InFlow`'s fields plus the view's own
-/// externally-relevant *capturable* private state (`@Query`/`@State`/
-/// `@AppStorage`/`@SceneStorage`/`@FocusState` — see `outFlowProperties`), in declaration order (see
+/// with an `outFlow` computed property: `InFlow`'s fields plus every recognized
+/// private source-of-truth wrapper (`@Query`/`@State`/`@AppStorage`/
+/// `@SceneStorage`/`@FocusState`/`@Environment`/`@Namespace` — see
+/// `outFlowProperties`), in declaration order (see
 /// `renderOutFlowTypealias`/`renderOutFlowProperty`). `access` is a modifier
 /// prefix such as `"public "` or `""` (internal).
 public func renderFlowable(properties: [StoredProperty], access: String) -> [DeclSyntax] {
@@ -204,7 +205,7 @@ func renderInFlowTypealias(properties: [StoredProperty], access: String) -> Decl
 /// — unlike `makeFlow(_:)`'s reverse direction, no wrapping is needed for a
 /// `@ViewBuilder` field: the stored property already holds exactly its own
 /// declared type, which is exactly what `InFlowSplat`/`InFlow` already use as
-/// that field's type. Only `@Binding` needs its projected form (`_x`).
+/// that field's type. Only `@Binding` needs its projected form (`$x`).
 func renderInFlowProperty(properties: [StoredProperty], access: String) -> DeclSyntax? {
     let initParams = properties.filter { !$0.isPrivate }
     guard !initParams.isEmpty else { return nil }
@@ -278,16 +279,16 @@ func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
 ///   not synthesized placeholders.
 /// - **`@State`/`@AppStorage`/`@SceneStorage`** (`isBindingBackedStorage`) →
 ///   `Binding<T>`, since these are the view's own read-*and-write*-able
-///   storage from the outside — `self.$x` already gives the real thing, since
+///   storage from the outside — `$x` already gives the real thing, since
 ///   all three wrappers' `projectedValue` genuinely *is* `Binding<T>`
 ///   (verified directly against the real SwiftUI interface, `@SceneStorage`
 ///   included).
 /// - **`@FocusState`** (`isFocusState`) → `FocusState<T>.Binding`, **not**
 ///   `Binding<T>` — a deliberately different type from the row above it, even
-///   though both are read via `self.$x`. Verified directly against the real
+///   though both are read via `$x`. Verified directly against the real
 ///   SwiftUI interface: `FocusState<T>.Binding` exposes only `wrappedValue` and
 ///   `projectedValue` (itself), no public initializer at all and no conversion
-///   to `Binding<T>` — so `self.$x` here resolves to a different concrete type
+///   to `Binding<T>` — so `$x` here resolves to a different concrete type
 ///   than it does for `@State`/`@AppStorage`/`@SceneStorage`, and there's no
 ///   way to normalize the two into one shared type without fabricating a fake
 ///   `Binding<T>` that satisfies neither `.focused(_:)` nor anything else
@@ -311,7 +312,7 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
 /// getter, neither of which has a parameter list, so there's nothing for a bare
 /// identifier to collide with (verified directly).
 /// - **Non-private fields** use `fieldReadExpression` unchanged (`x`, or
-///   `_x` for `@Binding`).
+///   `$x` for `@Binding`).
 /// - **`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState`** all read the
 ///   *projected* value, `$x` — not `_x`, which gives the wrapper
 ///   instance itself (`State<T>`, not `Binding<T>`; verified directly). Same

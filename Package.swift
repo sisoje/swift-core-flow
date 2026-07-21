@@ -17,12 +17,13 @@ let package = Package(
     ],
     targets: [
         // Every macro's implementation, compiled as one compiler plugin; never ships
-        // to consumers. One file per macro (FlowableMacro.swift,
+        // to consumers. One file per macro (FlowableMacro.swift, ShellMacro.swift,
         // CapabilityMacro.swift, PickMacro.swift), plus the shared stored-property
         // collection + rendering helpers (StoredProperty.swift, MemberMacroEntry.swift,
-        // FieldRendering.swift, FlowableRendering.swift) that @Flowable
-        // builds on, and TuplePicker's own key-path parsing (KeyPathPick.swift,
-        // TuplePickerSupport.swift). One Plugin.swift lists every macro type.
+        // FieldRendering.swift, FlowableRendering.swift, ShellRendering.swift) that
+        // @Flowable builds on and @Shell reuses, and TuplePicker's own key-path
+        // parsing (KeyPathPick.swift, TuplePickerSupport.swift). One Plugin.swift
+        // lists every macro type.
         .macro(
             name: "ValueFlowMacros",
             dependencies: [
@@ -33,8 +34,8 @@ let package = Package(
             ]
         ),
         // The public-facing library: every macro's attribute/expression declaration,
-        // one file per macro (Flowable.swift, Capability.swift,
-        // TuplePicker.swift).
+        // one file per macro (Flowable.swift, Shell.swift, Capability.swift,
+        // TuplePicker.swift), plus Reflector.swift, a small non-macro companion.
         .target(name: "ValueFlow", dependencies: ["ValueFlowMacros"]),
         // All tests — macro-expansion + diagnostic coverage per macro, plus
         // TuplePicker's real-compiled end-to-end suite. XCTest and swift-testing

@@ -1,11 +1,9 @@
 import SwiftSyntax
 
-/// Renders `@Shell`'s two generated members: a nested `Core` struct
-/// over `OutFlow`'s field set *plus* `@Environment`/`@Namespace`
-/// (`outFlowProperties` itself excludes both — see its own doc comment, in
-/// `FlowableRendering.swift` — but `@Shell` still captures them, just
-/// differently than `OutFlow` ever did), plus a `core` computed property
-/// building one from the current instance.
+/// Renders `@Shell`'s two generated members: a nested `Core` struct over
+/// exactly `OutFlow`'s field set (`outFlowProperties`, reused directly — see
+/// its doc comment in `FlowableRendering.swift`), plus a `core` computed
+/// property building one from the current instance.
 ///
 /// `Core` is always internal — its own access, every field's, and
 /// `core`'s — regardless of the attached type's own access level, and it
@@ -41,7 +39,8 @@ import SwiftSyntax
 /// Every private wrapper kind becomes a *plain, constructed* field on
 /// `Core` — never the original attribute, always captured as an ordinary
 /// value read once when `.core` is computed:
-/// - `@Query` → the synthesized `(result:, fetchError:, modelContext:)` tuple.
+/// - `@Query` → the synthesized `(wrappedValue:, fetchError:)` tuple, built via
+///   `#pick` (no `modelContext` — plumbing, not a snapshot value).
 /// - `@State`/`@AppStorage`/`@SceneStorage` → `@Binding var name: T` (the one
 ///   case that keeps an attribute — substituted, not mirrored, since their own
 ///   storage only installs inside a live SwiftUI view and can't be redeclared
@@ -87,7 +86,7 @@ import SwiftSyntax
 /// *original* property was declared `let` or `var`:
 /// - A plain `var subtitle: String?` on the original type becomes `let subtitle:
 ///   String?` on `Core` — a captured value, not a re-tweakable one.
-/// - `@Query`'s synthesized `(result:, fetchError:, modelContext:)` tuple carries
+/// - `@Query`'s synthesized `(wrappedValue:, fetchError:)` tuple carries
 ///   no attribute on the copy (see above) and is `let` for the same reason.
 /// - `@ViewBuilder` is **not** a `@propertyWrapper` — it's a result-builder
 ///   attribute, legal directly on a stored `let` (verified directly:

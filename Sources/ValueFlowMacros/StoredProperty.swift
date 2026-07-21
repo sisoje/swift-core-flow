@@ -5,7 +5,7 @@ import SwiftSyntaxMacros
 // MARK: - Stored-property model
 
 /// A stored property that participates in `@Flowable`'s generated init and
-/// `Flowable` typealias.
+/// `InFlowSplat`/`InFlow`/`OutFlow` typealiases (and `@Shell`'s `Core`).
 public struct StoredProperty {
     public let name: String
     public let type: TypeSyntax?
@@ -19,8 +19,9 @@ public struct StoredProperty {
     public let isPrivate: Bool
 
     /// `@Binding` is the one property wrapper threaded through (as a projected
-    /// `Binding<T>`). Every other wrapper is view-owned or injected (`@State`,
-    /// `@Environment`, `@StateObject`, …) and self-initializes.
+    /// `Binding<T>`). Every recognized source-of-truth wrapper (`@State`,
+    /// `@Environment`, …) is view-owned and self-initializes; anything
+    /// unrecognized (`@StateObject`, …) is refused outright.
     public var isBinding: Bool {
         wrapperName == "Binding"
     }
@@ -65,14 +66,16 @@ public struct StoredProperty {
         wrapperName == "Environment"
     }
 
-    /// `@Query` (SwiftData) — `@Shell`'s field is always synthesized as
-    /// `(result: WrappedType, fetchError: Error?, modelContext: ModelContext)`,
+    /// `@Query` (SwiftData) — the `OutFlow`/`Core` field is always synthesized
+    /// as `(wrappedValue: WrappedType, fetchError: Error?)`, built via `#pick`,
     /// regardless of the property's own declared type. `WrappedType` is the
     /// property's own declared type (e.g. `[Item]` for `@Query private var
-    /// items: [Item]`); `fetchError` and `modelContext` are real members of
+    /// items: [Item]`); `wrappedValue` and `fetchError` are real members of
     /// SwiftData's `Query` wrapper *instance* (reached via the
-    /// underscore-prefixed backing storage), not synthesized placeholders —
-    /// verified directly against the SwiftData interface.
+    /// underscore-prefixed backing storage), picked verbatim, not synthesized
+    /// placeholders — verified directly against the SwiftData interface.
+    /// `modelContext` is deliberately left off: plumbing for issuing further
+    /// queries/saves, not a snapshot value worth asserting on.
     public var isQuery: Bool {
         wrapperName == "Query"
     }
@@ -95,7 +98,7 @@ public struct StoredProperty {
     }
 
     /// `@FocusState` — a source-of-truth wrapper alongside
-    /// `isBindingBackedStorage`'s three, read the same way (`self.$x`) but
+    /// `isBindingBackedStorage`'s three, read the same way (`$x`) but
     /// resolving to a genuinely different projected type: `FocusState<T>.Binding`,
     /// **not** `Binding<T>`. Verified directly against the real SwiftUI interface:
     /// `FocusState<T>.Binding` exposes only `wrappedValue` and
@@ -110,19 +113,16 @@ public struct StoredProperty {
         wrapperName == "FocusState"
     }
 
-    /// `@Namespace` — treated exactly like `@Environment`: a plain, unattributed
-    /// `let` on `Core`, excluded from `OutFlow` entirely. Verified
-    /// directly against the real SwiftUI interface: `Namespace.wrappedValue` is
+    /// `@Namespace` — treated exactly like `@Environment`: a plain value in
+    /// `OutFlow`, a plain unattributed `let` on `Core`. Verified directly
+    /// against the real SwiftUI interface: `Namespace.wrappedValue` is
     /// get-only (same "cannot assign to property" error `@Environment` hits),
     /// and unlike `@State`/`@AppStorage`/`@FocusState` it has **no
     /// `projectedValue` at all** — there's no `$x` to fall back on, so it can't
     /// be threaded through as any kind of `Binding`. Its value is stable for the
     /// view instance's lifetime (unlike `@Environment`, which can change if the
-    /// environment context above it changes), but it's grouped with
-    /// `@Environment` anyway rather than added to `OutFlow`: nothing currently
-    /// demonstrates a need for it there, and `Core`'s plain-`let`
-    /// capture already covers the same "assert on it with no live view" use case
-    /// `OutFlow` exists for.
+    /// environment context above it changes), but the capture works the same
+    /// way for both — a one-time plain-value read.
     public var isNamespace: Bool {
         wrapperName == "Namespace"
     }
@@ -154,6 +154,9 @@ public func collectStoredProperties(
         }
         if isStatic { continue }
 
+        // `private(set)`/`fileprivate(set)` land here too — deliberately not
+        // special-cased: setter-restricted properties have no place in pure data
+        // flow, and the plain-private diagnostic below already rejects them.
         let isPrivate = varDecl.modifiers.contains {
             $0.name.tokenKind == .keyword(.private) || $0.name.tokenKind == .keyword(.fileprivate)
         }

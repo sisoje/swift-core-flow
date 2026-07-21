@@ -106,7 +106,7 @@
 ///   `makeFlow(_:)`'s reverse direction: the stored property already
 ///   holds exactly its own declared type regardless of `@ViewBuilder` (which only
 ///   ever reshapes the *init parameter*), so every field just reads `x`
-///   directly — except `@Binding`, which reads its projected form `_x` to
+///   directly — except `@Binding`, which reads its projected form `$x` to
 ///   match `InFlowSplat`'s `Binding<T>` field type.
 /// - **Round-trips through `makeFlow(_:)` with no manual conversion**:
 ///   `Self.makeFlow(someInstance.inFlow)` works as-is, verified

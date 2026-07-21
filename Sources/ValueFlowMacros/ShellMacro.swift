@@ -38,8 +38,8 @@ func detectHostKind(of declaration: some DeclGroupSyntax) -> ShellHostKind {
 /// Adds a nested `Core` struct plus a `core` computed property to the
 /// struct, class, or actor it's attached to — the same field set `@Flowable`'s
 /// own `OutFlow`/`outFlow` capture (every non-private participating property,
-/// plus private `@Environment`/`@Query`/`@State`/`@AppStorage`/`@FocusState`
-/// state), as a real nominal type instead of a tuple.
+/// plus private `@Environment`/`@Query`/`@State`/`@AppStorage`/`@SceneStorage`/
+/// `@FocusState`/`@Namespace` state), as a real nominal type instead of a tuple.
 ///
 /// A separate macro from `@Flowable` — doesn't replace `OutFlow`/`outFlow`, and
 /// works with or without `@Flowable` also attached, since it collects the
@@ -49,9 +49,9 @@ func detectHostKind(of declaration: some DeclGroupSyntax) -> ShellHostKind {
 /// `ViewModifier` (`detectHostKind`), `Core` is additionally declared to
 /// conform to the same protocol, and the attached type gets one more generated
 /// member: the mechanical delegation from the real `body`/`body(content:)`
-/// requirement down to `self.core` — `var body: some View { self.core }`
+/// requirement down to `core` — `var body: some View { core }`
 /// for `View`, `func body(content: Content) -> some View {
-/// content.modifier(self.core) }` for `ViewModifier` (via `View.modifier(_:)`,
+/// content.modifier(core) }` for `ViewModifier` (via `View.modifier(_:)`,
 /// which needs no `Content`-type unification between the two types' independent
 /// `ViewModifier.Content`s — verified directly that forwarding `content` straight
 /// into `Core`'s own `body(content:)` instead does *not* compile: `Content`

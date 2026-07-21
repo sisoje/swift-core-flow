@@ -111,7 +111,10 @@ The init:
   `@FocusState`/`@Namespace`) to be legal at all — that's the pre-existing
   `sourceOfTruthMustBePrivate`/`unsupportedPrivateWrapper` pair, now narrowed
   to fire only once the two checks above have ruled out the caller-supplied and
-  no-wrapper cases.
+  no-wrapper cases. `private(set)`/`fileprivate(set)` fall into these same
+  diagnostics (the `isPrivate` check matches the keyword regardless of the
+  `(set)` detail) — deliberately not special-cased: setter-restricted
+  properties have no place in pure data flow either.
 - **`@Binding` is the kept exception:** threaded as a projected `Binding<T>`, assigned
   `self._x = x`.
 - **`@ViewBuilder` has two forms.** Stored closure `let vb: () -> Content` →

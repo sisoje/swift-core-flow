@@ -265,8 +265,7 @@ let profileCardOutFlowIsPinned = profileCardOutFlow.isPinned.wrappedValue
 // MARK: - Core
 
 // @Shell is a separate macro from @Flowable — doesn't replace OutFlow,
-// works alongside it. Same field set as OutFlow, PLUS @Environment (which
-// OutFlow leaves out but Core captures anyway), as a real nominal
+// works alongside it. Exactly OutFlow's field set, as a real nominal
 // `Core` struct instead of a tuple — always internal (struct, fields, and
 // the `core` property itself), regardless of ProfileCard's own `public`
 // access: this is a testing/internal-body seam, not a public API surface, and
@@ -285,7 +284,8 @@ let profileCardOutFlowIsPinned = profileCardOutFlow.isPinned.wrappedValue
 // all, since @Environment's wrappedValue has no public setter and the
 // attribute can't be preserved, but a plain unattributed value has no such
 // restriction (see ProfileCard.Core above).
-// @State/@Environment/@Query/@AppStorage/@SceneStorage must all be private —
+// @State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace
+// must all be private —
 // enforced with a diagnostic if violated, not accommodated.
 let profileCardCore = profileCard.core
 let profileCardCoreTitle = profileCardCore.title

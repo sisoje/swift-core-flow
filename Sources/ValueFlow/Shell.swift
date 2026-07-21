@@ -2,10 +2,8 @@
 /// every field, and the `core` property itself), regardless of the
 /// attached type's own access level, and carrying no `@Flowable` — plus a
 /// `core` computed property building one from the current instance.
-/// Shares its constructed-field set with `@Flowable`'s own `OutFlow`/
-/// `outFlow`, plus `@Environment`/`@Namespace` (which `OutFlow` deliberately
-/// leaves out — see its own doc comment — but `Core` still
-/// captures): every non-private participating property, plus private
+/// Its field set is identical to `@Flowable`'s own `OutFlow`/`outFlow`:
+/// every non-private participating property, plus private
 /// `@Environment`/`@Query`/`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState`/
 /// `@Namespace` state, each captured once as a plain value when
 /// `.core` is computed.
@@ -117,13 +115,13 @@
 ///   = x` — a plain, unattributed `let` has no such restriction. Always
 ///   `let`, not mirroring the original's `let`/`var` (the original is
 ///   *always* `var`, every property wrapper requires it) — the captured copy
-///   is a one-time snapshot, immutable by design. `OutFlow` makes the
-///   opposite call and excludes both entirely, since a captured snapshot goes
-///   stale (`@Environment`) or has no demonstrated need there
-///   (`@Namespace`) — `Core` captures both anyway, for the same
-///   reason it treats every field uniformly. `@Namespace` additionally has no
-///   `projectedValue` at all (unlike every `Binding`-substituted row above),
-///   so a plain `let` is its only option regardless.
+///   is a one-time snapshot, immutable by design. `OutFlow` captures both the
+///   same way (plain value, read directly) — no exclusion; a captured value
+///   going stale, or `@Environment`'s own mocking story, are things to know
+///   about the snapshot, not reasons to leave the field out of it.
+///   `@Namespace` additionally has no `projectedValue` at all (unlike every
+///   `Binding`-substituted row above), so a plain `let` is its only option
+///   regardless.
 ///
 /// **`@State`/`@Environment`/`@Query`/`@AppStorage`/`@SceneStorage`/
 /// `@FocusState`/`@Namespace` must be private** — enforced with a diagnostic

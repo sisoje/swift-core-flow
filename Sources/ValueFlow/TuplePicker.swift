@@ -40,11 +40,12 @@
 ///
 /// Works on structs, classes, AND bare tuple values (`#pick(from: t, \.a,
 /// \.b)` where `t: (a: Int, b: String)`) — see the README for why that
-/// wasn't a given. Composes with itself only as two separate statements,
-/// not one nested expression, REGARDLESS of arity — every arity shares the
-/// same underlying implementation type, so Swift's macro-recursion guard
-/// (keyed on implementation identity, not spelled name or arity) refuses
-/// any `#pick` nested textually inside another; see the README.
+/// wasn't a given. Two `#pick` calls resolving to the SAME declared overload
+/// can't nest as one expression (`error: recursive expansion`) — split into
+/// two statements. Nesting across DIFFERENT arities (a one-source result
+/// feeding a two-source call) does work — verified directly, including at
+/// runtime: the recursion guard keys on the resolved declared overload, not
+/// the shared implementation type or the spelled macro name; see the README.
 ///
 /// One, two, and three source overloads are provided, fully typed (verified:
 /// Swift accepts multiple independent parameter packs concatenated in one

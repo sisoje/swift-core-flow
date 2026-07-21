@@ -41,7 +41,7 @@
 ///
 /// One eligible member collapses `Capability` to that member's bare type (Swift has no
 /// 1-tuples) and `capability` to that bare value — same collapse `@Flowable`'s
-/// `Flowable` typealias does. Zero eligible members is a diagnostic, not an empty
+/// `InFlowSplat` typealias does. Zero eligible members is a diagnostic, not an empty
 /// `Capability` — there's no sensible "empty capability."
 ///
 /// No `@Sendable` on the generated closure fields: marking them unconditionally would

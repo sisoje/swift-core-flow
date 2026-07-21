@@ -2,8 +2,8 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 
 /// Adds a memberwise `init` to the struct, class, or actor it is attached to, at the
-/// type's own access level — plus a `Flowable` typealias bundling the same
-/// properties into a tuple, for API uniformity alongside it.
+/// type's own access level — plus the `InFlowSplat`/`InFlow`/`OutFlow`
+/// typealiases and their `makeFlow(_:)`/`inFlow`/`outFlow` accessors alongside it.
 ///
 /// Swift only *synthesizes* an `internal` memberwise initializer for a struct, and
 /// only when you write no init of your own; a class or actor gets none at all. This
@@ -12,7 +12,7 @@ import SwiftSyntaxMacros
 /// gets the memberwise `init` it otherwise needs by hand.
 ///
 /// Entry-point boilerplate is `validatedProperties`; `renderFlowable` does the
-/// actual work (including the `Flowable` typealias — see its own doc comment in
+/// actual work (including every typealias/accessor — see the doc comments in
 /// `FlowableRendering.swift`). This type is just the `MemberMacro` conformance.
 public enum FlowableMacro: MemberMacro {
     public static func expansion(
