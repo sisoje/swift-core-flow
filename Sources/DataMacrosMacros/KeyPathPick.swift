@@ -15,13 +15,13 @@ struct KeyPathPick {
 /// diagnostic message (e.g. `"#pick group 'from: store'"`).
 func parseKeyPathPick(_ expr: ExprSyntax, context: String) throws -> KeyPathPick {
     if let infix = expr.as(InfixOperatorExprSyntax.self),
-       let op = infix.operator.as(BinaryOperatorExprSyntax.self),
-       op.operator.text == "=>"
+        let op = infix.operator.as(BinaryOperatorExprSyntax.self),
+        op.operator.text == "=>"
     {
         guard let label = literalString(infix.rightOperand) else {
             throw MacroError(
                 "\(context): the rename after '=>' must be a plain string literal, "
-                + "got '\(infix.rightOperand.trimmedDescription)'")
+                    + "got '\(infix.rightOperand.trimmedDescription)'")
         }
         let bare = try parseBareKeyPath(infix.leftOperand, context: context)
         return KeyPathPick(label: label, path: bare.path)
@@ -33,7 +33,7 @@ private func parseBareKeyPath(_ expr: ExprSyntax, context: String) throws -> Key
     guard let kp = expr.as(KeyPathExprSyntax.self) else {
         throw MacroError(
             "\(context): expected a key path like \\.field (optionally `=> \"rename\"`), "
-            + "got '\(expr.trimmedDescription)'")
+                + "got '\(expr.trimmedDescription)'")
     }
     let names = kp.components.compactMap {
         $0.component.as(KeyPathPropertyComponentSyntax.self)?.declName.baseName.text
@@ -58,7 +58,7 @@ func duplicateLabelDiagnostic(
 
     let renamedExpr: ExprSyntax
     if let infix = duplicateExpr.as(InfixOperatorExprSyntax.self),
-       infix.operator.as(BinaryOperatorExprSyntax.self)?.operator.text == "=>"
+        infix.operator.as(BinaryOperatorExprSyntax.self)?.operator.text == "=>"
     {
         renamedExpr = "\(infix.leftOperand.trimmed) => \"\(raw: suggested)\""
     } else {

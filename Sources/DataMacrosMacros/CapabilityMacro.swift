@@ -60,7 +60,9 @@ func collectCapabilityMembers(
             guard !isExcluded(varDecl.modifiers) else { continue }
 
             for binding in varDecl.bindings {
-                guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
+                guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
+                    continue
+                }
                 // Only computed properties participate — a stored property (no
                 // accessor block, or one with only willSet/didSet) is skipped.
                 guard let accessorBlock = binding.accessorBlock, isComputed(accessorBlock) else {
@@ -79,7 +81,8 @@ func collectCapabilityMembers(
                 }
 
                 members.append(
-                    CapabilityMember(name: pattern.identifier.text, typeText: type.trimmedDescription)
+                    CapabilityMember(
+                        name: pattern.identifier.text, typeText: type.trimmedDescription)
                 )
             }
         } else if let funcDecl = member.decl.as(FunctionDeclSyntax.self) {
@@ -87,7 +90,9 @@ func collectCapabilityMembers(
             // A mutating method can't be referenced as a plain closure value on a
             // struct/enum (`self` isn't mutable in that expression) — Swift rejects
             // it outright, so there's no useful field to generate here.
-            let isMutating = funcDecl.modifiers.contains { $0.name.tokenKind == .keyword(.mutating) }
+            let isMutating = funcDecl.modifiers.contains {
+                $0.name.tokenKind == .keyword(.mutating)
+            }
             guard !isMutating else { continue }
 
             let params =
@@ -110,7 +115,8 @@ func collectCapabilityMembers(
 
     guard !hadError else { return nil }
     guard !members.isEmpty else {
-        context.diagnose(Diagnostic(node: Syntax(decl), message: CapabilityDiagnostic.noEligibleMembers))
+        context.diagnose(
+            Diagnostic(node: Syntax(decl), message: CapabilityDiagnostic.noEligibleMembers))
         return nil
     }
     return members
@@ -168,7 +174,8 @@ struct CapabilityDiagnostic: DiagnosticMessage {
     }
 
     static let notAnEligibleDeclaration = CapabilityDiagnostic(
-        message: "@Capability can only be attached to a struct, class, actor, or an extension of one.",
+        message:
+            "@Capability can only be attached to a struct, class, actor, or an extension of one.",
         id: "notAnEligibleDeclaration"
     )
 

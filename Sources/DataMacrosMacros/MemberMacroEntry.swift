@@ -19,7 +19,8 @@ func validatedProperties(
             || declaration.is(ActorDeclSyntax.self)
     else {
         context.diagnose(
-            Diagnostic(node: node, message: DataTypeMacroDiagnostic.notADataType(macroName: macroName))
+            Diagnostic(
+                node: node, message: DataTypeMacroDiagnostic.notADataType(macroName: macroName))
         )
         return nil
     }

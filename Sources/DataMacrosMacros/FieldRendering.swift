@@ -9,12 +9,12 @@ import SwiftSyntax
 /// `@DataLayout` calls this twice, for two different purposes, with opposite
 /// settings: once per init parameter with `wrapViewBuilder: true` (the default) —
 /// that's what buys real trailing-closure call-site sugar (`Card(...) { content }`)
-/// — and once per `DataLayout` typealias field with `wrapViewBuilder: false`. There
-/// is no parameter position inside a tuple type for that trailing-closure sugar to
-/// attach to, so wrapping would buy nothing there, and it's actively wrong: a
-/// closure isn't `Equatable`/storable/diffable, which defeats `DataLayout`'s whole
-/// purpose. So a `@ViewBuilder`-stored-value field in the typealias is just its own
-/// declared type (`Content`), matching every other field.
+/// — and once per `InFlowSplat` typealias field with `wrapViewBuilder: false`.
+/// There is no parameter position inside a tuple type for that trailing-closure
+/// sugar to attach to, so wrapping would buy nothing there, and it's actively
+/// wrong: a closure isn't `Equatable`/storable/diffable, which defeats
+/// `InFlowSplat`'s whole purpose. So a `@ViewBuilder`-stored-value field in the
+/// typealias is just its own declared type (`Content`), matching every other field.
 func baseTypeText(_ p: StoredProperty, wrapViewBuilder: Bool = true) -> String {
     let typeStr = p.type?.trimmedDescription ?? ""
     if p.isBinding { return "Binding<\(typeStr)>" }
@@ -27,8 +27,8 @@ func baseTypeText(_ p: StoredProperty, wrapViewBuilder: Bool = true) -> String {
 /// The init assignment for one field, reading from the bare parameter `source`. A
 /// `@Binding` assigns its backing storage (`self._x`); a `@ViewBuilder`-stored value
 /// calls the builder closure (`self.x = x()`) instead of assigning it directly.
-/// Only used for the init — the `DataLayout` typealias is a plain type declaration
-/// with no assignments to render, so unlike `baseTypeText` this has no
+/// Only used for the init — the `InFlowSplat` typealias is a plain type
+/// declaration with no assignments to render, so unlike `baseTypeText` this has no
 /// `wrapViewBuilder` parameter to thread through.
 func fieldAssignment(_ p: StoredProperty, source: String) -> String {
     if p.isBinding { return "    self._\(p.name) = \(source)" }
@@ -36,4 +36,20 @@ func fieldAssignment(_ p: StoredProperty, source: String) -> String {
         return "    self.\(p.name) = \(source)()"
     }
     return "    self.\(p.name) = \(source)"
+}
+
+/// The expression reading a field's *current* value directly off `self`, for the
+/// `inFlow` computed property — the reverse of `fieldAssignment`. A `@Binding`
+/// reads its projected form (`self._x`, type `Binding<T>`, matching `baseTypeText`'s
+/// `Binding<T>` field type); everything else — including a `@ViewBuilder` field, in
+/// either form — reads `self.x` directly.
+///
+/// Unlike `makeFlow(_:)`'s reverse direction, no wrapping/unwrapping is needed
+/// here: the stored property already holds exactly its own declared type (`Content`
+/// for a ViewBuilder-stored *value*, `() -> Content` for a stored closure), which is
+/// exactly what `InFlowSplat`/`InFlow` already use as that field's type —
+/// `@ViewBuilder` only ever reshapes the *init parameter*, never the property's own
+/// storage.
+func fieldReadExpression(_ p: StoredProperty) -> String {
+    p.isBinding ? "self._\(p.name)" : "self.\(p.name)"
 }

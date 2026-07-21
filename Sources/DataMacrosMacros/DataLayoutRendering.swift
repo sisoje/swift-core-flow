@@ -1,9 +1,17 @@
 import SwiftSyntax
 
-/// Render a memberwise initializer for `properties` at the given access level —
-/// one parameter per property — plus a `DataLayout` typealias bundling the same
-/// properties into a tuple type. `access` is a modifier prefix such as `"public "`
-/// or `""` (internal).
+/// Render a memberwise initializer for `properties` at the given access level, plus
+/// five supporting members: an unlabeled `InFlowSplat` typealias and a
+/// `makeFlow(_:)` factory for building `Self` *from* one (splat-friendly,
+/// see `renderInFlowSplatTypealias`/`renderInFlowSplatFactory`), a labeled
+/// `InFlow` typealias with an `inFlow` computed property for reading the current
+/// instance's data back *out* (readable/reflectable, see
+/// `renderInFlowTypealias`/`renderInFlowProperty`), and an `OutFlow` typealias
+/// with an `outFlow` computed property: `InFlow`'s fields plus the view's own
+/// externally-relevant *capturable* private state (`@Query`/`@State`/
+/// `@AppStorage` — see `outFlowProperties`), in declaration order (see
+/// `renderOutFlowTypealias`/`renderOutFlowProperty`). `access` is a modifier
+/// prefix such as `"public "` or `""` (internal).
 public func renderDataLayout(properties: [StoredProperty], access: String) -> [DeclSyntax] {
     let initParams = properties.filter { !$0.isPrivate }
 
@@ -48,83 +56,96 @@ public func renderDataLayout(properties: [StoredProperty], access: String) -> [D
         """
 
     var decls = [DeclSyntax(stringLiteral: initDecl)]
-    if let dataLayout = renderDataLayoutTypealias(properties: properties, access: access) {
-        decls.append(dataLayout)
+    if let inFlowSplat = renderInFlowSplatTypealias(properties: properties, access: access) {
+        decls.append(inFlowSplat)
     }
-    if let factory = renderDataLayoutFactory(properties: properties, access: access) {
+    if let factory = renderInFlowSplatFactory(properties: properties, access: access) {
         decls.append(factory)
+    }
+    if let inFlow = renderInFlowTypealias(properties: properties, access: access) {
+        decls.append(inFlow)
+    }
+    if let property = renderInFlowProperty(properties: properties, access: access) {
+        decls.append(property)
+    }
+    if let outFlowTypealias = renderOutFlowTypealias(properties: properties, access: access) {
+        decls.append(outFlowTypealias)
+    }
+    if let outFlowProperty = renderOutFlowProperty(properties: properties, access: access) {
+        decls.append(outFlowProperty)
     }
     return decls
 }
 
-/// The `DataLayout` typealias declaration for `properties` — a tuple bundling every
-/// non-private property, for API uniformity/discoverability alongside the memberwise
-/// init above. Two or more properties → a tuple; exactly one collapses to that
-/// property's bare type (Swift has no 1-tuples: `(T)` as a type is just `T`); zero
-/// yields no typealias at all — there's nothing to alias, and a bare `init()`
-/// already covers that case above.
+/// The `InFlowSplat` typealias declaration for `properties` — a tuple bundling
+/// every non-private property, for API uniformity/discoverability alongside the
+/// memberwise init above. Two or more properties → a tuple; exactly one collapses
+/// to that property's bare type (Swift has no 1-tuples: `(T)` as a type is just
+/// `T`); zero yields no typealias at all — there's nothing to alias, and a bare
+/// `init()` already covers that case above.
 ///
 /// **Deliberately unlabeled**, e.g. `(Int, String)` not `(x: Int, name: String)` —
 /// so any structurally-compatible tuple converts into it, not just one built with
-/// these exact field names. Verified directly: a tuple *value* already bound with
-/// different labels (`let t = (xxx: 1, yyy: 2)`) fails to convert into a
-/// *labeled* target tuple type of the same shape, but succeeds against an
-/// *unlabeled* one — Swift only enforces label agreement between two labeled tuple
-/// types, not into an unlabeled one. A labeled tuple *literal* (`(x: 1, y: 2)`)
-/// converts into an unlabeled target either way, so callers can still write field
-/// names for their own readability when constructing the value; only a
-/// pre-existing differently-labeled variable needed this loosening. The real
-/// tradeoff: with no labels, swapping two same-typed fields' order is no longer
-/// caught by the type checker.
+/// these exact field names — hence "splat" in the name. Verified directly: a
+/// tuple *value* already bound with different labels (`let t = (xxx: 1, yyy: 2)`)
+/// fails to convert into a *labeled* target tuple type of the same shape, but
+/// succeeds against an *unlabeled* one — Swift only enforces label agreement
+/// between two labeled tuple types, not into an unlabeled one. A labeled tuple
+/// *literal* (`(x: 1, y: 2)`) converts into an unlabeled target either way, so
+/// callers can still write field names for their own readability when
+/// constructing the value; only a pre-existing differently-labeled variable
+/// needed this loosening. The real tradeoff: with no labels, swapping two
+/// same-typed fields' order is no longer caught by the type checker.
 ///
 /// Always built with `wrapViewBuilder: false` (see `baseTypeText`), independent of
 /// the init's own rendering above: a `@ViewBuilder`-stored *value* field
 /// (`@ViewBuilder let footer: Content`) keeps its own type here (`Content`), not a
 /// `() -> Content` builder — there's no parameter position inside a tuple type for
 /// the trailing-closure sugar that wrapping exists to enable, and a closure would
-/// make `DataLayout` — meant to be data you pass around/store/diff — hold something
-/// that isn't `Equatable`. Function-typed fields likewise never get `@escaping`:
-/// that attribute is only legal directly on a function *parameter*, and a closure
-/// nested inside a tuple type is already escaping. Per-field defaults are dropped
-/// too — tuple element types don't support `= default`.
-func renderDataLayoutTypealias(properties: [StoredProperty], access: String) -> DeclSyntax? {
+/// make `InFlowSplat` — meant to be data you pass around/store/diff — hold
+/// something that isn't `Equatable`. Function-typed fields likewise never get
+/// `@escaping`: that attribute is only legal directly on a function *parameter*,
+/// and a closure nested inside a tuple type is already escaping. Per-field
+/// defaults are dropped too — tuple element types don't support `= default`.
+func renderInFlowSplatTypealias(properties: [StoredProperty], access: String) -> DeclSyntax? {
     let initParams = properties.filter { !$0.isPrivate }
     guard !initParams.isEmpty else { return nil }
 
     let rhs =
         initParams.count > 1
-        ? "(" + initParams.map { baseTypeText($0, wrapViewBuilder: false) }.joined(separator: ", ") + ")"
+        ? "(" + initParams.map { baseTypeText($0, wrapViewBuilder: false) }.joined(separator: ", ")
+            + ")"
         : baseTypeText(initParams[0], wrapViewBuilder: false)
 
-    return DeclSyntax(stringLiteral: "\(access)typealias DataLayout = \(rhs)")
+    return DeclSyntax(stringLiteral: "\(access)typealias InFlowSplat = \(rhs)")
 }
 
-/// A `make(dataLayout:)` static factory constructing `Self` from a `DataLayout`
-/// value, by forwarding each field into the primary memberwise init above — direct
-/// field access, not the array/map/force-unwrap trick a `Self.init` function
-/// reference needs to accept a tuple. A static func (not a second `init`)
-/// specifically because it works identically for a struct, class, or actor: a
-/// delegating second `init` would need `self.init(...)`, which on a class/actor
-/// requires the `convenience` keyword and drags in Swift's designated/convenience
-/// init rules — `Self(...)` inside a plain static function sidesteps all of that.
-/// Returns nil exactly when `renderDataLayoutTypealias` does (no properties,
-/// nothing to build from).
+/// A `makeFlow(_:)` static factory constructing `Self` from an
+/// `InFlowSplat` value, by forwarding each field into the primary memberwise
+/// init above — direct field access, not the array/map/force-unwrap trick a
+/// `Self.init` function reference needs to accept a tuple. A static func (not a
+/// second `init`) specifically because it works identically for a struct, class,
+/// or actor: a delegating second `init` would need `self.init(...)`, which on a
+/// class/actor requires the `convenience` keyword and drags in Swift's
+/// designated/convenience init rules — `Self(...)` inside a plain static function
+/// sidesteps all of that. Returns nil exactly when `renderInFlowSplatTypealias`
+/// does (no properties, nothing to build from).
 ///
-/// `DataLayout` is unlabeled (see `renderDataLayoutTypealias`), so a tuple-case
-/// field is read positionally — `dataLayout.0`, `dataLayout.1`, … in field order —
+/// `InFlowSplat` is unlabeled (see `renderInFlowSplatTypealias`), so a
+/// tuple-case field is read positionally — `flow.0`, `flow.1`, … in field order —
 /// rather than by name.
 ///
-/// A `@ViewBuilder`-stored *value* field is a plain value in `DataLayout` but the
-/// primary init still wants a `() -> Value` builder for it (see `baseTypeText`) — so
-/// unlike every other field, it's forwarded as a trivial closure (`{ dataLayout.0 }`)
-/// rather than the bare value.
-func renderDataLayoutFactory(properties: [StoredProperty], access: String) -> DeclSyntax? {
+/// A `@ViewBuilder`-stored *value* field is a plain value in `InFlowSplat` but
+/// the primary init still wants a `() -> Value` builder for it (see
+/// `baseTypeText`) — so unlike every other field, it's forwarded as a trivial
+/// closure (`{ flow.0 }`) rather than the bare value.
+func renderInFlowSplatFactory(properties: [StoredProperty], access: String) -> DeclSyntax? {
     let initParams = properties.filter { !$0.isPrivate }
     guard !initParams.isEmpty else { return nil }
 
     let isTuple = initParams.count > 1
     let args = initParams.enumerated().map { index, p -> String in
-        let source = isTuple ? "dataLayout.\(index)" : "dataLayout"
+        let source = isTuple ? "flow.\(index)" : "flow"
         if p.isViewBuilder, !(p.type.map(isFunctionType) ?? false) {
             return "\(p.name): { \(source) }"
         }
@@ -133,8 +154,193 @@ func renderDataLayoutFactory(properties: [StoredProperty], access: String) -> De
 
     return DeclSyntax(
         stringLiteral: """
-            \(access)static func make(dataLayout: DataLayout) -> Self {
+            \(access)static func makeFlow(_ flow: InFlowSplat) -> Self {
                 Self(\(args))
+            }
+            """
+    )
+}
+
+/// The `InFlow` typealias — same fields and types as `InFlowSplat`, but
+/// *labeled*: `(id: UUID, name: String)`, not `(UUID, String)`. Two or more
+/// properties → a labeled tuple; exactly one collapses to the bare type, same as
+/// `InFlowSplat` (a label on a lone value doesn't survive as a type either
+/// way); zero → no typealias, matching `InFlowSplat`.
+///
+/// Exists specifically for readable field access (`layout.id`, not `layout.0`) and
+/// so tools like `Mirror` can report real field names — verified directly:
+/// `Mirror(reflecting:)` over a labeled tuple reports each field's actual name,
+/// while over an unlabeled one it only reports positional labels (`".0"`, `".1"`).
+/// `InFlowSplat` stays unlabeled (see `renderInFlowSplatTypealias`)
+/// specifically for `makeFlow(_:)`'s splatting flexibility, so the two
+/// typealiases serve opposite directions: `InFlow` out (via `inFlow` below),
+/// `InFlowSplat` in (via `make`).
+///
+/// An `InFlow` value converts directly into an `InFlowSplat`-typed parameter
+/// (verified directly) — Swift only enforces label agreement between two
+/// *labeled* tuple types, and `InFlowSplat` is unlabeled — so
+/// `Self.makeFlow(someInstance.inFlow)` round-trips with no manual
+/// conversion.
+func renderInFlowTypealias(properties: [StoredProperty], access: String) -> DeclSyntax? {
+    let initParams = properties.filter { !$0.isPrivate }
+    guard !initParams.isEmpty else { return nil }
+
+    let rhs =
+        initParams.count > 1
+        ? "("
+            + initParams.map { "\($0.name): \(baseTypeText($0, wrapViewBuilder: false))" }
+            .joined(separator: ", ") + ")"
+        : baseTypeText(initParams[0], wrapViewBuilder: false)
+
+    return DeclSyntax(stringLiteral: "\(access)typealias InFlow = \(rhs)")
+}
+
+/// The `inFlow` computed property — extracts the *current* instance's data as an
+/// `InFlow` value, the reverse direction of `makeFlow(_:)`. Present
+/// exactly when `InFlow` is.
+///
+/// Every field reads directly off `self` via `fieldReadExpression` — unlike
+/// `makeFlow(_:)`'s reverse direction, no wrapping is needed for a
+/// `@ViewBuilder` field: the stored property already holds exactly its own
+/// declared type, which is exactly what `InFlowSplat`/`InFlow` already use as
+/// that field's type. Only `@Binding` needs its projected form (`self._x`).
+func renderInFlowProperty(properties: [StoredProperty], access: String) -> DeclSyntax? {
+    let initParams = properties.filter { !$0.isPrivate }
+    guard !initParams.isEmpty else { return nil }
+
+    let isTuple = initParams.count > 1
+    let value =
+        isTuple
+        ? "(" + initParams.map { "\($0.name): \(fieldReadExpression($0))" }.joined(separator: ", ")
+            + ")"
+        : fieldReadExpression(initParams[0])
+
+    return DeclSyntax(
+        stringLiteral: """
+            \(access)var inFlow: InFlow {
+                \(value)
+            }
+            """
+    )
+}
+
+/// The properties `OutFlow`/`outFlow` (below) include: every non-private
+/// participating property (same set `InFlow` has), plus every private
+/// `@Query`/`@State`/`@AppStorage` property — the view's own externally-relevant
+/// *capturable* state, alongside its public data. In declaration order, same as
+/// `properties` itself; not data-layout fields first and wrapper fields appended
+/// after.
+///
+/// **`@Environment` is deliberately excluded**, unlike the other three private
+/// wrapper kinds — not because it's technically uncapturable (a plain,
+/// unattributed value works fine, same as any other field; `@StatelessNode`
+/// captures it exactly that way, see `StatelessNodeRendering.swift`), but because a
+/// captured snapshot goes stale the moment the real environment changes, and
+/// needs no help from this package anyway — `@Environment`'s own mocking story
+/// (inject a different value where the type is constructed/hosted) already
+/// covers it natively. `OutFlow` stays scoped to `@Query`/`@State`/
+/// `@AppStorage`; `@StatelessNode` makes the opposite call and captures it too, for
+/// the same reason it treats every field uniformly (see its own doc comment).
+///
+/// Everything else private (a plain `private var cache = 0`, `@StateObject`, …) is
+/// excluded too — `OutFlow` is deliberately scoped to `@Query`/`@State`/
+/// `@AppStorage`, not "every private property" (there's no such unconditional,
+/// unfiltered member in this package — see `allFieldNames`'s removal note in
+/// `DataLayout.swift`).
+func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
+    properties.filter {
+        !$0.isPrivate || $0.isQuery || $0.isStateOrAppStorage
+    }
+}
+
+/// A field's `OutFlow` type — distinct from `baseTypeText` (used by
+/// `InFlowSplat`/`InFlow`), since `@Query`/`@State`/`@AppStorage` need their own
+/// mapping, not the `@Binding`/`@ViewBuilder` one `baseTypeText` knows:
+/// - **Non-private fields** use `baseTypeText` unchanged — same rules `InFlow`
+///   already applies (`Binding<T>` for `@Binding`, `@ViewBuilder` unwrapped to its
+///   bare type, everything else as declared).
+/// - **`@Query`** (`isQuery`) → **always** `(result: WrappedType, fetchError:
+///   Error?, modelContext: ModelContext)`, synthesized — not a passthrough of the
+///   declared type. `WrappedType` is the property's own declared type (e.g.
+///   `[Item]` for `@Query private var items: [Item]`); `fetchError` and
+///   `modelContext` are real members of SwiftData's `Query` wrapper *instance*
+///   (`@MainActor @preconcurrency public var fetchError: (any Error)? { get }`,
+///   `public var modelContext: ModelContext { get }` — verified directly against
+///   the SwiftData interface), not synthesized placeholders — reached the same
+///   way `@Binding`'s own wrapper instance is reached elsewhere in this file, via
+///   the underscore-prefixed backing storage.
+/// - **`@State`/`@AppStorage`** (`isStateOrAppStorage`) → `Binding<T>`, since
+///   these are the view's own read-*and-write*-able storage from the outside.
+func outFlowFieldType(_ p: StoredProperty) -> String {
+    if p.isStateOrAppStorage {
+        return "Binding<\(p.type?.trimmedDescription ?? "")>"
+    }
+    if p.isQuery {
+        return
+            "(result: \(p.type?.trimmedDescription ?? ""), fetchError: Error?, modelContext: ModelContext)"
+    }
+    return baseTypeText(p, wrapViewBuilder: false)
+}
+
+/// A field's `OutFlow` *read* expression, the `outFlow` property's counterpart to
+/// `outFlowFieldType` above:
+/// - **Non-private fields** use `fieldReadExpression` unchanged (`self.x`, or
+///   `self._x` for `@Binding`).
+/// - **`@State`/`@AppStorage`** read the *projected* value, `self.$x` — not
+///   `self._x`, which gives the wrapper instance itself (`State<T>`, not
+///   `Binding<T>`; verified directly).
+/// - **`@Query`** reads `(result: self.x, fetchError: self._x.fetchError,
+///   modelContext: self._x.modelContext)` — `self.x` is the wrapper's
+///   `wrappedValue` (the fetched array); `fetchError`/`modelContext` are real
+///   members of the wrapper *instance* itself (`self._x`, type `Query<Element,
+///   Result>`), the same underscore-prefixed access `@Binding` already uses
+///   elsewhere in this file — not synthesized.
+func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
+    if p.isStateOrAppStorage {
+        return "self.$\(p.name)"
+    }
+    if p.isQuery {
+        return
+            "(result: self.\(p.name), fetchError: self._\(p.name).fetchError, modelContext: self._\(p.name).modelContext)"
+    }
+    return fieldReadExpression(p)
+}
+
+/// The `OutFlow` typealias — same collapse/absence rules as `InFlowSplat`/
+/// `InFlow` (two-or-more → labeled tuple, exactly one → bare type, zero →
+/// no typealias), but over `outFlowProperties`'s wider field set rather than just
+/// the non-private ones.
+func renderOutFlowTypealias(properties: [StoredProperty], access: String) -> DeclSyntax? {
+    let fields = outFlowProperties(properties)
+    guard !fields.isEmpty else { return nil }
+
+    let rhs =
+        fields.count > 1
+        ? "(" + fields.map { "\($0.name): \(outFlowFieldType($0))" }.joined(separator: ", ") + ")"
+        : outFlowFieldType(fields[0])
+
+    return DeclSyntax(stringLiteral: "\(access)typealias OutFlow = \(rhs)")
+}
+
+/// The `outFlow` computed property — extracts the current instance's `OutFlow`
+/// value, reading each field per `outFlowFieldReadExpression`. Present exactly when
+/// `OutFlow` is.
+func renderOutFlowProperty(properties: [StoredProperty], access: String) -> DeclSyntax? {
+    let fields = outFlowProperties(properties)
+    guard !fields.isEmpty else { return nil }
+
+    let isTuple = fields.count > 1
+    let value =
+        isTuple
+        ? "("
+            + fields.map { "\($0.name): \(outFlowFieldReadExpression($0))" }.joined(separator: ", ")
+            + ")"
+        : outFlowFieldReadExpression(fields[0])
+
+    return DeclSyntax(
+        stringLiteral: """
+            \(access)var outFlow: OutFlow {
+                \(value)
             }
             """
     )

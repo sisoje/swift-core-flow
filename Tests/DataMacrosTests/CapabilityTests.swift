@@ -261,7 +261,8 @@ final class CapabilityTests: XCTestCase {
                 """,
             diagnostics: [
                 DiagnosticSpec(
-                    message: "@Capability can only be attached to a struct, class, actor, or an extension of one.",
+                    message:
+                        "@Capability can only be attached to a struct, class, actor, or an extension of one.",
                     line: 1,
                     column: 1
                 )

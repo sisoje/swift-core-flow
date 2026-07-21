@@ -1,18 +1,25 @@
 import DataMacros
 import Foundation
+import SwiftData
 import SwiftUI
+
+@Model public final class Item {
+    var int = 0
+    init() {}
+}
 
 // MARK: - DataLayout
 
 // @DataLayout writes the memberwise initializer at the struct's own access
-// level — the `public init` Swift refuses to synthesize for a public type — plus a
-// `DataLayout` typealias bundling the same properties into an UNLABELED tuple
+// level — the `public init` Swift refuses to synthesize for a public type — plus an
+// `InFlowSplat` typealias bundling the same properties into an UNLABELED tuple
 // alongside it:
-// `public typealias DataLayout = (UUID, String, Bool, @MainActor () -> Void,
+// `public typealias InFlowSplat = (UUID, String, Bool, @MainActor () -> Void,
 //     () async -> Void, @Sendable (String, Int) async -> Void, (() -> Void)?)`
 // — no defaults, no @escaping, unlike the init right above it (tuple element types
-// support neither). Also generates `make(dataLayout:)`, building Self back from a
-// DataLayout value: `static func make(dataLayout: DataLayout) -> Self { Self(x: dataLayout.0, y: dataLayout.1) }`.
+// support neither). Also generates `makeFlow(_:)`, building Self back from
+// an InFlowSplat value:
+// `static func makeFlow(_ flow: InFlowSplat) -> Self { Self(x: flow.0, y: flow.1) }`.
 // Unlabeled specifically so ANY structurally-compatible tuple converts in, not just
 // one built with these exact field names/order in mind:
 
@@ -22,13 +29,18 @@ public struct Point {
     var y: Int
 }
 
+@DataLayout
+public struct OneValur {
+    var x: Int
+}
+
 // A differently-labeled tuple value swallows/"splats" right in — verified this
-// fails against a *labeled* DataLayout (real type error, not a macro bug) but
-// succeeds once DataLayout is unlabeled: Swift only enforces label agreement
+// fails against a *labeled* InFlow (real type error, not a macro bug) but
+// succeeds once InFlowSplat is unlabeled: Swift only enforces label agreement
 // between two labeled tuple types, not into an unlabeled one.
 let keke = (xxx: 1, yyy: 1)
 
-let p = Point.make(dataLayout: keke)
+let p = Point.makeFlow(keke)
 
 @DataLayout
 public struct User {
@@ -52,38 +64,67 @@ public struct User {
 
 @DataLayout
 @Observable public final class Settings {
-    var count: Int = 0  // one property → `typealias DataLayout = Int`, no 1-tuple
+    var count: Int = 0  // one property → `typealias InFlowSplat = Int`, no 1-tuple
 }
 
 // On a View: @State/@Environment are private, so they're excluded; @Binding is
 // threaded as Binding<Bool>; @ViewBuilder carries onto the parameters. Generated init:
 // `init(isOn: Binding<Bool>, title: String, subtitle: String? = nil, model: Settings,
 //       @ViewBuilder content: @escaping () -> Content, @ViewBuilder footer: () -> Content)`.
-// The DataLayout typealias diverges from that init in two ways: no default for
+// The InFlowSplat typealias diverges from that init in two ways: no default for
 // subtitle, and footer keeps its own type (`Content`) instead of the `() -> Content`
-// builder the init uses — `typealias DataLayout = (Binding<Bool>, String, String?,
-// Settings, () -> Content, Content)`, unlabeled like every DataLayout.
-// make(dataLayout:) re-wraps footer into a closure to satisfy the init's builder
-// param, reading positionally: `Self(isOn: dataLayout.0, ..., footer: { dataLayout.5 })`.
+// builder the init uses — `typealias InFlowSplat = (Binding<Bool>, String, String?,
+// Settings, () -> Content, Content)`, unlabeled like every InFlowSplat.
+// makeFlow(_:) re-wraps footer into a closure to satisfy the init's builder
+// param, reading positionally: `Self(isOn: flow.0, ..., footer: { flow.5 })`.
+// @StatelessNode auto-detects View/ViewModifier off the attached type's own
+// inheritance clause (syntactically — see StatelessNodeMacro.swift's
+// `detectHostKind`) and, when it matches, generates two more things beyond the
+// usual StatelessNode struct/statelessNode property: `StatelessNode` itself is additionally
+// declared `: View` (here) or `: ViewModifier` (VM, below), and ProfileCard gets
+// a generated `var body: some View { self.statelessNode }` for free — the mechanical
+// delegation, not hand-written. Only the *real* body implementation, on
+// `StatelessNode` itself, is left for hand-written code below.
 @DataLayout
+@StatelessNode
 public struct ProfileCard<Content: View>: View {
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var isExpanded = false
+    @Query(animation: Animation.bouncy) private var items: [Item]
+    @Environment(\.colorScheme) private var colorScheme: ColorScheme
+    @State private var isExpanded: Bool = false
     @Binding var isOn: Bool
     let title: String
     var subtitle: String?
-
     @Bindable var model: Settings
-
     @ViewBuilder let content: () -> Content
     @ViewBuilder let footer: Content
+}
 
+// The real implementation — StatelessNode already conforms to View (declared by the
+// macro above), so this extension only needs to satisfy the requirement, not
+// redeclare the conformance.
+extension ProfileCard.StatelessNode {
+    // colorScheme is a plain, public `let` on StatelessNode — captured once when
+    // `.statelessNode` was computed, same as every other field.
     public var body: some View {
-        VStack {
-            Text(isExpanded ? "Expanded" : "Collapsed")
-            content()
-            footer
-        }
+        Text(colorScheme == .dark ? title.uppercased() : title)
+    }
+}
+
+// Same story for ViewModifier: @StatelessNode sees `: ViewModifier` on VM and
+// generates `func body(content: Content) -> some View { content.modifier(self.statelessNode) }`
+// on VM, plus `: ViewModifier` on VM.StatelessNode — via `.modifier(_:)`, so there's
+// no need to unify VM's own `Content` with VM.StatelessNode's (verified directly
+// that forwarding `content` straight into StatelessNode's own `body(content:)`
+// instead does not compile — see StatelessNodeMacro.swift's doc comment).
+@DataLayout
+@StatelessNode
+public struct VM: ViewModifier {
+    @State private var c: Int = 0
+}
+
+extension VM.StatelessNode {
+    public func body(content: Content) -> some View {
+        content.opacity(c == 0 ? 1 : 0.5)
     }
 }
 
@@ -96,7 +137,10 @@ let actions = (alerts: ["low battery"], submit: {})
 let merged = #pick(from: store, \.expenses => "zzz", \.limit, from: actions, \.alerts)
 
 // #pick — picking 2 out of 11 fields from one large tuple
-let big = (val1: 1, val2: 2, val3: 3, val4: 4, val5: 5, val6: 6, val7: 7, val8: 8, val9: 9, val10: 10, val11: 11)
+let big = (
+    val1: 1, val2: 2, val3: 3, val4: 4, val5: 5, val6: 6, val7: 7, val8: 8, val9: 9, val10: 10,
+    val11: 11
+)
 let twoOfEleven = #pick(from: big, \.val3, \.val11)
 
 // MARK: - Capability
@@ -137,3 +181,86 @@ extension MySomething {
         try await Task.sleep(nanoseconds: 1)
     }
 }
+
+// MARK: - Reflector
+
+// Reflector.fieldNames needs only a TYPE — no instance — so it names
+// Point.InFlow's fields directly off Point.self, without ever constructing a
+// Point: the same names Point's `inFlow` property returns values for.
+let pointFieldNames = Reflector.fieldNames(of: Point.InFlow.self)  // ["x", "y"]
+
+// Works equally on a struct containing a class-typed field — the crash
+// Reflector's precondition guards against is about T's own top-level kind
+// being a class, not about what its fields are.
+let profileCardFieldNames = Reflector.fieldNames(of: ProfileCard<Text>.InFlow.self)
+
+// Point OutFlow, not InFlow, to see isExpanded too — @State is private, so
+// InFlow excludes it entirely, but OutFlow includes @Query/@State/@AppStorage
+// alongside the public data. colorScheme is NOT here — @Environment is
+// deliberately excluded from OutFlow (see below), even though `StatelessNode`
+// (below) captures it fine.
+let profileCardOutFlowFieldNames = Reflector.fieldNames(of: ProfileCard<Text>.OutFlow.self)
+
+// MARK: - OutFlow
+
+// outFlow mixes InFlow's fields with the view's own externally-relevant
+// CAPTURABLE private state (@Query/@State/@AppStorage — NOT @Environment, see
+// below), in declaration order — not data-layout fields first, wrapper fields
+// appended after: `items` (@Query) comes first here because it's declared first
+// on ProfileCard. @Query is always synthesized as (result: WrappedType,
+// fetchError: Error?, modelContext: ModelContext) — items: [Item] becomes
+// items: (result: [Item], fetchError: Error?, modelContext: ModelContext).
+// fetchError/modelContext are real members of SwiftData's Query wrapper instance
+// (self._items.fetchError/.modelContext), not synthesized placeholders.
+// @State/@AppStorage read as Binding<T> via the projected $ value.
+//
+// @Environment is excluded: not because it's uncapturable (a plain value works
+// fine — StatelessNode, below, captures it exactly that way), but because a
+// captured snapshot goes stale the moment the real environment changes, and
+// @Environment's own mocking story (inject a different value where the type
+// is hosted) already covers testing it without this package's help.
+var isOnStorage = true
+let profileCard = ProfileCard(
+    isOn: Binding(get: { isOnStorage }, set: { isOnStorage = $0 }),
+    title: "Settings",
+    model: Settings(),
+    content: { Text("content") },
+    footer: { Text("footer") }
+)
+let profileCardOutFlow = profileCard.outFlow
+
+// MARK: - StatelessNode
+
+// @StatelessNode is a separate macro from @DataLayout — doesn't replace OutFlow,
+// works alongside it. Same field set as OutFlow, PLUS @Environment (which
+// OutFlow leaves out but StatelessNode captures anyway), as a real nominal
+// `StatelessNode` struct (carrying @DataLayout itself) instead of a tuple. The
+// rule: every field mirrors its ORIGINAL declaration verbatim (attribute,
+// type, let/var), except @Query (a synthesized type, no attribute applies).
+// @State/@AppStorage is the one substitution, not a mirror — declared @Binding
+// instead, since their storage can't be redeclared as itself on a plain
+// struct; a genuine @Binding field like isOn already mirrors into that same
+// form on its own. @Environment becomes a plain `let` — no attribute at all,
+// since @Environment's wrappedValue has no public setter and the attribute
+// can't be preserved, but a plain unattributed value has no such restriction
+// (see ProfileCard.StatelessNode above). @State/@Environment/@Query/@AppStorage
+// must all be private — enforced with a diagnostic if violated, not
+// accommodated.
+let profileCardStatelessNode = profileCard.statelessNode
+let profileCardStatelessNodeTitle = profileCardStatelessNode.title
+profileCardStatelessNode.isOn = false  // writes straight through to the caller's Binding
+
+// subtitle is a plain `var` on ProfileCard, so it stays a mutable `var` on
+// StatelessNode too (not `let`) — a snapshot can be tweaked directly, useful for UI
+// test/preview setup without rebuilding it via makeFlow(_:).
+var mutableProfileCardStatelessNode = profileCard.statelessNode
+mutableProfileCardStatelessNode.subtitle = "Custom"
+
+// @ViewBuilder/@Bindable mirror verbatim too — content/footer/model are declared
+// on StatelessNode exactly as ProfileCard declares them, so this compiles unchanged.
+let profileCardStatelessNodeModel = profileCardStatelessNode.model
+let profileCardStatelessNodeFooter = profileCardStatelessNode.footer
+
+// StatelessNode carries @DataLayout, so it has its own inFlow/makeFlow(_:) too —
+// round-tripping a snapshot's public fields back into a fresh StatelessNode value.
+let rebuiltStatelessNode = ProfileCard<Text>.StatelessNode.makeFlow(profileCardStatelessNode.inFlow)

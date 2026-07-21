@@ -23,8 +23,8 @@ extension SimpleDiagnosticMessage: FixItMessage {
 /// Extracts a plain string from a simple string literal (no interpolation).
 func literalString(_ expr: ExprSyntax) -> String? {
     guard let lit = expr.as(StringLiteralExprSyntax.self),
-          lit.segments.count == 1,
-          let seg = lit.segments.first?.as(StringSegmentSyntax.self)
+        lit.segments.count == 1,
+        let seg = lit.segments.first?.as(StringSegmentSyntax.self)
     else { return nil }
     return seg.content.text
 }

@@ -5,7 +5,7 @@ import Testing
 @testable import DataMacrosMacros
 
 private let testMacros: [String: Macro.Type] = [
-    "pick": PickMacro.self,
+    "pick": PickMacro.self
 ]
 
 @Suite struct PickMacroTests {

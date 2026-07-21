@@ -40,7 +40,8 @@ public struct PickMacro: ExpressionMacro {
         guard !args.isEmpty, args[0].label?.text == "from" else {
             throw MacroError(
                 "#pick: every source starts with 'from:', e.g. "
-                + "#pick(from: store, \\.a, \\.b) or #pick(from: store, \\.a, from: actions, \\.b)")
+                    + "#pick(from: store, \\.a, \\.b) or #pick(from: store, \\.a, from: actions, \\.b)"
+            )
         }
 
         var groups: [Group] = []
@@ -61,7 +62,8 @@ public struct PickMacro: ExpressionMacro {
                 valueText = arg.expression.trimmedDescription
             } else {
                 let context = "#pick group 'from: \(valueText)'"
-                picks.append((arg.expression, try parseKeyPathPick(arg.expression, context: context)))
+                picks.append(
+                    (arg.expression, try parseKeyPathPick(arg.expression, context: context)))
             }
         }
         try flushGroup()
@@ -112,7 +114,8 @@ public struct PickMacro: ExpressionMacro {
             let only = fields[0]
             return "{ \(raw: prelude); return \(raw: only.varName).\(raw: only.pick.path) }()"
         }
-        let tupleBody = fields
+        let tupleBody =
+            fields
             .map { "\($0.pick.label): \($0.varName).\($0.pick.path)" }
             .joined(separator: ", ")
         return "{ \(raw: prelude); return (\(raw: tupleBody)) }()"

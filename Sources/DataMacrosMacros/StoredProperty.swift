@@ -32,6 +32,42 @@ public struct StoredProperty {
     public var isViewBuilder: Bool {
         wrapperName == "ViewBuilder"
     }
+
+    /// `@Environment` — `@StatelessNode`'s field is a plain `let` of the property's
+    /// own declared type, no attribute at all (unlike `@State`/`@AppStorage`,
+    /// which keep `@Binding`). Not because the value doesn't change — because
+    /// the *attribute* can't be preserved: `@Environment`'s `wrappedValue` has
+    /// no public setter (verified directly: `error: cannot assign to property:
+    /// 'colorScheme' is a get-only property`), and `@DataLayout`'s init always
+    /// assigns `self.x = x` — a plain, unattributed `let` has no such
+    /// restriction, so the value is captured once, like every other field.
+    public var isEnvironment: Bool {
+        wrapperName == "Environment"
+    }
+
+    /// `@Query` (SwiftData) — `@StatelessNode`'s field is always synthesized as
+    /// `(result: WrappedType, fetchError: Error?, modelContext: ModelContext)`,
+    /// regardless of the property's own declared type. `WrappedType` is the
+    /// property's own declared type (e.g. `[Item]` for `@Query private var
+    /// items: [Item]`); `fetchError` and `modelContext` are real members of
+    /// SwiftData's `Query` wrapper *instance* (reached via the
+    /// underscore-prefixed backing storage), not synthesized placeholders —
+    /// verified directly against the SwiftData interface.
+    public var isQuery: Bool {
+        wrapperName == "Query"
+    }
+
+    /// `@State`/`@AppStorage` — the two wrappers `@StatelessNode` declares as a real
+    /// `@Binding var` property (bare wrapped type, not `Binding<T>`), read via
+    /// the projected `$` value (not `_`, which gives the wrapper instance itself
+    /// — `State<T>`, not `Binding<T>`). Unlike `isEnvironment`/`isQuery` above,
+    /// these are the view's own externally read-*and-write*-able storage — their
+    /// own storage only installs inside a live SwiftUI view, so they can't be
+    /// redeclared as themselves on a plain struct; `@Binding` is the
+    /// injectable/settable substitute.
+    public var isStateOrAppStorage: Bool {
+        wrapperName == "State" || wrapperName == "AppStorage"
+    }
 }
 
 // MARK: - Collection
@@ -83,11 +119,39 @@ public func collectStoredProperties(
                 isPrivate: isPrivate
             )
 
-            // Only init parameters need a written type. Non-parameter properties —
-            // inline-initialized `let` constants, and view-owned wrappers like
-            // `@State`/`@Environment` — are exempt (`@State private var ole = 0`
-            // needs no annotation and takes no init parameter).
-            if !property.isPrivate, property.type == nil {
+            // @State/@Environment/@Query/@AppStorage are each a view's own
+            // source of truth — never something a caller supplies (that's what
+            // @Binding is for) — so they must be private. Enforced here, not
+            // accommodated later: every renderer downstream can assume these
+            // four are always private, with no "what if it's also public" case
+            // to reason about or test.
+            let isSourceOfTruth =
+                property.isEnvironment || property.isQuery || property.isStateOrAppStorage
+            if isSourceOfTruth, !property.isPrivate {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(binding),
+                        message: DataTypeMacroDiagnostic.sourceOfTruthMustBePrivate(
+                            macroName: macroName, propertyName: property.name
+                        )
+                    )
+                )
+                hadError = true
+                continue
+            }
+
+            // Init parameters need a written type; so do @Environment/@Query/@State/
+            // @AppStorage properties, even though they're excluded from *this*
+            // type's own init — @StatelessNode (see StatelessNodeRendering.swift) reads
+            // their type to build its field (all four eventually get folded into
+            // StatelessNode's own init, as a plain captured value or a @Binding
+            // substitute). Every other private property — inline-initialized
+            // `let` constants, plain private state — is exempt (`private var ole = 0`
+            // needs no annotation and doesn't participate in either).
+            let needsType =
+                !property.isPrivate || property.isEnvironment || property.isQuery
+                || property.isStateOrAppStorage
+            if needsType, property.type == nil {
                 context.diagnose(
                     Diagnostic(
                         node: Syntax(binding),
@@ -187,11 +251,23 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
         )
     }
 
-    public static func missingType(macroName: String, propertyName: String) -> DataTypeMacroDiagnostic {
+    public static func missingType(macroName: String, propertyName: String)
+        -> DataTypeMacroDiagnostic
+    {
         DataTypeMacroDiagnostic(
             message:
-                "Stored property '\(propertyName)' needs an explicit type annotation so @\(macroName) can generate the initializer.",
+                "Stored property '\(propertyName)' needs an explicit type annotation so @\(macroName) can generate the initializer/stateless snapshot.",
             id: "missingType"
+        )
+    }
+
+    public static func sourceOfTruthMustBePrivate(macroName: String, propertyName: String)
+        -> DataTypeMacroDiagnostic
+    {
+        DataTypeMacroDiagnostic(
+            message:
+                "'\(propertyName)' must be private — @State/@Environment/@Query/@AppStorage are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+            id: "sourceOfTruthMustBePrivate"
         )
     }
 }

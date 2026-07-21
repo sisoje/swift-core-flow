@@ -1,0 +1,69 @@
+import DataMacros
+import SwiftUI
+import Testing
+
+// Real, compiled usage — same reasoning as EndToEndTests/ReflectorTests: exercise
+// actual runtime behavior, not just the syntactic shape assertMacroExpansion
+// checks (see DataLayoutTests for that side).
+
+@DataLayout
+struct Card: View {
+    @Environment(\.colorScheme) private var colorScheme: ColorScheme
+    @State private var isExpanded: Bool = false
+    @Binding var isOn: Bool
+    let title: String
+
+    var body: some View { Text(title) }
+}
+
+// @MainActor is required, not stylistic — verified directly. Card conforms to
+// View, which implicitly infers @MainActor isolation for the whole type; touching
+// its members (including `outFlow`) from a nonisolated test function crosses that
+// isolation boundary at runtime and traps (SIGTRAP) under Swift 6 strict
+// concurrency, even though it merely reads a stored/computed property.
+@MainActor
+@Suite struct OutFlowTests {
+
+    @Test func outFlowReadsDataLayoutFieldsAndRecognizedPrivateWrappersTogether() {
+        var isOnStorage = true
+        let isOnBinding = Binding<Bool>(get: { isOnStorage }, set: { isOnStorage = $0 })
+        let card = Card(isOn: isOnBinding, title: "Settings")
+
+        let out = card.outFlow
+        // No colorScheme here — @Environment is deliberately excluded from
+        // OutFlow (a captured snapshot would go stale, and its own mocking
+        // story doesn't need this package's help), even though it's fully
+        // capturable as a plain value — @StatelessNode captures it exactly that
+        // way (see StatelessNodeTests.swift).
+        #expect(out.isOn.wrappedValue == true)
+        #expect(out.isExpanded.wrappedValue == false)
+        #expect(out.title == "Settings")
+    }
+
+    @Test func outFlowsBindingForARealBindingFieldWritesThrough() {
+        // Unlike @State (see the test below), a genuine caller-supplied @Binding
+        // really does write through, regardless of SwiftUI's view lifecycle — it's
+        // just a getter/setter pair, not tied to view identity.
+        var isOnStorage = false
+        let isOnBinding = Binding<Bool>(get: { isOnStorage }, set: { isOnStorage = $0 })
+        let card = Card(isOn: isOnBinding, title: "x")
+
+        card.outFlow.isOn.wrappedValue = true
+        #expect(isOnStorage == true)
+    }
+
+    @Test func outFlowsBindingForAStateFieldDoesNotWriteThroughOutsideALiveView() {
+        // Verified directly: @State's storage only installs once SwiftUI actually
+        // renders the view. A struct constructed directly in plain code — never
+        // installed into a view hierarchy — has a `$state`-derived Binding that
+        // silently no-ops on write instead of persisting. Not a bug in OutFlow;
+        // it's how @State itself behaves outside SwiftUI's render pipeline. Anyone
+        // reading OutFlow's isExpanded as a "real" mutable Binding outside a live
+        // view needs to know this going in.
+        let isOnBinding = Binding<Bool>(get: { true }, set: { _ in })
+        let card = Card(isOn: isOnBinding, title: "x")
+
+        card.outFlow.isExpanded.wrappedValue = true
+        #expect(card.outFlow.isExpanded.wrappedValue == false)
+    }
+}
