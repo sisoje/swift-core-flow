@@ -1,14 +1,16 @@
 import XCTest
 
 final class DragCardUITests: XCTestCase {
-    // One real drag proves the whole @GestureState story live: mid-drag the
-    // offset streams nonzero values (maxLabel grows — written back through
-    // Core's substituted @State→@Binding, so that mechanism is live-verified
-    // too), and on release GestureState's own reset snaps the offset back to
-    // zero (currentLabel).
+    // The scenario hosts DragCard.Core via Core.make — maxDistance wired to
+    // the CoreModel, dragOffset is Core's own live @GestureState. One real
+    // drag proves the whole story: mid-drag the offset streams nonzero
+    // values (maxLabel grows, written through the @State→@Binding
+    // substitution into the model), and on release GestureState's own reset
+    // snaps the offset back to zero. Behavior-asserted, no snapshot: drag
+    // distances are device/timing-dependent.
     @MainActor
     func testDragUpdatesGestureStateAndResetsOnRelease() {
-        let app = launchExampleApp(scenario: "GestureState")
+        let app = launchExampleApp(scenario: "DragCard")
 
         let box = app.otherElements["dragBox"]
         let maxLabel = app.staticTexts["maxLabel"]

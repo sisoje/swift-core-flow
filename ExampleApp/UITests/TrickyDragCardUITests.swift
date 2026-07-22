@@ -1,17 +1,14 @@
 import XCTest
 
-final class TrickyDragCardUITests: XCTestCase {
-    // The host declares @GestureState(reset:) — an argument-carrying init whose
-    // custom closure must fire when the gesture state resets on release; the
-    // probe label counts those firings. This test drove @Shell's verbatim-copy
-    // design for this field: it was red under an earlier revision that
-    // reconstructed a fresh @GestureState var on Core from just the bare
-    // wrapper name (closure silently swapped for the default reset, label stuck
-    // at "resets 0"), and went green once @Shell instead copied the host's own
-    // declaration onto Core byte-for-byte, attribute arguments included.
+final class TrickyDragCardUITests: SnapshotTestCase {
+    // The host declares @GestureState(reset:) — the custom closure must fire
+    // when the gesture resets on release. @Shell copies the declaration onto
+    // Core byte-for-byte, closure included; the drag runs against Core, and
+    // the mutation snapshot pins the outcome: exactly one `resetsSeen = 1`
+    // write, nothing else.
     @MainActor
     func testCustomResetClosureFiresWhenGestureEnds() {
-        let app = launchExampleApp(scenario: "GestureState")
+        let app = launch(scenario: "TrickyDragCard")
 
         let box = app.otherElements["trickyDragBox"]
         let resets = app.staticTexts["trickyResetsLabel"]

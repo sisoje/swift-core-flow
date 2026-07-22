@@ -13,12 +13,18 @@ granularity nobody needed.)
 - Build/test: `swift build && swift test`
 - Format: `swift format --in-place --recursive Sources Tests`
 - Example app: `ExampleApp/project.yml` — ONE real app (xcodegen; the
-  generated `.xcodeproj` is gitignored) verifying live behavior no headless
-  test can, via XCUITests. One view per file in `Sources/`; the app's scene
-  selects a view via the `EXAMPLE_SCENARIO` env var
+  generated `.xcodeproj` is gitignored) component-testing the generated
+  `Core`s live, via XCUITests. Every scenario hosts a CORE (via `Core.make`
+  wired to its `CoreModel`, or bare `Core()` when there's no model), one
+  component per scenario, selected via the `EXAMPLE_SCENARIO` env var
   (`ExampleScenario.defaultScenario` when unset, so Cmd-R just works).
-  `cd ExampleApp && sh testScenario.sh GestureState`, or `sh testAll.sh` —
-  each UI test sets its own scenario via `launchExampleApp(scenario:)`.
+  `cd ExampleApp && sh test.sh` runs the suite once — each UI test launches
+  its own scenario. Deterministic scenarios use mutation-snapshot testing
+  (`SnapshotTestCase` + `.loggingMutations(of:)`): the app appends each
+  CoreModel history entry as a `name = value` line to the file passed via
+  `SNAPSHOT_LOG`, the first run records `Snapshots/<test>.txt` and skips,
+  later runs diff against it — delete the file to re-record. Value-streaming
+  scenarios (drag distances) stay predicate-asserted.
 
 Targets Swift 6.3 (`swift-tools-version: 6.3`); swift-syntax `600.0.0..<700.0.0`, whose
 APIs are stable across the whole Swift 6.x line. Swift 6 language mode (strict

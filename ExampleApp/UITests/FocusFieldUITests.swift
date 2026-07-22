@@ -1,15 +1,15 @@
 import XCTest
 
 final class FocusFieldUITests: XCTestCase {
-    // FocusState's projected value, substituted verbatim onto Core, is the
-    // SAME handle the host's own $isFocused already is — not a captured
-    // copy — so both directions genuinely write through, live: tapping the
-    // field moves the OS's real focus into our read (system → Core), and the
-    // toggle button (executed from Core's own body) writes back out to the
-    // host's real storage (Core → system), moving focus away.
+    // The scenario hosts FocusField.Core() directly — its verbatim-copied
+    // @FocusState is Core's own live storage. Both directions run for real:
+    // tapping the field moves the OS's focus into Core's read, the toggle
+    // button (in Core's copied body) writes back out, moving focus away.
+    // Behavior-asserted, no snapshot: focus isn't in the model (no
+    // Binding-typed fields → no CoreModel).
     @MainActor
     func testTappingFieldFocusesAndToggleButtonUnfocuses() {
-        let app = launchExampleApp(scenario: "FocusState")
+        let app = launchExampleApp(scenario: "FocusField")
 
         let field = app.textFields["focusTextField"]
         let status = app.staticTexts["focusStatusLabel"]

@@ -1,11 +1,10 @@
-import SwiftUI
 import CoreFlow
+import SwiftUI
 
-// The live-focus verification view: @FocusState declared on the host,
-// substituted into Core as `@FocusState<Bool>.Binding`. Both directions are
-// exercised live: tapping the field moves the OS's real focus into our read
-// (system → view), and the toggle button writes back out (view → system).
-// See UITests/FocusFieldUITests.swift.
+// Live @FocusState verification: the wrapper is unmapped, so Core carries
+// its own verbatim copy — tapping the field moves the OS's real focus into
+// Core's read, the toggle button writes back out. See
+// UITests/FocusFieldUITests.swift.
 @Shell
 struct FocusField: View {
     @FocusState private var isFocused: Bool
@@ -22,5 +21,13 @@ struct FocusField: View {
             }
             .accessibilityIdentifier("toggleFocusButton")
         }
+    }
+}
+
+// Core component under test. No Binding-typed fields → no CoreModel, no
+// make, nothing to log: Core() constructs bare, behavior is asserted live.
+struct FocusFieldScenario: View {
+    var body: some View {
+        FocusField.Core()
     }
 }

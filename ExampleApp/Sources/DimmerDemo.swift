@@ -1,10 +1,9 @@
-import SwiftUI
 import CoreFlow
+import SwiftUI
 
-// The ViewModifier verification: @Shell on a ViewModifier host, body(content:)
-// written once as ordinary SwiftUI and copied into Core (which gets its own
-// `: ViewModifier` conformance — its Content is a different concrete type
-// than the host's, each satisfies the protocol independently).
+// The ViewModifier verification: @Shell on a ViewModifier host —
+// body(content:) is written once and copied into Core, which gets its own
+// `: ViewModifier` conformance. See UITests/DimmerUITests.swift.
 @Shell
 struct Dimmer: ViewModifier {
     @State private var isDimmed: Bool = false
@@ -23,17 +22,17 @@ struct Dimmer: ViewModifier {
     }
 }
 
-// Deliberately applies Dimmer.CORE, not Dimmer — same module, so the internal
-// Core is directly reachable, no import needed. The demo view owns the state;
-// Core's substituted @Binding writes through to it, so the live test proves
-// the COPIED body works end-to-end: tap the toggle inside Core's body →
-// write through the @Binding → re-render. See UITests/DimmerUITests.swift.
-struct DimmerDemo: View {
-    @State private var isDimmed = false
+// Core component under test, with mutation-snapshot logging: taps on the
+// toggle (inside Core's COPIED body) write through the substituted @Binding
+// into the model, and each write lands in the snapshot log — deterministic,
+// so the whole interaction is verified as a recorded mutation sequence.
+struct DimmerScenario: View {
+    @State private var model = Dimmer.CoreModel()
 
     var body: some View {
         Text("Hello")
             .accessibilityIdentifier("dimContent")
-            .modifier(Dimmer.Core(isDimmed: $isDimmed))
+            .modifier(Dimmer.Core.make(model: model))
+            .loggingMutations(of: model.history)
     }
 }

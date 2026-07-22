@@ -1,13 +1,13 @@
 import XCTest
 
-final class DimmerUITests: XCTestCase {
-    // DimmerDemo applies Dimmer.CORE directly (not the Dimmer host), so this
-    // runs the COPIED body(content:) live: tapping the toggle inside Core's
-    // body writes through its substituted @Binding to DimmerDemo's @State,
-    // and the status label re-renders.
+final class DimmerUITests: SnapshotTestCase {
+    // Runs Dimmer.Core's COPIED body(content:) live: every tap on the toggle
+    // inside Core's body writes through the substituted @Binding into the
+    // CoreModel, and the mutation snapshot pins the exact sequence —
+    // `isDimmed = true` then `isDimmed = false`, nothing more, nothing less.
     @MainActor
-    func testToggleDimFlipsStateInsideCoreViewModifier() {
-        let app = launchExampleApp(scenario: "ViewModifier")
+    func testToggleDimWritesThroughCoreViewModifier() {
+        let app = launch(scenario: "Dimmer")
 
         let status = app.staticTexts["dimStatusLabel"]
         let toggle = app.buttons["toggleDimButton"]
@@ -18,6 +18,11 @@ final class DimmerUITests: XCTestCase {
         toggle.tap()
         let dimmedPredicate = NSPredicate(format: "label == 'dimmed'")
         expectation(for: dimmedPredicate, evaluatedWith: status)
+        waitForExpectations(timeout: 5)
+
+        toggle.tap()
+        let brightPredicate = NSPredicate(format: "label == 'bright'")
+        expectation(for: brightPredicate, evaluatedWith: status)
         waitForExpectations(timeout: 5)
     }
 }
