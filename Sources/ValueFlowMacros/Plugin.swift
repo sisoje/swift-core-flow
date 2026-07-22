@@ -8,5 +8,6 @@ struct ValueFlowPlugin: CompilerPlugin {
         ShellMacro.self,
         CapabilityMacro.self,
         PickMacro.self,
+        RawPropertyMacro.self,
     ]
 }
