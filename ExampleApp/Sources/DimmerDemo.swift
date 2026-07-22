@@ -22,17 +22,22 @@ struct Dimmer: ViewModifier {
     }
 }
 
-// Core component under test, with mutation-snapshot logging: taps on the
-// toggle (inside Core's COPIED body) write through the substituted @Binding
-// into the model, and each write lands in the snapshot log — deterministic,
-// so the whole interaction is verified as a recorded mutation sequence.
+// Core component under test, mutations logged at the write site: every tap
+// on the toggle (inside Core's COPIED body) writes through the
+// didSet-wrapped binding into the model and lands in the snapshot log the
+// moment it happens — deterministic, so the whole interaction is verified
+// as a recorded mutation sequence.
 struct DimmerScenario: View {
+    @Environment(\.mylog) var mylog
     @State private var model = Dimmer.CoreModel()
 
     var body: some View {
         Text("Hello")
             .accessibilityIdentifier("dimContent")
-            .modifier(Dimmer.Core.make(model: model))
-            .loggingMutations(of: model.history)
+            .modifier(
+                Dimmer.Core(
+                    isDimmed: $model.isDimmed.didSet { val in
+                        mylog.mylog("isDimmed", val)
+                    }))
     }
 }

@@ -40,14 +40,18 @@ struct TrickyDragCard: View {
     }
 }
 
-// Core component under test, with mutation-snapshot logging: `resetsSeen`
-// is written exactly once per completed drag (deterministically `1` in a
-// fresh process), so the model's history is snapshot-stable.
+// Core component under test, mutations logged at the write site: the
+// didSet-wrapped binding reports `resetsSeen` the moment Core's copied body
+// writes it — exactly once per completed drag (deterministically `1` in a
+// fresh process), so the snapshot is stable.
 struct TrickyDragCardScenario: View {
+    @Environment(\.mylog) var mylog
     @State private var model = TrickyDragCard.CoreModel()
 
     var body: some View {
-        TrickyDragCard.Core.make(model: model)
-            .loggingMutations(of: model.history)
+        TrickyDragCard.Core(
+            resetsSeen: $model.resetsSeen.didSet { val in
+                mylog.mylog("resetsSeen", val)
+            })
     }
 }

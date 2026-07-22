@@ -20,11 +20,13 @@ granularity nobody needed.)
   (`ExampleScenario.defaultScenario` when unset, so Cmd-R just works).
   `cd ExampleApp && sh test.sh` runs the suite once — each UI test launches
   its own scenario. Deterministic scenarios use mutation-snapshot testing
-  (`SnapshotTestCase` + `.loggingMutations(of:)`): the app appends each
-  CoreModel history entry as a `name = value` line to the file passed via
-  `SNAPSHOT_LOG`, the first run records `Snapshots/<test>.txt` and skips,
-  later runs diff against it — delete the file to re-record. Value-streaming
-  scenarios (drag distances) stay predicate-asserted.
+  (`SnapshotTestCase` + `Binding.didSet`): the scenario wraps each binding
+  it hands to Core with `.didSet { mylog.mylog(name, $0) }`, so every write
+  is appended as a `name = value` line to the `SNAPSHOT_LOG` file the
+  moment it happens — at the write site, not via a view-layer observer
+  replaying history. The first run records `Snapshots/<test>.txt` and
+  skips, later runs diff against it — delete the file to re-record.
+  Value-streaming scenarios (drag distances) stay predicate-asserted.
 
 Targets Swift 6.3 (`swift-tools-version: 6.3`); swift-syntax `600.0.0..<700.0.0`, whose
 APIs are stable across the whole Swift 6.x line. Swift 6 language mode (strict

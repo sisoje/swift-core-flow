@@ -2,10 +2,10 @@ import SwiftUI
 
 // The app-side half of mutation-snapshot testing: UI tests run in a separate
 // process, so the filesystem is the shared channel. The test passes a log
-// path via SNAPSHOT_LOG; scenarios attach `.loggingMutations(of:)` to the
-// Core under test, and every CoreModel history entry is appended as a
-// `name = value` line the moment it happens. No SNAPSHOT_LOG (plain tests,
-// Cmd-R) → logging is off.
+// path via SNAPSHOT_LOG; the app's `Logger` (see ExampleApp.swift) appends
+// each mutation as a `name = value` line THE MOMENT IT HAPPENS — logging
+// lives on the binding's own setter, not in some view-layer observer
+// replaying what already happened.
 
 extension URL {
     func append(_ line: String) throws {
@@ -16,16 +16,16 @@ extension URL {
     }
 }
 
-extension View {
-    func loggingMutations(of history: [(propertyName: String, value: Any)]) -> some View {
-        onChange(of: history.count) { old, new in
-            guard new > old,
-                let path = ProcessInfo.processInfo.environment["SNAPSHOT_LOG"]
-            else { return }
-            let url = URL(fileURLWithPath: path)
-            for entry in history[old..<new] {
-                try! url.append("\(entry.propertyName) = \(entry.value)")
+extension Binding {
+    /// A binding that forwards every write and then calls `perform` with the
+    /// new value — mutation logging at the write site, immediately.
+    func didSet(_ perform: @escaping (Value) -> Void) -> Binding<Value> {
+        Binding(
+            get: { wrappedValue },
+            set: {
+                wrappedValue = $0
+                perform($0)
             }
-        }
+        )
     }
 }

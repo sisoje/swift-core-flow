@@ -13,6 +13,17 @@ enum ExampleScenario: String {
     static var defaultScenario: ExampleScenario { .focusField }
 }
 
+/// Injected once from the App scene; scenarios call it from a binding's
+/// `didSet` so every mutation is logged the moment it happens. The default
+/// is a no-op — plain runs (Cmd-R, non-snapshot tests) log nothing.
+struct Logger {
+    var mylog: (String, Any) -> Void = { _, _ in }
+}
+
+extension EnvironmentValues {
+    @Entry var mylog: Logger = .init()
+}
+
 @main
 struct ExampleApp: App {
     let scenario: ExampleScenario
@@ -28,6 +39,16 @@ struct ExampleApp: App {
         self.scenario = scenario
     }
 
+    var logger: Logger {
+        guard let path = ProcessInfo.processInfo.environment["SNAPSHOT_LOG"] else {
+            return Logger()
+        }
+        let url = URL(fileURLWithPath: path)
+        return Logger { property, value in
+            try! url.append("\(property) = \(value)")
+        }
+    }
+
     var body: some Scene {
         WindowGroup {
             switch scenario {
@@ -37,5 +58,6 @@ struct ExampleApp: App {
             case .dimmer: DimmerScenario()
             }
         }
+        .environment(\.mylog, logger)
     }
 }
