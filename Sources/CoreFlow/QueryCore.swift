@@ -1,5 +1,6 @@
 #if canImport(SwiftData)
     import SwiftData
+    import SwiftUI
 
     /// Drop-in stand-in for SwiftData's `@Query` on a `Core` snapshot. One-to-one
     /// with the real wrapper's own instance surface — verified directly against
@@ -14,19 +15,36 @@
     /// /`_x.modelContext` keep working the same way they do on the live wrapper
     /// (via the backing storage, reachable from same-file extensions).
     ///
-    /// The init deliberately has no defaults: a wrapper init callable with
-    /// `wrappedValue` alone would make Swift's synthesized memberwise init take
-    /// the bare value and drop `fetchError`/`modelContext` — with all three
-    /// required, the synthesized init takes the wrapper *type* itself
-    /// (`x: QueryCore<T>`), the same mechanism `@Binding`'s fields already rely
-    /// on (verified directly).
+    /// Both extra fields default — `fetchError` to `nil`, `modelContext` to the
+    /// environment's own default context (`Environment(\.modelContext)
+    /// .wrappedValue`, evaluated outside any live view — verified directly, a
+    /// real context, no trap) — since a test mocking a fetched result almost
+    /// never cares about either: `QueryCore(wrappedValue: [item])` just works.
+    ///
+    /// Because `init(wrappedValue:)` is thereby callable with the wrapped value
+    /// alone, Swift's synthesized memberwise init for `@QueryCore var x: T`
+    /// takes the *bare* value (`x: T`), not the wrapper type — verified
+    /// directly — which is exactly the ergonomic point: a test writes
+    /// `Core(items: [item], title: "t")` with no `QueryCore` spelling at all.
+    /// `@Shell`'s generated `core` capture passes `_x.wrappedValue` to match,
+    /// so a captured `Core`'s `fetchError`/`modelContext` take these defaults
+    /// rather than the host's live values (same "capture carries data, not
+    /// live-wrapper metadata" rule `@GestureState` follows; `@Flowable`'s
+    /// `outFlow` tuple still captures all three off the live wrapper). To seed
+    /// either field explicitly, construct the wrapper yourself and swap it in
+    /// through the `@RawProperty` accessor:
+    /// `m.raw_items = QueryCore(wrappedValue: [item], fetchError: err)`.
     @propertyWrapper
     public struct QueryCore<Value> {
         public let wrappedValue: Value
         public let fetchError: (any Error)?
         public let modelContext: ModelContext
 
-        public init(wrappedValue: Value, fetchError: (any Error)?, modelContext: ModelContext) {
+        public init(
+            wrappedValue: Value,
+            fetchError: (any Error)? = nil,
+            modelContext: ModelContext = Environment(\.modelContext).wrappedValue
+        ) {
             self.wrappedValue = wrappedValue
             self.fetchError = fetchError
             self.modelContext = modelContext

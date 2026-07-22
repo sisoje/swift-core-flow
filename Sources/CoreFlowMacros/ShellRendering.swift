@@ -31,7 +31,10 @@ import SwiftSyntax
 /// - `@Query` → `@QueryCore var name: T` — this package's own drop-in stand-in
 ///   (see `QueryCore.swift`), carrying the live wrapper's exact instance
 ///   surface: `wrappedValue`, `fetchError`, `modelContext`, no
-///   `projectedValue`.
+///   `projectedValue`. Both extra fields default, so Core's synthesized
+///   memberwise init takes the *bare* fetched value (`name: T`) and the
+///   `core` capture passes `_name.wrappedValue` — see the capture comment in
+///   `renderShell`'s body below.
 /// - `@GestureState` is the one wrapper NOT substituted — its whole
 ///   declaration is copied onto `Core` verbatim (attribute arguments and
 ///   default included), `private` kept, since it's a pure-UI wrapper `Core`
@@ -165,12 +168,25 @@ func renderShell(
 
     // Captures a Core off the live host instance: every field reads the way
     // `outFlow` does (`outFlowFieldReadExpression`) and is passed straight
-    // through. Always internal, like Core itself. @GestureState is skipped —
-    // its Core field is a private `var` with a default, so it drops out of
-    // Core's synthesized memberwise init entirely; it starts fresh at its
-    // default rather than capturing the host's transient mid-gesture value.
+    // through. Always internal, like Core itself. Two exceptions, one shared
+    // rule — the capture carries data, not live-wrapper metadata:
+    // - @GestureState is skipped entirely — its Core field is a private `var`
+    //   with a default, so it drops out of Core's synthesized memberwise init;
+    //   it starts fresh at its default rather than capturing the host's
+    //   transient mid-gesture value.
+    // - @Query passes the bare fetched value (`_x.wrappedValue`), not a
+    //   constructed QueryCore: QueryCore's init is callable with the wrapped
+    //   value alone (fetchError/modelContext both default), which makes Core's
+    //   synthesized memberwise init take the bare value (`x: T`, verified
+    //   directly) — the whole point, so tests write `Core(items: [item], …)`
+    //   with no QueryCore spelling. The captured core's fetchError/modelContext
+    //   take QueryCore's defaults; outFlow's tuple (which constructs the
+    //   wrapper explicitly, no memberwise init involved) still captures all
+    //   three off the live wrapper.
     let args = fields.filter { !$0.isGestureState }.map { p -> String in
-        "\(p.name): \(outFlowFieldReadExpression(p))"
+        p.isQuery
+            ? "\(p.name): _\(p.name).wrappedValue"
+            : "\(p.name): \(outFlowFieldReadExpression(p))"
     }.joined(separator: ", ")
     let statelessProperty = DeclSyntax(
         stringLiteral: """

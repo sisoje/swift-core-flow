@@ -310,11 +310,28 @@ the two was itself the defect, not a deliberate design choice worth keeping.
     unexercised plumbing); replaced by the real wrapper so `Core`'s field
     reads the fetched value directly — `core.items`, not
     `.items.wrappedValue` — making body code written against the live
-    `@Query` property move onto `Core` unchanged. `QueryCore`'s init
-    deliberately has no defaults: an init callable with `wrappedValue` alone
-    would make Swift's synthesized memberwise init take the bare value and
-    drop `fetchError`/`modelContext`; with all three required it takes the
-    wrapper type itself, the same mechanism `@Binding` fields rely on.
+    `@Query` property move onto `Core` unchanged. Both of `QueryCore`'s
+    extra init params default — `fetchError` to `nil`, `modelContext` to
+    `Environment(\.modelContext).wrappedValue`, the environment's own
+    default context, evaluated outside any live view (verified directly, a
+    real context, no trap) — since a test mocking a fetched result almost
+    never cares about either: `QueryCore(wrappedValue: [item])` just works.
+    An init callable with `wrappedValue` alone makes Swift's synthesized
+    memberwise init for a `@QueryCore` field take the *bare* value
+    (verified directly, locked in by `QueryCoreTests`) — deliberately so:
+    tests write `Core(items: [item], title: "t")` with no `QueryCore`
+    spelling at all. `@Shell`'s `core` capture passes `_x.wrappedValue` to
+    match (see `renderShell`), so a captured `Core`'s
+    `fetchError`/`modelContext` take the defaults, not the host's live
+    values — the same "capture carries data, not live-wrapper metadata"
+    rule `@GestureState` follows; this `outFlow` tuple path (which
+    constructs the wrapper explicitly — no memberwise init involved) still
+    captures all three off the live wrapper. Seed the metadata explicitly
+    via `m.raw_items = QueryCore(wrappedValue: [item], fetchError: err)`.
+    An earlier revision kept `fetchError` required precisely to *prevent*
+    this flip, back when the capture wanted to pass a fully-constructed
+    `QueryCore` through the memberwise init; the ergonomic bare-value init
+    won once the capture stopped needing that.
   - `@GestureState` (`isGestureState`) → **needs no case here**: it falls
     through to the non-private default, `baseTypeText`, same as
     `@Environment`/`@Namespace`. Unlike `@Query`, `GestureState<T>`'s own
@@ -380,7 +397,10 @@ the two was itself the defect, not a deliberate design choice worth keeping.
   `QueryCore(wrappedValue: _x.wrappedValue, fetchError: _x.fetchError,
   modelContext: _x.modelContext)` — `_x` is the wrapper instance itself
   (`Query<Element, Result>`), the same underscore-prefixed access
-  `@Binding`'s *assignment* side uses. Every other field — non-private ones,
+  `@Binding`'s *assignment* side uses. (This is the `outFlow` tuple's read;
+  `@Shell`'s `core` capture is the one caller that overrides it, passing
+  `_x.wrappedValue` bare — see the `@Query` bullet above and `renderShell`.)
+  Every other field — non-private ones,
   plus `@Environment`/`@Namespace`/`@GestureState` despite being private —
   uses `fieldReadExpression` unchanged (`x`, or `$x` for `@Binding`).
 - **Every recognized private source-of-truth wrapper needs an explicit type**
@@ -496,16 +516,19 @@ aren't seen (same syntax-only limitation as host-kind detection).
   `Binding` from `.constant`/a getter-setter pair, `FocusState<T>.Binding`
   from a fresh `FocusState<T>()`'s own `projectedValue` (it has no public
   initializer itself — verified directly), `Namespace.ID` from a fresh
-  `Namespace().wrappedValue`, `QueryCore` via its own memberwise init.
-  `@GestureState` isn't fabricated at construction at all — its `Core` field
+  `Namespace().wrappedValue`. `@QueryCore` needs no fabrication at all — its
+  field's memberwise-init parameter is the bare fetched value (see the
+  `OutFlow` section above), so `Core(items: [item], …)` just works.
+  `@GestureState` isn't fabricated at construction either — its `Core` field
   is a private `var` with a default, so it drops out of the memberwise init;
   seed it afterward through `raw_name` (`m.raw_name = GestureState(wrappedValue:
   mock)`). See `makeCore` in `ShellTests.swift` for all of them in one place.
 - **Every source-of-truth wrapper becomes a constructed value with a
   substituted attribute — or a plain `let` where no substitution exists.**
   `@Query` → `@QueryCore var name: T`, this package's own drop-in stand-in
-  (see the `OutFlow` section above — same wrapper, same capture, `core.name`
-  reads the fetched value directly). **`@GestureState` is the exception: not
+  (see the `OutFlow` section above — same wrapper; `core.name` reads the
+  fetched value directly, and the capture passes `_name.wrappedValue` bare).
+  **`@GestureState` is the exception: not
   substituted at all, but copied onto `Core` verbatim** — `@GestureState
   private var name: T = default` byte-for-byte, `private` kept — see the
   dedicated bullet below for the full story.

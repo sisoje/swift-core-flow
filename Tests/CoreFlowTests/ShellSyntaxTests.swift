@@ -8,6 +8,11 @@ final class ShellSyntaxTests: XCTestCase {
     let macros: [String: Macro.Type] = ["Shell": ShellMacro.self]
 
     func testMixOfPlainQueryEnvironmentStateAndBindingFields() {
+        // @Query's capture passes the bare fetched value (_items.wrappedValue),
+        // not a constructed QueryCore: with fetchError/modelContext both
+        // defaulted, QueryCore's init is callable with the wrapped value alone,
+        // so Core's synthesized memberwise init takes the bare value — tests
+        // write `Core(items: [item], ...)` with no QueryCore spelling at all.
         assertMacroExpansion(
             """
             @Shell
@@ -36,7 +41,7 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     var core: Core {
-                        Core(items: QueryCore(wrappedValue: _items.wrappedValue, fetchError: _items.fetchError, modelContext: _items.modelContext), colorScheme: colorScheme, isExpanded: $isExpanded, isOn: $isOn, title: title)
+                        Core(items: _items.wrappedValue, colorScheme: colorScheme, isExpanded: $isExpanded, isOn: $isOn, title: title)
                     }
                 }
                 """,

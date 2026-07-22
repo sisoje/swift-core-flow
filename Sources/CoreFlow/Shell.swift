@@ -33,11 +33,12 @@
 ///     //     let title: String
 ///     //     var body: some View { ... }   <- the same text, copied
 ///     // }
-///     // var core: Core { Core(items: ..., isExpanded: $isExpanded, title: title) }
+///     // var core: Core { Core(items: _items.wrappedValue, isExpanded: $isExpanded, title: title) }
 /// }
 ///
-/// // a test or preview constructs the twin directly, no live view needed:
-/// // Card.Core(items: QueryCore(...), isExpanded: .constant(true), title: "t")
+/// // a test or preview constructs the twin directly, no live view needed —
+/// // the @QueryCore field's init parameter is the bare fetched value:
+/// // Card.Core(items: [item], isExpanded: .constant(true), title: "t")
 /// ```
 ///
 /// The copy compiles on both types by construction — every substituted field
@@ -83,7 +84,12 @@
 /// - `@Query` → `@QueryCore var name: T` — this package's own drop-in stand-in
 ///   (see `QueryCore.swift`), one-to-one with the live wrapper's instance
 ///   surface (`wrappedValue`/`fetchError`/`modelContext`, no `projectedValue`
-///   — verified directly against the `_SwiftData_SwiftUI` interface).
+///   — verified directly against the `_SwiftData_SwiftUI` interface). Its
+///   `fetchError`/`modelContext` params both default, so the field's
+///   memberwise-init parameter is the *bare* fetched value — `Core(name:
+///   [item], …)` — and the `core` capture passes `_name.wrappedValue`; seed
+///   the metadata fields via `m.raw_name = QueryCore(wrappedValue: [item],
+///   fetchError: err)` when a test does care.
 /// - `@GestureState` → copied verbatim, NOT substituted: `@GestureState
 ///   private var name: T = default` byte-for-byte (attribute arguments and
 ///   default kept, `private` kept — it's a pure-UI wrapper `Core` uses

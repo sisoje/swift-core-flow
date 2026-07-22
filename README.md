@@ -67,8 +67,9 @@ struct Card: View {
     // }
 }
 
-// tests/previews construct the twin directly — no live view, no ModelContext:
-Card.Core(items: QueryCore(...), isExpanded: .constant(true), title: "t")
+// tests/previews construct the twin directly — no live view, no ModelContext,
+// and the @QueryCore field's init parameter is the bare fetched value:
+Card.Core(items: [item], isExpanded: .constant(true), title: "t")
 ```
 
 ### Wrapper mapping reference
@@ -96,7 +97,7 @@ diagnostic, not just convention.
 | `@Environment` | `let` | `x` |
 | `@Namespace` | `let` | `x` |
 | `@ScaledMetric` | `let` | `x` |
-| `@Query` | `@QueryCore` | `QueryCore(_x)` |
+| `@Query` | `@QueryCore` | `_x.wrappedValue` |
 | `@GestureState` | `@GestureState` (verbatim, private kept) | as is |
 | `@State` | `@Binding` | `$x` |
 | `@AppStorage` | `@Binding` | `$x` |
@@ -141,9 +142,18 @@ diagnostic, not just convention.
   `modelContext`, with **no `projectedValue`** — so `QueryCore` carries the
   same three and nothing else. `core.items` reads the fetched value directly,
   and `_items.fetchError`/`_items.modelContext` work the same way they do on
-  the live wrapper — body code moves onto `Core` unchanged. Capturing
-  `modelContext` outside a live container is safe (verified directly, no
-  crash).
+  the live wrapper — body code moves onto `Core` unchanged. Both extra fields
+  default (`fetchError` to `nil`, `modelContext` to the environment's own
+  default context — safe outside any live view, verified directly, no crash),
+  which makes `QueryCore`'s init callable with the wrapped value alone — so
+  `Core`'s synthesized memberwise init takes the *bare* fetched value, and a
+  test writes `Core(items: [item], title: "t")` with no `QueryCore` spelling
+  at all. The `core` capture passes `_items.wrappedValue` to match — a
+  captured `Core`'s `fetchError`/`modelContext` take the defaults rather than
+  the host's live values (same "capture carries data, not live-wrapper
+  metadata" rule `@GestureState` follows below; `outFlow`'s tuple still
+  captures all three). Seed either explicitly via the `raw_` accessor:
+  `m.raw_items = QueryCore(wrappedValue: [item], fetchError: err)`.
 - **`@GestureState` is copied onto `Core` verbatim — attribute arguments,
   default, and `private` all kept — not substituted with a stand-in type.**
   It's a pure-UI wrapper `Core` uses as-is. The reset behavior
