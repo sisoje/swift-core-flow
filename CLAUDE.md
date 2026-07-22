@@ -435,7 +435,11 @@ params carrying host defaults (optionals implicitly nil, function types
 `@escaping`, same conventions as `@Flowable`'s init) — so a test binds
 `Bindable(model).x` (a real write-through `Binding<T>`, plain code, no
 view) into `Core`'s matching parameter and asserts on the model after the
-copied body writes. The compiler expands attached macros inside another
+copied body writes. Every property carries a `didSet` appending
+`"name = value"` to `history: [String]` — the exact write sequence, order
+included, assertable after the test (observers never fire during init, so
+history starts empty; @Observable preserves didSet through its rewrite —
+both verified by the real-compiled ShellTests). The compiler expands attached macros inside another
 macro's generated code just fine — @Binding/@QueryCore above, and
 @Observable on CoreModel itself (verified by the real-compiled
 `coreModelCapturesEveryWriteThroughItsBindings` in `ShellTests.swift`).

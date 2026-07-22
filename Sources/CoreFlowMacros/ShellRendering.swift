@@ -196,11 +196,25 @@ func renderShell(
     // way it expands the wrapper attributes above. Init parameters mirror
     // rule 1's spirit: host default carried over, optionals implicitly nil,
     // function types @escaping — same conventions as @Flowable's init.
+    //
+    // Every property carries a `didSet` appending `"name = value"` to
+    // `history: [String]` — the model doesn't just hold final values, it
+    // records every mutation IN ORDER, so a test can assert on the exact
+    // write sequence the copied body produced (`model.history == ["isOn =
+    // true", "isExpanded = false"]`). Two Swift rules make this trustworthy:
+    // observers never fire during init (history is empty after
+    // construction), and @Observable preserves willSet/didSet on the stored
+    // properties it rewrites (verified by the real-compiled ShellTests).
     let bindingFields = fields.filter { $0.isBindingBackedStorage || $0.isBinding }
     guard !bindingFields.isEmpty else { return [statelessStruct] }
 
     let modelProperties = bindingFields.map { p -> String in
-        "var \(p.name): \(p.type?.trimmedDescription ?? "")"
+        let type = p.type?.trimmedDescription ?? ""
+        return """
+            var \(p.name): \(type) {
+                didSet { history.append("\(p.name) = \\(\(p.name))") }
+            }
+            """
     }.joined(separator: "\n")
     let modelParams = bindingFields.map { p -> String in
         let type = p.type?.trimmedDescription ?? ""
@@ -221,6 +235,7 @@ func renderShell(
     let coreModel = DeclSyntax(
         stringLiteral: """
             @Observable @MainActor final class CoreModel {
+            var history: [String] = []
             \(modelProperties)
             init(\(modelParams)) {
             \(modelAssignments)

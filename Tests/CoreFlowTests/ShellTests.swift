@@ -115,11 +115,15 @@ private func makeCore(
             title: "t",
             subtitle: nil
         )
+        #expect(model.history.isEmpty)  // observers never fire during init
         snap.isExpanded = true
         snap.isOn = false
+        snap.isPinned = true
         #expect(model.isExpanded == true)
         #expect(model.isOn == false)
-        #expect(snap.isPinned == model.isPinned)
+        // Every property's didSet appends "name = value" to history — the
+        // model records the exact write sequence, order included.
+        #expect(model.history == ["isExpanded = true", "isOn = false", "isPinned = true"])
     }
 
     @Test func coreFieldsStayMutableForReMocking() {

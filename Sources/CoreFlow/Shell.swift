@@ -109,18 +109,24 @@
 /// least one `Binding`-typed field (the `@State`/`@AppStorage`/
 /// `@SceneStorage` substitutes plus genuine `@Binding` fields): an
 /// `@Observable @MainActor final class` with one `var` per such field, init
-/// parameters carrying the host's defaults (optionals implicitly `nil`). A
-/// test instantiates it and binds each property into `Core`'s matching
-/// parameter — `Bindable(model).x` hands back a real `Binding<T>` in plain
-/// code, no view needed — so every write the copied body makes lands on the
-/// model, ready to assert:
+/// parameters carrying the host's defaults (optionals implicitly `nil`).
+/// Every property carries a `didSet` appending `"name = value"` to a
+/// `history: [String]` — the model doesn't just hold final values, it
+/// records every mutation in order (and observers never fire during init,
+/// so history is empty after construction). A test instantiates it and
+/// binds each property into `Core`'s matching parameter —
+/// `Bindable(model).x` hands back a real `Binding<T>` in plain code, no
+/// view needed — so every write the copied body makes lands on the model,
+/// ready to assert, sequence included:
 ///
 /// ```swift
 /// let model = Card.CoreModel(isOn: true)          // isExpanded defaults
 /// let core = Card.Core(isExpanded: Bindable(model).isExpanded,
 ///                      isOn: Bindable(model).isOn, title: "t")
 /// core.isExpanded = true                          // body writes land here:
+/// core.isOn = false
 /// #expect(model.isExpanded == true)
+/// #expect(model.history == ["isExpanded = true", "isOn = false"])
 /// ```
 ///
 /// No `@RawProperty` is stamped on `Core`'s fields — mocking happens at

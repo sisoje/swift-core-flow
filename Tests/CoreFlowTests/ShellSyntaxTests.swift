@@ -46,8 +46,17 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     @Observable @MainActor final class CoreModel {
-                        var isExpanded: Bool
-                        var isOn: Bool
+                        var history: [String] = []
+                        var isExpanded: Bool {
+                            didSet {
+                                history.append("isExpanded = \\(isExpanded)")
+                            }
+                        }
+                        var isOn: Bool {
+                            didSet {
+                                history.append("isOn = \\(isOn)")
+                            }
+                        }
                         init(isExpanded: Bool = false, isOn: Bool) {
                             self.isExpanded = isExpanded
                             self.isOn = isOn
@@ -249,7 +258,12 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     @Observable @MainActor final class CoreModel {
-                        var isPinned: Bool
+                        var history: [String] = []
+                        var isPinned: Bool {
+                            didSet {
+                                history.append("isPinned = \\(isPinned)")
+                            }
+                        }
                         init(isPinned: Bool = false) {
                             self.isPinned = isPinned
                         }
@@ -388,7 +402,12 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     @Observable @MainActor final class CoreModel {
-                        var count: Int
+                        var history: [String] = []
+                        var count: Int {
+                            didSet {
+                                history.append("count = \\(count)")
+                            }
+                        }
                         init(count: Int = 0) {
                             self.count = count
                         }
@@ -431,7 +450,12 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     @Observable @MainActor final class CoreModel {
-                        var level: Double
+                        var history: [String] = []
+                        var level: Double {
+                            didSet {
+                                history.append("level = \\(level)")
+                            }
+                        }
                         init(level: Double = 0.5) {
                             self.level = level
                         }
@@ -516,7 +540,12 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     @Observable @MainActor final class CoreModel {
-                        var count: Int
+                        var history: [String] = []
+                        var count: Int {
+                            didSet {
+                                history.append("count = \\(count)")
+                            }
+                        }
                         init(count: Int = 0) {
                             self.count = count
                         }
