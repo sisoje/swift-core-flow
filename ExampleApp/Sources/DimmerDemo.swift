@@ -1,5 +1,5 @@
 import SwiftUI
-import ValueFlow
+import CoreFlow
 
 // The ViewModifier verification: @Shell on a ViewModifier host, body(content:)
 // written once as ordinary SwiftUI and copied into Core (which gets its own

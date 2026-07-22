@@ -2,7 +2,7 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 
-@testable import ValueFlowMacros
+@testable import CoreFlowMacros
 
 final class RawPropertySyntaxTests: XCTestCase {
     let macros: [String: Macro.Type] = ["RawProperty": RawPropertyMacro.self]

@@ -6,7 +6,7 @@ import SwiftSyntaxMacros
 
 /// Adds a `Capability` typealias + `capability` computed property bundling every
 /// eligible computed property/method of the declaration it's attached to. See the
-/// doc comment on `@Capability` (in `Sources/ValueFlow/Capability.swift`) for the
+/// doc comment on `@Capability` (in `Sources/CoreFlow/Capability.swift`) for the
 /// full picture. Unlike the stored-property macros, this reads a struct/class/actor
 /// OR an extension of one — it only needs to see whatever's written in that one
 /// declaration, which an extension can supply just as well as a primary type body.
@@ -170,7 +170,7 @@ struct CapabilityDiagnostic: DiagnosticMessage {
     var severity: DiagnosticSeverity { .error }
 
     var diagnosticID: MessageID {
-        MessageID(domain: "ValueFlow", id: id)
+        MessageID(domain: "CoreFlow", id: id)
     }
 
     static let notAnEligibleDeclaration = CapabilityDiagnostic(

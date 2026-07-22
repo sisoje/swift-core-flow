@@ -197,6 +197,6 @@
 )
 public macro Flowable() =
     #externalMacro(
-        module: "ValueFlowMacros",
+        module: "CoreFlowMacros",
         type: "FlowableMacro"
     )

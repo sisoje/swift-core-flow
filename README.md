@@ -1,4 +1,4 @@
-# ValueFlow
+# CoreFlow
 
 A small, growing collection of independent Swift macros, all shipped from one
 library — a single dependency gets you every macro below:
@@ -8,7 +8,7 @@ library — a single dependency gets you every macro below:
 .package(url: "https://github.com/sisoje/swift-value-flow.git", from: "1.0.0"),
 
 // target dependency
-.product(name: "ValueFlow", package: "ValueFlow"),
+.product(name: "CoreFlow", package: "CoreFlow"),
 ```
 
 Requires Swift 6.3+ (`swift-tools-version: 6.3`). Builds across the whole swift-syntax
@@ -650,7 +650,7 @@ struct Card: View {
 
 `@MainActor` on the suite is required, not stylistic, whenever the type
 conforms to `View` — see the bullet above. See
-`Tests/ValueFlowTests/OutFlowTests.swift` for the real version of this pattern,
+`Tests/CoreFlowTests/OutFlowTests.swift` for the real version of this pattern,
 including the one genuine caveat: a `@State`-derived binding read through
 `outFlow` doesn't write back outside a live view (see two bullets up) — reading
 its *value* for assertions works fine, mutating it in a test doesn't stick.
@@ -745,7 +745,7 @@ flowchart TD
 - **`OutFlow`/`outFlow`** — the one with a demonstrated reason: testability
   without a live view (see [Testing a @Flowable type's
   state](#testing-a-flowable-types-state) and
-  `Tests/ValueFlowTests/OutFlowTests.swift`).
+  `Tests/CoreFlowTests/OutFlowTests.swift`).
 - **`Core`** — builds on `OutFlow`'s same motivation, one step
   further: a real type where `OutFlow`'s tuple structurally can't follow (real
   `View`/`ViewModifier` conformance, `Equatable`/`Codable`, generic code
@@ -1054,7 +1054,7 @@ same way regardless of how many sources are present.
 
 ## Reflector
 
-Not a macro — a small runtime utility (`Sources/ValueFlow/Reflector.swift`) shipped
+Not a macro — a small runtime utility (`Sources/CoreFlow/Reflector.swift`) shipped
 alongside the macros because it's a natural companion to `@Flowable`, not because
 it needs code generation.
 
@@ -1143,9 +1143,9 @@ One target pair for every macro — not one pair per macro:
 
 | Target | Kind | Contents |
 |---|---|---|
-| `ValueFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `InFlowSplat`/`InFlow`, and `OutFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `ValueFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift` — plus three small non-macro additions: `Reflector.swift`, `QueryCore.swift`, and `GestureStateCore.swift` |
-| `ValueFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites — both test frameworks coexist fine in one target |
+| `CoreFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `InFlowSplat`/`InFlow`, and `OutFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `CoreFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift` — plus three small non-macro additions: `Reflector.swift`, `QueryCore.swift`, and `GestureStateCore.swift` |
+| `CoreFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites — both test frameworks coexist fine in one target |
 | `Examples` | executable | one playground exercising every macro in the package, plus Reflector |
 
 Swift tools version 6.3, Swift 6 language mode (strict concurrency), swift-syntax `600.0.0..<700.0.0`.

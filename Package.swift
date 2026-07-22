@@ -3,12 +3,12 @@ import PackageDescription
 import CompilerPluginSupport
 
 let package = Package(
-    name: "ValueFlow",
+    name: "CoreFlow",
     platforms: [
         .macOS(.v14), .iOS(.v17), .tvOS(.v17), .watchOS(.v10), .visionOS(.v1), .macCatalyst(.v17),
     ],
     products: [
-        .library(name: "ValueFlow", targets: ["ValueFlow"]),
+        .library(name: "CoreFlow", targets: ["CoreFlow"]),
     ],
     dependencies: [
         // swift-syntax 6xx matches Swift 6.x toolchains (601 = 6.1, 602 = 6.2, ... 604 = 6.4).
@@ -25,7 +25,7 @@ let package = Package(
         // parsing (KeyPathPick.swift, TuplePickerSupport.swift). One Plugin.swift
         // lists every macro type.
         .macro(
-            name: "ValueFlowMacros",
+            name: "CoreFlowMacros",
             dependencies: [
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
@@ -36,15 +36,15 @@ let package = Package(
         // The public-facing library: every macro's attribute/expression declaration,
         // one file per macro (Flowable.swift, Shell.swift, Capability.swift,
         // TuplePicker.swift), plus Reflector.swift, a small non-macro companion.
-        .target(name: "ValueFlow", dependencies: ["ValueFlowMacros"]),
+        .target(name: "CoreFlow", dependencies: ["CoreFlowMacros"]),
         // All tests — macro-expansion + diagnostic coverage per macro, plus
         // TuplePicker's real-compiled end-to-end suite. XCTest and swift-testing
         // coexist fine in one test target.
         .testTarget(
-            name: "ValueFlowTests",
+            name: "CoreFlowTests",
             dependencies: [
-                "ValueFlowMacros",
-                "ValueFlow",
+                "CoreFlowMacros",
+                "CoreFlow",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
         ),

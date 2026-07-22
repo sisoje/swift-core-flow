@@ -53,6 +53,6 @@
 @attached(member, names: named(Capability), named(capability))
 public macro Capability() =
     #externalMacro(
-        module: "ValueFlowMacros",
+        module: "CoreFlowMacros",
         type: "CapabilityMacro"
     )

@@ -1,5 +1,5 @@
 import Testing
-import ValueFlow
+import CoreFlow
 
 // Real, compiled usage of Reflector — not a macro, so no assertMacroExpansion here,
 // same reasoning as EndToEndTests: exercise the actual runtime behavior.

@@ -83,7 +83,7 @@ struct RawPropertyDiagnostic: DiagnosticMessage {
     var severity: DiagnosticSeverity { .error }
 
     var diagnosticID: MessageID {
-        MessageID(domain: "ValueFlow", id: id)
+        MessageID(domain: "CoreFlow", id: id)
     }
 
     static let notAWrappedStoredProperty = RawPropertyDiagnostic(

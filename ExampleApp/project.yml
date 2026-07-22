@@ -1,10 +1,10 @@
 name: ExampleApp
 options:
-  bundleIdPrefix: com.valueflow.examples
+  bundleIdPrefix: com.coreflow.examples
   deploymentTarget:
     iOS: "17.0"
 packages:
-  ValueFlow:
+  CoreFlow:
     path: ..
 targets:
   ExampleApp:
@@ -12,7 +12,7 @@ targets:
     platform: iOS
     sources: [Sources]
     dependencies:
-      - package: ValueFlow
+      - package: CoreFlow
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

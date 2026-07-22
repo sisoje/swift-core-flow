@@ -68,7 +68,7 @@ public struct StoredProperty {
 
     /// `@Query` (SwiftData) — the `OutFlow`/`Core` field is always
     /// `QueryCore<WrappedType>`, this package's own drop-in stand-in for the
-    /// live wrapper (see `QueryCore.swift` in `Sources/ValueFlow`), carrying
+    /// live wrapper (see `QueryCore.swift` in `Sources/CoreFlow`), carrying
     /// its exact instance surface: `wrappedValue`, `fetchError`, and
     /// `modelContext`, no `projectedValue` — verified directly against the
     /// `_SwiftData_SwiftUI` interface. All three are captured verbatim off the
@@ -128,7 +128,7 @@ public struct StoredProperty {
 
     /// `@GestureState` — the `OutFlow`/`Core` field is
     /// `GestureStateCore<WrappedType>`, this package's own drop-in stand-in
-    /// (see `GestureStateCore.swift` in `Sources/ValueFlow`) wrapping the
+    /// (see `GestureStateCore.swift` in `Sources/CoreFlow`) wrapping the
     /// captured live wrapper *instance* whole (`GestureStateCore($x)` —
     /// `projectedValue` returns self). The host property stays the one source
     /// of truth, and every argument-carrying init the host used —
@@ -457,7 +457,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     public var severity: DiagnosticSeverity { .error }
 
     public var diagnosticID: MessageID {
-        MessageID(domain: "ValueFlow", id: id)
+        MessageID(domain: "CoreFlow", id: id)
     }
 
     public static func notADataType(macroName: String) -> DataTypeMacroDiagnostic {

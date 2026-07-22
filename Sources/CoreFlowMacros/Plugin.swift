@@ -2,7 +2,7 @@ import SwiftCompilerPlugin
 import SwiftSyntaxMacros
 
 @main
-struct ValueFlowPlugin: CompilerPlugin {
+struct CoreFlowPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
         FlowableMacro.self,
         ShellMacro.self,

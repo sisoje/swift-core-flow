@@ -270,7 +270,7 @@ func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
 ///   bare type, everything else as declared).
 /// - **`@Query`** (`isQuery`) → `QueryCore<WrappedType>` — this package's own
 ///   drop-in stand-in for the live wrapper (see `QueryCore.swift` in
-///   `Sources/ValueFlow`), carrying the exact instance surface the real
+///   `Sources/CoreFlow`), carrying the exact instance surface the real
 ///   `Query` has (`wrappedValue`/`fetchError`/`modelContext`, no
 ///   `projectedValue` — verified directly against the `_SwiftData_SwiftUI`
 ///   interface). `WrappedType` is the property's own declared type (e.g.

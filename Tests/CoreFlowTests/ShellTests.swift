@@ -1,6 +1,6 @@
 import SwiftUI
 import Testing
-import ValueFlow
+import CoreFlow
 
 // Real, compiled usage — same reasoning as OutFlowTests: exercise actual runtime
 // behavior, not just the syntactic shape assertMacroExpansion checks (see

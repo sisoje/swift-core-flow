@@ -22,4 +22,4 @@
 /// diagnostic too (there's no backing storage to expose).
 @attached(peer, names: prefixed(raw_))
 public macro RawProperty() =
-    #externalMacro(module: "ValueFlowMacros", type: "RawPropertyMacro")
+    #externalMacro(module: "CoreFlowMacros", type: "RawPropertyMacro")

@@ -56,7 +56,7 @@
 public macro pick<T1, each V1>(
     from source1: T1,
     _ paths1: repeat KeyPath<T1, each V1>
-) -> (repeat each V1) = #externalMacro(module: "ValueFlowMacros", type: "PickMacro")
+) -> (repeat each V1) = #externalMacro(module: "CoreFlowMacros", type: "PickMacro")
 
 /// `#pick`, two sources. See the doc comment on the one-source overload above.
 @freestanding(expression)
@@ -64,7 +64,7 @@ public macro pick<T1, each V1, T2, each V2>(
     from source1: T1, _ paths1: repeat KeyPath<T1, each V1>,
     from source2: T2, _ paths2: repeat KeyPath<T2, each V2>
 ) -> (repeat each V1, repeat each V2) =
-    #externalMacro(module: "ValueFlowMacros", type: "PickMacro")
+    #externalMacro(module: "CoreFlowMacros", type: "PickMacro")
 
 /// `#pick`, three sources. See the doc comment on the one-source overload above.
 @freestanding(expression)
@@ -73,7 +73,7 @@ public macro pick<T1, each V1, T2, each V2, T3, each V3>(
     from source2: T2, _ paths2: repeat KeyPath<T2, each V2>,
     from source3: T3, _ paths3: repeat KeyPath<T3, each V3>
 ) -> (repeat each V1, repeat each V2, repeat each V3) =
-    #externalMacro(module: "ValueFlowMacros", type: "PickMacro")
+    #externalMacro(module: "CoreFlowMacros", type: "PickMacro")
 
 /// Enables `\.field => "label"` inside `#pick` to rename a field's output
 /// label. Real Swift argument labels (`total: \.limit`) can't appear inside

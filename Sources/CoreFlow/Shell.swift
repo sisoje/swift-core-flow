@@ -143,4 +143,4 @@
 /// attached type is recognized.
 @attached(member, names: named(Core), named(core))
 public macro Shell() =
-    #externalMacro(module: "ValueFlowMacros", type: "ShellMacro")
+    #externalMacro(module: "CoreFlowMacros", type: "ShellMacro")

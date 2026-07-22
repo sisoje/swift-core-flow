@@ -2,7 +2,7 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 
-@testable import ValueFlowMacros
+@testable import CoreFlowMacros
 
 final class ShellSyntaxTests: XCTestCase {
     let macros: [String: Macro.Type] = ["Shell": ShellMacro.self]

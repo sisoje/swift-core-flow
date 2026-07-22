@@ -3,7 +3,7 @@
 A small, growing collection of independent Swift macros (plus `Reflector`, a small
 non-macro addition that pairs with `@Flowable`), all in ONE package/target
 pair — not one target per macro. Consumers add a single dependency
-(`.product(name: "ValueFlow", package: "ValueFlow")`) and get every macro; adding a
+(`.product(name: "CoreFlow", package: "CoreFlow")`) and get every macro; adding a
 new macro is "add a file to each of two targets," not "add a product + three targets
 to Package.swift." (An earlier revision split every macro into its own
 declaration/plugin/test/product target set — deliberately flattened back to this
@@ -28,16 +28,16 @@ concurrency) throughout.
 
 | Target | Kind | Contents |
 |---|---|---|
-| `ValueFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `RawPropertyMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `ValueFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `RawProperty.swift`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`.s drop-in stand-in on `Core`/`OutFlow`, see the `@Flowable` OutFlow notes) |
-| `ValueFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites |
+| `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `RawPropertyMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `RawProperty.swift`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`.s drop-in stand-in on `Core`/`OutFlow`, see the `@Flowable` OutFlow notes) |
+| `CoreFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites |
 
-Adding a new macro: one new file in `ValueFlowMacros` for the implementation
+Adding a new macro: one new file in `CoreFlowMacros` for the implementation
 (`Foo­Macro: MemberMacro`/`ExpressionMacro`), add it to `Plugin.swift`'s
-`providingMacros`, one new file in `ValueFlow` for the public
+`providingMacros`, one new file in `CoreFlow` for the public
 `@attached`/`@freestanding` declaration pointing `#externalMacro(module:
-"ValueFlowMacros", type: "FooMacro")`, and a new `XCTestCase`/`@Suite` in
-`ValueFlowTests`. No new Package.swift targets or products. If the macro generates something from a type's
+"CoreFlowMacros", type: "FooMacro")`, and a new `XCTestCase`/`@Suite` in
+`CoreFlowTests`. No new Package.swift targets or products. If the macro generates something from a type's
 stored properties (like `@Flowable` does), build it on `StoredProperty.swift`'s
 collection (`validatedProperties` in `MemberMacroEntry.swift`) and
 `FlowableRendering.swift`'s functions rather than re-deriving them —
@@ -74,11 +74,11 @@ unlabeled `InFlowSplat` typealias with a `makeFlow(_:)` factory building
 `Self` *from* one — splat-friendly construction — and a labeled `InFlow` typealias
 with an `inFlow` computed property reading the current instance's data back
 *out* — readable/reflectable), plus a wider `OutFlow`/`outFlow` pair (see below).
-Entry point: `Sources/ValueFlowMacros/FlowableMacro.swift`. Rendering: all six —
+Entry point: `Sources/CoreFlowMacros/FlowableMacro.swift`. Rendering: all six —
 `renderFlowable` (the init), `renderInFlowSplatTypealias`,
 `renderInFlowSplatFactory`, `renderInFlowTypealias`,
 `renderInFlowProperty`, `renderOutFlowTypealias`, and `renderOutFlowProperty` — live in
-`Sources/ValueFlowMacros/FlowableRendering.swift`; the last five are called
+`Sources/CoreFlowMacros/FlowableRendering.swift`; the last five are called
 from inside the first, so one macro expansion always produces all six together (or
 just the bare init, if there are zero properties to alias/build from).
 
@@ -245,7 +245,7 @@ dedicated member — the gap that removal opened (a plain private field
 genuinely has no tuple anywhere to reflect over) is moot now anyway: that kind
 of field is a compile error (`plainPrivatePropertyNotAllowed`, above), not a
 silently-excluded one. See the equivalent note in
-`Sources/ValueFlow/Flowable.swift`.
+`Sources/CoreFlow/Flowable.swift`.
 
 `OutFlow`/`outFlow` — a labeled tuple typealias + computed property (`outFlowFieldType`,
 `outFlowFieldReadExpression`, `renderOutFlowTypealias`, `renderOutFlowProperty`, all
@@ -262,7 +262,7 @@ identity, a live `ModelContext`) — which makes it hard to test directly.
 type, read `.outFlow`, assert on the fields — no live view hierarchy required.
 That's the actual motivating idea behind targeting exactly these wrapper kinds,
 not "read private state too" for its own sake. See
-`Tests/ValueFlowTests/OutFlowTests.swift` for this property demonstrated
+`Tests/CoreFlowTests/OutFlowTests.swift` for this property demonstrated
 directly (`outFlowReadsFlowableFieldsAndRecognizedPrivateWrappersTogether`
 constructs a `Card` and reads `.outFlow.isExpanded`/`.isOn` with no live view
 ever installed).
@@ -296,7 +296,7 @@ the two was itself the defect, not a deliberate design choice worth keeping.
 - **The type mappings, all in `outFlowFieldType`**:
   - `@Query` (`isQuery`) → **always** `QueryCore<WrappedType>` — this
     package's own drop-in stand-in for the live wrapper
-    (`Sources/ValueFlow/QueryCore.swift`, a plain non-macro `@propertyWrapper`
+    (`Sources/CoreFlow/QueryCore.swift`, a plain non-macro `@propertyWrapper`
     like `Reflector` is a plain non-macro utility), **not** a passthrough of
     the declared type. One-to-one with the real `Query<Element, Result>`'s
     instance surface — verified directly against the `_SwiftData_SwiftUI`
@@ -316,7 +316,7 @@ the two was itself the defect, not a deliberate design choice worth keeping.
     drop `fetchError`/`modelContext`; with all three required it takes the
     wrapper type itself, the same mechanism `@Binding` fields rely on.
   - `@GestureState` (`isGestureState`) → `GestureStateCore<WrappedType>` —
-    the same drop-in move (`Sources/ValueFlow/GestureStateCore.swift`),
+    the same drop-in move (`Sources/CoreFlow/GestureStateCore.swift`),
     wrapping the captured live wrapper *instance* whole
     (`GestureStateCore($x)` — `projectedValue` returns self, same
     `$`-projection convention as every other row). The host property stays
@@ -423,8 +423,8 @@ same as any other unrecognized private wrapper. See the
 A separate `member` macro from `@Flowable` — not a mode of it, doesn't replace
 `OutFlow`/`outFlow`, can be attached with or without `@Flowable` also present
 (it collects the type's stored properties itself via the same shared
-`validatedProperties`). Entry point: `Sources/ValueFlowMacros/ShellMacro.swift`.
-Rendering: `renderShell`, in `Sources/ValueFlowMacros/ShellRendering.swift`.
+`validatedProperties`). Entry point: `Sources/CoreFlowMacros/ShellMacro.swift`.
+Rendering: `renderShell`, in `Sources/CoreFlowMacros/ShellRendering.swift`.
 
 Generates a nested `Core` struct — always internal, carrying no
 `@Flowable` — the host's standalone twin: substituted fields, plus a
@@ -600,12 +600,12 @@ aren't seen (same syntax-only limitation as host-kind detection).
     can't see conformance declared in a separate extension, via a typealias or
     protocol composition, or a qualified spelling (`SwiftUI.View`) — a macro
     never gets a type checker.
-- See `Tests/ValueFlowTests/ShellTests.swift` for the model demonstrated
+- See `Tests/CoreFlowTests/ShellTests.swift` for the model demonstrated
   end-to-end — fully-mocked direct `Core` construction (`makeCore`), the
   copied body/helper evaluating against mocked fields, and the `@MainActor`
   requirement on any test suite touching a `View`-conforming type (same
   reasoning as `OutFlow`'s equivalent note above) — and
-  `Tests/ValueFlowTests/ShellSyntaxTests.swift` for the expansion shape,
+  `Tests/CoreFlowTests/ShellSyntaxTests.swift` for the expansion shape,
   including the copy rules
   (`testHelpersStaticMembersAndNestedTypesAreCopiedButInitsAreNot`), the
   host-kind-detection cases, and the negative case (conformance in a
@@ -629,7 +629,7 @@ diagnostic; no wrapper attribute at all is a diagnostic too.
 
 `member` macro that bundles every eligible *computed* property/method into a
 `Capability` typealias + `capability` computed property. Entry point + collection +
-rendering all live in `Sources/ValueFlowMacros/CapabilityMacro.swift` — doesn't
+rendering all live in `Sources/CoreFlowMacros/CapabilityMacro.swift` — doesn't
 share `StoredProperty.swift`'s model at all (that's for *stored* properties; this
 macro is deliberately about the opposite thing, and mixes properties with methods,
 which `StoredProperty` has no concept of).
@@ -670,7 +670,7 @@ which `StoredProperty` has no concept of).
 `expression` macro: `#pick(from: value, \.a, \.b)`. One implementation (`PickMacro`)
 behind three arity-generic overloads (one/two/three `from:` sources), all reading the
 same flat, `from:`-labeled argument list. Impl:
-`Sources/ValueFlowMacros/PickMacro.swift`, `KeyPathPick.swift`.
+`Sources/CoreFlowMacros/PickMacro.swift`, `KeyPathPick.swift`.
 
 - **Labels are cosmetic, not static.** The declared return type is a parameter pack
   (`repeat each V1`, concatenated per source), which can't carry per-element labels —
@@ -700,11 +700,11 @@ same flat, `from:`-labeled argument list. Impl:
 
 ## Reflector — tricky points
 
-`Sources/ValueFlow/Reflector.swift`. Not a macro — a plain runtime `enum` with one
+`Sources/CoreFlow/Reflector.swift`. Not a macro — a plain runtime `enum` with one
 static generic function, `fieldNames<T>(of: T.Type) -> [String]`, kept in this
 package because it's a small, natural companion to `@Flowable`'s generated members
 rather than because it needs code generation of its own. No paired
-`ValueFlowMacros` file, no `@attached`/`@freestanding` declaration — it's ordinary
+`CoreFlowMacros` file, no `@attached`/`@freestanding` declaration — it's ordinary
 Swift, so it doesn't follow the "one file per macro, two targets" pattern the rest of
 this doc describes.
 

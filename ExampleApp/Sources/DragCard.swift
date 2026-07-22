@@ -1,5 +1,5 @@
 import SwiftUI
-import ValueFlow
+import CoreFlow
 
 // The live-drag verification view: @GestureState declared on the host,
 // captured whole by @Shell into Core's @GestureStateCore. The body is

@@ -1,5 +1,5 @@
 import SwiftUI
-import ValueFlow
+import CoreFlow
 
 /// Observable side effect for the tricky init below: the host's custom
 /// `reset:` closure bumps this counter every time SwiftUI resets the gesture

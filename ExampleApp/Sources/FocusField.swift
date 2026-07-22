@@ -1,5 +1,5 @@
 import SwiftUI
-import ValueFlow
+import CoreFlow
 
 // The live-focus verification view: @FocusState declared on the host,
 // substituted into Core as `@FocusState<Bool>.Binding`. Both directions are
