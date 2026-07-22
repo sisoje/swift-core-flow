@@ -41,11 +41,7 @@ this package really knows), and everything else — *unknown* — copied
 verbatim, attribute arguments and default kept, `private` kept, `public`
 erased. Plus a
 verbatim copy of every non-stored member — `body`, helpers, methods, static
-members, nested types. Every field is `var`. Whenever `Core` has at least
-one `Binding`-typed field, a `CoreModel` rides along — an
-`@Observable @MainActor final class` with one `var` per such field — so a
-test binds its properties into `Core` and every write lands somewhere
-assertable (see below).
+members, nested types. Every field is `var`.
 Initializers are the one member kind not copied:
 `Core` is constructed through Swift's synthesized memberwise init, and a
 copied init would suppress it. Members declared in a separate extension of
@@ -118,48 +114,27 @@ field is just the bare wrapped value.
 > `Core` verbatim and left alone; if you want testable state, model it with
 > the mapped wrappers instead.
 
-### The CoreModel mock
+### Mocking the bindings
 
-Whenever `Core` ends up with at least one `Binding`-typed field (the
-`@State`/`@AppStorage`/`@SceneStorage` substitutes plus genuine `@Binding`
-fields), `@Shell` also generates:
-
-```swift
-@Observable @MainActor final class CoreModel {
-    var history: [(propertyName: String, value: Any)] = []
-    var isExpanded: Bool { didSet { history.append((propertyName: "isExpanded", value: isExpanded)) } }
-    var isOn: Bool { didSet { history.append((propertyName: "isOn", value: isOn)) } }
-    init(isExpanded: Bool = false, isOn: Bool) { ... }  // host defaults carried
-}
-```
-
-A test instantiates it and binds each property into `Core`'s matching
-parameter — `Bindable(model).x` hands back a real write-through `Binding<T>`
-in plain code, no view needed — so every write the copied body makes lands
-on the model. And not just final values: every property's `didSet` appends
-`(propertyName:, value:)` to `history`, recording the exact write sequence
-(observers never fire during init, so history starts empty) — and the tuple
-shape lets a test slice it, filtering by name to ignore writes it doesn't
-care about:
-
-And `Core` carries a generated `make` — the one-call test constructor:
-every memberwise parameter *except* the Binding-typed ones, plus the model
-those bindings come from (a local `@Bindable var model = model` shadow
-supplies `$model.x` for each):
+Use-site code, deliberately not generated. A test backs each
+`Binding`-typed parameter with whatever fits: `.constant`, a
+`Binding(get:set:)` capturing writes into a local, or — for several
+bindings at once — a hand-written `@Observable` model whose
+`Bindable(model).x` projections mint real write-through bindings in plain
+code, no view needed:
 
 ```swift
-let model = Card.CoreModel(isOn: true)
-let core = Card.Core.make(model: model, items: [item], title: "t")
-core.isExpanded = true
-core.isOn = false
-#expect(model.history.map(\.propertyName) == ["isExpanded", "isOn"])
-#expect(model.history.filter { $0.propertyName == "isOn" }
-    .compactMap { $0.value as? Bool } == [false])
+var writes: [Bool] = []
+let core = Card.Core(
+    items: [item],
+    isExpanded: Binding(get: { false }, set: { writes.append($0) }),
+    title: "t")
+core.isExpanded = true          // body writes land in `writes`
 ```
 
-Binding by hand stays available for partial mocks —
-`Card.Core(isExpanded: Bindable(model).isExpanded, isOn: .constant(true),
-items: [item], title: "t")` — `make` is just the everything-wired spelling.
+(An earlier revision generated an `@Observable CoreModel` class plus a
+`static make(model:...)` wiring constructor for this; both were cut — the
+few lines they saved belong at the use site, shaped by the test.)
 
 **A few things worth spelling out beyond the table above — the last one is about
 `@ViewBuilder`, which isn't a row in it at all (see why above):**

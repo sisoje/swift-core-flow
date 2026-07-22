@@ -29,14 +29,14 @@ struct Dimmer: ViewModifier {
 // as a recorded mutation sequence.
 struct DimmerScenario: View {
     @Environment(\.mylog) var mylog
-    @State private var model = Dimmer.CoreModel()
+    @State private var isDimmed = false
 
     var body: some View {
         Text("Hello")
             .accessibilityIdentifier("dimContent")
             .modifier(
                 Dimmer.Core(
-                    isDimmed: $model.isDimmed.didSet { val in
+                    isDimmed: $isDimmed.didSet { val in
                         mylog.mylog("isDimmed", val)
                     }))
     }

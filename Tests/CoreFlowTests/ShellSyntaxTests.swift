@@ -43,29 +43,6 @@ final class ShellSyntaxTests: XCTestCase {
                         @Binding var isExpanded: Bool
                         @Binding var isOn: Bool
                         var title: String
-
-                        @MainActor static func make(model: CoreModel, items: [Item], title: String) -> Core {
-                            @Bindable var model = model
-                            return Core(items: items, isExpanded: $model.isExpanded, isOn: $model.isOn, title: title)
-                        }
-                    }
-
-                    @Observable @MainActor final class CoreModel {
-                        var history: [(propertyName: String, value: Any)] = []
-                        var isExpanded: Bool {
-                            didSet {
-                                history.append((propertyName: "isExpanded", value: isExpanded))
-                            }
-                        }
-                        var isOn: Bool {
-                            didSet {
-                                history.append((propertyName: "isOn", value: isOn))
-                            }
-                        }
-                        init(isExpanded: Bool = false, isOn: Bool) {
-                            self.isExpanded = isExpanded
-                            self.isOn = isOn
-                        }
                     }
                 }
                 """,
@@ -260,23 +237,6 @@ final class ShellSyntaxTests: XCTestCase {
                     struct Core {
                         @Binding var isPinned: Bool
                         var title: String
-
-                        @MainActor static func make(model: CoreModel, title: String) -> Core {
-                            @Bindable var model = model
-                            return Core(isPinned: $model.isPinned, title: title)
-                        }
-                    }
-
-                    @Observable @MainActor final class CoreModel {
-                        var history: [(propertyName: String, value: Any)] = []
-                        var isPinned: Bool {
-                            didSet {
-                                history.append((propertyName: "isPinned", value: isPinned))
-                            }
-                        }
-                        init(isPinned: Bool = false) {
-                            self.isPinned = isPinned
-                        }
                     }
                 }
                 """,
@@ -406,25 +366,8 @@ final class ShellSyntaxTests: XCTestCase {
                     struct Core: View {
                         @Binding var count: Int
 
-                        @MainActor static func make(model: CoreModel) -> Core {
-                            @Bindable var model = model
-                            return Core(count: $model.count)
-                        }
-
                         var body: some View {
                             Text("\\(count)")
-                        }
-                    }
-
-                    @Observable @MainActor final class CoreModel {
-                        var history: [(propertyName: String, value: Any)] = []
-                        var count: Int {
-                            didSet {
-                                history.append((propertyName: "count", value: count))
-                            }
-                        }
-                        init(count: Int = 0) {
-                            self.count = count
                         }
                     }
                 }
@@ -459,25 +402,8 @@ final class ShellSyntaxTests: XCTestCase {
                     struct Core: ViewModifier {
                         @Binding var level: Double
 
-                        @MainActor static func make(model: CoreModel) -> Core {
-                            @Bindable var model = model
-                            return Core(level: $model.level)
-                        }
-
                         func body(content: Content) -> some View {
                             content.opacity(level)
-                        }
-                    }
-
-                    @Observable @MainActor final class CoreModel {
-                        var history: [(propertyName: String, value: Any)] = []
-                        var level: Double {
-                            didSet {
-                                history.append((propertyName: "level", value: level))
-                            }
-                        }
-                        init(level: Double = 0.5) {
-                            self.level = level
                         }
                     }
                 }
@@ -540,11 +466,6 @@ final class ShellSyntaxTests: XCTestCase {
                     struct Core: View {
                         @Binding var count: Int
 
-                        @MainActor static func make(model: CoreModel) -> Core {
-                            @Bindable var model = model
-                            return Core(count: $model.count)
-                        }
-
                         static let spacing: CGFloat = 8
 
                         enum Kind {
@@ -561,18 +482,6 @@ final class ShellSyntaxTests: XCTestCase {
 
                         var body: some View {
                             Text(label())
-                        }
-                    }
-
-                    @Observable @MainActor final class CoreModel {
-                        var history: [(propertyName: String, value: Any)] = []
-                        var count: Int {
-                            didSet {
-                                history.append((propertyName: "count", value: count))
-                            }
-                        }
-                        init(count: Int = 0) {
-                            self.count = count
                         }
                     }
                 }

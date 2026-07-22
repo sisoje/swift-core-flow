@@ -24,8 +24,8 @@ struct FocusField: View {
     }
 }
 
-// Core component under test. No Binding-typed fields → no CoreModel, no
-// make, nothing to log: Core() constructs bare, behavior is asserted live.
+// Core component under test. No Binding-typed fields → no state to own,
+// nothing to log: Core() constructs bare, behavior is asserted live.
 struct FocusFieldScenario: View {
     var body: some View {
         FocusField.Core()

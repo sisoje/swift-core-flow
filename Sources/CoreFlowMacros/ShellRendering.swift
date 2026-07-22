@@ -69,17 +69,13 @@ import SwiftSyntax
 /// Every field is `var`; private verbatim copies are sealed — not init
 /// parameters, not readable, not mocked, they just behave. No `@RawProperty`
 /// is stamped anywhere (the macro stays in the package as a standalone
-/// opt-in): mocking happens at construction, through the generated
-/// `CoreModel` — an `@Observable @MainActor final class` with one `var` per
-/// Binding-typed field, emitted as a SIBLING of `Core`, both deliberately:
-/// `@MainActor` is explicit because a nested type does NOT inherit the
-/// enclosing View-conformance isolation (verified directly — constructing an
-/// unannotated nested class from a nonisolated context compiles), and
-/// sibling because nesting `Model` inside the generated `Core` breaks
-/// `@Observable`'s extension-macro half (verified directly — it type-checks
-/// but fails at link with a missing `Observable` conformance descriptor for
-/// the doubly-nested class; one level of macro-generated nesting is the
-/// compiler's limit).
+/// opt-in): mocking happens at construction, through hand-built
+/// `Binding(get:set:)`/`.constant` values or a hand-written `@Observable`
+/// model whose `Bindable(model).x` projections wire in — deliberately NOT
+/// generated here. An earlier revision emitted a `CoreModel` class plus a
+/// `static make(model:...)` wiring constructor; both were cut in favor of
+/// writing that (small, situational) code at the use site — the macro's job
+/// ends at the mockable twin itself.
 ///
 /// `Core` is always internal — the struct itself and every mapped field —
 /// regardless of the attached type's own access level (verbatim-copied
@@ -106,9 +102,9 @@ func renderShell(
     // which keep their `private`; see this file's own doc comment. No
     // @RawProperty is stamped anywhere — an earlier revision decorated
     // wrapper fields with it so tests could swap wrapper instances on a
-    // captured copy; with the capture gone, mocking happens at construction
-    // (bind CoreModel below), and the macro stays in the package for anyone
-    // who wants raw_ access on hand-written code.
+    // captured copy; with the capture gone, mocking happens at construction,
+    // and the macro stays in the package for anyone who wants raw_ access on
+    // hand-written code.
     let fieldDecls = fields.map { p -> String in
         // Rule 2 — the whitelist (`isSubstitutedOnCore`, `StoredProperty.swift`):
         // mutation-carrying wrappers become binding-shaped stand-ins a test
@@ -164,65 +160,6 @@ func renderShell(
     case .none: conformance = ""
     }
 
-    // Binding-typed fields (the @State/@AppStorage/@SceneStorage substitutes
-    // plus genuine @Binding fields) drive both generated conveniences below:
-    // CoreModel holds one observable var per field, and `make` wires them in.
-    let bindingFields = fields.filter { $0.isBindingBackedStorage || $0.isBinding }
-
-    // `make` — Core's one-call test constructor: every memberwise parameter
-    // EXCEPT the Binding-typed ones, plus the CoreModel instance those
-    // bindings come from. A local `@Bindable var model = model` shadow turns
-    // each model property into a real write-through Binding via `$model.x`
-    // (@Observable's dynamic-member projection, plain code, no view).
-    // @MainActor is explicit: CoreModel is @MainActor, and a non-View host's
-    // Core carries no isolation of its own. Non-binding parameters mirror
-    // the memberwise init's own conventions — declaration order, host
-    // defaults carried, optionals implicitly nil, function types @escaping,
-    // @ViewBuilder kept on the stored-closure form. (For an unmapped
-    // NON-private wrapper field, the parameter is spelled as the declared
-    // wrapped type — the same syntax-only assumption @Flowable's init makes;
-    // a wrapper without `init(wrappedValue:)` won't fit it, and such fields
-    // belong private anyway.)
-    let makeDecl: String
-    if bindingFields.isEmpty {
-        makeDecl = ""
-    } else {
-        let memberwiseFields = fields.filter { !($0.isPrivate && !$0.isSubstitutedOnCore) }
-        let makeParams =
-            (["model: CoreModel"]
-            + memberwiseFields.filter { !($0.isBindingBackedStorage || $0.isBinding) }
-            .map { p -> String in
-                let type = p.type?.trimmedDescription ?? ""
-                let isFn = p.type.map(isFunctionType) ?? false
-                let isStoredValueViewBuilder = p.isViewBuilder && !isFn
-                let builder = p.isViewBuilder && isFn ? "@ViewBuilder " : ""
-                var param =
-                    "\(builder)\(p.name): \(isFn ? "@escaping " : "")\(type)"
-                if isStoredValueViewBuilder {
-                    param = "\(p.name): \(type)"
-                }
-                if let def = p.defaultValue, !p.isViewBuilder {
-                    param += " = \(def.trimmedDescription)"
-                } else if p.type.map(isOptionalType) ?? false, !p.isViewBuilder {
-                    param += " = nil"
-                }
-                return param
-            }).joined(separator: ", ")
-        let makeArgs = memberwiseFields.map { p -> String in
-            p.isBindingBackedStorage || p.isBinding
-                ? "\(p.name): $model.\(p.name)"
-                : "\(p.name): \(p.name)"
-        }.joined(separator: ", ")
-        makeDecl = """
-
-
-            @MainActor static func make(\(makeParams)) -> Core {
-                @Bindable var model = model
-                return Core(\(makeArgs))
-            }
-            """
-    }
-
     // The host's non-stored members, copied verbatim — legal because this is
     // the same expansion that declares Core's fields, and the identifiers
     // inside resolve against them by the one-to-one read-surface design (see
@@ -231,7 +168,7 @@ func renderShell(
     let statelessStruct = DeclSyntax(
         stringLiteral: """
             struct Core\(conformance) {
-            \(fieldDecls)\(makeDecl)\(copies)
+            \(fieldDecls)\(copies)
             }
             """
     )
@@ -241,67 +178,9 @@ func renderShell(
     // whole per-rule capture-expression mapping ($x vs _x vs skip-private).
     // Deleted: Core is for testing, tests construct it directly through the
     // memberwise init, and a unit test never has a live host to capture from
-    // in the first place.
+    // in the first place. Same fate for the generated `CoreModel` +
+    // `static make(model:...)` pair: mocking bindings is use-site code now,
+    // hand-written where it's needed (see ShellTests/the ExampleApp).
 
-    // The CoreModel mock — one observable `var` per Binding-typed field on
-    // Core (the @State/@AppStorage/@SceneStorage substitutes plus genuine
-    // @Binding fields, the exact set whose memberwise parameter is
-    // `Binding<T>`). A test instantiates it and binds each property into
-    // Core's matching parameter — `Bindable(model).x` hands back a real
-    // `Binding<T>` via @Observable's dynamic-member projection, in plain
-    // code, no view needed — so every write the copied body makes lands on
-    // the model, ready to assert. @Observable + @MainActor final class: the
-    // compiler expands the @Observable macro inside this expansion the same
-    // way it expands the wrapper attributes above. Init parameters mirror
-    // rule 1's spirit: host default carried over, optionals implicitly nil,
-    // function types @escaping — same conventions as @Flowable's init.
-    //
-    // Every property carries a `didSet` appending
-    // `(propertyName: "name", value: newValue)` to
-    // `history: [(propertyName: String, value: Any)]` — the model doesn't
-    // just hold final values, it records every mutation IN ORDER, and the
-    // tuple shape lets a test slice it: filter by `propertyName` to ignore
-    // writes it doesn't care about, cast `value` only where it matters.
-    // Two Swift rules make this trustworthy: observers never fire during
-    // init (history is empty after construction), and @Observable preserves
-    // willSet/didSet on the stored properties it rewrites (verified by the
-    // real-compiled ShellTests).
-    guard !bindingFields.isEmpty else { return [statelessStruct] }
-
-    let modelProperties = bindingFields.map { p -> String in
-        let type = p.type?.trimmedDescription ?? ""
-        return """
-            var \(p.name): \(type) {
-                didSet { history.append((propertyName: "\(p.name)", value: \(p.name))) }
-            }
-            """
-    }.joined(separator: "\n")
-    let modelParams = bindingFields.map { p -> String in
-        let type = p.type?.trimmedDescription ?? ""
-        let isFn = p.type.map(isFunctionType) ?? false
-        var param = "\(p.name): \(isFn ? "@escaping " : "")\(type)"
-        if let def = p.defaultValue {
-            param += " = \(def.trimmedDescription)"
-        } else if p.type.map(isOptionalType) ?? false {
-            param += " = nil"
-        }
-        return param
-    }.joined(separator: ", ")
-    let modelAssignments = bindingFields.map { "    self.\($0.name) = \($0.name)" }
-        .joined(separator: "\n")
-    // Same relative-indentation convention as renderFlowable's init and the
-    // Core struct above: members at column 0, the init body one level in —
-    // the expansion machinery re-shifts every line by the splice position.
-    let coreModel = DeclSyntax(
-        stringLiteral: """
-            @Observable @MainActor final class CoreModel {
-            var history: [(propertyName: String, value: Any)] = []
-            \(modelProperties)
-            init(\(modelParams)) {
-            \(modelAssignments)
-            }
-            }
-            """
-    )
-    return [statelessStruct, coreModel]
+    return [statelessStruct]
 }

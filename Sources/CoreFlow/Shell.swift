@@ -105,41 +105,27 @@
 /// fresh gesture at its declared default. A non-private rule-3 copy stays a
 /// memberwise parameter of the wrapper's own type.
 ///
-/// **The `CoreModel` mock** — generated alongside `Core` whenever it has at
-/// least one `Binding`-typed field (the `@State`/`@AppStorage`/
-/// `@SceneStorage` substitutes plus genuine `@Binding` fields): an
-/// `@Observable @MainActor final class` with one `var` per such field, init
-/// parameters carrying the host's defaults (optionals implicitly `nil`).
-/// Every property carries a `didSet` appending `(propertyName:, value:)` to
-/// `history: [(propertyName: String, value: Any)]` — the model doesn't just
-/// hold final values, it records every mutation in order (observers never
-/// fire during init, so history is empty after construction), and the tuple
-/// shape lets a test slice it: filter by `propertyName` to ignore writes it
-/// doesn't care about, cast `value` only where it matters. A test
-/// instantiates it and binds each property into `Core`'s matching
-/// parameter — `Bindable(model).x` hands back a real `Binding<T>` in plain
-/// code, no view needed — so every write the copied body makes lands on the
-/// model:
-///
-/// `Core` also carries a generated `make` — the one-call test constructor:
-/// every memberwise parameter EXCEPT the Binding-typed ones, plus the model
-/// those bindings come from; inside, a local `@Bindable var model = model`
-/// shadow supplies `$model.x` for each Binding parameter. `@MainActor`
-/// explicit (the model is), non-binding parameters keep the memberwise
-/// conventions (declaration order, host defaults, optionals `nil`):
+/// **Mocking the bindings is use-site code, deliberately not generated.**
+/// A test backs each `Binding`-typed parameter with whatever fits —
+/// `.constant`, a `Binding(get:set:)` capturing writes into a local, or a
+/// hand-written `@Observable` model whose `Bindable(model).x` projections
+/// hand back real write-through bindings in plain code, no view needed:
 ///
 /// ```swift
-/// let model = Card.CoreModel(isOn: true)          // isExpanded defaults
-/// let core = Card.Core.make(model: model, items: [item], title: "t")
-/// core.isExpanded = true                          // body writes land here:
-/// core.isOn = false
-/// #expect(model.history.map(\.propertyName) == ["isExpanded", "isOn"])
-/// #expect(model.history.filter { $0.propertyName == "isOn" }
-///     .compactMap { $0.value as? Bool } == [false])
+/// var writes: [Bool] = []
+/// let core = Card.Core(
+///     items: [item],
+///     isExpanded: Binding(get: { false }, set: { writes.append($0) }),
+///     title: "t")
+/// core.isExpanded = true          // body writes land in `writes`
 /// ```
 ///
+/// (An earlier revision generated an `@Observable CoreModel` class plus a
+/// `static make(model:...)` wiring constructor for this; both were cut —
+/// the few lines they saved belong at the use site, shaped by the test.)
+///
 /// No `@RawProperty` is stamped on `Core`'s fields — mocking happens at
-/// construction, through `CoreModel` or any hand-built `Binding(get:set:)`.
+/// construction, through any hand-built `Binding(get:set:)`.
 /// (The `@RawProperty` macro itself remains in the package for hand-written
 /// code that wants a wrapper's backing storage exposed.) Every field is
 /// `var`; private verbatim copies are sealed — not init parameters, not
@@ -202,6 +188,6 @@
 /// typealias or protocol composition, or spelled qualified (`SwiftUI.View`)
 /// is invisible. Only a bare `View`/`ViewModifier` identifier directly on the
 /// attached type is recognized.
-@attached(member, names: named(Core), named(CoreModel))
+@attached(member, names: named(Core))
 public macro Shell() =
     #externalMacro(module: "CoreFlowMacros", type: "ShellMacro")

@@ -46,11 +46,11 @@ struct TrickyDragCard: View {
 // fresh process), so the snapshot is stable.
 struct TrickyDragCardScenario: View {
     @Environment(\.mylog) var mylog
-    @State private var model = TrickyDragCard.CoreModel()
+    @State private var resetsSeen = 0
 
     var body: some View {
         TrickyDragCard.Core(
-            resetsSeen: $model.resetsSeen.didSet { val in
+            resetsSeen: $resetsSeen.didSet { val in
                 mylog.mylog("resetsSeen", val)
             })
     }

@@ -16,6 +16,7 @@ extension URL {
     }
 }
 
+@MainActor
 extension Binding {
     /// A binding that forwards every write and then calls `perform` with the
     /// new value — mutation logging at the write site, immediately.

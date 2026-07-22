@@ -14,9 +14,9 @@ granularity nobody needed.)
 - Format: `swift format --in-place --recursive Sources Tests`
 - Example app: `ExampleApp/project.yml` — ONE real app (xcodegen; the
   generated `.xcodeproj` is gitignored) component-testing the generated
-  `Core`s live, via XCUITests. Every scenario hosts a CORE (via `Core.make`
-  wired to its `CoreModel`, or bare `Core()` when there's no model), one
-  component per scenario, selected via the `EXAMPLE_SCENARIO` env var
+  `Core`s live, via XCUITests. Every scenario hosts a CORE (owning plain
+  `@State` for each Binding-typed parameter, or bare `Core()` when there
+  are none), one component per scenario, selected via the `EXAMPLE_SCENARIO` env var
   (`ExampleScenario.defaultScenario` when unset, so Cmd-R just works).
   `cd ExampleApp && sh test.sh` runs the suite once — each UI test launches
   its own scenario. Deterministic scenarios use mutation-snapshot testing
@@ -436,41 +436,28 @@ sealed, they just behave. No `@RawProperty` is stamped anywhere — an
 earlier revision decorated wrapper fields with it for instance-swapping on
 captured copies; with the capture gone, mocking happens at construction,
 and the macro stays in the package as a standalone opt-in for hand-written
-code (see `QueryCoreTests`' `FakeCore` for it in use). Whenever `Core` has
-at least one `Binding`-typed field, a `CoreModel` is generated alongside —
-`@Observable @MainActor final class`, one `var` per such field, init
-params carrying host defaults (optionals implicitly nil, function types
-`@escaping`, same conventions as `@Flowable`'s init) — so a test binds
-`Bindable(model).x` (a real write-through `Binding<T>`, plain code, no
-view) into `Core`'s matching parameter and asserts on the model after the
-copied body writes. Every property carries a `didSet` appending
-`(propertyName:, value:)` to `history: [(propertyName: String, value:
-Any)]` — the exact write sequence, order included, assertable after the
-test, and sliceable: filter by `propertyName` to ignore writes a test
-doesn't care about, cast `value` only where it matters (observers never
-fire during init, so history starts empty; @Observable preserves didSet
-through its rewrite — both verified by the real-compiled ShellTests).
-`Core` additionally carries a generated `@MainActor static func make` — the
-one-call test constructor: every memberwise parameter except the
-Binding-typed ones, plus `model: CoreModel`; a local `@Bindable var model =
-model` shadow supplies `$model.x` for each Binding parameter (referencing
-the sibling CoreModel from inside Core is legal — same expansion).
-Non-binding parameters mirror the memberwise conventions (declaration
-order, host defaults, optionals nil, @escaping/@ViewBuilder as in
-@Flowable's init; an unmapped non-private wrapper parameter is spelled as
-the declared wrapped type — the same syntax-only assumption @Flowable's
-init makes). Generated exactly when CoreModel is (≥1 Binding-typed field). The compiler expands attached macros inside another
-macro's generated code just fine — @Binding/@QueryCore above, and
-@Observable on CoreModel itself (verified by the real-compiled
-`coreModelCapturesEveryWriteThroughItsBindings` in `ShellTests.swift`).
-Two deliberate spellings on CoreModel, both verified directly: `@MainActor`
-is explicit because a nested type does NOT inherit the enclosing
-View-conformance isolation (an unannotated nested class constructs fine
-from a nonisolated context), and it's a SIBLING of `Core` — not nested
-inside it as `Core.Model` — because nesting breaks `@Observable`'s
-extension-macro half: it type-checks but fails at link with a missing
-`Observable` conformance descriptor for the doubly-nested class; one level
-of macro-generated nesting is the compiler's limit.
+code (see `QueryCoreTests`' `FakeCore` for it in use). Mocking the
+`Binding`-typed parameters is USE-SITE code, deliberately not generated: a
+test backs each with `.constant`, a `Binding(get:set:)` capturing writes
+into a local, or a hand-written `@Observable @MainActor` model class whose
+`Bindable(model).x` projections mint real write-through bindings in plain
+code, no view needed (`handWrittenObservableModelBacksEveryBinding` in
+`ShellTests.swift` — note @Observable can't attach to a LOCAL type, so
+such a model must be file-scoped). An earlier revision generated exactly
+that as a sibling `CoreModel` class (with per-property `didSet` history
+logging) plus a `@MainActor static func make(model:...)` wiring
+constructor on `Core`; both were cut on the grounds that the few
+situational lines they saved belong at the use site, shaped by the test.
+Lessons from that era worth keeping if anyone regenerates something like
+it: the compiler expands attached macros inside another macro's generated
+code just fine (@Binding/@QueryCore today, @Observable then); `@MainActor`
+must be explicit on a generated class because a nested type does NOT
+inherit the enclosing View-conformance isolation (verified directly); and
+a generated observable class must be a SIBLING of `Core`, not nested
+inside it — nesting breaks `@Observable`'s extension-macro half, which
+type-checks but fails at link with a missing `Observable` conformance
+descriptor for the doubly-nested class (one level of macro-generated
+nesting is the compiler's limit; both verified directly).
 The field set is *identical* to `OutFlow`'s — `renderShell` calls
 `outFlowProperties` directly (the identity function now; see
 `FlowableRendering.swift`).
@@ -627,7 +614,7 @@ named with a leading `_` and is always `private`", no spelling loosens it —
 making the wrapper *instance* on a constructed value unswappable.
 (https://github.com/swiftlang/swift-evolution/blob/main/proposals/0258-property-wrappers.md)
 A standalone opt-in for hand-written code — `@Shell` no longer stamps it
-anywhere (mocking happens at construction via `CoreModel`/hand-built
+anywhere (mocking happens at construction via hand-built
 bindings); `QueryCoreTests`' `FakeCore` keeps it exercised. Type inference
 is syntax-only: attribute generics verbatim (`@Binding<Bool>`), else the
 annotation fills the generic, else a diagnostic; no wrapper attribute at
