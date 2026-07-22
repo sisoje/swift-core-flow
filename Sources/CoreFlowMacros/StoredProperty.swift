@@ -15,11 +15,11 @@ public struct StoredProperty {
     public let wrapperName: String?
     /// The property's own attribute list, source text verbatim (e.g.
     /// `@GestureState(reset: { _, transaction in transaction = Transaction() })`),
-    /// or nil if it carries no attributes. Most renderers only need
-    /// `wrapperName`; this exists for `@GestureState`'s `Core` field (see
-    /// `renderShell`, `ShellRendering.swift`), which copies the whole
-    /// declaration byte-for-byte — a `reset:` closure lives in the attribute's
-    /// own arguments and can't be reconstructed from the bare wrapper name.
+    /// or nil if it carries no attributes. This is what `renderShell`
+    /// (`ShellRendering.swift`) splices when copying an unmapped wrapper's
+    /// declaration onto `Core` byte-for-byte — whatever lives in the
+    /// attribute's own arguments (a reset closure, a key path, a
+    /// `relativeTo:`) can't be reconstructed from the bare wrapper name.
     public let attributeText: String?
     /// True if the property is declared `private` or `fileprivate` — implementation
     /// detail, excluded from the init. This is also what keeps view-owned wrappers
@@ -42,36 +42,36 @@ public struct StoredProperty {
         wrapperName == "ViewBuilder"
     }
 
-    /// `@Bindable` — mirrors verbatim wherever it appears (its `wrappedValue` is a
-    /// plain get/set, so the ordinary `self.x = x` assignment path already handles
-    /// it with no dedicated rendering logic anywhere downstream). Exists as its own
-    /// case only so a private declaration can be named specifically, alongside
-    /// `@Binding`/`@ViewBuilder`, as a caller-supplied wrapper that must never be
-    /// private.
-    public var isBindable: Bool {
-        wrapperName == "Bindable"
-    }
-
-    /// `@Binding`/`@Bindable`/`@ViewBuilder` — the three wrapper kinds a caller
+    /// `@Binding`/`@ViewBuilder` — the wrapper/attribute kinds a caller
     /// supplies through the generated init, the opposite of a source-of-truth
-    /// wrapper. Declaring one private makes it unreachable (a caller could never
-    /// supply it), so it's rejected with its own diagnostic rather than falling
-    /// into the generic "wrapper this macro doesn't recognize" message — these
-    /// three ARE recognized, just never allowed private.
+    /// wrapper. Declaring one private makes it unreachable (a caller could
+    /// never supply it), so it's rejected with its own diagnostic. (Any other
+    /// non-private wrapper — `@Bindable`, a custom one — needs no dedicated
+    /// case: the ordinary `self.x = x` assignment path handles it in the
+    /// init, and `Core` copies its declaration verbatim.)
     public var isCallerSuppliedWrapper: Bool {
-        isBinding || isBindable || isViewBuilder
+        isBinding || isViewBuilder
     }
 
-    /// `@Environment` — `@Shell`'s field is a plain `let` of the property's
-    /// own declared type, no attribute at all (unlike `@State`/`@AppStorage`,
-    /// which keep `@Binding`). Not because the value doesn't change — because
-    /// the *attribute* can't be preserved: `@Environment`'s `wrappedValue` has
-    /// no public setter (verified directly: `error: cannot assign to property:
-    /// 'colorScheme' is a get-only property`), and `@Flowable`'s init always
-    /// assigns `self.x = x` — a plain, unattributed `let` has no such
-    /// restriction, so the value is captured once, like every other field.
-    public var isEnvironment: Bool {
-        wrapperName == "Environment"
+    /// THE mapping whitelist — the only wrapper kinds this package really
+    /// knows, and exactly the ones `sourceOfTruthMustBePrivate` requires
+    /// private. `@Shell` substitutes each on `Core` with a mockable stand-in;
+    /// every other wrapper — `@Binding` included — is copied onto `Core`
+    /// verbatim (see `renderShell`). The list is exactly the wrappers where a
+    /// substitution buys a REAL mock, and nothing else: for
+    /// `@State`/`@AppStorage`/`@SceneStorage`, a test-supplied
+    /// `Binding(get:set:)` captures every write the copied body makes; for
+    /// `@Query`, `@QueryCore` spares a test from standing up an entire
+    /// SwiftData stack just to read an array. (`@Binding` needs no entry: the
+    /// verbatim copy of `@Binding var x: T` is already the mockable form — it
+    /// IS the mock vehicle. `@FocusState`/`@AccessibilityFocusState` were
+    /// once here and got cut: their `.Binding` projections have no public
+    /// initializer — a test can't back one with its own closures — and their
+    /// writes no-op outside a live view anyway (verified directly), so the
+    /// substitution was a pass-through pretending to be a mock; the verbatim
+    /// copy behaves identically and needs no knowledge.)
+    public var isSubstitutedOnCore: Bool {
+        isBindingBackedStorage || isQuery
     }
 
     /// `@Query` (SwiftData) — the `OutFlow`/`Core` field is always
@@ -94,86 +94,15 @@ public struct StoredProperty {
     /// this one case because all three share the same shape, verified directly
     /// against the real SwiftUI interface: `wrappedValue` is `{ get
     /// nonmutating set }` and `projectedValue` genuinely *is* `Binding<T>` for
-    /// each of them — unlike `@FocusState`/`@Namespace` below, which don't.
-    /// Unlike `isEnvironment`/`isQuery` above, these are the view's own
-    /// externally read-*and-write*-able storage — their own storage only
-    /// installs inside a live SwiftUI view, so they can't be redeclared as
-    /// themselves on a plain struct; `@Binding` is the injectable/settable
-    /// substitute.
+    /// each of them (verified directly against the real SwiftUI interface —
+    /// unlike `@FocusState`, whose projection is its own `.Binding` type with
+    /// no public initializer, which is exactly why THAT one isn't
+    /// whitelisted). These are the view's own externally
+    /// read-*and-write*-able storage — their own storage only installs inside
+    /// a live SwiftUI view, so they can't be redeclared as themselves on a
+    /// plain struct; `@Binding` is the injectable/settable substitute.
     public var isBindingBackedStorage: Bool {
         wrapperName == "State" || wrapperName == "AppStorage" || wrapperName == "SceneStorage"
-    }
-
-    /// `@FocusState` — a source-of-truth wrapper alongside
-    /// `isBindingBackedStorage`'s three, read the same way (`$x`) but
-    /// resolving to a genuinely different projected type: `FocusState<T>.Binding`,
-    /// **not** `Binding<T>`. Verified directly against the real SwiftUI interface:
-    /// `FocusState<T>.Binding` exposes only `wrappedValue` and
-    /// `projectedValue` (itself), no public initializer at all and no
-    /// conversion to `Binding<T>` — so it's kept as its own case rather than
-    /// folded into `isBindingBackedStorage`, both for the field *type* (`OutFlow`)
-    /// and because `@Shell` redeclares it as its own real attribute
-    /// (`@FocusState<T>.Binding var x: T`, not `@Binding var x: T`) — see
-    /// `outFlowFieldType`/`outFlowFieldReadExpression` (`FlowableRendering.swift`)
-    /// and `renderShell` (`ShellRendering.swift`).
-    public var isFocusState: Bool {
-        wrapperName == "FocusState"
-    }
-
-    /// `@Namespace` — treated exactly like `@Environment`: a plain value in
-    /// `OutFlow`, a plain unattributed `let` on `Core`. Verified directly
-    /// against the real SwiftUI interface: `Namespace.wrappedValue` is
-    /// get-only (same "cannot assign to property" error `@Environment` hits),
-    /// and unlike `@State`/`@AppStorage`/`@FocusState` it has **no
-    /// `projectedValue` at all** — there's no `$x` to fall back on, so it can't
-    /// be threaded through as any kind of `Binding`. Its value is stable for the
-    /// view instance's lifetime (unlike `@Environment`, which can change if the
-    /// environment context above it changes), but the capture works the same
-    /// way for both — a one-time plain-value read.
-    public var isNamespace: Bool {
-        wrapperName == "Namespace"
-    }
-
-    /// `@GestureState` — a pure-UI wrapper used as-is, not substituted.
-    /// `OutFlow`'s field is just the bare wrapped type (read like any other
-    /// non-private field); `Core`'s field is a **verbatim copy** of the host's
-    /// own declaration — attribute (with any `reset:`/`resetTransaction:`/
-    /// `initialValue:` arguments), default, and `private` all kept
-    /// (`attributeText` above carries the raw attribute text, since a reset
-    /// closure can't be reconstructed from the bare wrapper name). See
-    /// `renderShell` (`ShellRendering.swift`). An earlier design reconstructed
-    /// a fresh `@GestureState var` from just the wrapper name; it silently
-    /// swapped a custom reset for the default one — proved live by
-    /// `TrickyDragCardUITests` in the ExampleApp. Because `Core`'s field stays
-    /// `private` with a default, it drops out of `Core`'s memberwise init and
-    /// isn't readable from outside `Core`; mock via the `@RawProperty`
-    /// accessor (`m.raw_name = GestureState(wrappedValue: mock)`).
-    public var isGestureState: Bool {
-        wrapperName == "GestureState"
-    }
-
-    /// `@AccessibilityFocusState` — an exact `@FocusState` clone, verified
-    /// directly against the real SwiftUI interface: `wrappedValue` is `{ get
-    /// nonmutating set }` and `projectedValue` is its own nested
-    /// `AccessibilityFocusState<Value>.Binding` — itself `@propertyWrapper`
-    /// with a settable `wrappedValue`, no conversion to `Binding<T>` — so it
-    /// gets `@FocusState`'s exact treatment: the projected type in `OutFlow`,
-    /// its own substituted attribute on `Core`, read via `$x`, and `snap.$x`
-    /// feeds `.accessibilityFocused(_:)` directly.
-    public var isAccessibilityFocusState: Bool {
-        wrapperName == "AccessibilityFocusState"
-    }
-
-    /// `@ScaledMetric` — treated exactly like `@Environment`/`@Namespace`: a
-    /// plain value in `OutFlow`, a plain unattributed `let` on `Core`.
-    /// Verified directly against the real SwiftUI interface: `wrappedValue`
-    /// is get-only and there's **no `projectedValue` at all**, so a one-time
-    /// capture of the current *scaled* value is the only option — and the
-    /// right one: redeclaring `@ScaledMetric` on `Core` would double-scale
-    /// (its `init(wrappedValue:)` takes the *base* value, but the host reads
-    /// back the already-scaled one), and `relativeTo:` can't be carried over.
-    public var isScaledMetric: Bool {
-        wrapperName == "ScaledMetric"
     }
 }
 
@@ -256,23 +185,19 @@ public func collectStoredProperties(
                 isPrivate: isPrivate
             )
 
-            // @State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/
-            // @Namespace are each a view's own source of truth — never
-            // something a caller supplies (that's what @Binding is for) — so
-            // they must be private. Enforced here, not accommodated later:
-            // every renderer downstream can assume these seven are always
-            // private, with no "what if it's also public" case to reason about
-            // or test. @Namespace specifically has no way to thread through a
-            // caller-supplied init parameter at all (no `projectedValue`,
-            // get-only `wrappedValue` — verified directly), so unlike
-            // real-world SwiftUI (where a non-private `@Namespace` is common,
-            // e.g. to pass into a child view), this macro requires it private
-            // regardless — the same reasoning `@Environment` already sets
-            // precedent for.
-            let isSourceOfTruth =
-                property.isEnvironment || property.isQuery || property.isBindingBackedStorage
-                || property.isFocusState || property.isNamespace || property.isGestureState
-                || property.isAccessibilityFocusState || property.isScaledMetric
+            // The mapped source-of-truth wrappers — @State/@AppStorage/
+            // @SceneStorage/@Query — are
+            // a view's own source of truth, never something a caller supplies
+            // (that's what @Binding is for), so they must be private.
+            // Enforced here, not accommodated later: every renderer
+            // downstream can assume the substituted set is always private,
+            // with no "what if it's also public" case to reason about or
+            // test. Unknown wrappers (and @Environment/@GestureState/… — this
+            // macro treats them the same) carry no privacy requirement: their
+            // declaration is copied onto Core verbatim either way, and a
+            // non-private one simply participates in the generated init like
+            // any other non-private field.
+            let isSourceOfTruth = property.isSubstitutedOnCore
             if isSourceOfTruth, !property.isPrivate {
                 context.diagnose(
                     Diagnostic(
@@ -286,12 +211,9 @@ public func collectStoredProperties(
                 continue
             }
 
-            // @Binding/@Bindable/@ViewBuilder are the opposite of a
-            // source-of-truth wrapper: a caller supplies them through the
-            // generated init, so declaring one private makes it unreachable.
-            // Checked before the generic "unrecognized wrapper" case below so
-            // these three get a message naming the real problem (private,
-            // not unrecognized).
+            // @Binding/@ViewBuilder are the opposite of a source-of-truth
+            // wrapper: a caller supplies them through the generated init, so
+            // declaring one private makes it unreachable.
             if property.isPrivate, property.isCallerSuppliedWrapper {
                 context.diagnose(
                     Diagnostic(
@@ -325,47 +247,16 @@ public func collectStoredProperties(
                 continue
             }
 
-            // A private property carrying SOME wrapper attribute this package
-            // doesn't recognize (@StateObject, a future SwiftUI
-            // wrapper, …) is refused outright, rather than silently treated as
-            // ordinary opaque private state. Silent fallthrough is exactly how
-            // @FocusState went unsupported for a while: it compiled fine, it
-            // just quietly never appeared in OutFlow/Core. Forcing a
-            // diagnostic here means any future wrapper this macro hasn't been
-            // taught about fails loudly instead of compiling into a silent gap.
-            if property.isPrivate, let wrapperName = property.wrapperName, !isSourceOfTruth {
-                context.diagnose(
-                    Diagnostic(
-                        node: Syntax(binding),
-                        message: DataTypeMacroDiagnostic.unsupportedPrivateWrapper(
-                            macroName: macroName, propertyName: property.name,
-                            wrapperName: wrapperName
-                        )
-                    )
-                )
-                hadError = true
-                continue
-            }
-
-            // Init parameters need a written type; so do
-            // @Environment/@Query/@State/@AppStorage/@SceneStorage/@FocusState
-            // properties, even though they're excluded from *this* type's own
-            // init — @Shell (see ShellRendering.swift) reads
-            // their type to build its field (all six eventually get folded
-            // into Core's own init, as a plain captured value or a
-            // @Binding/@FocusState.Binding substitute). Every other private
-            // property — inline-initialized `let` constants, plain private
-            // state — is exempt (`private var ole = 0` needs no annotation and
-            // doesn't participate in either). `@Namespace` doesn't need this
-            // exemption at all — its type is always pre-filled as
-            // `Namespace.ID` above, never `nil`, so this check never even sees
-            // a missing type to diagnose for it.
-            let needsType =
-                !property.isPrivate || property.isEnvironment || property.isQuery
-                || property.isBindingBackedStorage || property.isFocusState
-                || property.isGestureState || property.isAccessibilityFocusState
-                || property.isScaledMetric
-            if needsType, property.type == nil {
+            // Every property that gets this far needs a written type — init
+            // parameters obviously, but private wrapper fields too, even the
+            // ones excluded from the init: `OutFlow` reads the type to build
+            // its tuple field. A wrapper this macro doesn't map
+            // (@Environment, @GestureState, @StateObject, a custom one, …) is
+            // deliberately NOT refused — it's unknown, and unknowns are
+            // copied onto `Core` verbatim (see `renderShell`). `@Namespace`
+            // never trips this check — its type is always pre-filled as
+            // `Namespace.ID` above, never `nil`.
+            if property.type == nil {
                 context.diagnose(
                     Diagnostic(
                         node: Syntax(binding),
@@ -492,7 +383,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-                "'\(propertyName)' must be private — @State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState/@AccessibilityFocusState/@ScaledMetric are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                "'\(propertyName)' must be private — @State/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
             id: "sourceOfTruthMustBePrivate"
         )
     }
@@ -502,7 +393,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-                "'\(propertyName)' is private with no property wrapper — @\(macroName) has no room for opaque private state in pure data flow. Make it non-private, or give it a recognized source-of-truth wrapper (@State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/@Namespace/@GestureState/@AccessibilityFocusState/@ScaledMetric).",
+                "'\(propertyName)' is private with no property wrapper — @\(macroName) has no room for opaque private state in pure data flow. Make it non-private, or give it a property wrapper (mapped ones are substituted with mockable stand-ins; any other is copied onto Core verbatim).",
             id: "plainPrivatePropertyNotAllowed"
         )
     }
@@ -519,15 +410,4 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
         )
     }
 
-    public static func unsupportedPrivateWrapper(
-        macroName: String, propertyName: String, wrapperName: String
-    )
-        -> DataTypeMacroDiagnostic
-    {
-        DataTypeMacroDiagnostic(
-            message:
-                "'\(propertyName)' uses @\(wrapperName), a private property wrapper @\(macroName) doesn't recognize — it would be silently excluded from OutFlow/Core instead of captured like @Environment/@Query/@State/@AppStorage/@SceneStorage/@FocusState/@Namespace. Make '\(propertyName)' non-private, remove @\(wrapperName), or extend this macro's support for it.",
-            id: "unsupportedPrivateWrapper"
-        )
-    }
 }

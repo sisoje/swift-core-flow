@@ -7,13 +7,10 @@ import SwiftSyntax
 /// `InFlow` typealias with an `inFlow` computed property for reading the current
 /// instance's data back *out* (readable/reflectable, see
 /// `renderInFlowTypealias`/`renderInFlowProperty`), and an `OutFlow` typealias
-/// with an `outFlow` computed property: `InFlow`'s fields plus every recognized
-/// private source-of-truth wrapper (`@Query`/`@State`/`@AppStorage`/
-/// `@SceneStorage`/`@FocusState`/`@AccessibilityFocusState`/`@GestureState`/
-/// `@ScaledMetric`/`@Environment`/`@Namespace` — see
-/// `outFlowProperties`), in declaration order (see
-/// `renderOutFlowTypealias`/`renderOutFlowProperty`). `access` is a modifier
-/// prefix such as `"public "` or `""` (internal).
+/// with an `outFlow` computed property: `InFlow`'s fields plus every private
+/// wrapper field, mapped or not (see `outFlowProperties`), in declaration
+/// order (see `renderOutFlowTypealias`/`renderOutFlowProperty`). `access` is a
+/// modifier prefix such as `"public "` or `""` (internal).
 public func renderFlowable(properties: [StoredProperty], access: String) -> [DeclSyntax] {
     let initParams = properties.filter { !$0.isPrivate }
 
@@ -227,44 +224,33 @@ func renderInFlowProperty(properties: [StoredProperty], access: String) -> DeclS
     )
 }
 
-/// The properties `OutFlow`/`outFlow` (below) include: every non-private
-/// participating property (same set `InFlow` has), plus every recognized
-/// private source-of-truth wrapper — `@Query`/`@State`/`@AppStorage`/
-/// `@SceneStorage`/`@FocusState`/`@Environment`/`@Namespace` — the view's own
-/// externally-relevant *capturable* state, alongside its public data, no
-/// exceptions. In declaration order, same as `properties` itself; not
-/// data-layout fields first and wrapper fields appended after.
+/// The properties `OutFlow`/`outFlow` (below) include: **all of them** —
+/// every non-private participating property (same set `InFlow` has), plus
+/// every private wrapper field, mapped or unknown. In declaration order, same
+/// as `properties` itself; not data-layout fields first and wrapper fields
+/// appended after.
 ///
-/// **No wrapper kind is excluded** — an earlier revision left `@Environment`
-/// out on the theory that a captured snapshot goes stale the moment the real
-/// environment changes, and that its own mocking story (inject a different
-/// value where the type is constructed/hosted) already covers testing it
-/// without this package's help. That reasoning was reconsidered: every
-/// private property this package recognizes at all *is* a source of truth,
-/// full stop, and `@Shell` never excluded `@Environment` either — the
-/// asymmetry was the actual defect, not a deliberate design choice worth
-/// keeping. `OutFlow`'s field set is identical to `@Shell`'s now (see
-/// `outFlowProperties`'s reuse in `ShellRendering.swift`).
-///
-/// There's nothing left to exclude here at all — every property this function
-/// sees is already guaranteed a recognized shape: a private property with no
-/// wrapper (`private var cache = 0`) or an unrecognized one (`@StateObject`, a
-/// future SwiftUI wrapper this package hasn't been taught about, …) is refused
-/// outright by `collectStoredProperties`
-/// (`plainPrivatePropertyNotAllowed`/`unsupportedPrivateWrapper`,
-/// `StoredProperty.swift`) before it ever reaches this filter.
+/// The identity return is deliberate, not an oversight — there's nothing left
+/// to exclude: a private property with no wrapper (`private var cache = 0`)
+/// is refused outright by `collectStoredProperties`
+/// (`plainPrivatePropertyNotAllowed`, `StoredProperty.swift`), and any
+/// *unmapped* wrapper (`@Environment`, `@GestureState`, `@StateObject`, a
+/// custom one, …) participates uniformly — its `OutFlow` field is the bare
+/// declared type read as `x` (`baseTypeText`/`fieldReadExpression`'s
+/// default), and `@Shell` copies its declaration onto `Core` verbatim. (An
+/// earlier revision refused unrecognized private wrappers with a dedicated
+/// diagnostic, back when each recognized wrapper needed hand-built capture
+/// logic; the verbatim-copy default made that gatekeeping pointless.) The
+/// function is kept — rather than inlined away — as the single shared name
+/// `renderShell` and the `OutFlow` renderers below all draw their field set
+/// from.
 func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
-    properties.filter {
-        !$0.isPrivate || $0.isQuery || $0.isBindingBackedStorage || $0.isFocusState
-            || $0.isEnvironment || $0.isNamespace || $0.isGestureState
-            || $0.isAccessibilityFocusState || $0.isScaledMetric
-    }
+    properties
 }
 
 /// A field's `OutFlow` type — distinct from `baseTypeText` (used by
-/// `InFlowSplat`/`InFlow`), since `@Query`/`@State`/`@AppStorage`/
-/// `@SceneStorage`/`@FocusState` need their own mapping, not the
-/// `@Binding`/`@ViewBuilder` one `baseTypeText` knows:
+/// `InFlowSplat`/`InFlow`), since the whitelisted wrappers need their own
+/// mapping, not the `@Binding`/`@ViewBuilder` one `baseTypeText` knows:
 /// - **Non-private fields** use `baseTypeText` unchanged — same rules `InFlow`
 ///   already applies (`Binding<T>` for `@Binding`, `@ViewBuilder` unwrapped to its
 ///   bare type, everything else as declared).
@@ -278,38 +264,21 @@ func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
 ///   synthesized a bare `(wrappedValue:, fetchError:)` tuple via `#pick`
 ///   instead — replaced by the real wrapper so `Core`'s field reads the
 ///   fetched value directly (`core.items`, not `.items.wrappedValue`).
-/// - **`@GestureState` needs no case here** — it falls through to the
-///   non-private default, `baseTypeText`, same as `@Environment`/`@Namespace`.
-///   `GestureState<T>`'s own surface is nothing beyond `wrappedValue`/a
-///   self-returning `projectedValue`, so a plain-value `OutFlow` snapshot
-///   loses no metadata worth keeping. (`Core`, `@Shell`'s twin, copies the
-///   whole `@GestureState` declaration verbatim instead — it needs the live
-///   `$x` projection; see `renderShell` in `ShellRendering.swift`.)
 /// - **`@State`/`@AppStorage`/`@SceneStorage`** (`isBindingBackedStorage`) →
 ///   `Binding<T>`, since these are the view's own read-*and-write*-able
 ///   storage from the outside — `$x` already gives the real thing, since
 ///   all three wrappers' `projectedValue` genuinely *is* `Binding<T>`
 ///   (verified directly against the real SwiftUI interface, `@SceneStorage`
 ///   included).
-/// - **`@FocusState`** (`isFocusState`) → `FocusState<T>.Binding`, **not**
-///   `Binding<T>` — a deliberately different type from the row above it, even
-///   though both are read via `$x`. Verified directly against the real
-///   SwiftUI interface: `FocusState<T>.Binding` exposes only `wrappedValue` and
-///   `projectedValue` (itself), no public initializer at all and no conversion
-///   to `Binding<T>` — so `$x` here resolves to a different concrete type
-///   than it does for `@State`/`@AppStorage`/`@SceneStorage`, and there's no
-///   way to normalize the two into one shared type without fabricating a fake
-///   `Binding<T>` that satisfies neither `.focused(_:)` nor anything else
-///   expecting the real projection back.
+/// - **Every unmapped wrapper needs no case here** — `@Environment`,
+///   `@GestureState`, `@FocusState`, `@Namespace`, `@StateObject`, a custom
+///   one, … all fall through to `baseTypeText`: the bare declared type, a
+///   plain-value snapshot of the current `wrappedValue`. (`Core`, `@Shell`'s
+///   twin, copies an unmapped wrapper's whole declaration verbatim instead;
+///   see `renderShell` in `ShellRendering.swift`.)
 func outFlowFieldType(_ p: StoredProperty) -> String {
     if p.isBindingBackedStorage {
         return "Binding<\(p.type?.trimmedDescription ?? "")>"
-    }
-    if p.isFocusState {
-        return "FocusState<\(p.type?.trimmedDescription ?? "")>.Binding"
-    }
-    if p.isAccessibilityFocusState {
-        return "AccessibilityFocusState<\(p.type?.trimmedDescription ?? "")>.Binding"
     }
     if p.isQuery {
         return "QueryCore<\(p.type?.trimmedDescription ?? "")>"
@@ -324,13 +293,9 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
 /// identifier to collide with (verified directly).
 /// - **Non-private fields** use `fieldReadExpression` unchanged (`x`, or
 ///   `$x` for `@Binding`).
-/// - **`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState`** all read the
+/// - **`@State`/`@AppStorage`/`@SceneStorage`** all read the
 ///   *projected* value, `$x` — not `_x`, which gives the wrapper
-///   instance itself (`State<T>`, not `Binding<T>`; verified directly). Same
-///   expression for all four; only the resulting *type* differs (see
-///   `outFlowFieldType` above) — `@FocusState`'s own `projectedValue` happens
-///   to be `FocusState<T>.Binding` rather than `Binding<T>`, but it's still
-///   reached the exact same way.
+///   instance itself (`State<T>`, not `Binding<T>`; verified directly).
 /// - **`@Query`** reads `QueryCore(wrappedValue: _x.wrappedValue, fetchError:
 ///   _x.fetchError, modelContext: _x.modelContext)` — `_x` is the wrapper
 ///   *instance* itself (type `Query<Element, Result>`, the same
@@ -340,11 +305,11 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
 ///   `modelContext` outside a live container works — verified directly, no
 ///   crash — so capturing it eagerly here is safe even for snapshots built in
 ///   plain code.
-/// - **`@GestureState`** reads `x` — the plain current wrapped value, same as
-///   any other non-private field (see `outFlowFieldType` above for why it
-///   needs no dedicated case).
+/// - **Every unmapped wrapper** reads `x` — the plain current wrapped value,
+///   same as any non-private field (see `outFlowFieldType` above for why none
+///   needs a dedicated case).
 func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
-    if p.isBindingBackedStorage || p.isFocusState || p.isAccessibilityFocusState {
+    if p.isBindingBackedStorage {
         return "$\(p.name)"
     }
     if p.isQuery {

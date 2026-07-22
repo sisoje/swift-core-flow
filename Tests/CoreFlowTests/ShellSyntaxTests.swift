@@ -13,6 +13,11 @@ final class ShellSyntaxTests: XCTestCase {
         // defaulted, QueryCore's init is callable with the wrapped value alone,
         // so Core's synthesized memberwise init takes the bare value — tests
         // write `Core(items: [item], ...)` with no QueryCore spelling at all.
+        // @Environment is copied verbatim (key-path argument and `private`
+        // kept, like @GestureState): initialized by its own attribute
+        // arguments, it drops out of Core's memberwise init, so the capture
+        // omits it — Core reads the live environment when hosted, the default
+        // EnvironmentValues otherwise.
         assertMacroExpansion(
             """
             @Shell
@@ -34,14 +39,10 @@ final class ShellSyntaxTests: XCTestCase {
 
                     struct Core {
                         @RawProperty @QueryCore var items: [Item]
-                        var colorScheme: ColorScheme
+                        @Environment(\\.colorScheme) private var colorScheme: ColorScheme
                         @RawProperty @Binding var isExpanded: Bool
                         @RawProperty @Binding var isOn: Bool
                         var title: String
-                    }
-
-                    var core: Core {
-                        Core(items: _items.wrappedValue, colorScheme: colorScheme, isExpanded: $isExpanded, isOn: $isOn, title: title)
                     }
                 }
                 """,
@@ -49,13 +50,15 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
-    func testFocusStateRedeclaresItsOwnRealBindingAttributeNotAt() {
-        // @FocusState gets its own substituted attribute — @FocusState<T>.Binding,
-        // not @Binding — since @FocusState's own projectedValue is
-        // FocusState<T>.Binding, not Binding<T> (verified directly, no public
-        // conversion between the two). The real FocusState<T>.Binding is itself
-        // @propertyWrapper-attributed, so it redeclares onto Core the
-        // same way @Binding does for @State/@AppStorage.
+    func testFocusStateIsUnmappedSoItIsCopiedVerbatim() {
+        // @FocusState was once whitelisted (substituted with its own
+        // FocusState<T>.Binding projection) and got cut: that projection has
+        // no public initializer — a test can't back it with its own closures
+        // — and its writes no-op outside a live view anyway (verified
+        // directly), so the substitution was a pass-through pretending to be
+        // a mock. Unmapped now: copied verbatim, private kept, dropped from
+        // the memberwise init (FocusState self-initializes via its own
+        // init()) — sealed, like every private verbatim copy.
         assertMacroExpansion(
             """
             @Shell
@@ -70,12 +73,8 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @RawProperty @FocusState<Bool>.Binding var isFocused: Bool
+                        @FocusState private var isFocused: Bool
                         var title: String
-                    }
-
-                    var core: Core {
-                        Core(isFocused: $isFocused, title: title)
                     }
                 }
                 """,
@@ -84,16 +83,16 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testGestureStateIsCopiedVerbatimOntoCorePrivateKept() {
-        // @GestureState is a pure-UI wrapper used as-is: its whole declaration
-        // — attribute (with reset: arguments), default, and `private` — is
-        // copied onto Core byte-for-byte, not substituted with a stand-in
-        // type. The reset closure lives in the copied attribute text, so it
-        // carries over with nothing to reconstruct (an earlier design that
-        // reconstructed a fresh @GestureState var from the bare wrapper name
-        // silently swapped it for the default reset, proved live by
-        // TrickyDragCardUITests). Because the field stays private with a
-        // default, it drops out of Core's memberwise init — so `core` omits
-        // dragOffset entirely (it starts fresh at .zero).
+        // @GestureState isn't on the mapping whitelist — unknown, used as-is:
+        // its whole declaration — attribute (with reset: arguments), default,
+        // and `private` — is copied onto Core byte-for-byte, not substituted
+        // with a stand-in type. The reset closure lives in the copied
+        // attribute text, so it carries over with nothing to reconstruct (an
+        // earlier design that reconstructed a fresh @GestureState var from
+        // the bare wrapper name silently swapped it for the default reset,
+        // proved live by TrickyDragCardUITests). Because the field stays
+        // private with a default, it drops out of Core's memberwise init — so
+        // `core` omits dragOffset entirely (it starts fresh at .zero).
         assertMacroExpansion(
             """
             @Shell
@@ -108,14 +107,51 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @RawProperty @GestureState(reset: { _, transaction in
+                        @GestureState(reset: { _, transaction in
                             transaction = Transaction()
                         }) private var dragOffset: CGSize = .zero
                         var title: String
                     }
+                }
+                """,
+            macros: macros
+        )
+    }
 
-                    var core: Core {
-                        Core(title: title)
+    func testAWrapperThisPackageHasNeverHeardOfIsCopiedVerbatimToo() {
+        // The whole point of the whitelist design: anything not on it —
+        // @StateObject, a future SwiftUI wrapper, a custom one — is unknown
+        // and gets the identical verbatim-copy treatment (arguments, access
+        // modifier, and default included). No refusal diagnostic (an earlier
+        // revision rejected unrecognized private wrappers outright). A
+        // private one drops out of Core's memberwise init, sealed, no raw_;
+        // a non-private one stays a parameter of the wrapper's own type,
+        // captured as its backing instance `_x`, with @RawProperty stamped
+        // (raw_ goes on non-private wrapper fields only). Plain fields keep
+        // their initial value too (`flavor` below), so their memberwise
+        // parameter comes defaulted.
+        assertMacroExpansion(
+            """
+            @Shell
+            struct Exotic {
+                @StateObject private var vm: VM = VM()
+                @Whatever(flavor: .spicy) var knob: Int = 7
+                var flavor = "mild"
+                let title: String
+            }
+            """,
+            expandedSource: """
+                struct Exotic {
+                    @StateObject private var vm: VM = VM()
+                    @Whatever(flavor: .spicy) var knob: Int = 7
+                    var flavor = "mild"
+                    let title: String
+
+                    struct Core {
+                        @StateObject private var vm: VM = VM()
+                        @RawProperty @Whatever(flavor: .spicy) var knob: Int = 7
+                        var flavor: String = "mild"
+                        var title: String
                     }
                 }
                 """,
@@ -124,11 +160,9 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testAccessibilityFocusStateGetsFocusStatesExactTreatment() {
-        // An exact @FocusState clone — verified directly against the real
-        // SwiftUI interface: same nested @propertyWrapper Binding shape,
-        // settable wrappedValue, no conversion to Binding<T> — so it gets the
-        // same substituted-attribute treatment, and snap.$x feeds
-        // .accessibilityFocused(_:) directly.
+        // An exact @FocusState clone (verified directly against the real
+        // SwiftUI interface), so it gets the identical unmapped treatment:
+        // copied verbatim, private kept, dropped from the memberwise init.
         assertMacroExpansion(
             """
             @Shell
@@ -143,12 +177,8 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @RawProperty @AccessibilityFocusState<Bool>.Binding var a11yFocused: Bool
+                        @AccessibilityFocusState private var a11yFocused: Bool
                         var title: String
-                    }
-
-                    var core: Core {
-                        Core(a11yFocused: $a11yFocused, title: title)
                     }
                 }
                 """,
@@ -156,11 +186,13 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
-    func testScaledMetricIsCapturedAsAPlainLetLikeEnvironment() {
-        // Get-only wrappedValue, no projectedValue at all (verified directly)
-        // — a plain value field. Redeclaring @ScaledMetric on Core would
-        // double-scale: its init takes the *base* value, but the host reads
-        // back the already-scaled one.
+    func testScaledMetricIsUnmappedSoItIsCopiedVerbatim() {
+        // @ScaledMetric isn't on the mapping whitelist — unknown, copied onto
+        // Core verbatim with its BASE value and any relativeTo: argument
+        // riding along in the attribute text. No double-scaling here, unlike
+        // the old capture-the-scaled-value design would have hit if it had
+        // redeclared the wrapper from the bare name: Core's copy scales its
+        // own base value itself, exactly like the host.
         assertMacroExpansion(
             """
             @Shell
@@ -175,12 +207,8 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        var iconSize: CGFloat
+                        @ScaledMetric private var iconSize: CGFloat = 24
                         var title: String
-                    }
-
-                    var core: Core {
-                        Core(iconSize: iconSize, title: title)
                     }
                 }
                 """,
@@ -210,25 +238,22 @@ final class ShellSyntaxTests: XCTestCase {
                         @RawProperty @Binding var isPinned: Bool
                         var title: String
                     }
-
-                    var core: Core {
-                        Core(isPinned: $isPinned, title: title)
-                    }
                 }
                 """,
             macros: macros
         )
     }
 
-    func testNamespaceIsGroupedWithEnvironmentAsAPlainLetAndNeedsNoExplicitType() {
-        // @Namespace has no projectedValue at all (unlike @State/@AppStorage/
-        // @FocusState) and a get-only wrappedValue (like @Environment) —
-        // verified directly against the real SwiftUI interface — so it gets
-        // the exact same plain, unattributed `let` treatment @Environment does.
-        // Unlike every other recognized wrapper, `@Namespace` needs no explicit
-        // type annotation at all: it has exactly one possible wrapped type
-        // (`Namespace.ID`), so this macro fills that in itself rather than
-        // diagnosing a missing type.
+    func testNamespaceIsUnmappedSoItIsCopiedVerbatim() {
+        // @Namespace isn't on the mapping whitelist, so it's unknown to
+        // @Shell and copied onto Core verbatim, `private` kept — Core mints
+        // its own namespace, self-initialized by the wrapper's own init(), so
+        // the field drops out of Core's memberwise init and the capture
+        // omits it (verified directly that a self-initializing private
+        // wrapper keeps the memberwise init internal). The one @Namespace
+        // nicety that DOES survive: it needs no explicit type annotation —
+        // it has exactly one possible wrapped type (`Namespace.ID`), so the
+        // collection fills that in rather than diagnosing a missing type.
         assertMacroExpansion(
             """
             @Shell
@@ -243,12 +268,8 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        var ns: Namespace.ID
+                        @Namespace private var ns: Namespace.ID
                         var title: String
-                    }
-
-                    var core: Core {
-                        Core(ns: ns, title: title)
                     }
                 }
                 """,
@@ -272,24 +293,22 @@ final class ShellSyntaxTests: XCTestCase {
                     struct Core {
 
                     }
-
-                    var core: Core {
-                        Core()
-                    }
                 }
                 """,
             macros: macros
         )
     }
 
-    func testPlainAndViewBuilderFieldsAreLetWhileBindableStaysVar() {
-        // @ViewBuilder is mirrored only for the stored-closure form (content) —
+    func testPlainViewBuilderAndUnmappedNonPrivateFieldsStayInTheInit() {
+        // @ViewBuilder is kept only for the stored-closure form (content) —
         // its field type is already a closure, so the attribute is pure upside.
-        // For the stored-value form (footer), mirroring it would force Swift's
+        // For the stored-value form (footer), keeping it would force Swift's
         // synthesized init to wrap the parameter in a builder closure purely to
         // satisfy the attribute (verified directly) — dropped entirely instead,
-        // so footer stays a plain `let footer: Content`, passed straight
-        // through with no wrapping on either side.
+        // so footer stays a plain field, passed straight through with no
+        // wrapping on either side. @Bindable is unmapped — copied verbatim
+        // (no @RawProperty, nothing to mock) — and being non-private it stays
+        // a memberwise-init parameter like any other non-private field.
         assertMacroExpansion(
             """
             @Shell
@@ -312,10 +331,6 @@ final class ShellSyntaxTests: XCTestCase {
                         @RawProperty @Bindable var model: Settings
                         @ViewBuilder var content: () -> Content
                         var footer: Content
-                    }
-
-                    var core: Core {
-                        Core(subtitle: subtitle, model: model, content: content, footer: footer)
                     }
                 }
                 """,
@@ -355,10 +370,6 @@ final class ShellSyntaxTests: XCTestCase {
                             Text("\\(count)")
                         }
                     }
-
-                    var core: Core {
-                        Core(count: $count)
-                    }
                 }
                 """,
             macros: macros
@@ -394,10 +405,6 @@ final class ShellSyntaxTests: XCTestCase {
                         func body(content: Content) -> some View {
                             content.opacity(level)
                         }
-                    }
-
-                    var core: Core {
-                        Core(level: $level)
                     }
                 }
                 """,
@@ -477,10 +484,6 @@ final class ShellSyntaxTests: XCTestCase {
                             Text(label())
                         }
                     }
-
-                    var core: Core {
-                        Core(count: $count)
-                    }
                 }
                 """,
             macros: macros
@@ -506,10 +509,6 @@ final class ShellSyntaxTests: XCTestCase {
                     struct Core {
                         var title: String
                     }
-
-                    var core: Core {
-                        Core(title: title)
-                    }
                 }
                 """,
             macros: macros
@@ -533,10 +532,6 @@ final class ShellSyntaxTests: XCTestCase {
                     struct Core {
                         var x: Int
                         var y: Int
-                    }
-
-                    var core: Core {
-                        Core(x: x, y: y)
                     }
                 }
                 """,

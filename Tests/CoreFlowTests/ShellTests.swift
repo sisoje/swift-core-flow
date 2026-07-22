@@ -36,28 +36,24 @@ struct StatefulCard: View {
 }
 
 /// Builds a fully-mocked Core directly — no live view, no host instance, no
-/// SwiftUI render pipeline. Every substituted wrapper is fabricated from
-/// plain code: `Binding` from a getter/setter pair, `FocusState<T>.Binding`
-/// from a fresh `FocusState` instance's own projection (it has no public
-/// initializer of its own — verified directly — but `FocusState()` mints one
-/// fine outside a live view), `Namespace.ID` from a fresh `Namespace`. There's
-/// deliberately no `dragOffset` parameter: `@GestureState` is copied onto Core
-/// verbatim and stays `private` with a default, so it drops out of Core's
-/// memberwise init — it defaults to `.zero` here and is mocked afterward via
-/// its `raw_dragOffset` accessor (see `gestureStateIsMockableViaRawAccessor`).
+/// SwiftUI render pipeline. The mapped wrappers are fabricated from plain
+/// code: `Binding` from a getter/setter pair or `.constant`. The unmapped
+/// wrappers — `colorScheme` (@Environment), `ns` (@Namespace), `isFocused`
+/// (@FocusState), `dragOffset` (@GestureState) — have no parameter here at
+/// all: their declarations are copied onto Core verbatim, `private` kept, so
+/// as self-initializing private fields they drop out of Core's memberwise
+/// init and just behave (default `EnvironmentValues`, a fresh namespace,
+/// unfocused, a gesture at `.zero` — see
+/// `copiedBodyAndHelperEvaluateAgainstTheDefaultEnvironment`).
 @MainActor
 private func makeCore(
-    colorScheme: ColorScheme = .light,
     isOn: Binding<Bool> = .constant(true),
     title: String = "x",
     subtitle: String? = nil
 ) -> StatefulCard.Core {
     StatefulCard.Core(
-        colorScheme: colorScheme,
-        ns: Namespace().wrappedValue,
         isExpanded: .constant(false),
         isPinned: .constant(false),
-        isFocused: FocusState<Bool>().projectedValue,
         isOn: isOn,
         title: title,
         subtitle: subtitle
@@ -72,17 +68,22 @@ private func makeCore(
         #expect(snap.isOn == true)  // bare Bool — @Binding unwraps on read
         #expect(snap.isExpanded == false)  // bare Bool, @State's @Binding substitution
         #expect(snap.isPinned == false)  // same substitution for @SceneStorage
-        #expect(snap.isFocused == false)  // via @FocusState<Bool>.Binding's own unwrap
         #expect(snap.title == "Settings")
         #expect(snap.subtitle == nil)  // plain `let` on Core, regardless of the original `var`
     }
 
-    @Test func copiedBodyAndHelperEvaluateAgainstMockedFields() {
+    @Test func copiedBodyAndHelperEvaluateAgainstTheDefaultEnvironment() {
         // `body` and the `heading` helper it calls were both copied verbatim
-        // off the host — the whole point of the design: the identical code
-        // runs against mocked, plain fields with no live view anywhere.
-        let snap = makeCore(colorScheme: .dark, title: "abc")
-        #expect(snap.heading == "ABC")
+        // off the host — the identical code runs with no live view anywhere.
+        // `heading` reads Core's own verbatim-copied @Environment colorScheme,
+        // which outside a live view is the default EnvironmentValues (.light —
+        // same behavior OutFlowTests verifies for the host's own wrapper), so
+        // the title comes back un-uppercased. Mocking an environment *value*
+        // is the one thing direct construction can't do — that's the
+        // wrapper's own design (get-only, no wrappedValue init); hosted in a
+        // preview, `.environment(\.colorScheme, .dark)` is the native story.
+        let snap = makeCore(title: "abc")
+        #expect(snap.heading == "abc")
         _ = snap.body
     }
 
@@ -93,13 +94,6 @@ private func makeCore(
         let snap = makeCore(isOn: Binding(get: { isOnStorage }, set: { isOnStorage = $0 }))
         snap.isOn = true
         #expect(isOnStorage == true)
-    }
-
-    @Test func focusStateBindingPlugsIntoFocusedModifier() {
-        // snap.$isFocused is a genuine FocusState<Bool>.Binding — not a
-        // fabricated stand-in — so it feeds `.focused(_:)` directly.
-        let snap = makeCore()
-        _ = Text("hi").focused(snap.$isFocused)
     }
 
     @Test func capturedCoreCopyIsFullyReMockable() {
@@ -116,15 +110,17 @@ private func makeCore(
         #expect(mutable.subtitle == "remocked")
     }
 
-    @Test func gestureStateIsMockableViaRawAccessor() {
-        // Core's @GestureState field is copied verbatim and stays private with
-        // a default, so it's neither an init parameter nor readable as
-        // snap.dragOffset — mocking goes through the @RawProperty accessor.
-        // Swap in a seeded GestureState (outside a live view it reads back its
-        // seed); raw_dragOffset is the real GestureState<CGSize> .updating(_:)
-        // takes.
-        var snap = makeCore()
-        snap.raw_dragOffset = GestureState(wrappedValue: CGSize(width: 50, height: 7))
-        #expect(snap.raw_dragOffset.wrappedValue == CGSize(width: 50, height: 7))
+    @Test func privateVerbatimWrappersAreCompletelySealed() {
+        // @Environment/@FocusState/@GestureState/@Namespace are unknown to
+        // @Shell and private on the host — their declarations are copied onto
+        // Core verbatim, `private` kept, so a directly constructed Core
+        // neither takes them as init parameters nor exposes their values, and
+        // they get no raw_ accessor either (that's for non-private wrapper
+        // fields): sealed, they just behave. All that's observable from
+        // outside is that construction works without them and the copied
+        // members still evaluate against Core's own live copies.
+        let snap = makeCore(title: "t")
+        #expect(snap.title == "t")
+        _ = snap.body
     }
 }

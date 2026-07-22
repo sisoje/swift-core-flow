@@ -26,11 +26,8 @@
     /// takes the *bare* value (`x: T`), not the wrapper type — verified
     /// directly — which is exactly the ergonomic point: a test writes
     /// `Core(items: [item], title: "t")` with no `QueryCore` spelling at all.
-    /// `@Shell`'s generated `core` capture passes `_x.wrappedValue` to match,
-    /// so a captured `Core`'s `fetchError`/`modelContext` take these defaults
-    /// rather than the host's live values (same "capture carries data, not
-    /// live-wrapper metadata" rule `@GestureState` follows; `@Flowable`'s
-    /// `outFlow` tuple still captures all three off the live wrapper). To seed
+    /// (`@Flowable`'s
+    /// `outFlow` tuple still captures all three off the live wrapper.) To seed
     /// either field explicitly, construct the wrapper yourself and swap it in
     /// through the `@RawProperty` accessor:
     /// `m.raw_items = QueryCore(wrappedValue: [item], fetchError: err)`.

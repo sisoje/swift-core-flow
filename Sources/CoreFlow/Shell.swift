@@ -2,16 +2,14 @@
 /// attached type's own access level, and carrying no `@Flowable` — the
 /// host's standalone, directly-constructible twin. Two ingredients:
 ///
-/// 1. **Substituted fields** — the same field set as `@Flowable`'s
-///    `OutFlow`/`outFlow` (every non-private participating property, plus
-///    every recognized private source-of-truth wrapper), each source-of-truth
-///    wrapper replaced with a plain, mockable stand-in (mapping table below) —
-///    except `@GestureState`, copied as-is rather than substituted (its own
-///    section below).
+/// 1. **Fields** — the same field set as `@Flowable`'s `OutFlow`/`outFlow`,
+///    in exactly two kinds: *mapped* wrappers substituted with a mockable
+///    stand-in (the whitelist below — the only wrappers this package really
+///    knows), and everything else — *unknown* — copied verbatim.
 /// 2. **A verbatim copy of every non-stored member** — `body`, helper
 ///    computed properties, methods, `static` members, nested types. Write the
 ///    host as one completely ordinary SwiftUI view; `Core` carries the
-///    identical code, compiled against the substituted fields.
+///    identical code, compiled against `Core`'s own fields.
 ///
 /// Initializers are the one member kind *not* copied: `Core` is constructed
 /// through Swift's own synthesized memberwise init (in tests/previews, with
@@ -33,7 +31,6 @@
 ///     //     let title: String
 ///     //     var body: some View { ... }   <- the same text, copied
 ///     // }
-///     // var core: Core { Core(items: _items.wrappedValue, isExpanded: $isExpanded, title: title) }
 /// }
 ///
 /// // a test or preview constructs the twin directly, no live view needed —
@@ -41,16 +38,92 @@
 /// // Card.Core(items: [item], isExpanded: .constant(true), title: "t")
 /// ```
 ///
-/// The copy compiles on both types by construction — every substituted field
-/// was designed for read-surface parity: `$x` is `Binding<T>` on both sides
-/// for `@State`/`@AppStorage`/`@SceneStorage`/`@Binding`, `GestureState<T>`
-/// on both since `@GestureState` is copied verbatim rather than substituted,
-/// `FocusState<T>.Binding` on both, and
-/// `@Query`'s fetched value reads directly on both via `@QueryCore`. One
-/// source text, compiler-copied: the live view runs against the real
-/// wrappers with no substitution layer, `Core` is the stateless twin, and
-/// drift between them is impossible. Since the host's `body` is hand-written
-/// source, `#Preview { Card() }` works natively (macro-*generated* names are
+/// ## The transform rules, all three of them
+///
+/// **Rule 1 — no wrapper** (plain `let`/`var`): `var name: T [= default]` —
+/// the initial value is kept, so its memberwise parameter comes defaulted;
+/// `public` is stripped. (A *private* plain field is a compile error — pure
+/// data flow has no room for opaque private state.)
+///
+/// **Rule 2 — the mapping whitelist**, the only wrappers this macro really
+/// knows, all required private: each is substituted with a mockable
+/// stand-in — a test mocks the binding to capture every write the copied
+/// body makes:
+/// - `@State`/`@AppStorage`/`@SceneStorage` → `@Binding var name: T` — their
+///   own storage only installs inside a live SwiftUI view; all three share
+///   this substitution since each one's `projectedValue` genuinely *is*
+///   `Binding<T>` (verified directly, `@SceneStorage` included).
+/// - `@Query` → `@QueryCore var name: T` — this package's own drop-in stand-in
+///   (see `QueryCore.swift`), one-to-one with the live wrapper's instance
+///   surface (`wrappedValue`/`fetchError`/`modelContext`, no `projectedValue`
+///   — verified directly against the `_SwiftData_SwiftUI` interface),
+///   whitelisted for the practical reason that reading a fetched array
+///   shouldn't require standing up an entire SwiftData stack. Its
+///   `fetchError`/`modelContext` params both default, so the field's
+///   memberwise-init parameter is the *bare* fetched value — `Core(name:
+///   [item], …)`, no `QueryCore` spelling at the call site; seed
+///   the metadata fields via `m.raw_name = QueryCore(wrappedValue: [item],
+///   fetchError: err)` when a test does care.
+/// - (`@ViewBuilder` — a result-builder attribute, not a property wrapper —
+///   rides along as init machinery: kept for the
+///   stored-*closure* form, where it buys real builder syntax at `Core`'s
+///   init call site; dropped for the stored-*value* form, where it would
+///   make the synthesized init wrap the parameter in a builder closure to no
+///   benefit — verified directly.)
+///
+/// **The whitelisted wrappers must be private** — enforced with a diagnostic
+/// (`sourceOfTruthMustBePrivate`, `StoredProperty.swift`): they're a view's
+/// own source of truth, never something a caller supplies (that's what
+/// `@Binding` is for). Conversely `@Binding`/`@ViewBuilder` must NOT be
+/// private — a caller supplies them through the generated init.
+///
+/// The whitelist is exactly the wrappers where a substitution buys a REAL
+/// mock, and nothing else. `@FocusState`/`@AccessibilityFocusState` were
+/// once here and got cut: their `.Binding` projections have no public
+/// initializer — a test can't back one with its own closures — and their
+/// writes no-op outside a live view anyway (verified directly), so the
+/// substitution was a pass-through pretending to be a mock; as rule-3
+/// verbatim copies they behave identically when hosted.
+///
+/// **Rule 3 — any other wrapper**, `@Binding` included (it needs no case of
+/// its own: the verbatim copy of `@Binding var x: T` already *is* the mock
+/// vehicle — `Binding(get:set:)` in a test captures every write): the whole
+/// declaration is copied onto `Core` byte-for-byte — attribute (arguments
+/// included) and default value kept, `private` kept, `public` erased.
+/// Whatever lives in the attribute's own arguments (a `reset:` closure, a
+/// key path, a `relativeTo:`) rides along with nothing to reconstruct —
+/// proved live by `TrickyDragCardUITests` in the ExampleApp: an earlier
+/// design reconstructing `@GestureState var` from just the bare wrapper name
+/// silently swapped a custom reset closure for the default one.
+///
+/// A private rule-3 copy is self-initializing by construction (the host
+/// compiled without an init assigning it), so it drops out of `Core`'s
+/// memberwise init and produces its value live instead: an `@Environment` copy reads the real
+/// environment *reactively* when `Core` is hosted (mock it there via
+/// `.environment(...)`, the wrapper's own native story) and the default
+/// `EnvironmentValues` outside a live view; a `@GestureState` copy starts a
+/// fresh gesture at its declared default. A non-private rule-3 copy stays a
+/// memberwise parameter of the wrapper's own type.
+///
+/// **Every NON-private wrapper field of `Core` carries a `raw_name`
+/// accessor (`@RawProperty`)** over its private backing storage — the
+/// whitelisted substitutes (always non-private on `Core`) and non-private
+/// verbatim copies — so the wrapper *instance* itself can be swapped
+/// (`var m = Core(...); m.raw_isOn = .constant(false)`), and every field
+/// is `var`. Private verbatim copies get no `raw_` — sealed: not init
+/// parameters, not readable, not mocked, they just behave. One access
+/// check, no per-wrapper knowledge.
+///
+/// The copy compiles on both types by construction — the whitelisted fields
+/// were designed for read-surface parity (`$x` is `Binding<T>` on both sides
+/// for `@State`/`@AppStorage`/`@SceneStorage`, `@Query`'s fetched value
+/// reads directly on both via
+/// `@QueryCore`), and a verbatim-copied field trivially reads the same on
+/// both sides, because it *is* the same declaration. One source text,
+/// compiler-copied: the live view runs against the real wrappers with no
+/// substitution layer, `Core` is the mockable twin, and drift between them
+/// is impossible. Since the host's `body` is hand-written source,
+/// `#Preview { Card() }` works natively (macro-*generated* names are
 /// invisible inside `#Preview` — a Swift-level rule; previewing `Core` itself
 /// in a mocked state still needs a `PreviewProvider`).
 ///
@@ -72,72 +145,15 @@
 /// ## Why `Core` is always internal, and carries no `@Flowable`
 /// `Core` is a testing/preview seam, not API surface — even when the host is
 /// `public`, consumers never need the twin; only the module's own tests do
-/// (same module, or `@testable import`). Swift's memberwise-init synthesis
-/// reproduces every field-specific behavior `@Flowable` would generate by
-/// hand — verified directly: a property-wrapper field with no
-/// `init(wrappedValue:)` (`@Binding`, `@FocusState<T>.Binding`) synthesizes a
-/// parameter of the *wrapper's* type, one that does (`@Bindable`) synthesizes
-/// a parameter of the *wrapped* type, and `@ViewBuilder` directly on a stored
+/// (same module, or `@testable import`). Verbatim-copied fields keep
+/// whatever access the host declared, `private` included; every mapped field
+/// is internal. Swift's memberwise-init synthesis reproduces every
+/// field-specific behavior `@Flowable` would generate by hand — verified
+/// directly: a property-wrapper field with no `init(wrappedValue:)`
+/// (`@Binding`) synthesizes a parameter of the
+/// *wrapper's* type, one that does (`@QueryCore`, `@Bindable`) synthesizes a
+/// parameter of the *wrapped* type, and `@ViewBuilder` directly on a stored
 /// `let` synthesizes a real builder parameter for the stored-closure form.
-///
-/// ## The substitution table
-/// - `@Query` → `@QueryCore var name: T` — this package's own drop-in stand-in
-///   (see `QueryCore.swift`), one-to-one with the live wrapper's instance
-///   surface (`wrappedValue`/`fetchError`/`modelContext`, no `projectedValue`
-///   — verified directly against the `_SwiftData_SwiftUI` interface). Its
-///   `fetchError`/`modelContext` params both default, so the field's
-///   memberwise-init parameter is the *bare* fetched value — `Core(name:
-///   [item], …)` — and the `core` capture passes `_name.wrappedValue`; seed
-///   the metadata fields via `m.raw_name = QueryCore(wrappedValue: [item],
-///   fetchError: err)` when a test does care.
-/// - `@GestureState` → copied verbatim, NOT substituted: `@GestureState
-///   private var name: T = default` byte-for-byte (attribute arguments and
-///   default kept, `private` kept — it's a pure-UI wrapper `Core` uses
-///   as-is). An argument-carrying init (`reset:`/`resetTransaction:`) carries
-///   over for free since it lives in the copied attribute text. Because the
-///   field stays `private` with a default it drops out of `Core`'s memberwise
-///   init and isn't readable from outside `Core` — so the generated `core`
-///   property omits it (a captured `Core` starts the gesture fresh at its
-///   declared default, not at the host's transient mid-gesture value); mock it
-///   through the `@RawProperty` accessor:
-///   `m.raw_name = GestureState(wrappedValue: mock)`.
-/// - `@State`/`@AppStorage`/`@SceneStorage` → `@Binding var name: T` — their
-///   own storage only installs inside a live SwiftUI view; all three share
-///   this substitution since each one's `projectedValue` genuinely *is*
-///   `Binding<T>` (verified directly, `@SceneStorage` included).
-/// - `@FocusState` → `@FocusState<T>.Binding var name: T` — its own
-///   substituted attribute, distinct from `@Binding`: `@FocusState`'s
-///   `projectedValue` is `FocusState<T>.Binding`, **not** `Binding<T>`, with
-///   no conversion between them and no public initializer (verified directly).
-///   `FocusState<T>.Binding` is itself `@propertyWrapper`-attributed, so it
-///   redeclares like `@Binding` does — `snap.$name` feeds `.focused(_:)`
-///   directly.
-/// - `@AccessibilityFocusState` → an exact `@FocusState` clone (verified
-///   directly — same nested `Binding` shape), same treatment; `snap.$name`
-///   feeds `.accessibilityFocused(_:)`.
-/// - `@Environment`/`@Namespace`/`@ScaledMetric` → a plain `let name: T` — no
-///   attribute; get-only `wrappedValue`, no usable `projectedValue` (verified
-///   directly for each). For `@ScaledMetric`, redeclaring would double-scale:
-///   its init takes the *base* value, the host reads back the scaled one.
-///
-/// **Every recognized source-of-truth wrapper must be private** — enforced
-/// with a diagnostic (`sourceOfTruthMustBePrivate`, `StoredProperty.swift`):
-/// they're a view's own source of truth, never something a caller supplies
-/// (that's what `@Binding` is for).
-///
-/// ## The rule for everything else: mirror the attribute and type
-/// Every field is `var`, regardless of the original's `let`/`var` — a
-/// captured copy is meant to be re-mocked field by field, and every
-/// genuine-wrapper field additionally has a `raw_name` accessor over its
-/// private backing storage so the wrapper *instance* can be swapped too:
-/// `var m = shell.core; m.raw_isOn = .constant(false)`.
-/// A genuine `@Binding` field mirrors verbatim. `@ViewBuilder` (a
-/// result-builder attribute, not a wrapper) is mirrored only for the
-/// stored-*closure* form, where it buys real builder syntax at the init call
-/// site; for the stored-*value* form it would make the synthesized init wrap
-/// the parameter in a builder closure purely to satisfy the attribute
-/// (verified directly), so it's dropped there. `@Bindable` mirrors with no
-/// special handling.
 ///
 /// ## Automatic `View`/`ViewModifier` detection
 /// When the attached type's own inheritance clause spells `View` or
@@ -155,6 +171,6 @@
 /// typealias or protocol composition, or spelled qualified (`SwiftUI.View`)
 /// is invisible. Only a bare `View`/`ViewModifier` identifier directly on the
 /// attached type is recognized.
-@attached(member, names: named(Core), named(core))
+@attached(member, names: named(Core))
 public macro Shell() =
     #externalMacro(module: "CoreFlowMacros", type: "ShellMacro")

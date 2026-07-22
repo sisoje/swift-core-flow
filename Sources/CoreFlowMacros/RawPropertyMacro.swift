@@ -6,7 +6,7 @@ import SwiftSyntaxMacros
 /// backing storage at internal access — Swift hardcodes that storage private
 /// with no way to loosen it, so once the enclosing struct exists the wrapper
 /// instance itself can't be swapped from outside; this is the escape hatch
-/// (`var copy = shell.core; copy.raw_isOn = .constant(false)`).
+/// (`var copy = makeCore(); copy.raw_isOn = .constant(false)`).
 func renderRawAccessor(name: String, wrapperType: String) -> String {
     """
     var raw_\(name): \(wrapperType) {

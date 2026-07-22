@@ -42,7 +42,7 @@ struct Card: View {
         #expect(out.isOn.wrappedValue == true)
         #expect(out.isExpanded.wrappedValue == false)
         #expect(out.isPinned.wrappedValue == false)
-        #expect(out.isFocused.wrappedValue == false)
+        #expect(out.isFocused == false)  // unmapped wrapper → bare wrapped value
         #expect(out.title == "Settings")
         #expect(out.colorScheme == .light)  // default EnvironmentValues, no live view installed
         _ = out.ns  // just needs to be reachable — see ShellTests.swift for its own instability note
@@ -87,15 +87,4 @@ struct Card: View {
         #expect(card.outFlow.isPinned.wrappedValue == false)
     }
 
-    @Test func outFlowsFocusStateBindingDoesNotWriteThroughOutsideALiveView() {
-        // Same caveat as @State's — verified directly for @FocusState too: its
-        // storage only installs once SwiftUI actually renders the view, so a
-        // write to its own FocusState<Bool>.Binding here silently no-ops
-        // instead of persisting.
-        let isOnBinding = Binding<Bool>(get: { true }, set: { _ in })
-        let card = Card(isOn: isOnBinding, title: "x")
-
-        card.outFlow.isFocused.wrappedValue = true
-        #expect(card.outFlow.isFocused.wrappedValue == false)
-    }
 }

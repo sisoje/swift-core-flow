@@ -34,15 +34,17 @@ A `member` macro, separate from `@Flowable` — it doesn't replace `OutFlow`/
 type's stored properties itself). It generates a nested `Core` struct —
 always internal, regardless of the attached type's own access level, and
 carrying no `@Flowable` — the host's standalone twin: the same field set as
-`OutFlow` (see the [wrapper mapping reference](#wrapper-mapping-reference)),
-each source-of-truth wrapper substituted with a mockable stand-in — except
-`@GestureState`, copied as-is, `private` and all — plus a
+`OutFlow`, in exactly two kinds — *mapped* wrappers substituted with a
+mockable stand-in (the whitelist in the
+[wrapper mapping reference](#wrapper-mapping-reference), the only wrappers
+this package really knows), and everything else — *unknown* — copied
+verbatim, attribute arguments and default kept, `private` kept, `public`
+erased. Plus a
 verbatim copy of every non-stored member — `body`, helpers, methods, static
-members, nested types — plus a `core` computed property capturing one from
-the current instance. Every `Core` field is `var` (the mapping table below
-shows the substitutions; where it says `let`, read `var`), and every wrapper
-field also has a `raw_name` accessor over its backing storage — so a captured
-copy is fully re-mockable: `var m = shell.core; m.raw_isOn = .constant(false)`.
+members, nested types. Every field is `var`, and every non-private wrapper
+field carries a `raw_name` accessor over its backing storage — so any Core
+copy is fully re-mockable, wrapper instances included:
+`var m = makeCore(); m.raw_isOn = .constant(false)`.
 Initializers are the one member kind not copied:
 `Core` is constructed through Swift's synthesized memberwise init, and a
 copied init would suppress it. Members declared in a separate extension of
@@ -74,68 +76,51 @@ Card.Core(items: [item], isExpanded: .constant(true), title: "t")
 
 ### Wrapper mapping reference
 
-Every wrapper kind this package recognizes, and exactly what it becomes on
-`@Shell`'s nested `Core` struct — one row each, no grouping. Types are left
-out below on purpose: each attribute already implies its own type (`@Binding`
-→ `Binding<T>`, `@QueryCore` → `QueryCore<T>`, and so on — spelled out in
-full later in this doc). `OutFlow` follows the same shape, minus the
-`let`/`var`/attribute keyword.
+The transform rules, all three of them. **Rule 1** — no wrapper: `var`,
+initial value kept, `public` stripped. **Rule 2** — the mapping whitelist,
+the only wrapper kinds this package really knows, all required private:
+`@State`/`@AppStorage`/`@SceneStorage` (in a test you mock a `Binding` to
+capture every write the copied body makes) plus `@Query`, substituted for
+the practical reason that reading a fetched array shouldn't require standing
+up an entire SwiftData stack. It's exactly the wrappers where a substitution
+buys a real mock, and nothing else qualifies (`@FocusState`'s `.Binding`
+projection, say, can't be test-backed — no public initializer — and no-ops
+outside a live view, so a stand-in would be a pass-through, not a mock: it's
+just an unknown wrapper). **Rule 3** — any other wrapper, `@Binding`
+included, is unknown and copied verbatim — that's the last row, and it's not
+an error case: `@Binding`, `@Environment`, `@GestureState`, `@Namespace`,
+`@ScaledMetric`, `@Bindable`, `@StateObject`, your own custom wrapper, one
+SwiftUI hasn't shipped yet — all ride onto `Core` byte-for-byte (attribute
+arguments and default value kept, `private` kept, `public` erased) and just
+behave there. Every NON-private wrapper field is stamped `@RawProperty`,
+so the wrapper instance itself stays swappable via `raw_x`; private verbatim
+copies are sealed — no init parameter, no reads, no raw_ — they just behave.
 
-This table is every *source of truth* this package recognizes, plus the plain
-`let`/`var` baseline they're all measured against — `@Binding` and `@Bindable`
-are the two public exceptions, included because they still need a row.
-`@ViewBuilder` isn't one: it's not a source of truth, and its only real nuance
-is covered in the [SwiftUI](#swiftui) section below and the last bullet below
-the table. Every source-of-truth row must be private, enforced with a
-diagnostic, not just convention.
+Types are left out below on purpose: each attribute already implies its own
+type (`@Binding` → `Binding<T>`, `@QueryCore` → `QueryCore<T>`, and so on —
+spelled out in full later in this doc). `OutFlow` follows the same shape,
+minus the `var`/attribute keyword — except the verbatim row, whose `OutFlow`
+field is just the bare wrapped value.
 
-| Shell | Core | Read as |
-|---|---|---|
-| `let`/`var` | `let` | `x` |
-| `@Binding` | `@Binding` | `$x` |
-| `@Bindable` | `@Bindable` | `x` |
-| `@Environment` | `let` | `x` |
-| `@Namespace` | `let` | `x` |
-| `@ScaledMetric` | `let` | `x` |
-| `@Query` | `@QueryCore` | `_x.wrappedValue` |
-| `@GestureState` | `@GestureState` (verbatim, private kept) | as is |
-| `@State` | `@Binding` | `$x` |
-| `@AppStorage` | `@Binding` | `$x` |
-| `@SceneStorage` | `@Binding` | `$x` |
-| `@FocusState` | `@FocusState.Binding` | `$x` |
-| `@AccessibilityFocusState` | `@AccessibilityFocusState.Binding` | `$x` |
+| Shell | Core |
+|---|---|
+| `let`/`var` | `var` (initial value kept) |
+| `@State` | `@Binding` |
+| `@AppStorage` | `@Binding` |
+| `@SceneStorage` | `@Binding` |
+| `@Query` | `@QueryCore` |
+| any other wrapper | verbatim copy (private ones sealed) |
 
-> **`@StateObject` and `@ObservedObject` are NOT supported, on purpose.**
-> They're Combine-era `ObservableObject` wrappers, and this package doesn't
-> recognize either one — declaring one `private` (their normal form) is a
-> compile error (an unrecognized private wrapper), by design, rather than
-> silently falling out of `OutFlow`/`Core` unnoticed. This isn't a gap to
-> fill in later: this package's whole `@Flowable`/`@Shell` model is
-> built for plain, `Equatable`-friendly data and SwiftUI's own native property
-> wrappers, not `ObservableObject`/MVVM-style state containers.
+> **`@StateObject` and `@ObservedObject` are deliberately unmapped.** They're
+> Combine-era `ObservableObject` wrappers — MVVM-shaped state, exactly what
+> this package's plain-data model exists to avoid — so they get no mocking
+> stand-in and never will. Like any unknown wrapper they're copied onto
+> `Core` verbatim and left alone; if you want testable state, model it with
+> the mapped wrappers instead.
 
 **A few things worth spelling out beyond the table above — the last one is about
 `@ViewBuilder`, which isn't a row in it at all (see why above):**
 
-- **`@Binding` reads `$x`, not `_x`.** Verified: `Binding`'s own
-  `projectedValue` is `{ self }`, so both give the identical `Binding<T>` —
-  `$x` is just the same convention every `Binding`-producing row already
-  uses, no `@Binding`-only special case.
-- **`@FocusState` can't share `@State`/`@AppStorage`/`@SceneStorage`'s field
-  type, even though all four are read via `$x`.** Those three wrappers'
-  `projectedValue` genuinely *is* `Binding<T>`. `@FocusState`'s is a distinct
-  type, `FocusState<T>.Binding` — verified directly against the real SwiftUI
-  interface: it exposes only `wrappedValue` and `projectedValue` (itself), no
-  public initializer and no conversion to `Binding<T>`. A hand-built
-  `Binding(get:set:)` stand-in was considered and rejected — it would satisfy
-  neither `.focused(_:)` nor anything else expecting the real projection back.
-  The real `FocusState<T>.Binding` is itself `@propertyWrapper`-attributed
-  (verified directly), so it redeclares onto `Core` the same way
-  `@Binding` does, just spelling a different wrapper — `snap.x` reads the
-  unwrapped value, `snap.$x` hands back a real `FocusState<T>.Binding` usable
-  directly with `.focused(_:)`. `@AccessibilityFocusState` is an exact clone
-  of this shape (verified directly) and gets the identical treatment —
-  `snap.$x` feeds `.accessibilityFocused(_:)`.
 - **`@QueryCore` is a real, one-to-one drop-in for the live `@Query`.**
   Verified directly against the `_SwiftData_SwiftUI` interface: `Query`'s
   instance surface is exactly `wrappedValue`, `fetchError`, and
@@ -148,30 +133,23 @@ diagnostic, not just convention.
   which makes `QueryCore`'s init callable with the wrapped value alone — so
   `Core`'s synthesized memberwise init takes the *bare* fetched value, and a
   test writes `Core(items: [item], title: "t")` with no `QueryCore` spelling
-  at all. The `core` capture passes `_items.wrappedValue` to match — a
-  captured `Core`'s `fetchError`/`modelContext` take the defaults rather than
-  the host's live values (same "capture carries data, not live-wrapper
-  metadata" rule `@GestureState` follows below; `outFlow`'s tuple still
-  captures all three). Seed either explicitly via the `raw_` accessor:
+  at all. Seed the metadata fields explicitly via the `raw_` accessor when
+  a test does care:
   `m.raw_items = QueryCore(wrappedValue: [item], fetchError: err)`.
-- **`@GestureState` is copied onto `Core` verbatim — attribute arguments,
-  default, and `private` all kept — not substituted with a stand-in type.**
-  It's a pure-UI wrapper `Core` uses as-is. The reset behavior
-  (`reset:`/`resetTransaction:`/`initialValue:` spellings) lives in the
-  attribute's own arguments, so copying the declaration byte-for-byte carries
-  it over with nothing to reconstruct: inside `Core`'s scope, `x` reads the
-  mid-gesture value and `$x` is a real `GestureState<T>` for the copied
-  `body`'s `.updating(_:)`. An earlier design *reconstructed* a fresh
-  `@GestureState var` from just the bare wrapper name; it silently swapped a
-  custom reset for the default one — proved by a live UI test
-  (`TrickyDragCardUITests` in the ExampleApp). A later design wrapped the
-  host's live instance in a dedicated `GestureStateCore` stand-in to carry the
-  closure over at runtime; the verbatim copy gets the same fidelity with no
-  extra wrapper type, since `Core`'s field simply *is* the same declaration.
-  Because the field stays `private` with a default, it drops out of `Core`'s
-  memberwise init and isn't readable as `snap.x` from outside `Core` — mock it
-  through the `@RawProperty` accessor (`m.raw_x = GestureState(wrappedValue:
-  mock)`), which is the one row that reads via `raw_x`, not `x` or `$x`.
+- **The verbatim row is one uniform rule, not a bag of special cases.**
+  Whatever behavior lives in an unmapped wrapper's own attribute arguments —
+  a `@GestureState(reset:)` closure, an `@Environment` key path, a
+  `@ScaledMetric(relativeTo:)` — rides onto `Core` byte-for-byte with
+  nothing to reconstruct, proved live by a UI test (`TrickyDragCardUITests`
+  in the ExampleApp: the custom reset closure fires on `Core`'s copy
+  exactly as on the host). A private copy is self-initializing (the host compiled
+  without an init assigning it), so it drops out of `Core`'s memberwise init
+  and produces its value live instead: an `@Environment` copy reads the *real* environment
+  reactively when `Core` is hosted (mock it there via `.environment(...)`,
+  the wrapper's own native story) and the default `EnvironmentValues`
+  outside a live view; a `@GestureState` copy starts a fresh gesture at its
+  declared default. Private verbatim fields are sealed — no raw_ handle
+  either; only non-private wrapper fields carry one.
 - **`@ViewBuilder`'s two stored forms get opposite treatment, on purpose.** A
   stored *closure* (`let content: () -> Content`) already has a closure-typed
   field, so mirroring `@ViewBuilder` is pure upside — real builder syntax at
@@ -202,86 +180,53 @@ declared as a real `struct`.
 `Core` is a purely internal testing/preview seam — not part of the attached
 type's public API, even when that type itself is `public`: consumers of a
 public host never need the twin, only the module's own tests do (reachable
-from the same module, or a `@testable import`). So the struct and every
-field are always internal, never mirroring the attached type's access level.
+from the same module, or a `@testable import`). The struct and every mapped
+field are always internal, never mirroring the attached type's access level;
+verbatim-copied fields keep `private` if the host declared it (`public` is
+erased).
 
 No hand-rolled init is needed either. Swift's own memberwise-init synthesis
 already reproduces every field-specific behavior `@Flowable` would generate
 by hand — verified directly: a property-wrapper field with no
 `init(wrappedValue:)` (`@Binding`) synthesizes a parameter of the *wrapper's*
-type, one that does (`@Bindable`) synthesizes a parameter of the *wrapped*
-type, and `@ViewBuilder` directly on a stored `let` synthesizes a real
-builder parameter for the stored-closure form (see below) — exactly what
-`@Flowable` would hand-write. The one thing genuinely lost by skipping
+type, one that does (`@QueryCore`, `@Bindable`) synthesizes a parameter of
+the *wrapped* type, and `@ViewBuilder` directly on a stored `let` synthesizes
+a real builder parameter for the stored-closure form (see below) — exactly
+what `@Flowable` would hand-write. The one thing genuinely lost by skipping
 `@Flowable` is
 `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on `Core` itself,
 accepted since nothing here needs to round-trip a snapshot back into itself.
 
-### Every source-of-truth wrapper becomes a plain, constructed value
+**The mapped source-of-truth wrappers must be private — enforced with a
+diagnostic, not accommodated.** They're a view's own source of truth, never
+something a caller supplies (`@Binding` is for that); declaring one
+non-private is a compile error, so every renderer downstream can assume the
+substituted set is always private, with no "what if it's also public" case
+to reason about. Unknown wrappers carry no privacy rule — private or not,
+their declaration is copied verbatim, and a non-private one simply stays a
+memberwise-init parameter like any other non-private field.
 
-Every private source-of-truth wrapper becomes an ordinary field on
-`Core`, captured once rather than kept live — never the original
-attribute, except where the field mapping table above shows a substitution
-(`@Binding`, or `@FocusState<T>.Binding` for `@FocusState`). The two fields with
-no `Binding`-shaped projection to substitute — `@Environment` and
-`@Namespace` — fall back to a plain `let name: T` instead: not because the
-value doesn't change, but because the *attribute* can't be preserved (both
-wrappers' `wrappedValue` is get-only — verified directly for `@Environment`:
-`error: cannot assign to property: 'colorScheme' is a get-only property` —
-and the synthesized init always assigns `self.x = x`, which a plain
-unattributed field has no trouble with).
+### Notes on the rows
 
-**All seven recognized source-of-truth wrappers must be private — enforced
-with a diagnostic, not accommodated.** They're a view's own source of truth,
-never something a caller supplies (`@Binding` is for that); declaring one
-non-private is a compile error, so every renderer downstream can assume all
-seven are always private, with no "what if it's also public" case to reason
-about. A private field carrying some *other*, unrecognized wrapper
-(`@StateObject`, a future SwiftUI wrapper, …) is refused by a
-separate diagnostic rather than silently falling through as ordinary opaque
-private state and quietly disappearing from `OutFlow`/`Core`.
-
-### The rule for everything else: mirror the attribute and type
-
-Every field except `@Query`, `@GestureState`, and `@Environment` (all above)
-is declared on `Core` with the *original* property's own attribute (if it has
-one) and declared type — reusing `OutFlow`'s own field-computing functions
-(`outFlowProperties`/`outFlowFieldType`/`outFlowFieldReadExpression`) unchanged to
-decide *what* each field's type is. This mirror is *reconstructed* from the
-bare wrapper name (no attribute arguments) — fine for wrappers whose behavior
-lives entirely in the wrapped value, unlike `@GestureState`, which is why that
-one is copied verbatim instead. Every field is `var`, regardless of the
-original's `let`/`var` — a captured copy is meant to be re-mocked field by
-field, wrapper instances included (that's what `raw_name` is for).
-
-- **A genuine, already-public `@Binding` field mirrors verbatim** into exactly
-  the same `@Binding var name: T` form `@State`/`@AppStorage` are substituted
-  into above — it already *is* that declaration in the original source, so no
-  extra logic is needed. `@Flowable`'s existing `@Binding` handling (a
-  `Binding<T>` init parameter, assigned to the backing `_name` storage)
-  picks up both cases identically. The payoff: `snap.name` reads the
-  wrapped value directly, no `.wrappedValue` unwrap — and `snap.name =
+- **`@Binding` lands on the same shape `@State`/`@AppStorage` are substituted
+  into** — its rule-3 verbatim copy already *is* `@Binding var name: T`, the
+  form the whitelist substitutes those wrappers into, so `Core` treats caller
+  bindings and substituted storage identically. The payoff: `snap.name` reads
+  the wrapped value directly, no `.wrappedValue` unwrap — and `snap.name =
   newValue` writes straight through to whatever storage the original binding
-  pointed at, genuinely two-way. `@Binding` is itself a genuine property
-  wrapper, so it keeps `var`.
-- **`@ViewBuilder` mirroring is a real win here, unlike `OutFlow`'s tuple —
-  but only for the stored-*closure* form** (`content: () -> Content`):
-  the field type is already a closure there, so the attribute is pure
-  upside — real builder syntax at `Core`'s own init call site, not
-  just documentation. For a stored *value* (`let footer: Content`), mirroring
-  the attribute would make Swift's own synthesized init wrap the parameter in
-  a builder closure purely to satisfy it (verified directly) — overhead with
-  no benefit for a value that's already built and just being copied through —
-  so it's dropped there entirely: `footer` stays a plain unattributed
-  field, passed straight through in `core` with no wrapping on
-  either side. `@ViewBuilder` is *not* a `@propertyWrapper` — it's a
-  result-builder attribute, legal directly on stored properties (verified
-  directly, `let` and `var` both).
-- **`@Bindable` needs no special handling beyond the general "genuine wrapper
-  keeps var" rule above** — no init logic here ever recognized `@Bindable`
-  specially even on the *original* type (it just does `self.model = model`,
-  legal since `@Bindable`'s wrappedValue is a plain get/set), so mirroring it
-  onto `Core` works identically under Swift's own synthesized init.
+  pointed at, genuinely two-way.
+- **`@ViewBuilder` rides along as init machinery — kept only
+  for the stored-*closure* form** (`content: () -> Content`): the field type
+  is already a closure there, so the attribute is pure upside — real builder
+  syntax at `Core`'s own init call site, not just documentation. For a
+  stored *value* (`let footer: Content`), keeping the attribute would make
+  Swift's own synthesized init wrap the parameter in a builder closure
+  purely to satisfy it (verified directly) — overhead with no benefit for a
+  value that's already built and just being copied through — so it's dropped
+  there entirely: `footer` stays a plain unattributed field, passed straight
+  through in `core` with no wrapping on either side. `@ViewBuilder` is *not*
+  a `@propertyWrapper` — it's a result-builder attribute, legal directly on
+  stored properties (verified directly, `let` and `var` both).
 
 ### Automatic `View`/`ViewModifier` detection
 
@@ -448,9 +393,9 @@ struct Card<Content: View>: View {
   `self.version = version` (a `let`-reassignment error) — the type gets inferred as
   `Int` just fine (see above), it just doesn't help; either way it won't compile.
 - **`private` means private, and it must mean something.** If a value is meant to be
-  passed in, it isn't private — `@Binding`/`@Bindable`/`@ViewBuilder` declared private
+  passed in, it isn't private — `@Binding`/`@ViewBuilder` declared private
   are unreachable by any caller and are rejected outright. And a private property with
-  no recognized wrapper at all (`private var cache = 0`) isn't quietly excluded
+  no wrapper at all (`private var cache = 0`) isn't quietly excluded
   anymore either — it's neither a source of truth nor something a caller supplies, so
   pure data flow has no room for it: give it a real wrapper, or make it non-private.
 
@@ -584,28 +529,22 @@ let copy = User.makeFlow(user.inFlow)
 
 ### The OutFlow typealias and outFlow property
 
-Wider than `InFlow`/`inFlow`: `InFlow`'s fields, **plus every recognized
-private source-of-truth wrapper** — `@Query`/`@State`/`@AppStorage`/
-`@SceneStorage`/`@FocusState`/`@Environment`/`@Namespace` — a view's own
-externally-relevant *capturable* state, alongside its public data, no
-exceptions. There's no such thing as "everything else private" left over —
-a private property either carries one of these recognized wrappers or it's a
-compile error (see [Design: for pure data](#design-for-pure-data)) — see the
-[wrapper mapping reference](#wrapper-mapping-reference) for exactly what each
-recognized kind becomes.
+Wider than `InFlow`/`inFlow`: `InFlow`'s fields, **plus every private
+wrapper field, mapped or unknown** — a view's own externally-relevant
+*capturable* state, alongside its public data, no exceptions. There's no
+such thing as "everything else private" left over — a private property
+either carries a wrapper or it's a compile error (see
+[Design: for pure data](#design-for-pure-data)). A mapped wrapper's tuple
+field takes its mapped shape (`Binding<T>`, `QueryCore<T>`, … — see the
+[wrapper mapping reference](#wrapper-mapping-reference)); an unmapped one's
+is just the bare wrapped value, read `x`.
 
 **Why this exists: testability.** Any SwiftUI node that owns or reads live
 state via one of these wrappers introduces a source of truth that only really
 works inside a live render pipeline — view identity, a real `ModelContext`,
 the current environment. That makes it hard to test directly. `OutFlow`
 converts that state into a plain, stateless snapshot: construct the type,
-read `.outFlow`, assert on the fields — no live view hierarchy needed. That's
-the actual point of targeting exactly these wrapper kinds, not "expose
-private state" for its own sake — and it's also why there's no exception for
-`@Environment`/`@Namespace`: a captured value going stale, or `@Environment`'s
-own mocking story, are things to know about the *snapshot*, not reasons to
-leave the field out of it — `@Shell` never excluded either one, and
-`OutFlow` shouldn't either.
+read `.outFlow`, assert on the fields — no live view hierarchy needed.
 
 ```swift
 @Flowable
@@ -634,9 +573,8 @@ struct Card: View {
 - **`@State`/`@AppStorage`/`@SceneStorage` → `Binding<WrappedType>`**, read via
   the *projected* value (`$x`) — not `_x`, which gives the wrapper instance
   itself (`State<T>`, not `Binding<T>`; verified directly).
-- **Every recognized wrapper needs an explicit type even though it's
-  private** — every other private property is exempt from that rule, but
-  `OutFlow` reads the type to build its field. `@Namespace` is the one
+- **Every wrapper field needs an explicit type even though it's private** —
+  `OutFlow` reads the type to build its tuple field. `@Namespace` is the one
   exception: its wrapped type is always `Namespace.ID`, so there's nothing to
   annotate.
 - **`@State`'s `Binding` doesn't write through outside a live SwiftUI view
@@ -710,10 +648,9 @@ flowchart LR
   minus labels, it converts right back into `makeFlow(_:)`'s parameter with no
   manual conversion.
 - **`OutFlow`/`outFlow`** — a wider *out*, adding the view's own
-  externally-relevant *capturable* private state — every recognized
-  source-of-truth wrapper (`@Query`/`@State`/`@AppStorage`/`@SceneStorage`/
-  `@FocusState`/`@Environment`/`@Namespace`, no exceptions; see its own
-  section above) — alongside the same public fields `InFlow` has. There's no
+  externally-relevant *capturable* private state — every private wrapper
+  field, mapped or unknown, no exceptions; see its own section above —
+  alongside the same public fields `InFlow` has. There's no
   `OutFlow`-shaped *in* direction — nothing constructs a `Self` from private
   view state, so this side of the diagram is deliberately one-way.
 
@@ -749,7 +686,7 @@ flowchart TD
     props --> init["init<br/>the actual reason @Flowable exists —<br/>Swift won't synthesize a public one"]
     props --> flow["InFlowSplat / makeFlow(_:)<br/>InFlow / inFlow<br/>free once properties are collected —<br/>symmetry and Mirror support,<br/>not proven demand yet"]
     props --> out["OutFlow / outFlow<br/>earns its keep: construct directly,<br/>assert on private state, no live view"]
-    out --> node["Core<br/>same field set, plus @Environment —<br/>a real type: View / ViewModifier,<br/>Equatable, Codable, ..."]
+    out --> node["Core<br/>same field set —<br/>a real type: View / ViewModifier,<br/>Equatable, Codable, ..."]
 ```
 
 - **`init`** — not optional, not speculative: it's the specific gap `@Flowable`
