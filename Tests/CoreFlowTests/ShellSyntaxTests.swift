@@ -38,11 +38,20 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @RawProperty @QueryCore var items: [Item]
+                        @QueryCore var items: [Item]
                         @Environment(\\.colorScheme) private var colorScheme: ColorScheme
-                        @RawProperty @Binding var isExpanded: Bool
-                        @RawProperty @Binding var isOn: Bool
+                        @Binding var isExpanded: Bool
+                        @Binding var isOn: Bool
                         var title: String
+                    }
+
+                    @Observable @MainActor final class CoreModel {
+                        var isExpanded: Bool
+                        var isOn: Bool
+                        init(isExpanded: Bool = false, isOn: Bool) {
+                            self.isExpanded = isExpanded
+                            self.isOn = isOn
+                        }
                     }
                 }
                 """,
@@ -126,7 +135,7 @@ final class ShellSyntaxTests: XCTestCase {
         // revision rejected unrecognized private wrappers outright). A
         // private one drops out of Core's memberwise init, sealed, no raw_;
         // a non-private one stays a parameter of the wrapper's own type,
-        // captured as its backing instance `_x`, with @RawProperty stamped
+        // captured as its backing instance `_x`, with stamped
         // (raw_ goes on non-private wrapper fields only). Plain fields keep
         // their initial value too (`flavor` below), so their memberwise
         // parameter comes defaulted.
@@ -149,7 +158,7 @@ final class ShellSyntaxTests: XCTestCase {
 
                     struct Core {
                         @StateObject private var vm: VM = VM()
-                        @RawProperty @Whatever(flavor: .spicy) var knob: Int = 7
+                        @Whatever(flavor: .spicy) var knob: Int = 7
                         var flavor: String = "mild"
                         var title: String
                     }
@@ -235,8 +244,15 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @RawProperty @Binding var isPinned: Bool
+                        @Binding var isPinned: Bool
                         var title: String
+                    }
+
+                    @Observable @MainActor final class CoreModel {
+                        var isPinned: Bool
+                        init(isPinned: Bool = false) {
+                            self.isPinned = isPinned
+                        }
                     }
                 }
                 """,
@@ -328,7 +344,7 @@ final class ShellSyntaxTests: XCTestCase {
 
                     struct Core {
                         var subtitle: String?
-                        @RawProperty @Bindable var model: Settings
+                        @Bindable var model: Settings
                         @ViewBuilder var content: () -> Content
                         var footer: Content
                     }
@@ -364,10 +380,17 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     struct Core: View {
-                        @RawProperty @Binding var count: Int
+                        @Binding var count: Int
 
                         var body: some View {
                             Text("\\(count)")
+                        }
+                    }
+
+                    @Observable @MainActor final class CoreModel {
+                        var count: Int
+                        init(count: Int = 0) {
+                            self.count = count
                         }
                     }
                 }
@@ -400,10 +423,17 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     struct Core: ViewModifier {
-                        @RawProperty @Binding var level: Double
+                        @Binding var level: Double
 
                         func body(content: Content) -> some View {
                             content.opacity(level)
+                        }
+                    }
+
+                    @Observable @MainActor final class CoreModel {
+                        var level: Double
+                        init(level: Double = 0.5) {
+                            self.level = level
                         }
                     }
                 }
@@ -464,7 +494,7 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     struct Core: View {
-                        @RawProperty @Binding var count: Int
+                        @Binding var count: Int
 
                         static let spacing: CGFloat = 8
 
@@ -482,6 +512,13 @@ final class ShellSyntaxTests: XCTestCase {
 
                         var body: some View {
                             Text(label())
+                        }
+                    }
+
+                    @Observable @MainActor final class CoreModel {
+                        var count: Int
+                        init(count: Int = 0) {
+                            self.count = count
                         }
                     }
                 }

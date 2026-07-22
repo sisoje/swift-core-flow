@@ -313,9 +313,8 @@ set is identical to `@Shell`'s `Core`'s.
     memberwise init for a `@QueryCore` field take the *bare* value
     (verified directly, locked in by `QueryCoreTests`) — deliberately so:
     tests write `Core(items: [item], title: "t")` with no `QueryCore`
-    spelling at all. Seed the metadata explicitly
-    via `m.raw_items = QueryCore(wrappedValue: [item], fetchError: err)`
-    when a test does care.
+    spelling at all; a directly constructed `Core`'s
+    `fetchError`/`modelContext` take the defaults.
     An earlier revision kept `fetchError` required precisely to *prevent*
     this flip, back when `@Shell` generated a `core` capture property that
     passed a fully-constructed `QueryCore` through the memberwise init; both
@@ -424,16 +423,22 @@ capture property is generated either — an earlier revision emitted
 `var core: Core { Core(...) }` off the live host, dragging a whole
 per-rule capture-expression mapping with it; deleted, since Core is for
 testing and tests construct it directly (a unit test never has a live host
-to capture from). The host runs its own hand-written body. Every field is `var`, and every NON-private wrapper
-field is stamped `@RawProperty` (private verbatim copies get no raw_ —
-sealed, they just behave; one access check, no per-wrapper knowledge, which
-also keeps raw_'s `Wrapper<T>` backing-type spelling away from `@Namespace`,
-the one non-generic SwiftUI wrapper, in its normal private form) — the
-compiler expands an attached macro attribute inside another macro's
-generated code just fine (verified by the real-compiled
-`capturedCoreCopyIsFullyReMockable` in `ShellTests.swift`) — so a captured
-copy is fully re-mockable, wrapper
-instances included: `var m = Core(...); m.raw_isOn = .constant(false)`.
+to capture from). The host runs its own hand-written body. Every field is `var`; private verbatim copies are
+sealed, they just behave. No `@RawProperty` is stamped anywhere — an
+earlier revision decorated wrapper fields with it for instance-swapping on
+captured copies; with the capture gone, mocking happens at construction,
+and the macro stays in the package as a standalone opt-in for hand-written
+code (see `QueryCoreTests`' `FakeCore` for it in use). Whenever `Core` has
+at least one `Binding`-typed field, a `CoreModel` is generated alongside —
+`@Observable @MainActor final class`, one `var` per such field, init
+params carrying host defaults (optionals implicitly nil, function types
+`@escaping`, same conventions as `@Flowable`'s init) — so a test binds
+`Bindable(model).x` (a real write-through `Binding<T>`, plain code, no
+view) into `Core`'s matching parameter and asserts on the model after the
+copied body writes. The compiler expands attached macros inside another
+macro's generated code just fine — @Binding/@QueryCore above, and
+@Observable on CoreModel itself (verified by the real-compiled
+`coreModelCapturesEveryWriteThroughItsBindings` in `ShellTests.swift`).
 The field set is *identical* to `OutFlow`'s — `renderShell` calls
 `outFlowProperties` directly (the identity function now; see
 `FlowableRendering.swift`).
@@ -525,14 +530,13 @@ aren't seen (same syntax-only limitation as host-kind detection).
   self-initialization forms: attribute arguments (`@Environment(\.x)`),
   inline default (`@GestureState … = .zero`), and wrapper `init()`
   (`@Namespace`) — and it's
-  unreadable from outside `Core` — sealed: no raw_ accessor either
-  (@RawProperty goes on non-private wrapper fields only), the values just
+  unreadable from outside `Core` — sealed, the values just
   behave (`@Environment` reads the real environment reactively
   when `Core` is hosted — mock it there via `.environment(...)`, its own
   native story — and the default `EnvironmentValues` outside a live view;
   `@GestureState` starts a fresh gesture at its declared default). A
   *non-private* copy stays a memberwise parameter of the wrapper's own
-  type, carrying `@RawProperty` like every non-private wrapper field.
+  type.
 - **`@ViewBuilder` rides along as init machinery — kept only
   for the stored-*closure* form.** For a stored closure
   (`let content: () -> Content`) the field type is already a closure, so the
@@ -590,10 +594,13 @@ because **the decision is HARD CODED in the compiler** — SE-0258: "always
 named with a leading `_` and is always `private`", no spelling loosens it —
 making the wrapper *instance* on a constructed value unswappable.
 (https://github.com/swiftlang/swift-evolution/blob/main/proposals/0258-property-wrappers.md)
-Nobody writes it by hand: `@Shell` stamps it onto `Core`'s wrapper fields
-(see above). Type inference is syntax-only: attribute generics verbatim
-(`@Binding<Bool>`), else the annotation fills the generic, else a
-diagnostic; no wrapper attribute at all is a diagnostic too.
+A standalone opt-in for hand-written code — `@Shell` no longer stamps it
+anywhere (mocking happens at construction via `CoreModel`/hand-built
+bindings); `QueryCoreTests`' `FakeCore` keeps it exercised. Type inference
+is syntax-only: attribute generics verbatim (`@Binding<Bool>`), else the
+annotation fills the generic, else a diagnostic; no wrapper attribute at
+all is a diagnostic too. That `Wrapper<T>` spelling means it fits generic
+wrappers only — bare `Namespace` can't be spelled from syntax.
 
 ## @Capability — tricky points
 

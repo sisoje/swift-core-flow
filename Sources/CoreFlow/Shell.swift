@@ -61,9 +61,9 @@
 ///   shouldn't require standing up an entire SwiftData stack. Its
 ///   `fetchError`/`modelContext` params both default, so the field's
 ///   memberwise-init parameter is the *bare* fetched value — `Core(name:
-///   [item], …)`, no `QueryCore` spelling at the call site; seed
-///   the metadata fields via `m.raw_name = QueryCore(wrappedValue: [item],
-///   fetchError: err)` when a test does care.
+///   [item], …)`, no `QueryCore` spelling at the call site (a directly
+///   constructed `Core`'s `fetchError`/`modelContext` take `QueryCore`'s
+///   defaults).
 /// - (`@ViewBuilder` — a result-builder attribute, not a property wrapper —
 ///   rides along as init machinery: kept for the
 ///   stored-*closure* form, where it buys real builder syntax at `Core`'s
@@ -105,14 +105,30 @@
 /// fresh gesture at its declared default. A non-private rule-3 copy stays a
 /// memberwise parameter of the wrapper's own type.
 ///
-/// **Every NON-private wrapper field of `Core` carries a `raw_name`
-/// accessor (`@RawProperty`)** over its private backing storage — the
-/// whitelisted substitutes (always non-private on `Core`) and non-private
-/// verbatim copies — so the wrapper *instance* itself can be swapped
-/// (`var m = Core(...); m.raw_isOn = .constant(false)`), and every field
-/// is `var`. Private verbatim copies get no `raw_` — sealed: not init
-/// parameters, not readable, not mocked, they just behave. One access
-/// check, no per-wrapper knowledge.
+/// **The `CoreModel` mock** — generated alongside `Core` whenever it has at
+/// least one `Binding`-typed field (the `@State`/`@AppStorage`/
+/// `@SceneStorage` substitutes plus genuine `@Binding` fields): an
+/// `@Observable @MainActor final class` with one `var` per such field, init
+/// parameters carrying the host's defaults (optionals implicitly `nil`). A
+/// test instantiates it and binds each property into `Core`'s matching
+/// parameter — `Bindable(model).x` hands back a real `Binding<T>` in plain
+/// code, no view needed — so every write the copied body makes lands on the
+/// model, ready to assert:
+///
+/// ```swift
+/// let model = Card.CoreModel(isOn: true)          // isExpanded defaults
+/// let core = Card.Core(isExpanded: Bindable(model).isExpanded,
+///                      isOn: Bindable(model).isOn, title: "t")
+/// core.isExpanded = true                          // body writes land here:
+/// #expect(model.isExpanded == true)
+/// ```
+///
+/// No `@RawProperty` is stamped on `Core`'s fields — mocking happens at
+/// construction, through `CoreModel` or any hand-built `Binding(get:set:)`.
+/// (The `@RawProperty` macro itself remains in the package for hand-written
+/// code that wants a wrapper's backing storage exposed.) Every field is
+/// `var`; private verbatim copies are sealed — not init parameters, not
+/// readable, not mocked, they just behave.
 ///
 /// The copy compiles on both types by construction — the whitelisted fields
 /// were designed for read-surface parity (`$x` is `Binding<T>` on both sides
@@ -171,6 +187,6 @@
 /// typealias or protocol composition, or spelled qualified (`SwiftUI.View`)
 /// is invisible. Only a bare `View`/`ViewModifier` identifier directly on the
 /// attached type is recognized.
-@attached(member, names: named(Core))
+@attached(member, names: named(Core), named(CoreModel))
 public macro Shell() =
     #externalMacro(module: "CoreFlowMacros", type: "ShellMacro")

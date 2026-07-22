@@ -21,7 +21,7 @@ Requires Swift 6.3+ (`swift-tools-version: 6.3`). Builds across the whole swift-
 | [`@Shell`](#shell) | member | generates a nested, nominal `Core` struct capturing a `View`/`ViewModifier`'s full externally-relevant state — real `Equatable`/`Codable`/protocol conformance a tuple can never have |
 | [`@Flowable`](#flowable) | member | writes a memberwise `init` at the type's own access level, plus `InFlowSplat`/`InFlow` typealiases bundling the same properties into a tuple, unlabeled and labeled, plus a wider `OutFlow` — the tuple `@Shell`'s `Core` doesn't replace |
 | [`@Capability`](#capability) | member | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
-| `@RawProperty` | peer | exposes a wrapped property's backing storage as an internal `raw_name` accessor — `_name` being `private` is **HARD CODED in the compiler** ([SE-0258](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0258-property-wrappers.md): "always named with a leading `_` and is always `private`"); this is how `Core`'s wrapper instances stay swappable for mocking |
+| `@RawProperty` | peer | exposes a wrapped property's backing storage as an internal `raw_name` accessor — `_name` being `private` is **HARD CODED in the compiler** ([SE-0258](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0258-property-wrappers.md): "always named with a leading `_` and is always `private`"); a standalone opt-in for hand-written code — `@Shell` doesn't stamp it anywhere |
 | [`#pick`](#pick-tuplepicker) | expression | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
 | [`Reflector`](#reflector) | runtime utility (not a macro) | lists a value type's field names off its type alone, no instance needed — pairs with `@Flowable`'s `InFlow` |
 
@@ -41,10 +41,11 @@ this package really knows), and everything else — *unknown* — copied
 verbatim, attribute arguments and default kept, `private` kept, `public`
 erased. Plus a
 verbatim copy of every non-stored member — `body`, helpers, methods, static
-members, nested types. Every field is `var`, and every non-private wrapper
-field carries a `raw_name` accessor over its backing storage — so any Core
-copy is fully re-mockable, wrapper instances included:
-`var m = makeCore(); m.raw_isOn = .constant(false)`.
+members, nested types. Every field is `var`. Whenever `Core` has at least
+one `Binding`-typed field, a `CoreModel` rides along — an
+`@Observable @MainActor final class` with one `var` per such field — so a
+test binds its properties into `Core` and every write lands somewhere
+assertable (see below).
 Initializers are the one member kind not copied:
 `Core` is constructed through Swift's synthesized memberwise init, and a
 copied init would suppress it. Members declared in a separate extension of
@@ -92,9 +93,8 @@ an error case: `@Binding`, `@Environment`, `@GestureState`, `@Namespace`,
 `@ScaledMetric`, `@Bindable`, `@StateObject`, your own custom wrapper, one
 SwiftUI hasn't shipped yet — all ride onto `Core` byte-for-byte (attribute
 arguments and default value kept, `private` kept, `public` erased) and just
-behave there. Every NON-private wrapper field is stamped `@RawProperty`,
-so the wrapper instance itself stays swappable via `raw_x`; private verbatim
-copies are sealed — no init parameter, no reads, no raw_ — they just behave.
+behave there. Private verbatim copies are sealed — no init parameter, no
+reads — they just behave.
 
 Types are left out below on purpose: each attribute already implies its own
 type (`@Binding` → `Binding<T>`, `@QueryCore` → `QueryCore<T>`, and so on —
@@ -118,6 +118,33 @@ field is just the bare wrapped value.
 > `Core` verbatim and left alone; if you want testable state, model it with
 > the mapped wrappers instead.
 
+### The CoreModel mock
+
+Whenever `Core` ends up with at least one `Binding`-typed field (the
+`@State`/`@AppStorage`/`@SceneStorage` substitutes plus genuine `@Binding`
+fields), `@Shell` also generates:
+
+```swift
+@Observable @MainActor final class CoreModel {
+    var isExpanded: Bool
+    var isOn: Bool
+    init(isExpanded: Bool = false, isOn: Bool) { ... }  // host defaults carried
+}
+```
+
+A test instantiates it and binds each property into `Core`'s matching
+parameter — `Bindable(model).x` hands back a real write-through `Binding<T>`
+in plain code, no view needed — so every write the copied body makes lands
+on the model, ready to assert:
+
+```swift
+let model = Card.CoreModel(isOn: true)
+let core = Card.Core(isExpanded: Bindable(model).isExpanded,
+                     isOn: Bindable(model).isOn, title: "t")
+core.isExpanded = true
+#expect(model.isExpanded == true)
+```
+
 **A few things worth spelling out beyond the table above — the last one is about
 `@ViewBuilder`, which isn't a row in it at all (see why above):**
 
@@ -133,9 +160,8 @@ field is just the bare wrapped value.
   which makes `QueryCore`'s init callable with the wrapped value alone — so
   `Core`'s synthesized memberwise init takes the *bare* fetched value, and a
   test writes `Core(items: [item], title: "t")` with no `QueryCore` spelling
-  at all. Seed the metadata fields explicitly via the `raw_` accessor when
-  a test does care:
-  `m.raw_items = QueryCore(wrappedValue: [item], fetchError: err)`.
+  at all (a directly constructed `Core`'s `fetchError`/`modelContext` take
+  `QueryCore`'s defaults).
 - **The verbatim row is one uniform rule, not a bag of special cases.**
   Whatever behavior lives in an unmapped wrapper's own attribute arguments —
   a `@GestureState(reset:)` closure, an `@Environment` key path, a
@@ -148,8 +174,7 @@ field is just the bare wrapped value.
   reactively when `Core` is hosted (mock it there via `.environment(...)`,
   the wrapper's own native story) and the default `EnvironmentValues`
   outside a live view; a `@GestureState` copy starts a fresh gesture at its
-  declared default. Private verbatim fields are sealed — no raw_ handle
-  either; only non-private wrapper fields carry one.
+  declared default. Private verbatim fields are sealed.
 - **`@ViewBuilder`'s two stored forms get opposite treatment, on purpose.** A
   stored *closure* (`let content: () -> Content`) already has a closure-typed
   field, so mirroring `@ViewBuilder` is pure upside — real builder syntax at

@@ -99,30 +99,28 @@ func renderShell(
 
     // Every field is internal — never `access` — regardless of the attached
     // type's own access level, except verbatim-copied private wrappers,
-    // which keep their `private`; see this file's own doc comment.
-    //
-    // Every field is `var`, and every NON-private wrapper field is
-    // additionally stamped @RawProperty (this package's own peer macro,
-    // expanded by the compiler inside this very expansion — its raw_
-    // accessor exposes the wrapper's private _name backing storage).
-    // Together they make any Core copy fully re-mockable:
-    // `var m = makeCore(); m.raw_isOn = .constant(false)`.
+    // which keep their `private`; see this file's own doc comment. No
+    // @RawProperty is stamped anywhere — an earlier revision decorated
+    // wrapper fields with it so tests could swap wrapper instances on a
+    // captured copy; with the capture gone, mocking happens at construction
+    // (bind CoreModel below), and the macro stays in the package for anyone
+    // who wants raw_ access on hand-written code.
     let fieldDecls = fields.map { p -> String in
         // Rule 2 — the whitelist (`isSubstitutedOnCore`, `StoredProperty.swift`):
         // mutation-carrying wrappers become binding-shaped stand-ins a test
         // can mock to capture every write, and @Query becomes @QueryCore so
         // reading a fetched array needs no SwiftData stack.
         if p.isBindingBackedStorage {
-            return "@RawProperty @Binding var \(p.name): \(p.type?.trimmedDescription ?? "")"
+            return "@Binding var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         if p.isQuery {
-            return "@RawProperty @QueryCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
+            return "@QueryCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
-        // @ViewBuilder isn't a property wrapper (no backing storage, no
-        // @RawProperty): the stored-closure form keeps the attribute (real
-        // builder syntax at Core's init call site), the stored-value form
-        // drops it (keeping it would make the synthesized init wrap the
-        // parameter in a builder closure to no benefit — verified directly).
+        // @ViewBuilder isn't a property wrapper (no backing storage): the
+        // stored-closure form keeps the attribute (real builder syntax at
+        // Core's init call site), the stored-value form drops it (keeping it
+        // would make the synthesized init wrap the parameter in a builder
+        // closure to no benefit — verified directly).
         if p.isViewBuilder {
             let type = p.type?.trimmedDescription ?? ""
             let isStoredValue = !(p.type.map(isFunctionType) ?? false)
@@ -149,19 +147,10 @@ func renderShell(
         // wrapper-argument (@Environment), inline-default (@GestureState),
         // and wrapper-init() (@Namespace) forms alike; a non-private copy
         // stays a memberwise parameter of the wrapper's own type.
-        //
-        // @RawProperty goes on NON-private wrapper fields only — one rule, no
-        // per-wrapper knowledge. A private copy is sealed: not an init
-        // parameter, not readable, not mocked — it just behaves; raw_ is for
-        // swapping the wrapper instance on fields a test interacts with.
-        // (This also keeps raw_'s `Wrapper<T>` backing-type spelling away
-        // from @Namespace in its normal private form — the one SwiftUI
-        // wrapper that isn't generic, where that spelling wouldn't compile.)
-        let raw = p.isPrivate ? "" : "@RawProperty "
         let access = p.isPrivate ? "private " : ""
         let type = p.type.map { ": \($0.trimmedDescription)" } ?? ""
         let def = p.defaultValue.map { " = \($0.trimmedDescription)" } ?? ""
-        return "\(raw)\(attributeText) \(access)var \(p.name)\(type)\(def)"
+        return "\(attributeText) \(access)var \(p.name)\(type)\(def)"
     }.joined(separator: "\n")
 
     let conformance: String
@@ -190,5 +179,50 @@ func renderShell(
     // Deleted: Core is for testing, tests construct it directly through the
     // memberwise init, and a unit test never has a live host to capture from
     // in the first place.
-    return [statelessStruct]
+
+    // The CoreModel mock — one observable `var` per Binding-typed field on
+    // Core (the @State/@AppStorage/@SceneStorage substitutes plus genuine
+    // @Binding fields, the exact set whose memberwise parameter is
+    // `Binding<T>`). A test instantiates it and binds each property into
+    // Core's matching parameter — `Bindable(model).x` hands back a real
+    // `Binding<T>` via @Observable's dynamic-member projection, in plain
+    // code, no view needed — so every write the copied body makes lands on
+    // the model, ready to assert. @Observable + @MainActor final class: the
+    // compiler expands the @Observable macro inside this expansion the same
+    // way it expands the wrapper attributes above. Init parameters mirror
+    // rule 1's spirit: host default carried over, optionals implicitly nil,
+    // function types @escaping — same conventions as @Flowable's init.
+    let bindingFields = fields.filter { $0.isBindingBackedStorage || $0.isBinding }
+    guard !bindingFields.isEmpty else { return [statelessStruct] }
+
+    let modelProperties = bindingFields.map { p -> String in
+        "var \(p.name): \(p.type?.trimmedDescription ?? "")"
+    }.joined(separator: "\n")
+    let modelParams = bindingFields.map { p -> String in
+        let type = p.type?.trimmedDescription ?? ""
+        let isFn = p.type.map(isFunctionType) ?? false
+        var param = "\(p.name): \(isFn ? "@escaping " : "")\(type)"
+        if let def = p.defaultValue {
+            param += " = \(def.trimmedDescription)"
+        } else if p.type.map(isOptionalType) ?? false {
+            param += " = nil"
+        }
+        return param
+    }.joined(separator: ", ")
+    let modelAssignments = bindingFields.map { "    self.\($0.name) = \($0.name)" }
+        .joined(separator: "\n")
+    // Same relative-indentation convention as renderFlowable's init and the
+    // Core struct above: members at column 0, the init body one level in —
+    // the expansion machinery re-shifts every line by the splice position.
+    let coreModel = DeclSyntax(
+        stringLiteral: """
+            @Observable @MainActor final class CoreModel {
+            \(modelProperties)
+            init(\(modelParams)) {
+            \(modelAssignments)
+            }
+            }
+            """
+    )
+    return [statelessStruct, coreModel]
 }

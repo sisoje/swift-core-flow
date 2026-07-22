@@ -96,17 +96,36 @@ private func makeCore(
         #expect(isOnStorage == true)
     }
 
-    @Test func capturedCoreCopyIsFullyReMockable() {
-        // Every Core field is `var`, and every wrapper field carries a raw_
-        // accessor (@RawProperty, stamped by @Shell inside its own expansion)
-        // over the private _name backing storage Swift refuses to expose — so
-        // a mutable copy can swap the wrapper INSTANCE itself, not just the
-        // wrapped value.
+    @Test func coreModelCapturesEveryWriteThroughItsBindings() {
+        // The generated CoreModel — @Observable @MainActor final class, one
+        // `var` per Binding-typed Core field (the @State/@SceneStorage
+        // substitutes plus the genuine @Binding), init params carrying the
+        // host's defaults (so only defaultless `isOn` is required). Proves
+        // two things at once: the @Observable macro expands correctly inside
+        // @Shell's own generated code, and Bindable(model).x hands back a
+        // real write-through Binding in plain code — every write the copied
+        // body (or a test) makes through Core lands on the model.
+        let model = StatefulCard.CoreModel(isOn: true)
+        #expect(model.isExpanded == false)  // host default carried over
+        let bindable = Bindable(model)
+        let snap = StatefulCard.Core(
+            isExpanded: bindable.isExpanded,
+            isPinned: bindable.isPinned,
+            isOn: bindable.isOn,
+            title: "t",
+            subtitle: nil
+        )
+        snap.isExpanded = true
+        snap.isOn = false
+        #expect(model.isExpanded == true)
+        #expect(model.isOn == false)
+        #expect(snap.isPinned == model.isPinned)
+    }
+
+    @Test func coreFieldsStayMutableForReMocking() {
+        // Every Core field is `var` — a copy can be re-mocked field by field.
         var mutable = makeCore()
-        #expect(mutable.isExpanded == false)
-        mutable.raw_isExpanded = .constant(true)
-        #expect(mutable.isExpanded == true)
-        mutable.subtitle = "remocked"  // plain field — var now, plain reassignment
+        mutable.subtitle = "remocked"
         #expect(mutable.subtitle == "remocked")
     }
 
