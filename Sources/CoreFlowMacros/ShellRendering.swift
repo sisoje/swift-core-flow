@@ -66,16 +66,20 @@ import SwiftSyntax
 /// fresh gesture at its declared default. A *non-private* copy stays a
 /// memberwise parameter of the wrapper's own type.
 ///
-/// **`@RawProperty` goes on every NON-private wrapper field of `Core`** —
-/// the mapped substitutes (always non-private on `Core`) and non-private
-/// verbatim copies — so the wrapper *instance* itself is swappable through
-/// `raw_name` (`var m = makeCore(); m.raw_isOn = .constant(false)`), and
-/// every field is `var`. Private
-/// verbatim copies get no `raw_` — they're sealed: not init parameters, not
-/// readable, not mocked, they just behave. One access check, no per-wrapper
-/// knowledge (it also keeps raw_'s `Wrapper<T>` backing-type spelling away
-/// from `@Namespace` in its normal private form — the one SwiftUI wrapper
-/// that isn't generic, where that spelling wouldn't compile).
+/// Every field is `var`; private verbatim copies are sealed — not init
+/// parameters, not readable, not mocked, they just behave. No `@RawProperty`
+/// is stamped anywhere (the macro stays in the package as a standalone
+/// opt-in): mocking happens at construction, through the generated
+/// `CoreModel` — an `@Observable @MainActor final class` with one `var` per
+/// Binding-typed field, emitted as a SIBLING of `Core`, both deliberately:
+/// `@MainActor` is explicit because a nested type does NOT inherit the
+/// enclosing View-conformance isolation (verified directly — constructing an
+/// unannotated nested class from a nonisolated context compiles), and
+/// sibling because nesting `Model` inside the generated `Core` breaks
+/// `@Observable`'s extension-macro half (verified directly — it type-checks
+/// but fails at link with a missing `Observable` conformance descriptor for
+/// the doubly-nested class; one level of macro-generated nesting is the
+/// compiler's limit).
 ///
 /// `Core` is always internal — the struct itself and every mapped field —
 /// regardless of the attached type's own access level (verbatim-copied

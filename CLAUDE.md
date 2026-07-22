@@ -439,6 +439,14 @@ copied body writes. The compiler expands attached macros inside another
 macro's generated code just fine — @Binding/@QueryCore above, and
 @Observable on CoreModel itself (verified by the real-compiled
 `coreModelCapturesEveryWriteThroughItsBindings` in `ShellTests.swift`).
+Two deliberate spellings on CoreModel, both verified directly: `@MainActor`
+is explicit because a nested type does NOT inherit the enclosing
+View-conformance isolation (an unannotated nested class constructs fine
+from a nonisolated context), and it's a SIBLING of `Core` — not nested
+inside it as `Core.Model` — because nesting breaks `@Observable`'s
+extension-macro half: it type-checks but fails at link with a missing
+`Observable` conformance descriptor for the doubly-nested class; one level
+of macro-generated nesting is the compiler's limit.
 The field set is *identical* to `OutFlow`'s — `renderShell` calls
 `outFlowProperties` directly (the identity function now; see
 `FlowableRendering.swift`).
