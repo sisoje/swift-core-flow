@@ -21,6 +21,7 @@ Requires Swift 6.3+ (`swift-tools-version: 6.3`). Builds across the whole swift-
 | [`@Shell`](#shell) | member | generates a nested, nominal `Core` struct capturing a `View`/`ViewModifier`'s full externally-relevant state — real `Equatable`/`Codable`/protocol conformance a tuple can never have |
 | [`@Flowable`](#flowable) | member | writes a memberwise `init` at the type's own access level, plus `InFlowSplat`/`InFlow` typealiases bundling the same properties into a tuple, unlabeled and labeled, plus a wider `OutFlow` — the tuple `@Shell`'s `Core` doesn't replace |
 | [`@Capability`](#capability) | member | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
+| `@RawProperty` | peer | exposes a wrapped property's backing storage as an internal `raw_name` accessor — `_name` being `private` is **HARD CODED in the compiler** ([SE-0258](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0258-property-wrappers.md): "always named with a leading `_` and is always `private`"); this is how `Core`'s wrapper instances stay swappable for mocking |
 | [`#pick`](#pick-tuplepicker) | expression | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
 | [`Reflector`](#reflector) | runtime utility (not a macro) | lists a value type's field names off its type alone, no instance needed — pairs with `@Flowable`'s `InFlow` |
 
@@ -37,7 +38,11 @@ carrying no `@Flowable` — the host's standalone twin: the same field set as
 each source-of-truth wrapper substituted with a mockable stand-in, plus a
 verbatim copy of every non-stored member — `body`, helpers, methods, static
 members, nested types — plus a `core` computed property capturing one from
-the current instance. Initializers are the one member kind not copied:
+the current instance. Every `Core` field is `var` (the mapping table below
+shows the substitutions; where it says `let`, read `var`), and every wrapper
+field also has a `raw_name` accessor over its backing storage — so a captured
+copy is fully re-mockable: `var m = shell.core; m.raw_isOn = .constant(false)`.
+Initializers are the one member kind not copied:
 `Core` is constructed through Swift's synthesized memberwise init, and a
 copied init would suppress it. Members declared in a separate extension of
 the host aren't seen (a macro only receives the attached declaration's own
@@ -207,9 +212,7 @@ value doesn't change, but because the *attribute* can't be preserved (both
 wrappers' `wrappedValue` is get-only — verified directly for `@Environment`:
 `error: cannot assign to property: 'colorScheme' is a get-only property` —
 and the synthesized init always assigns `self.x = x`, which a plain
-unattributed `let` has no trouble with). Always `let` here, not mirroring the
-original's `let`/`var` (always `var`, every property wrapper requires it) —
-the captured copy is a one-time snapshot, immutable by design.
+unattributed field has no trouble with).
 
 **All seven recognized source-of-truth wrappers must be private — enforced
 with a diagnostic, not accommodated.** They're a view's own source of truth,
@@ -221,24 +224,16 @@ about. A private field carrying some *other*, unrecognized wrapper
 separate diagnostic rather than silently falling through as ordinary opaque
 private state and quietly disappearing from `OutFlow`/`Core`.
 
-### The rule for everything else: mirror the attribute and type, never the mutability
+### The rule for everything else: mirror the attribute and type
 
 Every field except `@Query` (and `@Environment`, above) is declared on
 `Core` with the *original* property's own attribute (if it has one) and
 declared type — reusing `OutFlow`'s own field-computing functions
 (`outFlowProperties`/`outFlowFieldType`/`outFlowFieldReadExpression`) unchanged to
-decide *what* each field's type is — but never the original's `let`/`var`.
-`Core` is a deterministic snapshot, so a field is `var` only where Swift's
-own property-wrapper rule forces it (a genuine `@propertyWrapper` type requires
-`var` storage; verified directly, `@Bindable let model: Settings` is a compile
-error: "property wrapper can only be applied to a 'var'"). Everything else —
-including `@Query`'s synthesized tuple above — is `let`, regardless of what the
-original property was declared as.
+decide *what* each field's type is. Every field is `var`, regardless of the
+original's `let`/`var` — a captured copy is meant to be re-mocked field by
+field, wrapper instances included (that's what `raw_name` is for).
 
-This one rule covers several things at once:
-
-- **A plain `var subtitle: String?` becomes `let subtitle: String?` on
-  `Core`** — a captured value, not a re-tweakable one.
 - **A genuine, already-public `@Binding` field mirrors verbatim** into exactly
   the same `@Binding var name: T` form `@State`/`@AppStorage` are substituted
   into above — it already *is* that declaration in the original source, so no
@@ -250,18 +245,18 @@ This one rule covers several things at once:
   pointed at, genuinely two-way. `@Binding` is itself a genuine property
   wrapper, so it keeps `var`.
 - **`@ViewBuilder` mirroring is a real win here, unlike `OutFlow`'s tuple —
-  but only for the stored-*closure* form** (`let content: () -> Content`):
+  but only for the stored-*closure* form** (`content: () -> Content`):
   the field type is already a closure there, so the attribute is pure
   upside — real builder syntax at `Core`'s own init call site, not
   just documentation. For a stored *value* (`let footer: Content`), mirroring
   the attribute would make Swift's own synthesized init wrap the parameter in
   a builder closure purely to satisfy it (verified directly) — overhead with
   no benefit for a value that's already built and just being copied through —
-  so it's dropped there entirely: `footer` stays a plain `let footer:
-  Content`, passed straight through in `core` with no wrapping on
+  so it's dropped there entirely: `footer` stays a plain unattributed
+  field, passed straight through in `core` with no wrapping on
   either side. `@ViewBuilder` is *not* a `@propertyWrapper` — it's a
-  result-builder attribute, legal directly on `let` (verified directly:
-  `@ViewBuilder let vb: () -> Text` compiles).
+  result-builder attribute, legal directly on stored properties (verified
+  directly, `let` and `var` both).
 - **`@Bindable` needs no special handling beyond the general "genuine wrapper
   keeps var" rule above** — no init logic here ever recognized `@Bindable`
   specially even on the *original* type (it just does `self.model = model`,

@@ -57,24 +57,25 @@ import SwiftSyntax
 /// - `@AccessibilityFocusState` → an exact `@FocusState` clone (verified
 ///   directly — same nested `@propertyWrapper` `Binding` shape), so the same
 ///   substitution.
-/// - `@Environment`/`@Namespace`/`@ScaledMetric` → a plain `let name: T` — no
+/// - `@Environment`/`@Namespace`/`@ScaledMetric` → a plain `var name: T` — no
 ///   attribute at all. Get-only `wrappedValue`, no `projectedValue` to
-///   substitute (verified directly for each); a plain `let` is the only
-///   option. For `@ScaledMetric` specifically, redeclaring it would
-///   double-scale: its init takes the *base* value, but the host reads back
-///   the already-scaled one.
+///   substitute (verified directly for each), so a plain unattributed field
+///   is the only option. For `@ScaledMetric` specifically, redeclaring it
+///   would double-scale: its init takes the *base* value, but the host reads
+///   back the already-scaled one.
 ///
 /// Every other field mirrors the *original* property's own attribute (if any)
-/// and declared type onto `Core` verbatim, but **not** its mutability:
-/// `var` only where Swift's property-wrapper rule forces it (a genuine
-/// `@propertyWrapper` requires `var` storage — verified directly, `@Bindable
-/// let model: Settings` is a compile error), `let` for everything else — a
-/// captured value, not a re-tweakable one. `@ViewBuilder` (a result-builder
-/// attribute, not a wrapper — legal on `let`, verified directly) is mirrored
-/// only for the stored-*closure* form, where it buys real builder syntax at
-/// the init call site; for the stored-*value* form it would make the
-/// synthesized init wrap the parameter in a builder closure purely to satisfy
-/// the attribute (verified directly), so it's dropped there.
+/// and declared type onto `Core` verbatim. Every field is `var`, regardless
+/// of the original's `let`/`var`, and every genuine-wrapper field is stamped
+/// `@RawProperty` — a captured copy is meant to be re-mocked field by field,
+/// wrapper instances included; `let core = shell.core` still freezes the
+/// whole value, since immutability belongs to the binding, not the type.
+/// `@ViewBuilder` (a result-builder attribute, not a wrapper — legal on
+/// stored properties, verified directly) is mirrored only for the
+/// stored-*closure* form, where it buys real builder syntax at the init call
+/// site; for the stored-*value* form it would make the synthesized init wrap
+/// the parameter in a builder closure purely to satisfy the attribute
+/// (verified directly), so it's dropped there.
 func renderShell(
     properties: [StoredProperty], access: String, hostKind: ShellHostKind = .none,
     copiedMembers: [String] = []
@@ -85,33 +86,42 @@ func renderShell(
 
     // Every field is internal — never `access` — regardless of the attached
     // type's own access level; see this file's own doc comment.
+    //
+    // Every field is `var`, and every genuine-wrapper field is additionally
+    // stamped @RawProperty (this package's own peer macro, expanded by the
+    // compiler inside this very expansion — its raw_ accessor exposes the
+    // wrapper's private _name backing storage). Together they make a captured
+    // copy fully re-mockable: `var m = shell.core; m.raw_isOn = .constant(false)`.
     let fieldDecls = fields.map { p -> String in
         if p.isBindingBackedStorage || p.isBinding {
-            return "@Binding var \(p.name): \(p.type?.trimmedDescription ?? "")"
+            return "@RawProperty @Binding var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         if p.isFocusState {
             let type = p.type?.trimmedDescription ?? ""
-            return "@FocusState<\(type)>.Binding var \(p.name): \(type)"
+            return "@RawProperty @FocusState<\(type)>.Binding var \(p.name): \(type)"
         }
         if p.isAccessibilityFocusState {
             let type = p.type?.trimmedDescription ?? ""
-            return "@AccessibilityFocusState<\(type)>.Binding var \(p.name): \(type)"
+            return "@RawProperty @AccessibilityFocusState<\(type)>.Binding var \(p.name): \(type)"
         }
         if p.isEnvironment || p.isNamespace || p.isScaledMetric {
-            return "let \(p.name): \(p.type?.trimmedDescription ?? "")"
+            return "var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         if p.isQuery {
-            return "@QueryCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
+            return "@RawProperty @QueryCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         if p.isGestureState {
-            return "@GestureStateCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
+            return
+                "@RawProperty @GestureStateCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
-        let requiresVar = p.wrapperName != nil && !p.isViewBuilder
-        let keyword = requiresVar ? "var" : "let"
+        // @ViewBuilder isn't a property wrapper (no backing storage), so no
+        // @RawProperty; any other attribute here is a genuine mirrored wrapper
+        // (@Bindable, …) and gets one.
         let isStoredValueViewBuilder = p.isViewBuilder && !(p.type.map(isFunctionType) ?? false)
         let attributePrefix =
             isStoredValueViewBuilder ? "" : p.wrapperName.map { "@\($0) " } ?? ""
-        return "\(attributePrefix)\(keyword) \(p.name): \(outFlowFieldType(p))"
+        let rawPrefix = p.wrapperName != nil && !p.isViewBuilder ? "@RawProperty " : ""
+        return "\(rawPrefix)\(attributePrefix)var \(p.name): \(outFlowFieldType(p))"
     }.joined(separator: "\n")
 
     let conformance: String

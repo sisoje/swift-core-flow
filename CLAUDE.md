@@ -28,8 +28,8 @@ concurrency) throughout.
 
 | Target | Kind | Contents |
 |---|---|---|
-| `ValueFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `ValueFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`.s drop-in stand-in on `Core`/`OutFlow`, see the `@Flowable` OutFlow notes) |
+| `ValueFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `RawPropertyMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `ValueFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `RawProperty.swift`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`.s drop-in stand-in on `Core`/`OutFlow`, see the `@Flowable` OutFlow notes) |
 | `ValueFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites |
 
 Adding a new macro: one new file in `ValueFlowMacros` for the implementation
@@ -411,7 +411,7 @@ Neither wrapper is recognized by `@Flowable`/`@Shell`, on purpose,
 not as a gap to fill in later. Both are Combine-era `ObservableObject`
 wrappers — MVVM/ViewModel-shaped state, exactly what this package's
 `@Flowable` (plain, `Equatable`-friendly data) and `@Shell`
-(deterministic snapshots of SwiftUI's own native property wrappers) exist to
+(plain, mockable stand-ins for SwiftUI's own native property wrappers) exist to
 avoid. Declaring either one `private` — their normal form — is a compile
 error (`unsupportedPrivateWrapper`, see `@Flowable — tricky points` above),
 same as any other unrecognized private wrapper. See the
@@ -434,7 +434,13 @@ types. Initializers are the one member kind *not* copied: `Core` is
 constructed through Swift's synthesized memberwise init, and a copied init
 would suppress it. The `core` computed property (capturing a `Core` off the
 live instance) is still generated; the host-side `body` delegation is not —
-the host runs its own hand-written body. The field set is *identical* to
+the host runs its own hand-written body. Every field is `var`, and every
+genuine-wrapper field is stamped `@RawProperty` — the compiler expands an
+attached macro attribute inside another macro's generated code just fine
+(verified by the real-compiled `capturedCoreCopyIsFullyReMockable` in
+`ShellTests.swift`) — so a captured copy is fully re-mockable, wrapper
+instances included: `var m = shell.core; m.raw_isOn = .constant(false)`.
+The field set is *identical* to
 `OutFlow`'s —
 `renderShell` calls `outFlowProperties` directly rather than duplicating the
 filter (see `FlowableRendering.swift`): every non-private participating
@@ -513,15 +519,12 @@ aren't seen (same syntax-only limitation as host-kind detection).
   change, but because the *attribute* can't be preserved: `@Environment`'s
   `wrappedValue` has no public setter (verified directly: `error: cannot
   assign to property: 'colorScheme' is a get-only property`), and the
-  synthesized init always assigns `self.x = x`; a plain, unattributed `let`
-  has no such restriction. Always `let` for `@Environment`/`@Namespace`, not
-  mirroring the original's `let`/`var` (always `var`, every property wrapper
-  requires it) — the captured copy is a one-time snapshot, immutable by
-  design. `@Namespace` is grouped with `@Environment` here rather than getting
+  synthesized init always assigns `self.x = x`; a plain, unattributed field
+  has no such restriction. `@Namespace` is grouped with `@Environment` here rather than getting
   its own case: same get-only `wrappedValue` problem (verified directly), and
   unlike the `@Binding`-substituted wrappers or `@FocusState` it has **no
-  `projectedValue` at all** to fall back on, so a plain `let` is the only
-  option.
+  `projectedValue` at all** to fall back on, so a plain unattributed field is
+  the only option.
 - **`@State`/`@Environment`/`@Query`/`@AppStorage`/`@SceneStorage`/`@FocusState`/`@GestureState`/`@AccessibilityFocusState`/`@ScaledMetric`/
   `@Namespace` must be private — enforced with a diagnostic, not
   accommodated.** `sourceOfTruthMustBePrivate` (`StoredProperty.swift`, checked
@@ -540,20 +543,15 @@ aren't seen (same syntax-only limitation as host-kind detection).
   before it was added here: it compiled fine, it just quietly never appeared
   in `OutFlow`/`Core`.
 - **The rule for every other field: mirror the original property's own
-  attribute and declared type onto `Core`, but never its mutability.**
-  `Core` is a deterministic snapshot, so a field gets `var` only where
-  Swift's own property-wrapper rule forces it (a genuine `@propertyWrapper`
-  type — `@Bindable`, or any other real wrapper — requires `var` storage;
-  verified directly, `@Bindable let model: Settings` is a compile error:
-  "property wrapper can only be applied to a 'var'"). Everything else is
-  `let` regardless of what the original property was declared as: a plain
-  `var subtitle: String?` becomes
-  `let subtitle: String?` on `Core` — a captured value, not a
-  re-tweakable one. `@ViewBuilder` carries across (see next bullet) with `let`
-  intact — it's **not** a `@propertyWrapper`, it's a result-builder attribute,
-  legal directly on a stored `let` (verified directly: `@ViewBuilder let vb: ()
-  -> Text` compiles). `@Bindable` carries across with `var` intact and needs no
-  special handling beyond the general "genuine wrapper keeps var" rule — no init
+  attribute and declared type onto `Core`; every field is `var`.**
+  Mutability regardless of the original's `let`/`var` is deliberate — a
+  captured copy is meant to be re-mocked field by field (`m.subtitle = "x"`,
+  `m.raw_isOn = .constant(false)`), and genuine wrappers require `var`
+  storage anyway (verified directly, `@Bindable let model: Settings` is a
+  compile error). `@ViewBuilder` carries across (see next bullet) — it's
+  **not** a `@propertyWrapper`, it's a result-builder attribute, legal
+  directly on stored properties (verified directly, `let` and `var` both).
+  `@Bindable` carries across verbatim and needs no special handling — no init
   logic here ever recognized `@Bindable` specially even on the *original* type
   (it just does `self.model = model`, legal since `@Bindable`'s wrappedValue is
   a plain get/set), so mirroring it onto `Core`'s copy works
@@ -613,6 +611,19 @@ aren't seen (same syntax-only limitation as host-kind detection).
   host-kind-detection cases, and the negative case (conformance in a
   separate extension isn't detected). Verified live by the ExampleApp's
   three views/UITests, all written in this model.
+
+## @RawProperty — tricky points
+
+Peer macro (`RawPropertyMacro.swift`) generating an internal `raw_name`
+get/set accessor over a wrapped property's `_name` backing storage. Exists
+because **the decision is HARD CODED in the compiler** — SE-0258: "always
+named with a leading `_` and is always `private`", no spelling loosens it —
+making the wrapper *instance* on a constructed value unswappable.
+(https://github.com/swiftlang/swift-evolution/blob/main/proposals/0258-property-wrappers.md)
+Nobody writes it by hand: `@Shell` stamps it onto `Core`'s wrapper fields
+(see above). Type inference is syntax-only: attribute generics verbatim
+(`@Binding<Bool>`), else the annotation fills the generic, else a
+diagnostic; no wrapper attribute at all is a diagnostic too.
 
 ## @Capability — tricky points
 

@@ -101,6 +101,20 @@ private func makeCore(
         _ = Text("hi").focused(snap.$isFocused)
     }
 
+    @Test func capturedCoreCopyIsFullyReMockable() {
+        // Every Core field is `var`, and every wrapper field carries a raw_
+        // accessor (@RawProperty, stamped by @Shell inside its own expansion)
+        // over the private _name backing storage Swift refuses to expose — so
+        // a mutable copy can swap the wrapper INSTANCE itself, not just the
+        // wrapped value.
+        var mutable = makeCore()
+        #expect(mutable.isExpanded == false)
+        mutable.raw_isExpanded = .constant(true)
+        #expect(mutable.isExpanded == true)
+        mutable.subtitle = "remocked"  // plain field — var now, plain reassignment
+        #expect(mutable.subtitle == "remocked")
+    }
+
     @Test func gestureStateIsMockableViaASeededInstance() {
         // Outside a live view a GestureState reads back its seed (verified
         // directly), so any mid-gesture value mocks by seeding one; $x hands

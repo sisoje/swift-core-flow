@@ -111,11 +111,13 @@
 /// they're a view's own source of truth, never something a caller supplies
 /// (that's what `@Binding` is for).
 ///
-/// ## The rule for everything else: mirror the attribute and type, never the mutability
-/// A field is `var` only where Swift's property-wrapper rule forces it (a
-/// genuine `@propertyWrapper` requires `var` storage — verified directly);
-/// everything else is `let`, a captured value, regardless of the original's
-/// spelling. A genuine `@Binding` field mirrors verbatim. `@ViewBuilder` (a
+/// ## The rule for everything else: mirror the attribute and type
+/// Every field is `var`, regardless of the original's `let`/`var` — a
+/// captured copy is meant to be re-mocked field by field, and every
+/// genuine-wrapper field additionally has a `raw_name` accessor over its
+/// private backing storage so the wrapper *instance* can be swapped too:
+/// `var m = shell.core; m.raw_isOn = .constant(false)`.
+/// A genuine `@Binding` field mirrors verbatim. `@ViewBuilder` (a
 /// result-builder attribute, not a wrapper) is mirrored only for the
 /// stored-*closure* form, where it buys real builder syntax at the init call
 /// site; for the stored-*value* form it would make the synthesized init wrap

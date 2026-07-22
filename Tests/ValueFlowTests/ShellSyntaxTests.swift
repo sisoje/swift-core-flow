@@ -28,11 +28,11 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @QueryCore var items: [Item]
-                        let colorScheme: ColorScheme
-                        @Binding var isExpanded: Bool
-                        @Binding var isOn: Bool
-                        let title: String
+                        @RawProperty @QueryCore var items: [Item]
+                        var colorScheme: ColorScheme
+                        @RawProperty @Binding var isExpanded: Bool
+                        @RawProperty @Binding var isOn: Bool
+                        var title: String
                     }
 
                     var core: Core {
@@ -65,8 +65,8 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @FocusState<Bool>.Binding var isFocused: Bool
-                        let title: String
+                        @RawProperty @FocusState<Bool>.Binding var isFocused: Bool
+                        var title: String
                     }
 
                     var core: Core {
@@ -102,8 +102,8 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @GestureStateCore var dragOffset: CGSize
-                        let title: String
+                        @RawProperty @GestureStateCore var dragOffset: CGSize
+                        var title: String
                     }
 
                     var core: Core {
@@ -135,8 +135,8 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @AccessibilityFocusState<Bool>.Binding var a11yFocused: Bool
-                        let title: String
+                        @RawProperty @AccessibilityFocusState<Bool>.Binding var a11yFocused: Bool
+                        var title: String
                     }
 
                     var core: Core {
@@ -167,8 +167,8 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        let iconSize: CGFloat
-                        let title: String
+                        var iconSize: CGFloat
+                        var title: String
                     }
 
                     var core: Core {
@@ -199,8 +199,8 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @Binding var isPinned: Bool
-                        let title: String
+                        @RawProperty @Binding var isPinned: Bool
+                        var title: String
                     }
 
                     var core: Core {
@@ -235,8 +235,8 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        let ns: Namespace.ID
-                        let title: String
+                        var ns: Namespace.ID
+                        var title: String
                     }
 
                     var core: Core {
@@ -300,10 +300,10 @@ final class ShellSyntaxTests: XCTestCase {
                     @ViewBuilder let footer: Content
 
                     struct Core {
-                        let subtitle: String?
-                        @Bindable var model: Settings
-                        @ViewBuilder let content: () -> Content
-                        let footer: Content
+                        var subtitle: String?
+                        @RawProperty @Bindable var model: Settings
+                        @ViewBuilder var content: () -> Content
+                        var footer: Content
                     }
 
                     var core: Core {
@@ -341,7 +341,7 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     struct Core: View {
-                        @Binding var count: Int
+                        @RawProperty @Binding var count: Int
 
                         var body: some View {
                             Text("\\(count)")
@@ -381,7 +381,7 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     struct Core: ViewModifier {
-                        @Binding var level: Double
+                        @RawProperty @Binding var level: Double
 
                         func body(content: Content) -> some View {
                             content.opacity(level)
@@ -449,7 +449,7 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     struct Core: View {
-                        @Binding var count: Int
+                        @RawProperty @Binding var count: Int
 
                         static let spacing: CGFloat = 8
 
@@ -496,7 +496,7 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        let title: String
+                        var title: String
                     }
 
                     var core: Core {
@@ -523,8 +523,8 @@ final class ShellSyntaxTests: XCTestCase {
                     var y: Int
 
                     struct Core {
-                        let x: Int
-                        let y: Int
+                        var x: Int
+                        var y: Int
                     }
 
                     var core: Core {

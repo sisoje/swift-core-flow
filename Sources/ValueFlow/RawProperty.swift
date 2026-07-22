@@ -1,5 +1,10 @@
-/// Exposes a property wrapper's synthesized `private _name` backing storage
-/// at internal access, as a `raw_name` peer:
+/// Exposes a property wrapper's synthesized `_name` backing storage at
+/// internal access, as a `raw_name` peer. SE-0258 hardcodes that storage:
+/// "The synthesized storage property is always named with a leading `_` and
+/// is always `private`" — no spelling loosens it, so the wrapper *instance*
+/// on a constructed value can never be swapped (a `Binding`, seeded state,
+/// mocked SwiftData state). This macro overcomes that.
+/// https://github.com/swiftlang/swift-evolution/blob/main/proposals/0258-property-wrappers.md
 ///
 /// ```swift
 /// @RawProperty @Binding var isOn: Bool
