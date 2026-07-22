@@ -441,7 +441,17 @@ Any)]` — the exact write sequence, order included, assertable after the
 test, and sliceable: filter by `propertyName` to ignore writes a test
 doesn't care about, cast `value` only where it matters (observers never
 fire during init, so history starts empty; @Observable preserves didSet
-through its rewrite — both verified by the real-compiled ShellTests). The compiler expands attached macros inside another
+through its rewrite — both verified by the real-compiled ShellTests).
+`Core` additionally carries a generated `@MainActor static func make` — the
+one-call test constructor: every memberwise parameter except the
+Binding-typed ones, plus `model: CoreModel`; a local `@Bindable var model =
+model` shadow supplies `$model.x` for each Binding parameter (referencing
+the sibling CoreModel from inside Core is legal — same expansion).
+Non-binding parameters mirror the memberwise conventions (declaration
+order, host defaults, optionals nil, @escaping/@ViewBuilder as in
+@Flowable's init; an unmapped non-private wrapper parameter is spelled as
+the declared wrapped type — the same syntax-only assumption @Flowable's
+init makes). Generated exactly when CoreModel is (≥1 Binding-typed field). The compiler expands attached macros inside another
 macro's generated code just fine — @Binding/@QueryCore above, and
 @Observable on CoreModel itself (verified by the real-compiled
 `coreModelCapturesEveryWriteThroughItsBindings` in `ShellTests.swift`).

@@ -121,10 +121,16 @@
 /// code, no view needed — so every write the copied body makes lands on the
 /// model:
 ///
+/// `Core` also carries a generated `make` — the one-call test constructor:
+/// every memberwise parameter EXCEPT the Binding-typed ones, plus the model
+/// those bindings come from; inside, a local `@Bindable var model = model`
+/// shadow supplies `$model.x` for each Binding parameter. `@MainActor`
+/// explicit (the model is), non-binding parameters keep the memberwise
+/// conventions (declaration order, host defaults, optionals `nil`):
+///
 /// ```swift
 /// let model = Card.CoreModel(isOn: true)          // isExpanded defaults
-/// let core = Card.Core(isExpanded: Bindable(model).isExpanded,
-///                      isOn: Bindable(model).isOn, title: "t")
+/// let core = Card.Core.make(model: model, items: [item], title: "t")
 /// core.isExpanded = true                          // body writes land here:
 /// core.isOn = false
 /// #expect(model.history.map(\.propertyName) == ["isExpanded", "isOn"])

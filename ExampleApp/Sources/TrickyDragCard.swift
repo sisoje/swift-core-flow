@@ -23,6 +23,7 @@ struct TrickyDragCard: View {
     @GestureState(reset: { _, _ in ResetProbe.count += 1 })
     private var dragOffset: CGSize = .zero
     @State private var resetsSeen: Int = 0
+    var coma = 0
 
     var body: some View {
         VStack(spacing: 16) {

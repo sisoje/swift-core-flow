@@ -133,6 +133,24 @@ private func makeCore(
         #expect(isOnWrites == [false])
     }
 
+    @Test func makeWiresEveryBindingToTheModelInOneCall() {
+        // Core.make — the one-call test constructor: every memberwise
+        // parameter except the Binding-typed ones, plus the model those
+        // bindings come from; inside, a local `@Bindable var model = model`
+        // shadow supplies `$model.x` for each. Defaults ride along
+        // (subtitle's implicit nil), so a full StatefulCard.Core mock is one
+        // line — then the history records what happened, as usual.
+        let model = StatefulCard.CoreModel(isOn: true)
+        let snap = StatefulCard.Core.make(model: model, title: "t")
+        #expect(snap.title == "t")
+        #expect(snap.isOn == true)
+        snap.isOn = false
+        snap.isExpanded = true
+        #expect(model.history.map(\.propertyName) == ["isOn", "isExpanded"])
+        #expect(model.isOn == false)
+        #expect(model.isExpanded == true)
+    }
+
     @Test func coreFieldsStayMutableForReMocking() {
         // Every Core field is `var` — a copy can be re-mocked field by field.
         var mutable = makeCore()

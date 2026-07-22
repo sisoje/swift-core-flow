@@ -142,16 +142,24 @@ on the model. And not just final values: every property's `didSet` appends
 shape lets a test slice it, filtering by name to ignore writes it doesn't
 care about:
 
+And `Core` carries a generated `make` — the one-call test constructor:
+every memberwise parameter *except* the Binding-typed ones, plus the model
+those bindings come from (a local `@Bindable var model = model` shadow
+supplies `$model.x` for each):
+
 ```swift
 let model = Card.CoreModel(isOn: true)
-let core = Card.Core(isExpanded: Bindable(model).isExpanded,
-                     isOn: Bindable(model).isOn, title: "t")
+let core = Card.Core.make(model: model, items: [item], title: "t")
 core.isExpanded = true
 core.isOn = false
 #expect(model.history.map(\.propertyName) == ["isExpanded", "isOn"])
 #expect(model.history.filter { $0.propertyName == "isOn" }
     .compactMap { $0.value as? Bool } == [false])
 ```
+
+Binding by hand stays available for partial mocks —
+`Card.Core(isExpanded: Bindable(model).isExpanded, isOn: .constant(true),
+items: [item], title: "t")` — `make` is just the everything-wired spelling.
 
 **A few things worth spelling out beyond the table above — the last one is about
 `@ViewBuilder`, which isn't a row in it at all (see why above):**

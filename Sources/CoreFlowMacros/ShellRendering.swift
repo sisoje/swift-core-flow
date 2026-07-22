@@ -164,6 +164,65 @@ func renderShell(
     case .none: conformance = ""
     }
 
+    // Binding-typed fields (the @State/@AppStorage/@SceneStorage substitutes
+    // plus genuine @Binding fields) drive both generated conveniences below:
+    // CoreModel holds one observable var per field, and `make` wires them in.
+    let bindingFields = fields.filter { $0.isBindingBackedStorage || $0.isBinding }
+
+    // `make` — Core's one-call test constructor: every memberwise parameter
+    // EXCEPT the Binding-typed ones, plus the CoreModel instance those
+    // bindings come from. A local `@Bindable var model = model` shadow turns
+    // each model property into a real write-through Binding via `$model.x`
+    // (@Observable's dynamic-member projection, plain code, no view).
+    // @MainActor is explicit: CoreModel is @MainActor, and a non-View host's
+    // Core carries no isolation of its own. Non-binding parameters mirror
+    // the memberwise init's own conventions — declaration order, host
+    // defaults carried, optionals implicitly nil, function types @escaping,
+    // @ViewBuilder kept on the stored-closure form. (For an unmapped
+    // NON-private wrapper field, the parameter is spelled as the declared
+    // wrapped type — the same syntax-only assumption @Flowable's init makes;
+    // a wrapper without `init(wrappedValue:)` won't fit it, and such fields
+    // belong private anyway.)
+    let makeDecl: String
+    if bindingFields.isEmpty {
+        makeDecl = ""
+    } else {
+        let memberwiseFields = fields.filter { !($0.isPrivate && !$0.isSubstitutedOnCore) }
+        let makeParams =
+            (["model: CoreModel"]
+            + memberwiseFields.filter { !($0.isBindingBackedStorage || $0.isBinding) }
+            .map { p -> String in
+                let type = p.type?.trimmedDescription ?? ""
+                let isFn = p.type.map(isFunctionType) ?? false
+                let isStoredValueViewBuilder = p.isViewBuilder && !isFn
+                let builder = p.isViewBuilder && isFn ? "@ViewBuilder " : ""
+                var param =
+                    "\(builder)\(p.name): \(isFn ? "@escaping " : "")\(type)"
+                if isStoredValueViewBuilder {
+                    param = "\(p.name): \(type)"
+                }
+                if let def = p.defaultValue, !p.isViewBuilder {
+                    param += " = \(def.trimmedDescription)"
+                } else if p.type.map(isOptionalType) ?? false, !p.isViewBuilder {
+                    param += " = nil"
+                }
+                return param
+            }).joined(separator: ", ")
+        let makeArgs = memberwiseFields.map { p -> String in
+            p.isBindingBackedStorage || p.isBinding
+                ? "\(p.name): $model.\(p.name)"
+                : "\(p.name): \(p.name)"
+        }.joined(separator: ", ")
+        makeDecl = """
+
+
+            @MainActor static func make(\(makeParams)) -> Core {
+                @Bindable var model = model
+                return Core(\(makeArgs))
+            }
+            """
+    }
+
     // The host's non-stored members, copied verbatim — legal because this is
     // the same expansion that declares Core's fields, and the identifiers
     // inside resolve against them by the one-to-one read-surface design (see
@@ -172,7 +231,7 @@ func renderShell(
     let statelessStruct = DeclSyntax(
         stringLiteral: """
             struct Core\(conformance) {
-            \(fieldDecls)\(copies)
+            \(fieldDecls)\(makeDecl)\(copies)
             }
             """
     )
@@ -207,7 +266,6 @@ func renderShell(
     // init (history is empty after construction), and @Observable preserves
     // willSet/didSet on the stored properties it rewrites (verified by the
     // real-compiled ShellTests).
-    let bindingFields = fields.filter { $0.isBindingBackedStorage || $0.isBinding }
     guard !bindingFields.isEmpty else { return [statelessStruct] }
 
     let modelProperties = bindingFields.map { p -> String in

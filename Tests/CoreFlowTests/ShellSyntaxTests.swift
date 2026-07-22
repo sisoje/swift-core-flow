@@ -43,6 +43,11 @@ final class ShellSyntaxTests: XCTestCase {
                         @Binding var isExpanded: Bool
                         @Binding var isOn: Bool
                         var title: String
+
+                        @MainActor static func make(model: CoreModel, items: [Item], title: String) -> Core {
+                            @Bindable var model = model
+                            return Core(items: items, isExpanded: $model.isExpanded, isOn: $model.isOn, title: title)
+                        }
                     }
 
                     @Observable @MainActor final class CoreModel {
@@ -255,6 +260,11 @@ final class ShellSyntaxTests: XCTestCase {
                     struct Core {
                         @Binding var isPinned: Bool
                         var title: String
+
+                        @MainActor static func make(model: CoreModel, title: String) -> Core {
+                            @Bindable var model = model
+                            return Core(isPinned: $model.isPinned, title: title)
+                        }
                     }
 
                     @Observable @MainActor final class CoreModel {
@@ -396,6 +406,11 @@ final class ShellSyntaxTests: XCTestCase {
                     struct Core: View {
                         @Binding var count: Int
 
+                        @MainActor static func make(model: CoreModel) -> Core {
+                            @Bindable var model = model
+                            return Core(count: $model.count)
+                        }
+
                         var body: some View {
                             Text("\\(count)")
                         }
@@ -443,6 +458,11 @@ final class ShellSyntaxTests: XCTestCase {
 
                     struct Core: ViewModifier {
                         @Binding var level: Double
+
+                        @MainActor static func make(model: CoreModel) -> Core {
+                            @Bindable var model = model
+                            return Core(level: $model.level)
+                        }
 
                         func body(content: Content) -> some View {
                             content.opacity(level)
@@ -519,6 +539,11 @@ final class ShellSyntaxTests: XCTestCase {
 
                     struct Core: View {
                         @Binding var count: Int
+
+                        @MainActor static func make(model: CoreModel) -> Core {
+                            @Bindable var model = model
+                            return Core(count: $model.count)
+                        }
 
                         static let spacing: CGFloat = 8
 
