@@ -46,15 +46,15 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     @Observable @MainActor final class CoreModel {
-                        var history: [String] = []
+                        var history: [(propertyName: String, value: Any)] = []
                         var isExpanded: Bool {
                             didSet {
-                                history.append("isExpanded = \\(isExpanded)")
+                                history.append((propertyName: "isExpanded", value: isExpanded))
                             }
                         }
                         var isOn: Bool {
                             didSet {
-                                history.append("isOn = \\(isOn)")
+                                history.append((propertyName: "isOn", value: isOn))
                             }
                         }
                         init(isExpanded: Bool = false, isOn: Bool) {
@@ -258,10 +258,10 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     @Observable @MainActor final class CoreModel {
-                        var history: [String] = []
+                        var history: [(propertyName: String, value: Any)] = []
                         var isPinned: Bool {
                             didSet {
-                                history.append("isPinned = \\(isPinned)")
+                                history.append((propertyName: "isPinned", value: isPinned))
                             }
                         }
                         init(isPinned: Bool = false) {
@@ -402,10 +402,10 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     @Observable @MainActor final class CoreModel {
-                        var history: [String] = []
+                        var history: [(propertyName: String, value: Any)] = []
                         var count: Int {
                             didSet {
-                                history.append("count = \\(count)")
+                                history.append((propertyName: "count", value: count))
                             }
                         }
                         init(count: Int = 0) {
@@ -450,10 +450,10 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     @Observable @MainActor final class CoreModel {
-                        var history: [String] = []
+                        var history: [(propertyName: String, value: Any)] = []
                         var level: Double {
                             didSet {
-                                history.append("level = \\(level)")
+                                history.append((propertyName: "level", value: level))
                             }
                         }
                         init(level: Double = 0.5) {
@@ -540,10 +540,10 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     @Observable @MainActor final class CoreModel {
-                        var history: [String] = []
+                        var history: [(propertyName: String, value: Any)] = []
                         var count: Int {
                             didSet {
-                                history.append("count = \\(count)")
+                                history.append((propertyName: "count", value: count))
                             }
                         }
                         init(count: Int = 0) {

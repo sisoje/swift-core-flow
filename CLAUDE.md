@@ -436,10 +436,12 @@ params carrying host defaults (optionals implicitly nil, function types
 `Bindable(model).x` (a real write-through `Binding<T>`, plain code, no
 view) into `Core`'s matching parameter and asserts on the model after the
 copied body writes. Every property carries a `didSet` appending
-`"name = value"` to `history: [String]` — the exact write sequence, order
-included, assertable after the test (observers never fire during init, so
-history starts empty; @Observable preserves didSet through its rewrite —
-both verified by the real-compiled ShellTests). The compiler expands attached macros inside another
+`(propertyName:, value:)` to `history: [(propertyName: String, value:
+Any)]` — the exact write sequence, order included, assertable after the
+test, and sliceable: filter by `propertyName` to ignore writes a test
+doesn't care about, cast `value` only where it matters (observers never
+fire during init, so history starts empty; @Observable preserves didSet
+through its rewrite — both verified by the real-compiled ShellTests). The compiler expands attached macros inside another
 macro's generated code just fine — @Binding/@QueryCore above, and
 @Observable on CoreModel itself (verified by the real-compiled
 `coreModelCapturesEveryWriteThroughItsBindings` in `ShellTests.swift`).

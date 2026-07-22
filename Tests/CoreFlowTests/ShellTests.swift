@@ -121,9 +121,16 @@ private func makeCore(
         snap.isPinned = true
         #expect(model.isExpanded == true)
         #expect(model.isOn == false)
-        // Every property's didSet appends "name = value" to history — the
-        // model records the exact write sequence, order included.
-        #expect(model.history == ["isExpanded = true", "isOn = false", "isPinned = true"])
+        // Every property's didSet appends (propertyName:, value:) to
+        // history — the model records the exact write sequence, order
+        // included, and the tuple shape lets a test slice it: assert the
+        // full sequence by name, or filter to one property and ignore the
+        // rest entirely.
+        #expect(model.history.map(\.propertyName) == ["isExpanded", "isOn", "isPinned"])
+        let isOnWrites = model.history
+            .filter { $0.propertyName == "isOn" }
+            .compactMap { $0.value as? Bool }
+        #expect(isOnWrites == [false])
     }
 
     @Test func coreFieldsStayMutableForReMocking() {

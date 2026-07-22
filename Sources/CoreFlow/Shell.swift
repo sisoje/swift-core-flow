@@ -110,14 +110,16 @@
 /// `@SceneStorage` substitutes plus genuine `@Binding` fields): an
 /// `@Observable @MainActor final class` with one `var` per such field, init
 /// parameters carrying the host's defaults (optionals implicitly `nil`).
-/// Every property carries a `didSet` appending `"name = value"` to a
-/// `history: [String]` — the model doesn't just hold final values, it
-/// records every mutation in order (and observers never fire during init,
-/// so history is empty after construction). A test instantiates it and
-/// binds each property into `Core`'s matching parameter —
-/// `Bindable(model).x` hands back a real `Binding<T>` in plain code, no
-/// view needed — so every write the copied body makes lands on the model,
-/// ready to assert, sequence included:
+/// Every property carries a `didSet` appending `(propertyName:, value:)` to
+/// `history: [(propertyName: String, value: Any)]` — the model doesn't just
+/// hold final values, it records every mutation in order (observers never
+/// fire during init, so history is empty after construction), and the tuple
+/// shape lets a test slice it: filter by `propertyName` to ignore writes it
+/// doesn't care about, cast `value` only where it matters. A test
+/// instantiates it and binds each property into `Core`'s matching
+/// parameter — `Bindable(model).x` hands back a real `Binding<T>` in plain
+/// code, no view needed — so every write the copied body makes lands on the
+/// model:
 ///
 /// ```swift
 /// let model = Card.CoreModel(isOn: true)          // isExpanded defaults
@@ -125,8 +127,9 @@
 ///                      isOn: Bindable(model).isOn, title: "t")
 /// core.isExpanded = true                          // body writes land here:
 /// core.isOn = false
-/// #expect(model.isExpanded == true)
-/// #expect(model.history == ["isExpanded = true", "isOn = false"])
+/// #expect(model.history.map(\.propertyName) == ["isExpanded", "isOn"])
+/// #expect(model.history.filter { $0.propertyName == "isOn" }
+///     .compactMap { $0.value as? Bool } == [false])
 /// ```
 ///
 /// No `@RawProperty` is stamped on `Core`'s fields — mocking happens at

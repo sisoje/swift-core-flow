@@ -197,14 +197,16 @@ func renderShell(
     // rule 1's spirit: host default carried over, optionals implicitly nil,
     // function types @escaping — same conventions as @Flowable's init.
     //
-    // Every property carries a `didSet` appending `"name = value"` to
-    // `history: [String]` — the model doesn't just hold final values, it
-    // records every mutation IN ORDER, so a test can assert on the exact
-    // write sequence the copied body produced (`model.history == ["isOn =
-    // true", "isExpanded = false"]`). Two Swift rules make this trustworthy:
-    // observers never fire during init (history is empty after
-    // construction), and @Observable preserves willSet/didSet on the stored
-    // properties it rewrites (verified by the real-compiled ShellTests).
+    // Every property carries a `didSet` appending
+    // `(propertyName: "name", value: newValue)` to
+    // `history: [(propertyName: String, value: Any)]` — the model doesn't
+    // just hold final values, it records every mutation IN ORDER, and the
+    // tuple shape lets a test slice it: filter by `propertyName` to ignore
+    // writes it doesn't care about, cast `value` only where it matters.
+    // Two Swift rules make this trustworthy: observers never fire during
+    // init (history is empty after construction), and @Observable preserves
+    // willSet/didSet on the stored properties it rewrites (verified by the
+    // real-compiled ShellTests).
     let bindingFields = fields.filter { $0.isBindingBackedStorage || $0.isBinding }
     guard !bindingFields.isEmpty else { return [statelessStruct] }
 
@@ -212,7 +214,7 @@ func renderShell(
         let type = p.type?.trimmedDescription ?? ""
         return """
             var \(p.name): \(type) {
-                didSet { history.append("\(p.name) = \\(\(p.name))") }
+                didSet { history.append((propertyName: "\(p.name)", value: \(p.name))) }
             }
             """
     }.joined(separator: "\n")
@@ -235,7 +237,7 @@ func renderShell(
     let coreModel = DeclSyntax(
         stringLiteral: """
             @Observable @MainActor final class CoreModel {
-            var history: [String] = []
+            var history: [(propertyName: String, value: Any)] = []
             \(modelProperties)
             init(\(modelParams)) {
             \(modelAssignments)

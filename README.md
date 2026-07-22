@@ -126,9 +126,9 @@ fields), `@Shell` also generates:
 
 ```swift
 @Observable @MainActor final class CoreModel {
-    var history: [String] = []
-    var isExpanded: Bool { didSet { history.append("isExpanded = \(isExpanded)") } }
-    var isOn: Bool { didSet { history.append("isOn = \(isOn)") } }
+    var history: [(propertyName: String, value: Any)] = []
+    var isExpanded: Bool { didSet { history.append((propertyName: "isExpanded", value: isExpanded)) } }
+    var isOn: Bool { didSet { history.append((propertyName: "isOn", value: isOn)) } }
     init(isExpanded: Bool = false, isOn: Bool) { ... }  // host defaults carried
 }
 ```
@@ -137,8 +137,10 @@ A test instantiates it and binds each property into `Core`'s matching
 parameter — `Bindable(model).x` hands back a real write-through `Binding<T>`
 in plain code, no view needed — so every write the copied body makes lands
 on the model. And not just final values: every property's `didSet` appends
-`"name = value"` to `history`, recording the exact write sequence (observers
-never fire during init, so history starts empty):
+`(propertyName:, value:)` to `history`, recording the exact write sequence
+(observers never fire during init, so history starts empty) — and the tuple
+shape lets a test slice it, filtering by name to ignore writes it doesn't
+care about:
 
 ```swift
 let model = Card.CoreModel(isOn: true)
@@ -146,8 +148,9 @@ let core = Card.Core(isExpanded: Bindable(model).isExpanded,
                      isOn: Bindable(model).isOn, title: "t")
 core.isExpanded = true
 core.isOn = false
-#expect(model.isExpanded == true)
-#expect(model.history == ["isExpanded = true", "isOn = false"])
+#expect(model.history.map(\.propertyName) == ["isExpanded", "isOn"])
+#expect(model.history.filter { $0.propertyName == "isOn" }
+    .compactMap { $0.value as? Bool } == [false])
 ```
 
 **A few things worth spelling out beyond the table above — the last one is about
