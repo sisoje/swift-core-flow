@@ -11,11 +11,13 @@ enum ResetProbe {
 // The tricky init: an argument-carrying @GestureState —
 // `@GestureState(reset:)` is one of the wrapper's real inits, alongside
 // (wrappedValue:resetTransaction:) and the initialValue spellings. The
-// developer's reset behavior lives in those arguments. This test drove the
-// @GestureStateCore design: an earlier revision mirrored a fresh
-// `@GestureState var` onto Core, silently swapping this closure for the
-// default reset (the test was red); wrapping a live instance whole carries
-// the closure inside it, and the test went green.
+// developer's reset behavior lives in those arguments. This test drove
+// @Shell's verbatim-copy design for this field: an earlier revision
+// reconstructed a fresh `@GestureState var` on Core from just the bare
+// wrapper name, silently swapping this closure for the default reset (the
+// test was red). @Shell now copies the whole declaration onto Core
+// byte-for-byte — attribute arguments included — so the closure comes along
+// with nothing to reconstruct, and the test is green.
 @Shell
 struct TrickyDragCard: View {
     @GestureState(reset: { _, _ in ResetProbe.count += 1 })

@@ -278,14 +278,13 @@ func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
 ///   synthesized a bare `(wrappedValue:, fetchError:)` tuple via `#pick`
 ///   instead — replaced by the real wrapper so `Core`'s field reads the
 ///   fetched value directly (`core.items`, not `.items.wrappedValue`).
-/// - **`@GestureState`** (`isGestureState`) → `GestureStateCore<WrappedType>` —
-///   the same drop-in move (see `GestureStateCore.swift`), wrapping the
-///   captured live wrapper *instance* whole. That's what preserves every
-///   argument-carrying init (`reset:`/`resetTransaction:`/`initialValue:`
-///   spellings): the reset behavior lives inside the instance and comes along
-///   for free — an earlier mirror-a-fresh-`@GestureState` design silently
-///   swapped a custom reset for the default one, proved by the
-///   `TrickyDragCardUITests` live UI test in the ExampleApp.
+/// - **`@GestureState` needs no case here** — it falls through to the
+///   non-private default, `baseTypeText`, same as `@Environment`/`@Namespace`.
+///   `GestureState<T>`'s own surface is nothing beyond `wrappedValue`/a
+///   self-returning `projectedValue`, so a plain-value `OutFlow` snapshot
+///   loses no metadata worth keeping. (`Core`, `@Shell`'s twin, copies the
+///   whole `@GestureState` declaration verbatim instead — it needs the live
+///   `$x` projection; see `renderShell` in `ShellRendering.swift`.)
 /// - **`@State`/`@AppStorage`/`@SceneStorage`** (`isBindingBackedStorage`) →
 ///   `Binding<T>`, since these are the view's own read-*and-write*-able
 ///   storage from the outside — `$x` already gives the real thing, since
@@ -315,9 +314,6 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
     if p.isQuery {
         return "QueryCore<\(p.type?.trimmedDescription ?? "")>"
     }
-    if p.isGestureState {
-        return "GestureStateCore<\(p.type?.trimmedDescription ?? "")>"
-    }
     return baseTypeText(p, wrapViewBuilder: false)
 }
 
@@ -344,10 +340,9 @@ func outFlowFieldType(_ p: StoredProperty) -> String {
 ///   `modelContext` outside a live container works — verified directly, no
 ///   crash — so capturing it eagerly here is safe even for snapshots built in
 ///   plain code.
-/// - **`@GestureState`** reads `GestureStateCore($x)` — `$x` is the wrapper
-///   instance itself (`projectedValue` returns self, same `$`-projection
-///   convention as every other row), captured whole so the host's storage
-///   stays the one source of truth and its reset arguments carry.
+/// - **`@GestureState`** reads `x` — the plain current wrapped value, same as
+///   any other non-private field (see `outFlowFieldType` above for why it
+///   needs no dedicated case).
 func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
     if p.isBindingBackedStorage || p.isFocusState || p.isAccessibilityFocusState {
         return "$\(p.name)"
@@ -355,9 +350,6 @@ func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
     if p.isQuery {
         return
             "QueryCore(wrappedValue: _\(p.name).wrappedValue, fetchError: _\(p.name).fetchError, modelContext: _\(p.name).modelContext)"
-    }
-    if p.isGestureState {
-        return "GestureStateCore($\(p.name))"
     }
     return fieldReadExpression(p)
 }

@@ -1,6 +1,6 @@
+import CoreFlow
 import SwiftUI
 import Testing
-import CoreFlow
 
 // Real, compiled usage — same reasoning as EndToEndTests/ReflectorTests: exercise
 // actual runtime behavior, not just the syntactic shape assertMacroExpansion

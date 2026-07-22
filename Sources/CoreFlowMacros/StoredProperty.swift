@@ -13,6 +13,14 @@ public struct StoredProperty {
     public let defaultValue: ExprSyntax?
     /// The property-wrapper type name (`Binding`, `State`, `Environment`, …), or nil.
     public let wrapperName: String?
+    /// The property's own attribute list, source text verbatim (e.g.
+    /// `@GestureState(reset: { _, transaction in transaction = Transaction() })`),
+    /// or nil if it carries no attributes. Most renderers only need
+    /// `wrapperName`; this exists for `@GestureState`'s `Core` field (see
+    /// `renderShell`, `ShellRendering.swift`), which copies the whole
+    /// declaration byte-for-byte — a `reset:` closure lives in the attribute's
+    /// own arguments and can't be reconstructed from the bare wrapper name.
+    public let attributeText: String?
     /// True if the property is declared `private` or `fileprivate` — implementation
     /// detail, excluded from the init. This is also what keeps view-owned wrappers
     /// out: `@State`, `@Environment`, … are always private.
@@ -126,20 +134,20 @@ public struct StoredProperty {
         wrapperName == "Namespace"
     }
 
-    /// `@GestureState` — the `OutFlow`/`Core` field is
-    /// `GestureStateCore<WrappedType>`, this package's own drop-in stand-in
-    /// (see `GestureStateCore.swift` in `Sources/CoreFlow`) wrapping the
-    /// captured live wrapper *instance* whole (`GestureStateCore($x)` —
-    /// `projectedValue` returns self). The host property stays the one source
-    /// of truth, and every argument-carrying init the host used —
-    /// `reset:`/`resetTransaction:`/the `initialValue:` spellings — carries
-    /// its behavior over inside the instance. An earlier design mirrored a
-    /// fresh `@GestureState var` onto `Core` instead; it silently swapped a
-    /// custom reset for the default one — proved live by
-    /// `TrickyDragCardUITests` in the ExampleApp, which drove this design
-    /// back. Mockable by seeding:
-    /// `GestureStateCore(GestureState(wrappedValue: mock))` reads back the
-    /// mock outside a live view (verified directly).
+    /// `@GestureState` — a pure-UI wrapper used as-is, not substituted.
+    /// `OutFlow`'s field is just the bare wrapped type (read like any other
+    /// non-private field); `Core`'s field is a **verbatim copy** of the host's
+    /// own declaration — attribute (with any `reset:`/`resetTransaction:`/
+    /// `initialValue:` arguments), default, and `private` all kept
+    /// (`attributeText` above carries the raw attribute text, since a reset
+    /// closure can't be reconstructed from the bare wrapper name). See
+    /// `renderShell` (`ShellRendering.swift`). An earlier design reconstructed
+    /// a fresh `@GestureState var` from just the wrapper name; it silently
+    /// swapped a custom reset for the default one — proved live by
+    /// `TrickyDragCardUITests` in the ExampleApp. Because `Core`'s field stays
+    /// `private` with a default, it drops out of `Core`'s memberwise init and
+    /// isn't readable from outside `Core`; mock via the `@RawProperty`
+    /// accessor (`m.raw_name = GestureState(wrappedValue: mock)`).
     public var isGestureState: Bool {
         wrapperName == "GestureState"
     }
@@ -243,6 +251,8 @@ public func collectStoredProperties(
                 isLet: isLet,
                 defaultValue: binding.initializer?.value,
                 wrapperName: wrapperName,
+                attributeText: varDecl.attributes.isEmpty
+                    ? nil : varDecl.attributes.trimmedDescription,
                 isPrivate: isPrivate
             )
 
@@ -316,7 +326,7 @@ public func collectStoredProperties(
             }
 
             // A private property carrying SOME wrapper attribute this package
-            // doesn't recognize (@StateObject, @GestureState, a future SwiftUI
+            // doesn't recognize (@StateObject, a future SwiftUI
             // wrapper, …) is refused outright, rather than silently treated as
             // ordinary opaque private state. Silent fallthrough is exactly how
             // @FocusState went unsupported for a while: it compiled fine, it

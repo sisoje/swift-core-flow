@@ -315,23 +315,27 @@ the two was itself the defect, not a deliberate design choice worth keeping.
     would make Swift's synthesized memberwise init take the bare value and
     drop `fetchError`/`modelContext`; with all three required it takes the
     wrapper type itself, the same mechanism `@Binding` fields rely on.
-  - `@GestureState` (`isGestureState`) → `GestureStateCore<WrappedType>` —
-    the same drop-in move (`Sources/CoreFlow/GestureStateCore.swift`),
-    wrapping the captured live wrapper *instance* whole
-    (`GestureStateCore($x)` — `projectedValue` returns self, same
-    `$`-projection convention as every other row). The host property stays
-    the one source of truth: `.updating($x)` in `Core`'s body writes to the
-    host's storage (verified live by `DragCardUITests`), and — the decisive
-    point — every argument-carrying init the host used
-    (`reset:`/`resetTransaction:`/the `initialValue:` spellings) carries its
-    behavior over inside the instance. This design was deleted once in favor
-    of mirroring a fresh `@GestureState var` onto `Core` (Core-local
-    invalidation, bare-value mocking), then brought back when a failing live
-    UI test (`TrickyDragCardUITests` in the ExampleApp) proved the mirror
-    silently swaps a custom reset for the default one — reset fidelity beats
-    those wins. Mockable by seeding:
-    `GestureStateCore(GestureState(wrappedValue: mock))` reads back the mock
-    outside a live view (verified directly).
+  - `@GestureState` (`isGestureState`) → **needs no case here**: it falls
+    through to the non-private default, `baseTypeText`, same as
+    `@Environment`/`@Namespace`. Unlike `@Query`, `GestureState<T>`'s own
+    surface is nothing beyond `wrappedValue`/a self-returning
+    `projectedValue` — no `fetchError`-style metadata worth preserving — so a
+    plain-value `OutFlow` snapshot loses nothing. `Core` (`@Shell`'s twin) is
+    the field that actually needs the live `$x` projection to drive
+    `.updating(_:)`, and it gets there a completely different way: it copies
+    the host's own `@GestureState` declaration onto `Core` **verbatim**
+    (`StoredProperty.attributeText`, `renderShell` in `ShellRendering.swift`),
+    `private` and all — see the `@Shell` section below. That verbatim copy is
+    what preserves an argument-carrying init (`reset:`/`resetTransaction:`/the
+    `initialValue:` spellings): the closure is baked into the attribute text
+    itself, so copying that text byte-for-byte carries it with nothing to
+    reconstruct. An earlier design *reconstructed* a fresh `@GestureState var`
+    on `Core` from just the bare wrapper name; it silently swapped a custom
+    reset for the default one, proved by a failing live UI test
+    (`TrickyDragCardUITests` in the ExampleApp). A later design wrapped the
+    host's *live instance* whole in a dedicated `GestureStateCore` stand-in to
+    carry the closure over at runtime; the verbatim source copy gets the same
+    fidelity with no extra wrapper type.
   - `@State`/`@AppStorage`/`@SceneStorage` (`isBindingBackedStorage`) →
     `Binding<WrappedType>`, since these are the view's own externally
     read-*and-write*-able storage — all three wrappers' own `projectedValue`
@@ -376,8 +380,9 @@ the two was itself the defect, not a deliberate design choice worth keeping.
   `QueryCore(wrappedValue: _x.wrappedValue, fetchError: _x.fetchError,
   modelContext: _x.modelContext)` — `_x` is the wrapper instance itself
   (`Query<Element, Result>`), the same underscore-prefixed access
-  `@Binding`'s *assignment* side uses. Every other non-private field uses
-  `fieldReadExpression` unchanged (`x`, or `$x` for `@Binding`).
+  `@Binding`'s *assignment* side uses. Every other field — non-private ones,
+  plus `@Environment`/`@Namespace`/`@GestureState` despite being private —
+  uses `fieldReadExpression` unchanged (`x`, or `$x` for `@Binding`).
 - **Every recognized private source-of-truth wrapper needs an explicit type**
   — relaxes the general "private properties are exempt from needing a type"
   exemption specifically for these, in `collectStoredProperties`
@@ -427,7 +432,8 @@ A separate `member` macro from `@Flowable` — not a mode of it, doesn't replace
 Rendering: `renderShell`, in `Sources/CoreFlowMacros/ShellRendering.swift`.
 
 Generates a nested `Core` struct — always internal, carrying no
-`@Flowable` — the host's standalone twin: substituted fields, plus a
+`@Flowable` — the host's standalone twin: substituted fields (except
+`@GestureState`, copied as-is — see its bullet below), plus a
 verbatim copy of every non-stored member (`copiedMemberSources`,
 `ShellMacro.swift`) — `body`, helpers, methods, `static` members, nested
 types. Initializers are the one member kind *not* copied: `Core` is
@@ -454,8 +460,10 @@ rule that makes `#Preview` unable to see `Core` or any macro-generated name
 (verified directly, five ways; `PreviewProvider` is the escape hatch for
 previewing a mocked `Core`, and `#Preview { Card() }` works since the host's
 `body` is hand-written source). It compiles on both types because every
-substituted field has read-surface parity (`$x` is
-`Binding<T>`/`GestureState<T>`/`FocusState<T>.Binding` on both sides). The
+field has read-surface parity — designed in for the substituted ones (`$x` is
+`Binding<T>`/`FocusState<T>.Binding` on both sides), trivially true for the
+verbatim-copied `@GestureState` (`$x` is `GestureState<T>` on both sides
+because it's the same declaration). The
 copied text is dedented first (`dedented`, `ShellMacro.swift`) — the
 expansion machinery re-shifts every line by the splice position, so without
 it copies land double-indented. Members in a separate extension of the host
@@ -467,7 +475,8 @@ aren't seen (same syntax-only limitation as host-kind detection).
   classes can conform to protocols`. `OutFlow` can never support `Equatable`/
   `Codable`/a shared "any stateless snapshot" protocol for that reason. A real
   nominal struct can, for free, once declared.
-- **`Core` is always internal — the struct itself and every field —
+- **`Core` is always internal — the struct itself and every field except the
+  verbatim-copied `@GestureState` one, which keeps its `private` —
   regardless of the attached type's own access level, and never
   `@Flowable`.** It's a testing/preview seam, not part of the attached type's
   public API even when that type itself is `public` — consumers of a public
@@ -487,18 +496,19 @@ aren't seen (same syntax-only limitation as host-kind detection).
   `Binding` from `.constant`/a getter-setter pair, `FocusState<T>.Binding`
   from a fresh `FocusState<T>()`'s own `projectedValue` (it has no public
   initializer itself — verified directly), `Namespace.ID` from a fresh
-  `Namespace().wrappedValue`, `GestureStateCore` by seeding
-  `GestureState(wrappedValue: mock)`, `QueryCore` via its own memberwise
-  init. See `makeCore` in `ShellTests.swift` for all of them in one place.
+  `Namespace().wrappedValue`, `QueryCore` via its own memberwise init.
+  `@GestureState` isn't fabricated at construction at all — its `Core` field
+  is a private `var` with a default, so it drops out of the memberwise init;
+  seed it afterward through `raw_name` (`m.raw_name = GestureState(wrappedValue:
+  mock)`). See `makeCore` in `ShellTests.swift` for all of them in one place.
 - **Every source-of-truth wrapper becomes a constructed value with a
   substituted attribute — or a plain `let` where no substitution exists.**
   `@Query` → `@QueryCore var name: T`, this package's own drop-in stand-in
   (see the `OutFlow` section above — same wrapper, same capture, `core.name`
-  reads the fetched value directly). `@GestureState` → `@GestureStateCore
-  var name: T`, the same drop-in move wrapping the captured live instance
-  whole — see the `OutFlow` section above for the full story (host storage
-  stays the source of truth, reset arguments carry, seeded-instance
-  mocking, and the failing-UI-test history that settled the design).
+  reads the fetched value directly). **`@GestureState` is the exception: not
+  substituted at all, but copied onto `Core` verbatim** — `@GestureState
+  private var name: T = default` byte-for-byte, `private` kept — see the
+  dedicated bullet below for the full story.
   `@State`/`@AppStorage`/`@SceneStorage` →
   `@Binding var name: T` (substituted since their storage
   can't be redeclared as itself on a plain struct — all three share this one
@@ -536,14 +546,40 @@ aren't seen (same syntax-only limitation as host-kind detection).
   $0.isQuery || …`) technically already handled a hypothetical non-private
   case correctly, but there was no reason to leave that door open when it's
   simply invalid usage. A private property carrying any *other*, unrecognized
-  wrapper attribute (`@StateObject`, `@GestureState`, a future SwiftUI
+  wrapper attribute (`@StateObject`, a future SwiftUI
   wrapper, …) is refused outright by a separate diagnostic
   (`unsupportedPrivateWrapper`) rather than silently falling through as
   ordinary opaque private state — the exact failure mode `@FocusState` hit
   before it was added here: it compiled fine, it just quietly never appeared
   in `OutFlow`/`Core`.
+- **`@GestureState` is copied onto `Core` verbatim, `private` kept — not
+  substituted.** Unlike every wrapper above, its `Core` field isn't built from
+  `outFlowFieldType`/`outFlowFieldReadExpression` at all: `renderShell`
+  special-cases `isGestureState` to splice the host's own attribute text
+  (`StoredProperty.attributeText`) plus a re-added `private` and the default,
+  giving `Core` `@GestureState private var name: T = default` — its own
+  independent storage. Inside `Core`'s scope, `name`/`$name` read the value
+  and real `GestureState<T>` for the copied `body`'s `.updating(_:)`. This is
+  what an argument-carrying init (`reset:`/`resetTransaction:`/`initialValue:`
+  spellings) needs: the closure lives in the attribute's own arguments, and a
+  byte-for-byte copy carries it with nothing to reconstruct. **Consequence of
+  keeping `private`:** the field drops out of `Core`'s synthesized memberwise
+  init (a private stored property with a default isn't a parameter — verified
+  directly), so the generated `core` computed property omits it entirely
+  (`args.filter { !$0.isGestureState }`) and it's unreadable as `snap.name`
+  from outside `Core` — mocking goes through the `@RawProperty` `raw_name`
+  accessor (`m.raw_name = GestureState(wrappedValue: mock)`), the one field
+  read that way. An earlier design *reconstructed* `@GestureState var name: T`
+  from just the bare wrapper name (the generic mirror in the next bullet); it
+  silently dropped a custom reset for the default one, proved by
+  `TrickyDragCardUITests`. A later design wrapped the host's *live instance*
+  in a dedicated `GestureStateCore` stand-in; the verbatim copy gets the same
+  fidelity with no extra wrapper type.
 - **The rule for every other field: mirror the original property's own
-  attribute and declared type onto `Core`; every field is `var`.**
+  attribute and declared type onto `Core`; every field is `var`.** Unlike
+  `@GestureState` above, this mirror is *reconstructed* from just the bare
+  wrapper name (`wrapperName`) — no attribute arguments, no default —
+  sufficient for wrappers whose behavior lives entirely in the wrapped value.
   Mutability regardless of the original's `let`/`var` is deliberate — a
   captured copy is meant to be re-mocked field by field (`m.subtitle = "x"`,
   `m.raw_isOn = .constant(false)`), and genuine wrappers require `var`

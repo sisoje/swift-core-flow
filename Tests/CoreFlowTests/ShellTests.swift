@@ -1,6 +1,6 @@
+import CoreFlow
 import SwiftUI
 import Testing
-import CoreFlow
 
 // Real, compiled usage — same reasoning as OutFlowTests: exercise actual runtime
 // behavior, not just the syntactic shape assertMacroExpansion checks (see
@@ -40,13 +40,15 @@ struct StatefulCard: View {
 /// plain code: `Binding` from a getter/setter pair, `FocusState<T>.Binding`
 /// from a fresh `FocusState` instance's own projection (it has no public
 /// initializer of its own — verified directly — but `FocusState()` mints one
-/// fine outside a live view), `Namespace.ID` from a fresh `Namespace`, and
-/// `GestureStateCore` by seeding a `GestureState` with any mid-gesture value.
+/// fine outside a live view), `Namespace.ID` from a fresh `Namespace`. There's
+/// deliberately no `dragOffset` parameter: `@GestureState` is copied onto Core
+/// verbatim and stays `private` with a default, so it drops out of Core's
+/// memberwise init — it defaults to `.zero` here and is mocked afterward via
+/// its `raw_dragOffset` accessor (see `gestureStateIsMockableViaRawAccessor`).
 @MainActor
 private func makeCore(
     colorScheme: ColorScheme = .light,
     isOn: Binding<Bool> = .constant(true),
-    dragOffset: CGSize = .zero,
     title: String = "x",
     subtitle: String? = nil
 ) -> StatefulCard.Core {
@@ -56,7 +58,6 @@ private func makeCore(
         isExpanded: .constant(false),
         isPinned: .constant(false),
         isFocused: FocusState<Bool>().projectedValue,
-        dragOffset: GestureStateCore(GestureState(wrappedValue: dragOffset)),
         isOn: isOn,
         title: title,
         subtitle: subtitle
@@ -115,13 +116,15 @@ private func makeCore(
         #expect(mutable.subtitle == "remocked")
     }
 
-    @Test func gestureStateIsMockableViaASeededInstance() {
-        // Outside a live view a GestureState reads back its seed (verified
-        // directly), so any mid-gesture value mocks by seeding one; $x hands
-        // back the real GestureState<CGSize> that .updating(_:) takes.
-        let snap = makeCore(dragOffset: CGSize(width: 50, height: 7))
-        #expect(snap.dragOffset == CGSize(width: 50, height: 7))
-        let projected: GestureState<CGSize> = snap.$dragOffset
-        #expect(projected.wrappedValue == CGSize(width: 50, height: 7))
+    @Test func gestureStateIsMockableViaRawAccessor() {
+        // Core's @GestureState field is copied verbatim and stays private with
+        // a default, so it's neither an init parameter nor readable as
+        // snap.dragOffset — mocking goes through the @RawProperty accessor.
+        // Swap in a seeded GestureState (outside a live view it reads back its
+        // seed); raw_dragOffset is the real GestureState<CGSize> .updating(_:)
+        // takes.
+        var snap = makeCore()
+        snap.raw_dragOffset = GestureState(wrappedValue: CGSize(width: 50, height: 7))
+        #expect(snap.raw_dragOffset.wrappedValue == CGSize(width: 50, height: 7))
     }
 }

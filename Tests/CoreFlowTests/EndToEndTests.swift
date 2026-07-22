@@ -1,5 +1,5 @@
-import Testing
 import CoreFlow
+import Testing
 
 // `assertMacroExpansion` (see PickMacroTests) only checks syntactic
 // expansion — it never resolves whether the emitted code actually

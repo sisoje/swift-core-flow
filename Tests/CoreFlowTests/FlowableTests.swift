@@ -721,12 +721,14 @@ final class FlowableTests: XCTestCase {
         )
     }
 
-    func testOutFlowSynthesizesGestureStateAsAGestureStateCoreDropIn() {
-        // @GestureState → GestureStateCore<WrappedType>, wrapping the captured
-        // live wrapper instance whole ($dragOffset — projectedValue is itself)
-        // so the host's storage stays the one source of truth and every
-        // argument-carrying init (reset:/resetTransaction:/initialValue:
-        // spellings) carries its behavior over inside the instance.
+    func testOutFlowMapsGestureStateAsItsBareWrappedValue() {
+        // @GestureState needs no dedicated OutFlow case — it falls through to
+        // the plain non-private treatment, same as @Environment/@Namespace:
+        // GestureState's own surface is nothing beyond wrappedValue/a
+        // self-returning projectedValue, so a bare-value snapshot loses no
+        // metadata worth keeping. (Core, @Shell's twin, is a different story —
+        // it copies the property's own declaration verbatim; see
+        // ShellSyntaxTests.)
         assertMacroExpansion(
             """
             @Flowable
@@ -756,10 +758,10 @@ final class FlowableTests: XCTestCase {
                         title
                     }
 
-                    public typealias OutFlow = (dragOffset: GestureStateCore<CGSize>, title: String)
+                    public typealias OutFlow = (dragOffset: CGSize, title: String)
 
                     public var outFlow: OutFlow {
-                        (dragOffset: GestureStateCore($dragOffset), title: title)
+                        (dragOffset: dragOffset, title: title)
                     }
                 }
                 """,

@@ -35,7 +35,8 @@ type's stored properties itself). It generates a nested `Core` struct —
 always internal, regardless of the attached type's own access level, and
 carrying no `@Flowable` — the host's standalone twin: the same field set as
 `OutFlow` (see the [wrapper mapping reference](#wrapper-mapping-reference)),
-each source-of-truth wrapper substituted with a mockable stand-in, plus a
+each source-of-truth wrapper substituted with a mockable stand-in — except
+`@GestureState`, copied as-is, `private` and all — plus a
 verbatim copy of every non-stored member — `body`, helpers, methods, static
 members, nested types — plus a `core` computed property capturing one from
 the current instance. Every `Core` field is `var` (the mapping table below
@@ -96,7 +97,7 @@ diagnostic, not just convention.
 | `@Namespace` | `let` | `x` |
 | `@ScaledMetric` | `let` | `x` |
 | `@Query` | `@QueryCore` | `QueryCore(_x)` |
-| `@GestureState` | `@GestureStateCore` | `GestureStateCore($x)` |
+| `@GestureState` | `@GestureState` (verbatim, private kept) | as is |
 | `@State` | `@Binding` | `$x` |
 | `@AppStorage` | `@Binding` | `$x` |
 | `@SceneStorage` | `@Binding` | `$x` |
@@ -143,18 +144,24 @@ diagnostic, not just convention.
   the live wrapper — body code moves onto `Core` unchanged. Capturing
   `modelContext` outside a live container is safe (verified directly, no
   crash).
-- **`@GestureStateCore` wraps the host's live `@GestureState` instance
-  whole — which is what keeps every one of its inits working.** The reset
-  behavior (`reset:`/`resetTransaction:`/`initialValue:` spellings) lives
-  *inside* the wrapper instance, so capturing the instance carries it for
-  free: `core.x` reads the mid-gesture value, `.updating($x)` in `Core`'s
-  body writes to the host's storage — the host property stays the one source
-  of truth. An earlier design mirrored a fresh `@GestureState var` onto
-  `Core` instead; it silently swapped a custom reset for the default one —
-  proved by a live UI test (`TrickyDragCardUITests` in the ExampleApp), which
-  drove this design back. Mockable by seeding:
-  `GestureStateCore(GestureState(wrappedValue: mock))` reads back the mock
-  outside a live view (verified directly).
+- **`@GestureState` is copied onto `Core` verbatim — attribute arguments,
+  default, and `private` all kept — not substituted with a stand-in type.**
+  It's a pure-UI wrapper `Core` uses as-is. The reset behavior
+  (`reset:`/`resetTransaction:`/`initialValue:` spellings) lives in the
+  attribute's own arguments, so copying the declaration byte-for-byte carries
+  it over with nothing to reconstruct: inside `Core`'s scope, `x` reads the
+  mid-gesture value and `$x` is a real `GestureState<T>` for the copied
+  `body`'s `.updating(_:)`. An earlier design *reconstructed* a fresh
+  `@GestureState var` from just the bare wrapper name; it silently swapped a
+  custom reset for the default one — proved by a live UI test
+  (`TrickyDragCardUITests` in the ExampleApp). A later design wrapped the
+  host's live instance in a dedicated `GestureStateCore` stand-in to carry the
+  closure over at runtime; the verbatim copy gets the same fidelity with no
+  extra wrapper type, since `Core`'s field simply *is* the same declaration.
+  Because the field stays `private` with a default, it drops out of `Core`'s
+  memberwise init and isn't readable as `snap.x` from outside `Core` — mock it
+  through the `@RawProperty` accessor (`m.raw_x = GestureState(wrappedValue:
+  mock)`), which is the one row that reads via `raw_x`, not `x` or `$x`.
 - **`@ViewBuilder`'s two stored forms get opposite treatment, on purpose.** A
   stored *closure* (`let content: () -> Content`) already has a closure-typed
   field, so mirroring `@ViewBuilder` is pure upside — real builder syntax at
@@ -220,17 +227,20 @@ never something a caller supplies (`@Binding` is for that); declaring one
 non-private is a compile error, so every renderer downstream can assume all
 seven are always private, with no "what if it's also public" case to reason
 about. A private field carrying some *other*, unrecognized wrapper
-(`@StateObject`, `@GestureState`, a future SwiftUI wrapper, …) is refused by a
+(`@StateObject`, a future SwiftUI wrapper, …) is refused by a
 separate diagnostic rather than silently falling through as ordinary opaque
 private state and quietly disappearing from `OutFlow`/`Core`.
 
 ### The rule for everything else: mirror the attribute and type
 
-Every field except `@Query` (and `@Environment`, above) is declared on
-`Core` with the *original* property's own attribute (if it has one) and
-declared type — reusing `OutFlow`'s own field-computing functions
+Every field except `@Query`, `@GestureState`, and `@Environment` (all above)
+is declared on `Core` with the *original* property's own attribute (if it has
+one) and declared type — reusing `OutFlow`'s own field-computing functions
 (`outFlowProperties`/`outFlowFieldType`/`outFlowFieldReadExpression`) unchanged to
-decide *what* each field's type is. Every field is `var`, regardless of the
+decide *what* each field's type is. This mirror is *reconstructed* from the
+bare wrapper name (no attribute arguments) — fine for wrappers whose behavior
+lives entirely in the wrapped value, unlike `@GestureState`, which is why that
+one is copied verbatim instead. Every field is `var`, regardless of the
 original's `let`/`var` — a captured copy is meant to be re-mocked field by
 field, wrapper instances included (that's what `raw_name` is for).
 
@@ -1144,7 +1154,7 @@ One target pair for every macro — not one pair per macro:
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `InFlowSplat`/`InFlow`, and `OutFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift` — plus three small non-macro additions: `Reflector.swift`, `QueryCore.swift`, and `GestureStateCore.swift` |
+| `CoreFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift` — plus two small non-macro additions: `Reflector.swift` and `QueryCore.swift` |
 | `CoreFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites — both test frameworks coexist fine in one target |
 | `Examples` | executable | one playground exercising every macro in the package, plus Reflector |
 

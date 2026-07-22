@@ -5,7 +5,9 @@
 /// 1. **Substituted fields** — the same field set as `@Flowable`'s
 ///    `OutFlow`/`outFlow` (every non-private participating property, plus
 ///    every recognized private source-of-truth wrapper), each source-of-truth
-///    wrapper replaced with a plain, mockable stand-in (mapping table below).
+///    wrapper replaced with a plain, mockable stand-in (mapping table below) —
+///    except `@GestureState`, copied as-is rather than substituted (its own
+///    section below).
 /// 2. **A verbatim copy of every non-stored member** — `body`, helper
 ///    computed properties, methods, `static` members, nested types. Write the
 ///    host as one completely ordinary SwiftUI view; `Core` carries the
@@ -41,7 +43,8 @@
 /// The copy compiles on both types by construction — every substituted field
 /// was designed for read-surface parity: `$x` is `Binding<T>` on both sides
 /// for `@State`/`@AppStorage`/`@SceneStorage`/`@Binding`, `GestureState<T>`
-/// on both via `@GestureStateCore`, `FocusState<T>.Binding` on both, and
+/// on both since `@GestureState` is copied verbatim rather than substituted,
+/// `FocusState<T>.Binding` on both, and
 /// `@Query`'s fetched value reads directly on both via `@QueryCore`. One
 /// source text, compiler-copied: the live view runs against the real
 /// wrappers with no substitution layer, `Core` is the stateless twin, and
@@ -81,12 +84,17 @@
 ///   (see `QueryCore.swift`), one-to-one with the live wrapper's instance
 ///   surface (`wrappedValue`/`fetchError`/`modelContext`, no `projectedValue`
 ///   — verified directly against the `_SwiftData_SwiftUI` interface).
-/// - `@GestureState` → `@GestureStateCore var name: T` — wraps a
-///   `GestureState<T>` instance whole (see `GestureStateCore.swift`): `$name`
-///   hands `.updating(_:)` the real `GestureState<T>`, and every
-///   argument-carrying init the host used (`reset:`/`resetTransaction:`)
-///   carries its behavior over inside the instance. Mock by seeding:
-///   `GestureStateCore(GestureState(wrappedValue: mock))`.
+/// - `@GestureState` → copied verbatim, NOT substituted: `@GestureState
+///   private var name: T = default` byte-for-byte (attribute arguments and
+///   default kept, `private` kept — it's a pure-UI wrapper `Core` uses
+///   as-is). An argument-carrying init (`reset:`/`resetTransaction:`) carries
+///   over for free since it lives in the copied attribute text. Because the
+///   field stays `private` with a default it drops out of `Core`'s memberwise
+///   init and isn't readable from outside `Core` — so the generated `core`
+///   property omits it (a captured `Core` starts the gesture fresh at its
+///   declared default, not at the host's transient mid-gesture value); mock it
+///   through the `@RawProperty` accessor:
+///   `m.raw_name = GestureState(wrappedValue: mock)`.
 /// - `@State`/`@AppStorage`/`@SceneStorage` → `@Binding var name: T` — their
 ///   own storage only installs inside a live SwiftUI view; all three share
 ///   this substitution since each one's `projectedValue` genuinely *is*

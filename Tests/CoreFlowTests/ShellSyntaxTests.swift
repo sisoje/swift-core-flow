@@ -78,16 +78,17 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
-    func testGestureStateRedeclaresAsGestureStateCoreWrappingTheLiveInstance() {
-        // @GestureStateCore wraps a live GestureState instance whole and
-        // forwards wrappedValue/projectedValue to it — so `dragOffset` reads
-        // the mid-gesture value, `.updating($dragOffset)` in the copied body
-        // takes the real GestureState<T>, and every argument-carrying init
-        // (reset:/resetTransaction:/initialValue: spellings) carries over for
-        // free, since the reset behavior lives inside the instance. An earlier
-        // design mirrored a fresh `@GestureState var` instead — it silently
-        // swapped a custom reset for the default one, proved live by
-        // TrickyDragCardUITests in the ExampleApp.
+    func testGestureStateIsCopiedVerbatimOntoCorePrivateKept() {
+        // @GestureState is a pure-UI wrapper used as-is: its whole declaration
+        // — attribute (with reset: arguments), default, and `private` — is
+        // copied onto Core byte-for-byte, not substituted with a stand-in
+        // type. The reset closure lives in the copied attribute text, so it
+        // carries over with nothing to reconstruct (an earlier design that
+        // reconstructed a fresh @GestureState var from the bare wrapper name
+        // silently swapped it for the default reset, proved live by
+        // TrickyDragCardUITests). Because the field stays private with a
+        // default, it drops out of Core's memberwise init — so `core` omits
+        // dragOffset entirely (it starts fresh at .zero).
         assertMacroExpansion(
             """
             @Shell
@@ -102,12 +103,14 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @RawProperty @GestureStateCore var dragOffset: CGSize
+                        @RawProperty @GestureState(reset: { _, transaction in
+                            transaction = Transaction()
+                        }) private var dragOffset: CGSize = .zero
                         var title: String
                     }
 
                     var core: Core {
-                        Core(dragOffset: GestureStateCore($dragOffset), title: title)
+                        Core(title: title)
                     }
                 }
                 """,
