@@ -9,6 +9,7 @@ import SwiftUI
 enum ExampleScenario: String {
     case gestureState = "GestureState"
     case focusState = "FocusState"
+    case viewModifier = "ViewModifier"
 
     /// Used when EXAMPLE_SCENARIO isn't set at all — running the app directly
     /// from Xcode (Cmd-R), with no scheme environment configured, rather than
@@ -46,6 +47,8 @@ struct ExampleApp: App {
                 }
             case .focusState:
                 FocusField()
+            case .viewModifier:
+                DimmerDemo()
             }
         }
     }

@@ -5,3 +5,4 @@ cd "$(dirname "$0")"
 
 sh testScenario.sh GestureState
 sh testScenario.sh FocusState
+sh testScenario.sh ViewModifier
