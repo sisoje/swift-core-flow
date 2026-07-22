@@ -12,18 +12,13 @@ granularity nobody needed.)
 
 - Build/test: `swift build && swift test`
 - Format: `swift format --in-place --recursive Sources Tests`
-- Examples: `Sources/Examples/main.swift` — one playground, imports and exercises every
-  macro in the package. `swift run Examples`.
 - Example app: `ExampleApp/project.yml` — ONE real app (xcodegen; the
   generated `.xcodeproj` is gitignored) verifying live behavior no headless
-  test can, via XCUITests. One view per file in `Sources/`, and
-  `ExampleApp.swift`'s scene points at whichever view is currently being
-  exercised. `cd ExampleApp && xcodegen generate && xcodebuild -project
-  ExampleApp.xcodeproj -scheme ExampleApp -destination "platform=iOS
-  Simulator,name=iPhone 17 Pro" test` — the DragCard UI test performs a real
-  drag and asserts both live behaviors at once: `Core`'s mirrored
-  `@GestureState` streams mid-gesture offsets and resets on release, and the
-  offset writes back through the `@State`→`@Binding` substitution.
+  test can, via XCUITests. One view per file in `Sources/`; the app's scene
+  selects a view via the `EXAMPLE_SCENARIO` env var
+  (`ExampleScenario.defaultScenario` when unset, so Cmd-R just works).
+  `cd ExampleApp && sh testScenario.sh GestureState`, or `sh testAll.sh` —
+  each UI test sets its own scenario via `launchExampleApp(scenario:)`.
 
 Targets Swift 6.3 (`swift-tools-version: 6.3`); swift-syntax `600.0.0..<700.0.0`, whose
 APIs are stable across the whole Swift 6.x line. Swift 6 language mode (strict
@@ -36,15 +31,13 @@ concurrency) throughout.
 | `ValueFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
 | `ValueFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`.s drop-in stand-in on `Core`/`OutFlow`, see the `@Flowable` OutFlow notes) |
 | `ValueFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites |
-| `Examples` | executable | combined playground for every macro (and Reflector) |
 
 Adding a new macro: one new file in `ValueFlowMacros` for the implementation
 (`Foo­Macro: MemberMacro`/`ExpressionMacro`), add it to `Plugin.swift`'s
 `providingMacros`, one new file in `ValueFlow` for the public
 `@attached`/`@freestanding` declaration pointing `#externalMacro(module:
-"ValueFlowMacros", type: "FooMacro")`, a new `XCTestCase`/`@Suite` in
-`ValueFlowTests`, and a `// MARK: -` section in `Examples/main.swift`. No new
-Package.swift targets or products. If the macro generates something from a type's
+"ValueFlowMacros", type: "FooMacro")`, and a new `XCTestCase`/`@Suite` in
+`ValueFlowTests`. No new Package.swift targets or products. If the macro generates something from a type's
 stored properties (like `@Flowable` does), build it on `StoredProperty.swift`'s
 collection (`validatedProperties` in `MemberMacroEntry.swift`) and
 `FlowableRendering.swift`'s functions rather than re-deriving them —
@@ -310,8 +303,8 @@ the two was itself the defect, not a deliberate design choice worth keeping.
     interface: exactly `wrappedValue`, `fetchError`, and `modelContext`, and
     **no `projectedValue`**, so `QueryCore` carries the same three members and
     no `$x` projection either. Reading `modelContext` outside a live container
-    works — verified directly in the Examples playground, no crash — so the
-    eager capture is safe even for snapshots built in plain code. An earlier
+    works — verified directly, no crash — so the eager capture is safe even
+    for snapshots built in plain code. An earlier
     revision synthesized a bare `(wrappedValue:, fetchError:)` tuple via
     `#pick` instead (and one before that dropped `modelContext` as
     unexercised plumbing); replaced by the real wrapper so `Core`'s field
@@ -410,9 +403,7 @@ the two was itself the defect, not a deliberate design choice worth keeping.
   conformance implicitly infers `@MainActor` isolation for the whole type, so
   touching its members from a nonisolated swift-testing `@Test` function crosses
   that isolation boundary at runtime and traps (`SIGTRAP`) under Swift 6 strict
-  concurrency, even though it merely reads a computed property. A plain top-level
-  script (`Examples/main.swift`) doesn't hit this — top-level code in a `main.swift`
-  already runs on the main actor.
+  concurrency, even though it merely reads a computed property.
 
 ## NOT SUPPORTED: `@StateObject` / `@ObservedObject`
 
@@ -436,13 +427,33 @@ A separate `member` macro from `@Flowable` — not a mode of it, doesn't replace
 Rendering: `renderShell`, in `Sources/ValueFlowMacros/ShellRendering.swift`.
 
 Generates a nested `Core` struct — always internal, carrying no
-`@Flowable` — plus a `core` computed property building one from the
-current instance. Its field set is *identical* to `OutFlow`'s — `renderShell`
-calls `outFlowProperties` directly rather than duplicating the filter (see
-`FlowableRendering.swift`): every non-private participating property, plus
-every recognized private source-of-truth wrapper —
+`@Flowable` — the host's standalone twin: substituted fields, plus a
+verbatim copy of every non-stored member (`copiedMemberSources`,
+`ShellMacro.swift`) — `body`, helpers, methods, `static` members, nested
+types. Initializers are the one member kind *not* copied: `Core` is
+constructed through Swift's synthesized memberwise init, and a copied init
+would suppress it. The `core` computed property (capturing a `Core` off the
+live instance) is still generated; the host-side `body` delegation is not —
+the host runs its own hand-written body. The field set is *identical* to
+`OutFlow`'s —
+`renderShell` calls `outFlowProperties` directly rather than duplicating the
+filter (see `FlowableRendering.swift`): every non-private participating
+property, plus every recognized private source-of-truth wrapper —
 `@Environment`/`@Query`/`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState`/
-`@GestureState`/`@AccessibilityFocusState`/`@ScaledMetric`/`@Namespace` — each captured once as a plain value.
+`@GestureState`/`@AccessibilityFocusState`/`@ScaledMetric`/`@Namespace`.
+
+The copy is legal because it happens inside `@Shell`'s *own* expansion —
+only *cross*-expansion name references are forbidden, the same Swift-level
+rule that makes `#Preview` unable to see `Core` or any macro-generated name
+(verified directly, five ways; `PreviewProvider` is the escape hatch for
+previewing a mocked `Core`, and `#Preview { Card() }` works since the host's
+`body` is hand-written source). It compiles on both types because every
+substituted field has read-surface parity (`$x` is
+`Binding<T>`/`GestureState<T>`/`FocusState<T>.Binding` on both sides). The
+copied text is dedented first (`dedented`, `ShellMacro.swift`) — the
+expansion machinery re-shifts every line by the splice position, so without
+it copies land double-indented. Members in a separate extension of the host
+aren't seen (same syntax-only limitation as host-kind detection).
 
 - **Why a second, nominal member alongside `OutFlow`'s tuple at all**: tuples
   can't conform to protocols — verified directly, `type '(x: Int, y: String)'
@@ -450,30 +461,29 @@ every recognized private source-of-truth wrapper —
   classes can conform to protocols`. `OutFlow` can never support `Equatable`/
   `Codable`/a shared "any stateless snapshot" protocol for that reason. A real
   nominal struct can, for free, once declared.
-- **`Core` is always internal — the struct itself, every field, and
-  `core`'s own access — regardless of the attached type's own access
-  level, and never `@Flowable`.** This is a purely internal testing/snapshot
-  seam (`.core` for assertions, plus a `Core`-hosted `body`/
-  `body(content:)` implementation), not part of the attached type's public API
-  even when that type itself is `public` — consumers of a public host never need
-  the snapshot, only the package's own tests do (from the same module, or a
-  `@testable import`). No hand-rolled init is needed either: Swift's own
+- **`Core` is always internal — the struct itself and every field —
+  regardless of the attached type's own access level, and never
+  `@Flowable`.** It's a testing/preview seam, not part of the attached type's
+  public API even when that type itself is `public` — consumers of a public
+  host never need the twin, only the module's own tests do (same module, or
+  a `@testable import`). No hand-rolled init is needed either: Swift's own
   memberwise-init synthesis already reproduces every field-specific behavior
   `@Flowable` would — verified directly: a property-wrapper field with no
   `init(wrappedValue:)` (`@Binding`) synthesizes a parameter of the *wrapper's*
   type, one that does (`@Bindable`) synthesizes a parameter of the *wrapped*
   type, and `@ViewBuilder` directly on a stored `let` synthesizes a
   builder-closure parameter for a value-typed field, exactly like
-  `@Flowable`'s own hand-written logic. Because `Core`'s own type is
-  always internal, `core`'s access is forced internal too — Swift
-  rejects a more-accessible property with a less-accessible type (verified
-  directly: "property must be declared internal because its type uses an
-  internal type"). `body`/`body(content:)` on the *attached* type, by contrast,
-  still mirrors that type's own access (`public` included) — verified directly
-  that this compiles even though it reads `core` (internal) and
-  returns it: `some View`'s opaque return type only exposes the `View`
-  conformance, never the concrete `Core` type, so a `public` `body` can
-  freely return an internal concrete value.
+  `@Flowable`'s own hand-written logic. Copied members keep their original
+  access modifiers verbatim (a `public var body` inside an internal `Core`
+  just caps at internal — legal).
+- **Every substituted wrapper is fabricatable from plain code**, which is
+  what makes direct `Core` construction work with zero live-view machinery:
+  `Binding` from `.constant`/a getter-setter pair, `FocusState<T>.Binding`
+  from a fresh `FocusState<T>()`'s own `projectedValue` (it has no public
+  initializer itself — verified directly), `Namespace.ID` from a fresh
+  `Namespace().wrappedValue`, `GestureStateCore` by seeding
+  `GestureState(wrappedValue: mock)`, `QueryCore` via its own memberwise
+  init. See `makeCore` in `ShellTests.swift` for all of them in one place.
 - **Every source-of-truth wrapper becomes a constructed value with a
   substituted attribute — or a plain `let` where no substitution exists.**
   `@Query` → `@QueryCore var name: T`, this package's own drop-in stand-in
@@ -565,37 +575,24 @@ every recognized private source-of-truth wrapper —
   builder closure purely to satisfy it (verified directly) — overhead with no
   benefit for a value that's already built and just being copied through — so
   it's dropped there entirely: `footer` stays a plain `let footer: Content`,
-  and constructing `Core` in the `core` computed property
-  passes it straight through (`footer: footer`), no wrapping needed on either
-  side. `isFunctionType` is what tells the two forms apart, the same check
+  its synthesized init parameter just the bare value. `isFunctionType` is
+  what tells the two forms apart, the same check
   `renderInFlowSplatFactory`'s `makeFlow(_:)` uses for its own reverse
   direction (which *does* still need the trivial-closure trick, since
   `@Flowable`'s init keeps `@ViewBuilder` on both forms).
 - **Zero eligible fields still generates a (near-empty) `Core`** —
-  `struct Core {}` plus `var core: Core {
-  Core() }` — no diagnostic, mirroring `@Flowable`'s own graceful
-  zero-property `init()` rather than `@Capability`'s "zero is an error" stance;
-  an empty core snapshot is a sensible, if trivial, concept (Swift
-  synthesizes the empty `init()` here on its own, same result).
+  `struct Core {}` — no diagnostic, mirroring `@Flowable`'s own graceful
+  zero-property `init()` rather than `@Capability`'s "zero is an error"
+  stance (Swift synthesizes the empty `init()` here on its own).
 - **Automatic `View`/`ViewModifier` detection, off the attached type's own
   inheritance clause** (`detectHostKind`, in `ShellMacro.swift`): `struct
-  Card: View` or `struct VM: ViewModifier` gets two members beyond the usual
-  pair — `Core` is additionally declared `: View`/`: ViewModifier` (a
-  requirement only; the real `body`/`body(content:)` is still hand-written, in a
-  separate extension of `Core`), and the attached type gets the mechanical
-  delegation for free: `var body: some View { core }`, or `func
-  body(content: Content) -> some View { content.modifier(core) }`.
-  - **Discoverability of the hand-written half is a doc comment, not a
-    diagnostic** — a `///` comment generated directly on the `Core` struct
-    declaration (only when `hostKind != .none`) states exactly what to write
-    and where, visible via Quick Help/jump-to-definition. Deliberately not a
-    compiler diagnostic: the macro has no semantic model, so it can never know
-    whether the implementing extension already exists elsewhere in the module
-    — a `.note`/`.warning` would either nag permanently (never clears once
-    implemented) or not fire at all. A doc comment has no such cost; Swift's
-    own "does not conform to protocol" build error already enforces that the
-    extension gets written at all, this only clarifies *what* to write, since
-    that error alone doesn't say "extend `Core`, not the outer type."
+  Card: View` or `struct VM: ViewModifier` additionally declares `Core:
+  View`/`: ViewModifier` — satisfied by the copied `body`/`body(content:)`.
+  For `ViewModifier`, the copied `body(content:)`'s `Content` resolves to
+  `Core`'s *own* `ViewModifier.Content` — a different concrete type from the
+  host's (`typealias Content = _ViewModifier_Content<Self>`, keyed on the
+  conforming type itself — verified directly against the real compiler),
+  which is fine: each type satisfies the protocol independently.
   - **Syntax-only, not semantic — verified against the exact pinned dependency**:
     `DeclGroupSyntax` (what `ShellMacro.expansion` receives) exposes
     `inheritanceClause` directly, confirmed by reading the actual
@@ -605,23 +602,17 @@ every recognized private source-of-truth wrapper —
     can't see conformance declared in a separate extension, via a typealias or
     protocol composition, or a qualified spelling (`SwiftUI.View`) — a macro
     never gets a type checker.
-  - **The `ViewModifier` case goes through `View.modifier(_:)`, not a direct
-    `content` forward, for a verified reason**: `ViewModifier.Content` is
-    `typealias Content = _ViewModifier_Content<Self>`, a generic struct keyed on
-    the *conforming type itself* — `VM.Content` and `VM.Core.Content` are
-    different concrete types no constraint can unify (`error: arguments to
-    generic parameter 'Modifier' ('VM' and 'VM.Core') are expected to be
-    equal`, reproduced directly against the real compiler both as a minimal
-    repro and against this exact generated code). `.modifier(_:)` only needs its
-    argument to conform to `ViewModifier`, not to share a `Content` — sidesteps
-    the whole problem.
-- See `Tests/ValueFlowTests/ShellTests.swift` for this demonstrated
-  end-to-end (including the `@MainActor` requirement on any test suite
-  exercising `core` on a `View`-conforming type — same reasoning as
-  `OutFlow`'s equivalent note above) and
+- See `Tests/ValueFlowTests/ShellTests.swift` for the model demonstrated
+  end-to-end — fully-mocked direct `Core` construction (`makeCore`), the
+  copied body/helper evaluating against mocked fields, and the `@MainActor`
+  requirement on any test suite touching a `View`-conforming type (same
+  reasoning as `OutFlow`'s equivalent note above) — and
   `Tests/ValueFlowTests/ShellSyntaxTests.swift` for the expansion shape,
-  including the host-kind-detection cases and the negative case (conformance in
-  a separate extension isn't detected).
+  including the copy rules
+  (`testHelpersStaticMembersAndNestedTypesAreCopiedButInitsAreNot`), the
+  host-kind-detection cases, and the negative case (conformance in a
+  separate extension isn't detected). Verified live by the ExampleApp's
+  three views/UITests, all written in this model.
 
 ## @Capability — tricky points
 

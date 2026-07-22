@@ -12,8 +12,7 @@ library — a single dependency gets you every macro below:
 ```
 
 Requires Swift 6.3+ (`swift-tools-version: 6.3`). Builds across the whole swift-syntax
-6xx line. Run everything with `swift build && swift test`; see every macro exercised
-together in `Sources/Examples/main.swift` (`swift run Examples`).
+6xx line. Run everything with `swift build && swift test`.
 
 ## What's inside
 
@@ -32,37 +31,38 @@ together in `Sources/Examples/main.swift` (`swift run Examples`).
 A `member` macro, separate from `@Flowable` — it doesn't replace `OutFlow`/
 `outFlow`, and works with or without `@Flowable` also attached (it collects the
 type's stored properties itself). It generates a nested `Core` struct —
-always internal (the struct, every field, and the `core` property
-itself), regardless of the attached type's own access level, and carrying no
-`@Flowable` — plus a `core` computed property building one from the
-current instance. Its field set is identical to `OutFlow`'s (see the
-[wrapper mapping reference](#wrapper-mapping-reference)): every non-private
-participating property, plus every recognized private source-of-truth
-wrapper, each captured once as a plain value.
+always internal, regardless of the attached type's own access level, and
+carrying no `@Flowable` — the host's standalone twin: the same field set as
+`OutFlow` (see the [wrapper mapping reference](#wrapper-mapping-reference)),
+each source-of-truth wrapper substituted with a mockable stand-in, plus a
+verbatim copy of every non-stored member — `body`, helpers, methods, static
+members, nested types — plus a `core` computed property capturing one from
+the current instance. Initializers are the one member kind not copied:
+`Core` is constructed through Swift's synthesized memberwise init, and a
+copied init would suppress it. Members declared in a separate extension of
+the host aren't seen (a macro only receives the attached declaration's own
+syntax).
 
 ```swift
 @Shell
 struct Card: View {
     @Query private var items: [Item]
-    @Environment(\.colorScheme) private var colorScheme: ColorScheme
     @State private var isExpanded = false
     let title: String
-    var subtitle: String?
+
+    var body: some View { ... }   // ordinary SwiftUI, written once
+
     // generates:
-    // struct Core {
+    // struct Core: View {
     //     @QueryCore var items: [Item]
-    //     let colorScheme: ColorScheme
     //     @Binding var isExpanded: Bool
     //     let title: String
-    //     let subtitle: String?
-    // }
-    // var core: Core {
-    //     Core(items: QueryCore(wrappedValue: _items.wrappedValue,
-    //               fetchError: _items.fetchError, modelContext: _items.modelContext),
-    //               colorScheme: colorScheme, isExpanded: $isExpanded,
-    //               title: title, subtitle: subtitle)
+    //     var body: some View { ... }   <- the same text, copied
     // }
 }
+
+// tests/previews construct the twin directly — no live view, no ModelContext:
+Card.Core(items: QueryCore(...), isExpanded: .constant(true), title: "t")
 ```
 
 ### Wrapper mapping reference
@@ -177,13 +177,11 @@ declared as a real `struct`.
 
 ### Why `Core` is always internal, and carries no `@Flowable`
 
-`Core` is a purely internal testing/snapshot seam — `.core` for
-assertions, plus a `Core`-hosted `body`/`body(content:)` implementation
-— not part of the attached type's public API, even when that type itself is
-`public`: consumers of a public host never need the snapshot, only the
-package's own tests do (reachable from the same module, or a `@testable
-import`). So the struct, every field, and `core`'s own access are
-always internal, never mirroring the attached type's access level.
+`Core` is a purely internal testing/preview seam — not part of the attached
+type's public API, even when that type itself is `public`: consumers of a
+public host never need the twin, only the module's own tests do (reachable
+from the same module, or a `@testable import`). So the struct and every
+field are always internal, never mirroring the attached type's access level.
 
 No hand-rolled init is needed either. Swift's own memberwise-init synthesis
 already reproduces every field-specific behavior `@Flowable` would generate
@@ -196,16 +194,6 @@ builder parameter for the stored-closure form (see below) — exactly what
 `@Flowable` is
 `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on `Core` itself,
 accepted since nothing here needs to round-trip a snapshot back into itself.
-
-Because `Core`'s own type is always internal, `core`'s access
-is forced internal too — Swift rejects a more-accessible property with a
-less-accessible type (verified directly: "property must be declared internal
-because its type uses an internal type"). `body`/`body(content:)` on the
-*attached* type, by contrast, still mirrors that type's own access (`public`
-included) — verified directly that this compiles even though it reads
-`core` (internal) and returns it: `some View`'s opaque return
-type only exposes the `View` conformance, never the concrete `Core`
-type, so a `public` `body` can freely return an internal concrete value.
 
 ### Every source-of-truth wrapper becomes a plain, constructed value
 
@@ -256,8 +244,8 @@ This one rule covers several things at once:
   into above — it already *is* that declaration in the original source, so no
   extra logic is needed. `@Flowable`'s existing `@Binding` handling (a
   `Binding<T>` init parameter, assigned to the backing `_name` storage)
-  picks up both cases identically. The payoff: `core.name` reads the
-  wrapped value directly, no `.wrappedValue` unwrap — and `core.name =
+  picks up both cases identically. The payoff: `snap.name` reads the
+  wrapped value directly, no `.wrappedValue` unwrap — and `snap.name =
   newValue` writes straight through to whatever storage the original binding
   pointed at, genuinely two-way. `@Binding` is itself a genuine property
   wrapper, so it keeps `var`.
@@ -282,41 +270,14 @@ This one rule covers several things at once:
 
 ### Automatic `View`/`ViewModifier` detection
 
-When the attached type's own inheritance clause spells `View` or `ViewModifier`,
-`@Shell` generates two more things beyond the usual struct/property pair:
-
-```swift
-@Shell
-struct Card: View {
-    let title: String
-    // generates, in addition to the usual Core struct/core property:
-    // struct Core: View { ... }       <- conformance declared, not implemented
-    // var body: some View { core }   <- the mechanical delegation, for free
-}
-
-// only the real implementation is left to write by hand:
-extension Card.Core {
-    var body: some View { Text(title) }
-}
-```
-
-`ViewModifier` works the same way — `struct VM: ViewModifier` gets `Core:
-ViewModifier` plus `func body(content: Content) -> some View {
-content.modifier(core) }`, going through `View.modifier(_:)` rather
-than forwarding `content` directly into `Core`'s own `body(content:)`. That
-detour is required, not stylistic: `ViewModifier.Content` is `typealias Content =
-_ViewModifier_Content<Self>`, a generic struct keyed on the *conforming type
-itself*, so `VM`'s own `Content` and `VM.Core`'s are different concrete
-types — verified directly against the real compiler:
-
-```
-error: cannot convert value of type 'VM.Content' (aka '_ViewModifier_Content<VM>')
-to expected argument type 'VM.Core.Content' (aka '_ViewModifier_Content<VM.Core>')
-note: arguments to generic parameter 'Modifier' ('VM' and 'VM.Core') are expected to be equal
-```
-
-`.modifier(_:)` only needs its argument to conform to `ViewModifier`, not to
-share a `Content` — it sidesteps the whole problem.
+When the attached type's own inheritance clause spells `View` or
+`ViewModifier`, `Core` is additionally declared to conform to the same
+protocol — satisfied by the copied `body`/`body(content:)`. For
+`ViewModifier`, the copied `body(content:)`'s `Content` resolves to `Core`'s
+*own* `ViewModifier.Content` — a different concrete type from the host's
+(`typealias Content = _ViewModifier_Content<Self>` is keyed on the conforming
+type itself, verified directly) — which is fine: each type satisfies the
+protocol independently.
 
 **This detection is syntactic, not semantic.** A macro never gets a type
 checker, so it can only read the literal inheritance clause written on the
@@ -325,27 +286,11 @@ elsewhere, via a typealias or protocol composition, or spelled with a
 qualification (`SwiftUI.View`), is invisible to it. Only a bare `View`/
 `ViewModifier` identifier directly on the attached type is recognized.
 
-**How you're expected to discover you need to write that extension at all**:
-`Core: View`/`: ViewModifier` only *declares* the requirement, so Swift's
-own "does not conform to protocol" build error already forces the extension to
-exist — but that error alone doesn't say *where* (extend `Card.Core`, not
-`Card`). `@Shell` also generates a doc comment directly on the `Core`
-struct declaration, spelling out exactly what to write, visible via Quick
-Help/jump-to-definition. Deliberately a doc comment, not a compiler diagnostic:
-the macro has no way to know whether the extension already exists elsewhere in
-the module, so a `.note`/`.warning` would either nag forever (never clears
-once implemented) or never fire at all. A doc comment costs nothing once the
-extension is written.
-
 ### How a Core relates to its host
 
-Every value a stateful host needs comes from exactly one of two places — supplied
-from *outside* by a caller, or held as the runtime's own *source of truth* — and
-both kinds converge on the host, which does nothing with them itself beyond
-handing them to `Core`. All the real rendering logic, and every view
-modifier, lives in `Core`'s own hand-written `body`/`body(content:)` —
-which is why it's constructible and testable with no live view in the picture
-at all:
+The host is a completely ordinary SwiftUI view — its hand-written `body`
+reads caller-supplied values and its own sources of truth directly. `Core` is
+the same code with the runtime unplugged:
 
 ```mermaid
 flowchart TD
@@ -363,38 +308,28 @@ flowchart TD
     Outside --> Card
     SOT --> Card
 
-    subgraph Card["Card — stateful, live"]
-        CardBody["body<br/>(generated delegation)"]
+    subgraph Card["Card — stateful, live, ordinary SwiftUI"]
+        CardBody["body + helpers<br/>hand-written, reads the real wrappers"]
     end
 
-    subgraph SN["Card.Core — pure value, real View"]
-        Fields["captured fields<br/>@Binding (writes through) · let (frozen)"]
-        SNBody["body<br/>hand-written — ALL rendering logic<br/>and view modifiers live here"]
+    subgraph SN["Card.Core — its standalone twin"]
+        Fields["substituted fields<br/>@Binding (writes through) · let (plain value)"]
+        SNBody["body + helpers<br/>the same text, compiler-copied"]
         Fields --> SNBody
     end
 
-    CardBody -. "core<br/>captures every value once" .-> SN
+    CardBody -. "@Shell copies every<br/>non-stored member" .-> SNBody
     Test(["unit test / preview"]) -. "construct Core directly —<br/>no live view, no environment, no ModelContext" .-> Fields
 ```
 
-- **`Outside`/`SOT` → `Card`** — `Card` is just where the two kinds of input
-  meet, not where any logic lives: values the caller supplies (`@Binding`,
-  plain fields) and values the runtime itself owns and can change underneath
-  it (`@State`/`@Query`/`@Environment`/`@AppStorage`) arrive the same way, as
-  far as anything downstream is concerned.
-- **`CardBody -.-> SN`** (dotted, generated automatically) — the one moment
-  every value gets captured, once, into `Fields`: a live `@Binding` becomes a
-  writable `@Binding` field (genuinely two-way), everything else freezes into
-  a `let`. Exists only when `Card` is detected as `View`/`ViewModifier`, and
-  it's pure mechanical delegation — nothing hand-written on `Card`'s side.
-- **`Fields` → `SNBody`** — the part you *do* write by hand: real rendering
-  logic and every view modifier, reading only already-captured, plain data —
-  no live view, no environment injection, no `ModelContext` required to
-  exercise it.
-- **`Test -.-> Fields`** (dotted, the other way in) — the path that skips
-  `Card` entirely: construct a `Core` directly — in a unit test, or a
-  `#Preview` — and assert on or render its captured fields, no live rendering
-  pipeline required.
+- **`CardBody -.-> SNBody`** (dotted, generated) — the copy: one source
+  text, two types. The live view runs it against the real wrappers; `Core`
+  compiles the identical text against the substituted fields. Drift is
+  impossible.
+- **`Test -.-> Fields`** (dotted) — the payoff: construct a `Core` directly
+  with mocks — in a unit test or a `PreviewProvider` — and assert on its
+  fields, call its helpers, or render its body, no live rendering pipeline
+  required.
 
 ---
 
@@ -924,8 +859,6 @@ Swift's own overload resolution (argument count), backed by a single implementat
 
 ### Run it
 
-- `swift run Examples` — `#pick` combining multiple sources into one tuple, on plain
-  tuple values, alongside the `@Flowable` examples.
 - `swift test` — macro-expansion + diagnostic tests (`assertMacroExpansion`) and an
   end-to-end suite that compiles and runs real `#pick` calls, across arities.
 - Open `Package.swift` in Xcode, right-click a `#pick` call → **Expand Macro** to see the

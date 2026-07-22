@@ -1,192 +1,113 @@
 import SwiftSyntax
 
-/// Renders `@Shell`'s two generated members: a nested `Core` struct over
+/// Renders `@Shell`'s two generated members — a nested `Core` struct plus a
+/// `core` computed property capturing one off the live instance — over
 /// exactly `OutFlow`'s field set (`outFlowProperties`, reused directly — see
-/// its doc comment in `FlowableRendering.swift`), plus a `core` computed
-/// property building one from the current instance.
+/// its doc comment in `FlowableRendering.swift`), each source-of-truth
+/// wrapper substituted with a plain, mockable stand-in, followed by a
+/// verbatim copy of every non-stored host member (`copiedMembers` — computed
+/// by `copiedMemberSources` in `ShellMacro.swift`, `body` included). The host
+/// stays a completely ordinary SwiftUI view; `Core` is its standalone twin,
+/// constructed directly in tests/previews via Swift's own synthesized
+/// memberwise init — which is also why `@Shell` copies no initializers: a
+/// copied init would suppress that synthesis.
 ///
-/// `Core` is always internal — its own access, every field's, and
-/// `core`'s — regardless of the attached type's own access level, and it
-/// carries no `@Flowable`. This is a purely internal testing/snapshot seam
-/// (`.core` for assertions and `Core`-hosted `body`/
-/// `body(content:)` implementations, both reachable from the same module or a
-/// `@testable import`), not a public API surface even when the attached type
-/// itself is `public` — consumers of a public host type never need the snapshot,
-/// only the package's own tests do. No hand-rolled init is needed either: Swift's
-/// own memberwise-init synthesis already reproduces `@Flowable`'s field-specific
-/// behavior for every kind of field here — verified directly: a property-wrapper
-/// field with no `init(wrappedValue:)` (`@Binding`) synthesizes a parameter of the
-/// *wrapper's* type, one that does (`@Bindable`) synthesizes a parameter of the
-/// *wrapped* type, and `@ViewBuilder` directly on a stored `let` (the
-/// stored-closure form, still mirrored — see below) synthesizes a real
-/// builder parameter, no different from `@Flowable`'s own hand-written
-/// logic. The one thing genuinely lost by skipping `@Flowable` is
-/// `InFlow`/`InFlowSplat`/`inFlow`/`makeFlow(_:)` on `Core` itself —
-/// accepted, since nothing here needs to round-trip a snapshot back into
-/// itself.
-///
-/// Because `Core`'s own type is always internal, `core`'s access
-/// is forced internal too (Swift rejects a more-accessible property with a
-/// less-accessible type — verified directly: "property must be declared internal
-/// because its type uses an internal type"). `body`/`body(content:)` on the
-/// *attached* type, by contrast, still mirrors the attached type's own access
-/// (`public` included) — verified directly that this compiles even though it
-/// reads `core` (internal) and returns it: `some View`'s opaque
-/// return type only exposes the `View` conformance, never the concrete
-/// `Core` type, so a `public` `body` can freely return an internal
-/// concrete value.
+/// `Core` is always internal — the struct itself and every field —
+/// regardless of the attached type's own access level, and it carries no
+/// `@Flowable`. It's a testing/preview seam, not API surface: consumers of a
+/// public host never need the twin, only the module's own tests do. Swift's
+/// memberwise-init synthesis reproduces every field-specific behavior a
+/// hand-rolled init would — verified directly: a property-wrapper field with
+/// no `init(wrappedValue:)` (`@Binding`) synthesizes a parameter of the
+/// *wrapper's* type, one that does (`@Bindable`) synthesizes a parameter of
+/// the *wrapped* type, and `@ViewBuilder` directly on a stored `let`
+/// synthesizes a real builder parameter.
 ///
 /// Every private wrapper kind becomes a *plain, constructed* field on
-/// `Core` — never the original attribute, always captured as an ordinary
-/// value read once when `.core` is computed:
+/// `Core` — never the original attribute, always a mockable value:
 /// - `@Query` → `@QueryCore var name: T` — this package's own drop-in stand-in
 ///   (see `QueryCore.swift`), carrying the live wrapper's exact instance
 ///   surface: `wrappedValue`, `fetchError`, `modelContext`, no
 ///   `projectedValue`.
-/// - `@State`/`@AppStorage`/`@SceneStorage` → `@Binding var name: T` (the one
-///   case that keeps an attribute — substituted, not mirrored, since their own
+/// - `@GestureState` → `@GestureStateCore var name: T` — wraps a
+///   `GestureState<T>` instance whole: `name` reads the mid-gesture value,
+///   `$name` hands `.updating(_:)` the real `GestureState<T>`, and — the
+///   reason this beats mirroring a fresh `@GestureState var` (an earlier
+///   design, reverted) — every argument-carrying init the host used
+///   (`reset:`/`resetTransaction:`/`initialValue:` spellings) carries over
+///   for free, since the reset behavior lives inside the instance. Proved
+///   live by TrickyDragCardUITests in the ExampleApp: the mirror design
+///   silently swapped a custom reset for the default one; the instance
+///   capture fires it.
+/// - `@State`/`@AppStorage`/`@SceneStorage` → `@Binding var name: T` (their own
 ///   storage only installs inside a live SwiftUI view and can't be redeclared
-///   as itself on a plain struct; `@Binding` is the injectable/settable form a
-///   genuine `@Binding` field already uses verbatim, which is why all three
-///   share one condition below).
+///   on a plain struct; all three share this case because each one's
+///   `projectedValue` genuinely *is* `Binding<T>` — verified directly against
+///   the real SwiftUI interface, `wrappedValue` is `{ get nonmutating set }`
+///   for each).
 /// - `@FocusState` → `@FocusState<T>.Binding var name: T`, its own substituted
-///   attribute, distinct from `@Binding var name: T` above. `@FocusState`'s own
+///   attribute, distinct from `@Binding` above. `@FocusState`'s own
 ///   `projectedValue` is `FocusState<T>.Binding`, **not** `Binding<T>` — verified
 ///   directly against the real SwiftUI interface: it exposes only
 ///   `wrappedValue` and `projectedValue` (itself), no conversion to `Binding<T>`
-///   and no public initializer either, so folding it into the `@Binding` case
-///   above isn't an option. The real `FocusState<T>.Binding`, though, is itself
-///   `@propertyWrapper`-attributed (verified directly, reading the actual
-///   SwiftUI interface), so it redeclares onto `Core` the same way
-///   `@Binding` does — just spelling a different wrapper — and round-trips for
-///   free: `snap.name` reads the unwrapped value, `snap.$name` hands back a
-///   real `FocusState<T>.Binding` usable directly with `.focused(_:)`.
-/// - `@Environment`/`@Namespace` → a plain `let name: T` — no attribute at all.
-///   `@Environment`'s `wrappedValue` has no public setter (verified directly:
-///   `error: cannot assign to property: 'colorScheme' is a get-only
-///   property`), but that only blocks preserving the *attribute*; a plain,
-///   unattributed `let` has no such restriction; the synthesized init just
-///   assigns `self.name = name` like any other field. Always `let`, not
-///   mirroring the original's `let`/`var` — the original is *always* `var`
-///   (every property wrapper requires it), but the captured copy is a
-///   one-time snapshot, immutable by design. `@Namespace` is grouped with
-///   `@Environment` here rather than getting its own case: same get-only
-///   `wrappedValue` problem (verified directly), and unlike
-///   `@State`/`@AppStorage`/`@SceneStorage`/`@FocusState` it has no `projectedValue` at all to
-///   fall back on for a `@Binding`-style substitution, so a plain `let` is the
-///   only option.
+///   and no public initializer either. The real `FocusState<T>.Binding` is
+///   itself `@propertyWrapper`-attributed (verified directly), so it
+///   redeclares onto `Core` the same way `@Binding` does — `snap.name` reads
+///   the value, `snap.$name` feeds `.focused(_:)` directly.
+/// - `@AccessibilityFocusState` → an exact `@FocusState` clone (verified
+///   directly — same nested `@propertyWrapper` `Binding` shape), so the same
+///   substitution.
+/// - `@Environment`/`@Namespace`/`@ScaledMetric` → a plain `let name: T` — no
+///   attribute at all. Get-only `wrappedValue`, no `projectedValue` to
+///   substitute (verified directly for each); a plain `let` is the only
+///   option. For `@ScaledMetric` specifically, redeclaring it would
+///   double-scale: its init takes the *base* value, but the host reads back
+///   the already-scaled one.
 ///
-/// Every other field — plain, `@ViewBuilder`, `@Query`, `@Bindable`, or any other
-/// property wrapper — mirrors the *original* property's own attribute (if it has
-/// one) and declared type onto `Core` verbatim, but **not** its
-/// mutability: `Core` is a deterministic snapshot, so a field gets `var`
-/// only where Swift's own property-wrapper rule forces it (a real
-/// `@propertyWrapper` type — `@Bindable`, or any other genuine wrapper — requires
-/// `var` storage; verified directly, `@Bindable let model: Settings` is a compile
-/// error: "property wrapper can only be applied to a 'var'"). Every field that
-/// doesn't carry a genuine wrapper attribute is `let`, regardless of whether the
-/// *original* property was declared `let` or `var`:
-/// - A plain `var subtitle: String?` on the original type becomes `let subtitle:
-///   String?` on `Core` — a captured value, not a re-tweakable one.
-/// - `@ViewBuilder` is **not** a `@propertyWrapper` — it's a result-builder
-///   attribute, legal directly on a stored `let` (verified directly:
-///   `@ViewBuilder let vb: () -> Text` compiles) — but it's mirrored only for
-///   the stored-*closure* form (`let content: () -> Content`): the field type
-///   is already a closure there, so the attribute is pure upside — real
-///   builder syntax (`if`/`for` inside the closure body) at its own init call
-///   site, not just documentation. For the stored-*value* form (`let footer:
-///   Content`), mirroring the attribute would make Swift's own synthesized
-///   init wrap the parameter in a builder closure purely to satisfy it
-///   (verified directly) — overhead with no benefit for a value that's
-///   already built and just being copied through — so it's dropped there
-///   entirely: `footer` stays a plain `let footer: Content`, and its
-///   synthesized init parameter is the bare value, no closure needed on
-///   either side.
-/// - `@Bindable` mirrors verbatim, `var` included — needs no special handling
-///   beyond the general "genuine wrapper forces var" rule above. Swift's
-///   synthesized init handles `@Bindable` the same way `@Flowable`'s
-///   hand-written one would (`self.model = model`, legal since `@Bindable`'s
-///   wrappedValue is a plain get/set — verified directly), so mirroring it onto
-///   `Core`'s copy works with no extra logic anywhere in this file.
+/// Every other field mirrors the *original* property's own attribute (if any)
+/// and declared type onto `Core` verbatim, but **not** its mutability:
+/// `var` only where Swift's property-wrapper rule forces it (a genuine
+/// `@propertyWrapper` requires `var` storage — verified directly, `@Bindable
+/// let model: Settings` is a compile error), `let` for everything else — a
+/// captured value, not a re-tweakable one. `@ViewBuilder` (a result-builder
+/// attribute, not a wrapper — legal on `let`, verified directly) is mirrored
+/// only for the stored-*closure* form, where it buys real builder syntax at
+/// the init call site; for the stored-*value* form it would make the
+/// synthesized init wrap the parameter in a builder closure purely to satisfy
+/// the attribute (verified directly), so it's dropped there.
 func renderShell(
-    properties: [StoredProperty], access: String, hostKind: ShellHostKind = .none
+    properties: [StoredProperty], access: String, hostKind: ShellHostKind = .none,
+    copiedMembers: [String] = []
 ) -> [DeclSyntax] {
-    // Core's own field set is identical to OutFlow's — every source-
-    // of-truth wrapper this package recognizes is a private field worth
-    // capturing, no exceptions — so this reuses `outFlowProperties` directly
-    // rather than duplicating its filter.
+    // Core's field set is identical to OutFlow's — reused directly rather
+    // than duplicating the filter.
     let fields = outFlowProperties(properties)
 
     // Every field is internal — never `access` — regardless of the attached
-    // type's own access level; see this file's own doc comment for why
-    // `Core` is deliberately never public.
+    // type's own access level; see this file's own doc comment.
     let fieldDecls = fields.map { p -> String in
         if p.isBindingBackedStorage || p.isBinding {
-            // Always `var` — `@Binding` is a genuine `@propertyWrapper`, and Swift
-            // requires `var` storage for any property-wrapper-attributed field
-            // (verified directly: `@Binding let x: Int` is a compile error).
             return "@Binding var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         if p.isFocusState {
-            // Its own substituted attribute, distinct from @Binding above —
-            // FocusState<T>.Binding is a different type than Binding<T> (see
-            // this file's own doc comment) — but the same "genuine wrapper
-            // requires var" reasoning applies.
             let type = p.type?.trimmedDescription ?? ""
             return "@FocusState<\(type)>.Binding var \(p.name): \(type)"
         }
         if p.isAccessibilityFocusState {
-            // An exact @FocusState clone (verified directly — same nested
-            // @propertyWrapper Binding shape), so the same substitution:
-            // snap.$x feeds .accessibilityFocused(_:) directly.
             let type = p.type?.trimmedDescription ?? ""
             return "@AccessibilityFocusState<\(type)>.Binding var \(p.name): \(type)"
         }
         if p.isEnvironment || p.isNamespace || p.isScaledMetric {
-            // Get-only wrappedValue, no projectedValue to substitute — a plain
-            // one-time capture. For @ScaledMetric specifically, redeclaring it
-            // would double-scale: its init takes the *base* value, but the
-            // host reads back the already-scaled one.
             return "let \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         if p.isQuery {
-            // @QueryCore — this package's own drop-in stand-in for the live
-            // wrapper, same substitution move @Binding makes for @State above:
-            // `core.x` reads the fetched value directly, `_x.fetchError`/
-            // `_x.modelContext` keep working like on the real @Query. A genuine
-            // wrapper, so `var` is forced, same as every other wrapper here.
             return "@QueryCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         if p.isGestureState {
-            // @GestureStateCore — wraps the captured live GestureState
-            // instance whole: `core.x` reads the mid-gesture value, `$x` hands
-            // `.updating(_:)` the real GestureState<T>, and — the reason this
-            // beats mirroring a fresh `@GestureState var` (an earlier design,
-            // reverted) — every argument-carrying init the host used
-            // (`reset:`/`resetTransaction:`/`initialValue:` spellings) carries
-            // over for free, since the reset behavior lives inside the
-            // instance. Proved live by TrickyDragCardUITests in the
-            // ExampleApp: the mirror design silently swapped a custom reset
-            // for the default one; the instance capture fires it.
             return "@GestureStateCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
-        // Everything else reuses outFlowFieldType — it already reduces to the
-        // property's own bare declared type once Binding/Query are excluded —
-        // and carries its original wrapper attribute along, verbatim.
-        // Mutability is never mirrored: `var` only where a genuine
-        // `@propertyWrapper` (anything other than `@ViewBuilder`, which isn't
-        // one) forces it — everything else is `let`, a deterministic snapshot
-        // field.
         let requiresVar = p.wrapperName != nil && !p.isViewBuilder
         let keyword = requiresVar ? "var" : "let"
-        // @ViewBuilder is mirrored only for the stored-*closure* form — its
-        // field type is already `() -> Content`, so the attribute just buys
-        // real builder syntax (if/for inside the closure body) at zero cost.
-        // For the stored-*value* form, mirroring it would make Swift's own
-        // synthesized init wrap the parameter in a builder closure (verified
-        // directly) purely to satisfy the attribute — pure overhead for a
-        // value that's already built and just being copied through, so it's
-        // dropped entirely here, same treatment `OutFlow` already gives it.
         let isStoredValueViewBuilder = p.isViewBuilder && !(p.type.map(isFunctionType) ?? false)
         let attributePrefix =
             isStoredValueViewBuilder ? "" : p.wrapperName.map { "@\($0) " } ?? ""
@@ -200,56 +121,25 @@ func renderShell(
     case .none: conformance = ""
     }
 
-    // A doc comment, not a diagnostic — `@Shell` can't know whether the
-    // implementing extension already exists elsewhere in the module (no
-    // semantic model), so a diagnostic here would either be a permanent nag
-    // that never clears once implemented, or nothing at all. A doc comment on
-    // the declaration itself costs nothing once the extension is written (it's
-    // just documentation, visible on demand via Quick Help/jump-to-definition),
-    // and Swift's own "does not conform to protocol" build error already
-    // enforces that the extension gets written at all — this only clarifies
-    // *what* to write, since the error alone doesn't say "extend `Core`,
-    // not the outer type."
-    let hostDocLines: [String]
-    switch hostKind {
-    case .view:
-        hostDocLines = [
-            "/// Conforms to `View`, declared by `@Shell` — implement its real",
-            "/// `body` in a separate extension, e.g. `extension YourType.Core {",
-            "/// var body: some View { ... } }`.",
-        ]
-    case .viewModifier:
-        hostDocLines = [
-            "/// Conforms to `ViewModifier`, declared by `@Shell` — implement its",
-            "/// real `body(content:)` in a separate extension, e.g. `extension",
-            "/// YourType.Core { func body(content: Content) -> some View",
-            "/// { ... } }`.",
-        ]
-    case .none:
-        hostDocLines = []
-    }
-    let hostDocComment = hostDocLines.isEmpty ? "" : hostDocLines.joined(separator: "\n") + "\n"
-
+    // The host's non-stored members, copied verbatim — legal because this is
+    // the same expansion that declares Core's fields, and the identifiers
+    // inside resolve against them by the one-to-one read-surface design (see
+    // this function's doc comment).
+    let copies = copiedMembers.map { "\n\n\($0)" }.joined()
     let statelessStruct = DeclSyntax(
         stringLiteral: """
-            \(hostDocComment)struct Core\(conformance) {
-            \(fieldDecls)
+            struct Core\(conformance) {
+            \(fieldDecls)\(copies)
             }
             """
     )
 
-    // Constructing `Core`: every field reads the way `outFlow` does
-    // (`outFlowFieldReadExpression`) and is passed straight through, no
-    // wrapping needed anywhere — including a `@ViewBuilder`-stored *value*
-    // field, which (per the field-decl comment above) isn't mirrored with the
-    // attribute at all, so its synthesized init parameter is just the plain
-    // `Content` value, not a builder closure.
+    // Captures a Core off the live host instance: every field reads the way
+    // `outFlow` does (`outFlowFieldReadExpression`) and is passed straight
+    // through. Always internal, like Core itself.
     let args = fields.map { p -> String in
         "\(p.name): \(outFlowFieldReadExpression(p))"
     }.joined(separator: ", ")
-    // Always internal, never `access` — `core`'s type (`Core`)
-    // is itself always internal, and Swift rejects a more-accessible property
-    // with a less-accessible type.
     let statelessProperty = DeclSyntax(
         stringLiteral: """
             var core: Core {
@@ -257,36 +147,5 @@ func renderShell(
             }
             """
     )
-
-    // The mechanical delegation from the attached type's own real `body`/
-    // `body(content:)` requirement down to `core`. `.modifier(_:)`
-    // is what makes the `ViewModifier` case work at all without needing
-    // `Core`'s own `Content` to unify with the attached type's — see this
-    // function's doc comment (in ShellMacro.swift) for the verified reason
-    // forwarding `content` directly into `Core.body(content:)` doesn't.
-    // No `self.` prefix: `content` is `body(content:)`'s only parameter, and it
-    // doesn't share `core`'s name, so there's nothing to disambiguate.
-    let hostBody: DeclSyntax?
-    switch hostKind {
-    case .view:
-        hostBody = DeclSyntax(
-            stringLiteral: """
-                \(access)var body: some View {
-                    core
-                }
-                """
-        )
-    case .viewModifier:
-        hostBody = DeclSyntax(
-            stringLiteral: """
-                \(access)func body(content: Content) -> some View {
-                    content.modifier(core)
-                }
-                """
-        )
-    case .none:
-        hostBody = nil
-    }
-
-    return [statelessStruct, statelessProperty] + (hostBody.map { [$0] } ?? [])
+    return [statelessStruct, statelessProperty]
 }

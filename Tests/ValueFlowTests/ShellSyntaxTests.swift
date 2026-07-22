@@ -79,11 +79,10 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testGestureStateRedeclaresAsGestureStateCoreWrappingTheLiveInstance() {
-        // @GestureStateCore wraps the captured live GestureState instance
-        // whole and forwards wrappedValue/projectedValue to it — so
-        // `core.dragOffset` reads the mid-gesture value, `.updating($dragOffset)`
-        // in Core's body writes to the HOST's storage (the one source of
-        // truth), and every argument-carrying init the host used
+        // @GestureStateCore wraps a live GestureState instance whole and
+        // forwards wrappedValue/projectedValue to it — so `dragOffset` reads
+        // the mid-gesture value, `.updating($dragOffset)` in the copied body
+        // takes the real GestureState<T>, and every argument-carrying init
         // (reset:/resetTransaction:/initialValue: spellings) carries over for
         // free, since the reset behavior lives inside the instance. An earlier
         // design mirrored a fresh `@GestureState var` instead — it silently
@@ -151,9 +150,9 @@ final class ShellSyntaxTests: XCTestCase {
 
     func testScaledMetricIsCapturedAsAPlainLetLikeEnvironment() {
         // Get-only wrappedValue, no projectedValue at all (verified directly)
-        // — a one-time capture of the current scaled value. Redeclaring
-        // @ScaledMetric on Core would double-scale: its init takes the *base*
-        // value, but the host reads back the already-scaled one.
+        // — a plain value field. Redeclaring @ScaledMetric on Core would
+        // double-scale: its init takes the *base* value, but the host reads
+        // back the already-scaled one.
         assertMacroExpansion(
             """
             @Shell
@@ -217,11 +216,11 @@ final class ShellSyntaxTests: XCTestCase {
         // @Namespace has no projectedValue at all (unlike @State/@AppStorage/
         // @FocusState) and a get-only wrappedValue (like @Environment) —
         // verified directly against the real SwiftUI interface — so it gets
-        // the exact same plain, unattributed `let` treatment @Environment does,
-        // read via a bare `x`. Unlike every other recognized wrapper,
-        // `@Namespace` needs no explicit type annotation at all: it has exactly
-        // one possible wrapped type (`Namespace.ID`), so this macro fills that
-        // in itself rather than diagnosing a missing type.
+        // the exact same plain, unattributed `let` treatment @Environment does.
+        // Unlike every other recognized wrapper, `@Namespace` needs no explicit
+        // type annotation at all: it has exactly one possible wrapped type
+        // (`Namespace.ID`), so this macro fills that in itself rather than
+        // diagnosing a missing type.
         assertMacroExpansion(
             """
             @Shell
@@ -316,31 +315,41 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
-    func testViewConformanceIsDetectedAndDelegatingBodyIsGenerated() {
+    func testBodyIsCopiedIntoCoreVerbatim() {
+        // The host writes a completely normal SwiftUI body; @Shell copies it
+        // verbatim into Core (same expansion — referencing its own generated
+        // fields is legal; only cross-expansion references are forbidden), and
+        // Core's `: View` conformance is satisfied by the copy. One source
+        // text serves both types: the identifiers resolve against the host's
+        // real wrappers on one side and Core's substituted fields on the
+        // other, by the one-to-one read-surface design.
         assertMacroExpansion(
             """
             @Shell
             struct Card: View {
-                let title: String
+                @State private var count: Int = 0
+                var body: some View {
+                    Text("\\(count)")
+                }
             }
             """,
             expandedSource: """
                 struct Card: View {
-                    let title: String
+                    @State private var count: Int = 0
+                    var body: some View {
+                        Text("\\(count)")
+                    }
 
-                    /// Conforms to `View`, declared by `@Shell` — implement its real
-                    /// `body` in a separate extension, e.g. `extension YourType.Core {
-                    /// var body: some View { ... } }`.
                     struct Core: View {
-                        let title: String
+                        @Binding var count: Int
+
+                        var body: some View {
+                            Text("\\(count)")
+                        }
                     }
 
                     var core: Core {
-                        Core(title: title)
-                    }
-
-                    var body: some View {
-                        core
+                        Core(count: $count)
                     }
                 }
                 """,
@@ -348,32 +357,121 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
-    func testViewModifierConformanceIsDetectedAndDelegatingBodyIsGenerated() {
+    func testBodyContentIsCopiedIntoCoreForViewModifierHosts() {
+        // Same copy for the ViewModifier shape: `Content` inside the copied
+        // body(content:) resolves to Core's own ViewModifier.Content — a
+        // different concrete type from the host's (each is keyed on its own
+        // conforming type — verified directly), which is fine: each type
+        // satisfies the protocol independently.
         assertMacroExpansion(
             """
             @Shell
-            struct VM: ViewModifier {
-                @State private var c: Int = 0
+            struct Dimmed: ViewModifier {
+                @State private var level: Double = 0.5
+                func body(content: Content) -> some View {
+                    content.opacity(level)
+                }
             }
             """,
             expandedSource: """
-                struct VM: ViewModifier {
-                    @State private var c: Int = 0
+                struct Dimmed: ViewModifier {
+                    @State private var level: Double = 0.5
+                    func body(content: Content) -> some View {
+                        content.opacity(level)
+                    }
 
-                    /// Conforms to `ViewModifier`, declared by `@Shell` — implement its
-                    /// real `body(content:)` in a separate extension, e.g. `extension
-                    /// YourType.Core { func body(content: Content) -> some View
-                    /// { ... } }`.
                     struct Core: ViewModifier {
-                        @Binding var c: Int
+                        @Binding var level: Double
+
+                        func body(content: Content) -> some View {
+                            content.opacity(level)
+                        }
                     }
 
                     var core: Core {
-                        Core(c: $c)
+                        Core(level: $level)
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
+    func testHelpersStaticMembersAndNestedTypesAreCopiedButInitsAreNot() {
+        // Every non-stored member rides along into Core — helper computed
+        // properties, methods, static members (static stored included: a body
+        // referencing `spacing` unqualified needs Core to carry its own copy),
+        // nested types — so the copied body's helpers resolve without a
+        // separate extension. Initializers are the one exception: Core is
+        // constructed through Swift's synthesized memberwise init (in tests,
+        // with mocks), and a copied init would suppress that synthesis.
+        assertMacroExpansion(
+            """
+            @Shell
+            struct Card: View {
+                @State private var count: Int = 0
+                static let spacing: CGFloat = 8
+                enum Kind {
+                    case a
+                }
+                init(seed: Int) {
+                    count = seed
+                }
+                var doubled: Int {
+                    count * 2
+                }
+                func label() -> String {
+                    "\\(doubled)"
+                }
+                var body: some View {
+                    Text(label())
+                }
+            }
+            """,
+            expandedSource: """
+                struct Card: View {
+                    @State private var count: Int = 0
+                    static let spacing: CGFloat = 8
+                    enum Kind {
+                        case a
+                    }
+                    init(seed: Int) {
+                        count = seed
+                    }
+                    var doubled: Int {
+                        count * 2
+                    }
+                    func label() -> String {
+                        "\\(doubled)"
+                    }
+                    var body: some View {
+                        Text(label())
                     }
 
-                    func body(content: Content) -> some View {
-                        content.modifier(core)
+                    struct Core: View {
+                        @Binding var count: Int
+
+                        static let spacing: CGFloat = 8
+
+                        enum Kind {
+                            case a
+                        }
+
+                        var doubled: Int {
+                            count * 2
+                        }
+
+                        func label() -> String {
+                            "\\(doubled)"
+                        }
+
+                        var body: some View {
+                            Text(label())
+                        }
+                    }
+
+                    var core: Core {
+                        Core(count: $count)
                     }
                 }
                 """,
@@ -385,7 +483,7 @@ final class ShellSyntaxTests: XCTestCase {
         // Syntax-only detection reads the attached declaration's own inheritance
         // clause — conformance added elsewhere (a separate `extension Card: View`)
         // is invisible to it, since macros never get a type checker. Documented
-        // limitation, not a bug: no `body` member, no `: View` on Core.
+        // limitation, not a bug: no `: View` on Core.
         assertMacroExpansion(
             """
             @Shell
@@ -403,43 +501,6 @@ final class ShellSyntaxTests: XCTestCase {
 
                     var core: Core {
                         Core(title: title)
-                    }
-                }
-                """,
-            macros: macros
-        )
-    }
-
-    func testPublicViewHostStillGetsAPublicBodyDelegatingToAnInternalCore() {
-        // `body`'s own access still mirrors the host (public), verified directly
-        // that this compiles even though it returns `core`, an
-        // internal concrete type — `some View`'s opaque return type only exposes
-        // the `View` conformance, never the concrete type, so a public `body` can
-        // freely return an internal value.
-        assertMacroExpansion(
-            """
-            @Shell
-            public struct Card: View {
-                let title: String
-            }
-            """,
-            expandedSource: """
-                public struct Card: View {
-                    let title: String
-
-                    /// Conforms to `View`, declared by `@Shell` — implement its real
-                    /// `body` in a separate extension, e.g. `extension YourType.Core {
-                    /// var body: some View { ... } }`.
-                    struct Core: View {
-                        let title: String
-                    }
-
-                    var core: Core {
-                        Core(title: title)
-                    }
-
-                    public var body: some View {
-                        core
                     }
                 }
                 """,

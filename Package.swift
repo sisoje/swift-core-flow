@@ -48,11 +48,6 @@ let package = Package(
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
         ),
-        // One playground exercising every macro in the package.
-        .executableTarget(
-            name: "Examples",
-            dependencies: ["ValueFlow"]
-        ),
     ],
     swiftLanguageModes: [.v6]
 )

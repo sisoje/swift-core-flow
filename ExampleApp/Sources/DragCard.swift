@@ -2,18 +2,19 @@ import SwiftUI
 import ValueFlow
 
 // The live-drag verification view: @GestureState declared on the host,
-// captured whole by @Shell into Core's @GestureStateCore, gesture wired in
-// Core's hand-written body against the host's storage. A drag must stream
-// nonzero offsets (maxDistance grows — also live-verifying @State→@Binding
-// write-through from Core) and snap back to zero when it ends (GestureState's
-// own reset). See UITests/DragCardUITests.swift.
+// captured whole by @Shell into Core's @GestureStateCore. The body is
+// written once, right here, as ordinary SwiftUI — @Shell copies it verbatim
+// into Core, where the same identifiers resolve against the substituted
+// fields ($dragOffset is a GestureState<CGSize> on both sides, maxDistance
+// writes through Core's @Binding). A drag must stream nonzero offsets
+// (maxDistance grows — also live-verifying @State→@Binding write-through)
+// and snap back to zero when it ends (GestureState's own reset). See
+// UITests/DragCardUITests.swift.
 @Shell
 struct DragCard: View {
     @GestureState private var dragOffset: CGSize = .zero
     @State private var maxDistance: CGFloat = 0
-}
 
-extension DragCard.Core {
     var body: some View {
         VStack(spacing: 24) {
             Text("max \(Int(maxDistance))")
@@ -35,6 +36,12 @@ extension DragCard.Core {
             maxDistance = max(maxDistance, hypot(new.width, new.height))
         }
     }
+}
+
+// The host's body is hand-written source, so #Preview works on it directly —
+// only macro-generated names are invisible inside #Preview.
+#Preview {
+    DragCard()
 }
 
 // Previewing the Core directly, frozen mid-drag: the seeded GestureState

@@ -14,16 +14,14 @@ enum ResetProbe {
 // developer's reset behavior lives in those arguments. This test drove the
 // @GestureStateCore design: an earlier revision mirrored a fresh
 // `@GestureState var` onto Core, silently swapping this closure for the
-// default reset (the test was red); wrapping the host's live instance whole
-// carries the closure inside it, and the test went green.
+// default reset (the test was red); wrapping a live instance whole carries
+// the closure inside it, and the test went green.
 @Shell
 struct TrickyDragCard: View {
     @GestureState(reset: { _, _ in ResetProbe.count += 1 })
     private var dragOffset: CGSize = .zero
     @State private var resetsSeen: Int = 0
-}
 
-extension TrickyDragCard.Core {
     var body: some View {
         VStack(spacing: 16) {
             Text("resets \(resetsSeen)")
