@@ -18,7 +18,7 @@ struct SaveButton: View {
             Button("Save Draft") {
                 onSave("draft")
                 Task {
-                    userName = (try? await getUserName("42")) ?? "?"
+                    userName = (try? await getUserName("42")) ?? "Error fetching user"
                 }
             }
             .accessibilityIdentifier("saveDraftButton")

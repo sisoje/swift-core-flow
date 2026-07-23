@@ -1,2 +1,0 @@
-isDimmed = true
-isDimmed = false

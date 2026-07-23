@@ -1,3 +1,0 @@
-onSave = draft
-getUserName = 42
-userName = ?

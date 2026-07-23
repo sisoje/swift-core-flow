@@ -1,12 +1,8 @@
 import XCTest
 
 final class FocusFieldUITests: XCTestCase {
-    // The scenario hosts FocusField.Core() directly — its verbatim-copied
-    // @FocusState is Core's own live storage. Both directions run for real:
-    // tapping the field moves the OS's focus into Core's read, the toggle
-    // button (in Core's copied body) writes back out, moving focus away.
-    // Behavior-asserted, no snapshot: focus isn't in the model (no
-    // Binding-typed fields → no CoreModel).
+    // Core's verbatim-copied @FocusState is live: tapping the field moves
+    // the OS's real focus in, the toggle button writes it back out.
     @MainActor
     func testTappingFieldFocusesAndToggleButtonUnfocuses() {
         let app = launchExampleApp(scenario: "FocusField")
@@ -18,13 +14,9 @@ final class FocusFieldUITests: XCTestCase {
         XCTAssertEqual(status.label, "unfocused")
 
         field.tap()
-        let focusedPredicate = NSPredicate(format: "label == 'focused'")
-        expectation(for: focusedPredicate, evaluatedWith: status)
-        waitForExpectations(timeout: 5)
+        XCTAssertTrue(status.wait(for: \.label, toEqual: "focused", timeout: 5))
 
         toggle.tap()
-        let unfocusedPredicate = NSPredicate(format: "label == 'unfocused'")
-        expectation(for: unfocusedPredicate, evaluatedWith: status)
-        waitForExpectations(timeout: 5)
+        XCTAssertTrue(status.wait(for: \.label, toEqual: "unfocused", timeout: 5))
     }
 }

@@ -19,12 +19,14 @@ enum ExampleScenario: String {
 struct ExampleApp: App {
     let scenario: ExampleScenario
 
-    /// The NAMES of everything logged, in order — rendered into the hidden
-    /// `logNames` element below so a UI test has a finish line: wait until
-    /// the element reads exactly the expected comma-separated sequence, then
-    /// let the snapshot diff verify the values.
+    /// Everything logged, in order — exposed on the `log` element below.
     @State private var logItems: [(String, String)] = []
-    var logNames: [String] { logItems.map(\.0) }
+    var logNamesJSON: String { json(logItems.map(\.0)) }
+    var logValuesJSON: String { json(logItems.map(\.1)) }
+
+    private func json(_ items: [String]) -> String {
+        String(data: try! JSONEncoder().encode(items), encoding: .utf8)!
+    }
 
     init() {
         guard let raw = ProcessInfo.processInfo.environment["EXAMPLE_SCENARIO"] else {
@@ -37,15 +39,9 @@ struct ExampleApp: App {
         self.scenario = scenario
     }
 
-    /// The one sink every scenario reports through: always accumulates the
-    /// logged NAME into the hidden `logNames` element (the UI test's finish
-    /// line), and appends the full `name = value` line to the snapshot file
-    /// when a test passed one via SNAPSHOT_LOG.
     var testLog: @MainActor (String, String) -> Void {
         { property, value in
             logItems.append((property, value))
-            guard let path = ProcessInfo.processInfo.environment["SNAPSHOT_LOG"] else { return }
-            try! URL(fileURLWithPath: path).append("\(property) = \(value)")
         }
     }
 
@@ -60,13 +56,11 @@ struct ExampleApp: App {
                 case .saveButton: SaveButtonScenario()
                 }
             }
-            // No phantom view: the payload rides on the container element
-            // itself — identifier to find it, value to read it (that's what
-            // the accessibility pair is for; XCUITest reads it as `.value`).
-            // `.contain` keeps every child fully accessible.
+            // Names in label, values in value — JSON, read by UI tests.
             .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("logNames")
-            .accessibilityValue(logNames.joined(separator: ","))
+            .accessibilityIdentifier("log")
+            .accessibilityLabel(logNamesJSON)
+            .accessibilityValue(logValuesJSON)
         }
         .environment(\.testLog, testLog)
     }

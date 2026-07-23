@@ -22,21 +22,24 @@ granularity nobody needed.)
   `cd ExampleApp && sh test.sh` runs the suite once — each UI test launches
   its own scenario. Scenarios wire Core through the generated `$name`
   members (properties internal and defaulted, so Swift's own memberwise
-  init constructs the host bare);
-  the App scene installs the one sink via `.environment(\.testLog, …)`,
-  appending every write as a `name = value` line to the `SNAPSHOT_LOG`
-  file the moment it happens — at the write site, not via a view-layer
-  observer replaying history. The sink also accumulates the logged NAMES
-  (comma-joined @State) into the scenario `Group`'s own
-  `accessibilityValue` (`.accessibilityElement(children: .contain)` +
-  identifier `logNames` — no phantom view, no opacity tricks; XCUITest
-  reads it as `.value`): `expectLogNames(app,
-  "onSave,getUserName,userName")` in `SnapshotTestCase` is each test's
-  finish line — it knows exactly when the run completed and what it
-  expects, before tearDown diffs the values. Deterministic scenarios diff that log
-  against `Snapshots/<test>.txt` (`SnapshotTestCase`): the first run
-  records and skips, later runs compare — delete the file to re-record.
-  Value-streaming scenarios (drag distances) stay predicate-asserted.
+  init constructs the host bare); the App scene installs the one sink via
+  `.environment(\.testLog, …)`, which appends `(name, value)` into plain
+  `@State` the moment it happens — at the write site, not via a
+  view-layer observer replaying history. That log is exposed on the
+  scenario `Group`'s own accessibility channels
+  (`.accessibilityElement(children: .contain)` + identifier `log`, names
+  JSON in `label`, values JSON in `value` — no phantom view, no opacity
+  tricks, and JSON survives any description content; XCUITest reads
+  `.label`/`.value`). Tests wait on their own UI finish signal (the label
+  the last write produces — `element.wait(for: \.label, toEqual:)`), then
+  plain `XCTAssertEqual` on their own lines: `app.logNames` compared as
+  the raw JSON string (names are fixed identifiers), `app.logValues` as a
+  decoded `[String]` (values are arbitrary — a class-typed payload with
+  an unstable description is skipped by index). (An earlier revision diffed a `SNAPSHOT_LOG` file recorded via a
+  first skipped run — dropped: the element carries the same data
+  in-process, with no record/re-record dance and no unstable-description
+  poisoning of an all-or-nothing file diff.) Value-streaming scenarios
+  (drag distances) stay predicate-asserted.
 
 Targets Swift 6.3 (`swift-tools-version: 6.3`); swift-syntax `600.0.0..<700.0.0`, whose
 APIs are stable across the whole Swift 6.x line. Swift 6 language mode (strict
@@ -707,14 +710,14 @@ git history has both.
   ("dependents may invalidate on every update — closures aren't
   comparable"); harmless here, the sink is installed once at the scene
   root. The ExampleApp
-  installs `.environment(\.testLog) { … }` once at the App scene, writing
-  `name = value` lines to `SNAPSHOT_LOG` (see the example-app bullet).
+  installs `.environment(\.testLog) { … }` once at the App scene, feeding
+  the inspectable `log` element (see the example-app bullet).
   Outside a live view the env field reads default `EnvironmentValues` —
   no-op logging — so package unit tests verify the generated surface and
   action forwarding (`TestSupportTests.swift`, `@MainActor` suite —
   View-conforming type, same rule as OutFlow/Shell tests) while the actual
   log-through-environment path is verified live by the ExampleApp's UI
-  snapshot tests. Expansion shapes: `TestSupportSyntaxTests.swift`.
+  tests. Expansion shapes: `TestSupportSyntaxTests.swift`.
 - **Log effects, never getters — the criterion is who owns the invocation
   timing.** Setters and action calls fire when the component's own logic
   decides — deterministic, so snapshot-diffable. Getter reads (the state
