@@ -12,8 +12,10 @@ import SwiftSyntax
 ///
 /// The transform rules, all three of them:
 ///
-/// **Rule 1 — no wrapper** (plain `let`/`var`): `var name: T [= default]` —
-/// the initial value is kept, so the memberwise parameter comes defaulted;
+/// **Rule 1 — no wrapper** (plain `let`/`var`): `let|var name: T
+/// [= default]` — specifier and initial value kept (a `var` default makes
+/// its memberwise parameter defaulted; a `let` with a default is a constant
+/// and drops out of the memberwise init, exactly like on the host);
 /// `public` is stripped (a private plain field is already a diagnostic,
 /// `plainPrivatePropertyNotAllowed`).
 ///
@@ -66,13 +68,12 @@ import SwiftSyntax
 /// fresh gesture at its declared default. A *non-private* copy stays a
 /// memberwise parameter of the wrapper's own type.
 ///
-/// Every field is `var`; private verbatim copies are sealed — not init
-/// parameters, not readable, not mocked, they just behave. No `@RawProperty`
-/// is stamped anywhere (the macro stays in the package as a standalone
-/// opt-in): mocking happens at construction, through hand-built
-/// `Binding(get:set:)`/`.constant` values or a hand-written `@Observable`
-/// model whose `Bindable(model).x` projections wire in — deliberately NOT
-/// generated here. An earlier revision emitted a `CoreModel` class plus a
+/// Rule-1 fields keep the host's own `let`/`var`; wrapped fields are `var`
+/// (wrappers require it); private verbatim copies are sealed — not init
+/// parameters, not readable, not mocked, they just behave. Mocking happens
+/// at construction, through hand-built `Binding(get:set:)`/`.constant`
+/// values or a hand-written `@Observable` model whose `Bindable(model).x`
+/// projections wire in — deliberately NOT generated here. An earlier revision emitted a `CoreModel` class plus a
 /// `static make(model:...)` wiring constructor; both were cut in favor of
 /// writing that (small, situational) code at the use site — the macro's job
 /// ends at the mockable twin itself.
@@ -99,12 +100,7 @@ func renderShell(
 
     // Every field is internal — never `access` — regardless of the attached
     // type's own access level, except verbatim-copied private wrappers,
-    // which keep their `private`; see this file's own doc comment. No
-    // @RawProperty is stamped anywhere — an earlier revision decorated
-    // wrapper fields with it so tests could swap wrapper instances on a
-    // captured copy; with the capture gone, mocking happens at construction,
-    // and the macro stays in the package for anyone who wants raw_ access on
-    // hand-written code.
+    // which keep their `private`; see this file's own doc comment.
     let fieldDecls = fields.map { p -> String in
         // Rule 2 — the whitelist (`isSubstitutedOnCore`, `StoredProperty.swift`):
         // mutation-carrying wrappers become binding-shaped stand-ins a test
@@ -128,12 +124,18 @@ func renderShell(
                 ? "var \(p.name): \(type)"
                 : "@ViewBuilder var \(p.name): \(type)"
         }
-        // Rule 1 — plain let/var → var, initial value kept (so its memberwise
-        // parameter is defaulted), access stripped (a private plain field is
-        // already a diagnostic, `plainPrivatePropertyNotAllowed`).
+        // Rule 1 — plain let/var, specifier preserved (the host's own choice —
+        // a `let` stays a constant on Core too; forcing `var` was a relic of
+        // the deleted post-construction instance-swapping design), initial
+        // value kept, access stripped (a private plain field is already a
+        // diagnostic, `plainPrivatePropertyNotAllowed`). Note Swift's own
+        // memberwise rules apply: a `let` WITH a default is a constant and
+        // drops out of Core's memberwise init — not overridable by a test,
+        // exactly like on the host.
         guard let attributeText = p.attributeText else {
             let def = p.defaultValue.map { " = \($0.trimmedDescription)" } ?? ""
-            return "var \(p.name): \(p.type?.trimmedDescription ?? "")\(def)"
+            let spec = p.isLet ? "let" : "var"
+            return "\(spec) \(p.name): \(p.type?.trimmedDescription ?? "")\(def)"
         }
         // Rule 3 — ANY other wrapper (@Binding included — it fits here with
         // no case of its own): copied onto Core verbatim — attribute

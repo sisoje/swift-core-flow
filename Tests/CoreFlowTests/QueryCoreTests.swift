@@ -13,8 +13,21 @@
     /// *bare* fetched value — `FakeCore(items: [1], title: "t")`, no
     /// `QueryCore` spelling — which is the ergonomic point of those defaults.
     private struct FakeCore {
-        @RawProperty @QueryCore var items: [Int]
+        @QueryCore var items: [Int]
         var title: String
+    }
+
+    /// Seeding the wrapper's metadata is construction-time, use-site code: an
+    /// extension init keeps the synthesized memberwise init alive and reaches
+    /// the private `_items` backing (same file, same type — no macro needed;
+    /// SE-0258 hardcodes that storage private, and this is the escape hatch).
+    extension FakeCore {
+        fileprivate init(items: QueryCore<[Int]>, title: String) {
+            self._items = items
+            self.title = title
+        }
+
+        fileprivate var itemsFetchError: (any Error)? { _items.fetchError }
     }
 
     @Suite struct QueryCoreTests {
@@ -38,15 +51,15 @@
             #expect(core.title == "t")
         }
 
-        @Test func fetchErrorAndModelContextSeedViaTheRawAccessor() {
-            // Seeding the metadata fields goes through @RawProperty's raw_
-            // accessor — construct the wrapper explicitly and swap it in, the
-            // same re-mocking path every wrapper field on Core supports.
+        @Test func fetchErrorSeedsAtConstructionThroughTheExplicitWrapper() {
+            // A test that cares about the metadata constructs the wrapper
+            // explicitly — mocking happens at construction, nothing is swapped
+            // on a live value.
             struct FetchBoom: Error {}
-            var core = FakeCore(items: [], title: "t")
-            core.raw_items = QueryCore(wrappedValue: [9], fetchError: FetchBoom())
+            let core = FakeCore(
+                items: QueryCore(wrappedValue: [9], fetchError: FetchBoom()), title: "t")
             #expect(core.items == [9])
-            #expect(core.raw_items.fetchError is FetchBoom)
+            #expect(core.itemsFetchError is FetchBoom)
         }
     }
 #endif

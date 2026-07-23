@@ -28,9 +28,9 @@
     /// `Core(items: [item], title: "t")` with no `QueryCore` spelling at all.
     /// (`@Flowable`'s
     /// `outFlow` tuple still captures all three off the live wrapper.) To seed
-    /// either field explicitly, construct the wrapper yourself and swap it in
-    /// through the `@RawProperty` accessor:
-    /// `m.raw_items = QueryCore(wrappedValue: [item], fetchError: err)`.
+    /// either field explicitly, construct the wrapper yourself at
+    /// construction time — e.g. through a hand-written extension init that
+    /// assigns the `_items` backing (see `QueryCoreTests`' `FakeCore`).
     @propertyWrapper
     public struct QueryCore<Value> {
         public let wrappedValue: Value

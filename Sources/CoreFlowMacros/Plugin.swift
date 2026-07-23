@@ -8,7 +8,6 @@ struct CoreFlowPlugin: CompilerPlugin {
         ShellMacro.self,
         CapabilityMacro.self,
         PickMacro.self,
-        RawPropertyMacro.self,
         TestStateMacro.self,
         TestActionMacro.self,
     ]

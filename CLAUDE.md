@@ -39,8 +39,8 @@ concurrency) throughout.
 
 | Target | Kind | Contents |
 |---|---|---|
-| `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `RawPropertyMacro.swift`, `TestSupportMacros.swift` — the last holds `@TestState` + `@TestAction`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `RawProperty.swift`, `TestSupport.swift` — `@TestState`/`@TestAction` plus the `\.testLog` `@Entry`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`.s drop-in stand-in on `Core`/`OutFlow`, see the `@Flowable` OutFlow notes) |
+| `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — the last holds `@TestState` + `@TestAction`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction` plus the `\.testLog` `@Entry`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`.s drop-in stand-in on `Core`/`OutFlow`, see the `@Flowable` OutFlow notes) |
 | `CoreFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites |
 
 Adding a new macro: one new file in `CoreFlowMacros` for the implementation
@@ -415,8 +415,10 @@ Rendering: `renderShell`, in `Sources/CoreFlowMacros/ShellRendering.swift`.
 Generates a nested `Core` struct — always internal, carrying no
 `@Flowable` — the host's standalone twin. Three transform rules, in
 `renderShell`'s order:
-**rule 1**, no wrapper: `var name: T [= default]` — initial value kept (so
-the memberwise parameter comes defaulted), `public` stripped;
+**rule 1**, no wrapper: `let|var name: T [= default]` — specifier and
+initial value kept (a `var` default makes the memberwise parameter
+defaulted; a `let` with a default is a constant, excluded from the
+memberwise init), `public` stripped;
 **rule 2**, the mapping whitelist (`isSubstitutedOnCore`,
 `StoredProperty.swift` — the only wrappers this macro really knows, all
 required private): the mutating source-of-truth set substituted with
@@ -434,12 +436,16 @@ capture property is generated either — an earlier revision emitted
 `var core: Core { Core(...) }` off the live host, dragging a whole
 per-rule capture-expression mapping with it; deleted, since Core is for
 testing and tests construct it directly (a unit test never has a live host
-to capture from). The host runs its own hand-written body. Every field is `var`; private verbatim copies are
-sealed, they just behave. No `@RawProperty` is stamped anywhere — an
-earlier revision decorated wrapper fields with it for instance-swapping on
-captured copies; with the capture gone, mocking happens at construction,
-and the macro stays in the package as a standalone opt-in for hand-written
-code (see `QueryCoreTests`' `FakeCore` for it in use). Mocking the
+to capture from). The host runs its own hand-written body. Rule-1 fields keep the host's
+own `let`/`var` (a `let` with a default is a constant and drops out of
+Core's memberwise init, exactly like on the host); wrapped fields are
+`var`; private verbatim copies are sealed, they just behave. The all-`var`
+rule and the `@RawProperty` macro (an internal `raw_name` accessor over a
+wrapper's hardcoded-private `_name` backing, SE-0258) were relics of the
+same deleted design — post-construction instance swapping on captured
+copies — and both are REMOVED: mocking happens at construction, and where
+raw backing access is genuinely needed, a same-file extension init/accessor
+reaches `_name` by hand (see `QueryCoreTests`' `FakeCore`). Mocking the
 `Binding`-typed parameters is USE-SITE code, deliberately not generated: a
 test backs each with `.constant`, a `Binding(get:set:)` capturing writes
 into a local, or a hand-written `@Observable @MainActor` model class whose
@@ -719,22 +725,6 @@ git history has both.
   backing landed as an extra memberwise parameter — verified directly);
   and an init-accessor property's inline default runs at the top of EVERY
   init, so `let` storage peers double-initialize (verified directly).
-
-## @RawProperty — tricky points
-
-Peer macro (`RawPropertyMacro.swift`) generating an internal `raw_name`
-get/set accessor over a wrapped property's `_name` backing storage. Exists
-because **the decision is HARD CODED in the compiler** — SE-0258: "always
-named with a leading `_` and is always `private`", no spelling loosens it —
-making the wrapper *instance* on a constructed value unswappable.
-(https://github.com/swiftlang/swift-evolution/blob/main/proposals/0258-property-wrappers.md)
-A standalone opt-in for hand-written code — `@Shell` no longer stamps it
-anywhere (mocking happens at construction via hand-built
-bindings); `QueryCoreTests`' `FakeCore` keeps it exercised. Type inference
-is syntax-only: attribute generics verbatim (`@Binding<Bool>`), else the
-annotation fills the generic, else a diagnostic; no wrapper attribute at
-all is a diagnostic too. That `Wrapper<T>` spelling means it fits generic
-wrappers only — bare `Namespace` can't be spelled from syntax.
 
 ## @Capability — tricky points
 

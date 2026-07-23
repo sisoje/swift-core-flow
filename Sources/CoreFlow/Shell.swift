@@ -124,12 +124,11 @@
 /// `static make(model:...)` wiring constructor for this; both were cut —
 /// the few lines they saved belong at the use site, shaped by the test.)
 ///
-/// No `@RawProperty` is stamped on `Core`'s fields — mocking happens at
-/// construction, through any hand-built `Binding(get:set:)`.
-/// (The `@RawProperty` macro itself remains in the package for hand-written
-/// code that wants a wrapper's backing storage exposed.) Every field is
-/// `var`; private verbatim copies are sealed — not init parameters, not
-/// readable, not mocked, they just behave.
+/// Mocking happens at construction, through any hand-built
+/// `Binding(get:set:)` — nothing is swapped on a constructed value. Rule-1
+/// fields keep the host's own `let`/`var`; private verbatim copies are
+/// sealed — not init parameters, not readable, not mocked, they just
+/// behave.
 ///
 /// The copy compiles on both types by construction — the whitelisted fields
 /// were designed for read-surface parity (`$x` is `Binding<T>` on both sides

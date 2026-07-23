@@ -42,7 +42,7 @@ final class ShellSyntaxTests: XCTestCase {
                         @Environment(\\.colorScheme) private var colorScheme: ColorScheme
                         @Binding var isExpanded: Bool
                         @Binding var isOn: Bool
-                        var title: String
+                        let title: String
                     }
                 }
                 """,
@@ -74,7 +74,7 @@ final class ShellSyntaxTests: XCTestCase {
 
                     struct Core {
                         @FocusState private var isFocused: Bool
-                        var title: String
+                        let title: String
                     }
                 }
                 """,
@@ -110,7 +110,7 @@ final class ShellSyntaxTests: XCTestCase {
                         @GestureState(reset: { _, transaction in
                             transaction = Transaction()
                         }) private var dragOffset: CGSize = .zero
-                        var title: String
+                        let title: String
                     }
                 }
                 """,
@@ -151,7 +151,7 @@ final class ShellSyntaxTests: XCTestCase {
                         @StateObject private var vm: VM = VM()
                         @Whatever(flavor: .spicy) var knob: Int = 7
                         var flavor: String = "mild"
-                        var title: String
+                        let title: String
                     }
                 }
                 """,
@@ -178,7 +178,7 @@ final class ShellSyntaxTests: XCTestCase {
 
                     struct Core {
                         @AccessibilityFocusState private var a11yFocused: Bool
-                        var title: String
+                        let title: String
                     }
                 }
                 """,
@@ -208,7 +208,7 @@ final class ShellSyntaxTests: XCTestCase {
 
                     struct Core {
                         @ScaledMetric private var iconSize: CGFloat = 24
-                        var title: String
+                        let title: String
                     }
                 }
                 """,
@@ -236,7 +236,7 @@ final class ShellSyntaxTests: XCTestCase {
 
                     struct Core {
                         @Binding var isPinned: Bool
-                        var title: String
+                        let title: String
                     }
                 }
                 """,
@@ -269,7 +269,7 @@ final class ShellSyntaxTests: XCTestCase {
 
                     struct Core {
                         @Namespace private var ns: Namespace.ID
-                        var title: String
+                        let title: String
                     }
                 }
                 """,
@@ -507,7 +507,7 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        var title: String
+                        let title: String
                     }
                 }
                 """,

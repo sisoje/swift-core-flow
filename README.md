@@ -21,7 +21,6 @@ Requires Swift 6.3+ (`swift-tools-version: 6.3`). Builds across the whole swift-
 | [`@Shell`](#shell) | member | generates a nested, nominal `Core` struct capturing a `View`/`ViewModifier`'s full externally-relevant state — real `Equatable`/`Codable`/protocol conformance a tuple can never have |
 | [`@Flowable`](#flowable) | member | writes a memberwise `init` at the type's own access level, plus `InFlowSplat`/`InFlow` typealiases bundling the same properties into a tuple, unlabeled and labeled, plus a wider `OutFlow` — the tuple `@Shell`'s `Core` doesn't replace |
 | [`@Capability`](#capability) | member | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
-| `@RawProperty` | peer | exposes a wrapped property's backing storage as an internal `raw_name` accessor — `_name` being `private` is **HARD CODED in the compiler** ([SE-0258](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0258-property-wrappers.md): "always named with a leading `_` and is always `private`"); a standalone opt-in for hand-written code — `@Shell` doesn't stamp it anywhere |
 | [`#pick`](#pick-tuplepicker) | expression | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
 | [`Reflector`](#reflector) | runtime utility (not a macro) | lists a value type's field names off its type alone, no instance needed — pairs with `@Flowable`'s `InFlow` |
 
@@ -73,8 +72,10 @@ Card.Core(items: [item], isExpanded: .constant(true), title: "t")
 
 ### Wrapper mapping reference
 
-The transform rules, all three of them. **Rule 1** — no wrapper: `var`,
-initial value kept, `public` stripped. **Rule 2** — the mapping whitelist,
+The transform rules, all three of them. **Rule 1** — no wrapper: copied as
+is, `let`/`var` and initial value kept, `public` stripped (a defaulted
+`let` is a constant on `Core` too — no memberwise parameter, same as on
+the host). **Rule 2** — the mapping whitelist,
 the only wrapper kinds this package really knows, all required private:
 `@State`/`@AppStorage`/`@SceneStorage` (in a test you mock a `Binding` to
 capture every write the copied body makes) plus `@Query`, substituted for
@@ -98,21 +99,31 @@ spelled out in full later in this doc). `OutFlow` follows the same shape,
 minus the `var`/attribute keyword — except the verbatim row, whose `OutFlow`
 field is just the bare wrapped value.
 
+The whitelist — the only substitutions the macro makes; everything else
+(plain fields, any other wrapper) is copied verbatim:
+
 | Shell | Core |
 |---|---|
-| `let`/`var` | `var` (initial value kept) |
 | `@State` | `@Binding` |
 | `@AppStorage` | `@Binding` |
 | `@SceneStorage` | `@Binding` |
 | `@Query` | `@QueryCore` |
-| any other wrapper | verbatim copy (private ones sealed) |
 
 > **`@StateObject` and `@ObservedObject` are deliberately unmapped.** They're
 > Combine-era `ObservableObject` wrappers — MVVM-shaped state, exactly what
 > this package's plain-data model exists to avoid — so they get no mocking
 > stand-in and never will. Like any unknown wrapper they're copied onto
 > `Core` verbatim and left alone; if you want testable state, model it with
-> the mapped wrappers instead.
+> the mapped wrappers instead. These are classes: reference-type state
+> containers bolted onto a value-type dataflow, opaque to SwiftUI's
+> dependency graph and to any snapshot of plain data — they clog the data
+> flow. This isn't a fringe position: see the long-running
+> [Stop using MVVM for SwiftUI](https://developer.apple.com/forums/thread/699003)
+> thread on the Apple Developer Forums,
+> [Stop using MVVM with SwiftUI](https://medium.com/@karamage/stop-using-mvvm-with-swiftui-2c46eb2cc8dc)
+> (karamage), and
+> [SwiftUI Architecture — A Complete Guide to the MV Pattern Approach](https://medium.com/better-programming/swiftui-architecture-a-complete-guide-to-mv-pattern-approach-5f411eaaaf9e)
+> (Azam Sharp — "the View is the view model").
 
 ### Mocking the bindings
 
