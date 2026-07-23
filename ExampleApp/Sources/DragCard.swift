@@ -45,3 +45,7 @@ struct DragCardScenario: View {
         DragCard.Core(maxDistance: $maxDistance)
     }
 }
+
+#Preview {
+    DragCardScenario()
+}

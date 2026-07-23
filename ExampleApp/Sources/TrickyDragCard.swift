@@ -51,3 +51,7 @@ struct TrickyDragCardScenario: View {
         TrickyDragCard.Core(resetsSeen: $resetsSeen)
     }
 }
+
+#Preview {
+    TrickyDragCardScenario()
+}

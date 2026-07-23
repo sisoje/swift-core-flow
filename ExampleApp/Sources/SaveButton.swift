@@ -44,3 +44,7 @@ struct SaveButtonScenario: View {
         SaveButton.Core(userName: $userName, onSave: onSave, getUserName: getUserName)
     }
 }
+
+#Preview {
+    SaveButtonScenario()
+}

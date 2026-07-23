@@ -36,3 +36,7 @@ struct DimmerScenario: View {
             .modifier(Dimmer.Core(isDimmed: $isDimmed))
     }
 }
+
+#Preview {
+    DimmerScenario()
+}

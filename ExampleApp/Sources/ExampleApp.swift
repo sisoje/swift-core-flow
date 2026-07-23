@@ -39,8 +39,8 @@ struct ExampleApp: App {
         self.scenario = scenario
     }
 
-    var testLog: @MainActor (String, String) -> Void {
-        { property, value in
+    var testLog: ComparableLog {
+        ComparableLog { property, value in
             logItems.append((property, value))
         }
     }

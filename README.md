@@ -314,7 +314,7 @@ flowchart TD
   compiles the identical text against the substituted fields. Drift is
   impossible.
 - **`Test -.-> Fields`** (dotted) — the payoff: construct a `Core` directly
-  with mocks — in a unit test or a `PreviewProvider` — and assert on its
+  with mocks — in a unit test or a preview — and assert on its
   fields, call its helpers, or render its body, no live rendering pipeline
   required.
 

@@ -1,14 +1,33 @@
 import SwiftUI
 
+/// The mutation-log seam `@TestState`/`@TestAction` call: `(name, value
+/// description)` for every logged write and call. A callable struct, not a
+/// bare closure — a closure-typed `@Entry` warns that dependents may
+/// invalidate on every update (closures aren't comparable); this wraps the
+/// sink and compares always-equal, honest for a seam installed once at the
+/// scene root. `callAsFunction` keeps call sites spelled like the closure
+/// they replace. The sink is `@MainActor` (Sendable, serialized on the main
+/// actor whatever context the logged action runs in) with `String` payloads,
+/// so nothing non-Sendable rides through. The `@MainActor` on the sink is
+/// load-bearing: without it a `@Sendable async` action wrapper calls the
+/// sink off the main actor — a data race for any sink touching @State.
+public struct ComparableLog: Equatable, Sendable {
+    public init(sink: @escaping @MainActor (String, String) -> Void = { _, _ in }) {
+        self.sink = sink
+    }
+
+    let sink: @MainActor (_ name: String, _ value: String) -> Void
+
+    @MainActor
+    public func callAsFunction(_ name: String, _ value: String) {
+        sink(name, value)
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool { true }
+}
+
 extension EnvironmentValues {
-    /// The mutation-log seam `@TestState`/`@TestAction` read: `(name, value
-    /// description)` for every logged write and call. `@MainActor` — so the
-    /// type is implicitly Sendable AND every sink runs serialized on the main
-    /// actor, whatever context the logged action executes in; `String` payload
-    /// so nothing non-Sendable ever rides through the seam. Defaults to a
-    /// no-op — a UI test scenario installs its sink with
-    /// `.environment(\.testLog) { … }`.
-    @Entry public var testLog: @MainActor (_ name: String, _ value: String) -> Void = { _, _ in }
+    @Entry public var testLog = ComparableLog()
 }
 
 /// A drop-in `@State` that logs — attach to a defaulted stored `var`.

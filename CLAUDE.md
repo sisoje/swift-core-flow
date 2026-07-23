@@ -484,9 +484,14 @@ The field set is *identical* to `OutFlow`'s — `renderShell` calls
 The copy is legal because it happens inside `@Shell`'s *own* expansion —
 only *cross*-expansion name references are forbidden, the same Swift-level
 rule that makes `#Preview` unable to see `Core` or any macro-generated name
-(verified directly, five ways; `PreviewProvider` is the escape hatch for
-previewing a mocked `Core`, and `#Preview { Card() }` works since the host's
-`body` is hand-written source). It compiles on both types because every
+(verified directly, five ways). `#Preview { Card() }` works since the
+host's `body` is hand-written source, and a mocked `Core` previews through
+any hand-written wrapper — the ExampleApp scenarios double as exactly
+that (`#Preview { DragCardScenario() }`): the scenario is an ordinary
+name, so the cross-expansion rule never triggers. A macro-generated name
+also fails in a file-scope TYPE position (`func f() -> DragCard.Core` →
+"has no member 'Core'", verified directly) — reference it in expressions
+or behind `some View`. It compiles on both types because every
 field has read-surface parity — designed in for the mapped ones (`$x` is
 `Binding<T>` on both sides), trivially true for a
 verbatim copy, because it *is* the same declaration. The
@@ -705,11 +710,16 @@ git history has both.
   no fire-and-forget `Task`, which could reorder log lines against
   synchronous state writes. (`@Sendable` *sync* can neither inherit nor
   await — its direct call draws an actor-isolation warning, the type
-  author's own trade.) The
-  closure-typed entry draws an informational `@Entry` warning
-  ("dependents may invalidate on every update — closures aren't
-  comparable"); harmless here, the sink is installed once at the scene
-  root. The ExampleApp
+  author's own trade.) The entry value is
+  `ComparableLog`, a callable struct (`callAsFunction` keeps generated
+  call sites spelled like the closure they replace, so the macros needed
+  no change) — a bare closure-typed `@Entry` draws a "dependents may
+  invalidate on every update" warning; the struct compares always-equal,
+  honest for a seam installed once at the scene root. One earned fact:
+  `wrapper.wrappedValue(args)` and even a local's `value(args)` DON'T
+  route to a cross-module `callAsFunction` that doesn't exist — the
+  diagnostic is "cannot call value of non-function type", so if it ever
+  appears, check the struct actually declares `callAsFunction`. The ExampleApp
   installs `.environment(\.testLog) { … }` once at the App scene, feeding
   the inspectable `log` element (see the example-app bullet).
   Outside a live view the env field reads default `EnvironmentValues` —

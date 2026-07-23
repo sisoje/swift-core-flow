@@ -32,3 +32,7 @@ struct FocusFieldScenario: View {
         FocusField.Core()
     }
 }
+
+#Preview {
+    FocusFieldScenario()
+}
