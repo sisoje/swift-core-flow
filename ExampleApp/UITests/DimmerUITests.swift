@@ -24,5 +24,8 @@ final class DimmerUITests: SnapshotTestCase {
         let brightPredicate = NSPredicate(format: "label == 'bright'")
         expectation(for: brightPredicate, evaluatedWith: status)
         waitForExpectations(timeout: 5)
+
+        // The finish line: one logged write per tap, nothing else.
+        expectLogNames(app, "isDimmed,isDimmed")
     }
 }

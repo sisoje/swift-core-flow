@@ -19,6 +19,13 @@ enum ExampleScenario: String {
 struct ExampleApp: App {
     let scenario: ExampleScenario
 
+    /// The NAMES of everything logged, in order — rendered into the hidden
+    /// `logNames` element below so a UI test has a finish line: wait until
+    /// the element reads exactly the expected comma-separated sequence, then
+    /// let the snapshot diff verify the values.
+    @State private var logItems: [(String, String)] = []
+    var logNames: [String] { logItems.map(\.0) }
+
     init() {
         guard let raw = ProcessInfo.processInfo.environment["EXAMPLE_SCENARIO"] else {
             self.scenario = .defaultScenario
@@ -30,29 +37,36 @@ struct ExampleApp: App {
         self.scenario = scenario
     }
 
-    /// The one sink every @TestHost scenario reports through — appends each
-    /// mutation as a `name = value` line the moment it happens. CoreFlow's
-    /// `\.testLog` entry defaults to a no-op, so plain runs (Cmd-R,
-    /// non-snapshot tests) log nothing.
+    /// The one sink every scenario reports through: always accumulates the
+    /// logged NAME into the hidden `logNames` element (the UI test's finish
+    /// line), and appends the full `name = value` line to the snapshot file
+    /// when a test passed one via SNAPSHOT_LOG.
     var testLog: @MainActor (String, String) -> Void {
-        guard let path = ProcessInfo.processInfo.environment["SNAPSHOT_LOG"] else {
-            return { _, _ in }
-        }
-        let url = URL(fileURLWithPath: path)
-        return { property, value in
-            try! url.append("\(property) = \(value)")
+        { property, value in
+            logItems.append((property, value))
+            guard let path = ProcessInfo.processInfo.environment["SNAPSHOT_LOG"] else { return }
+            try! URL(fileURLWithPath: path).append("\(property) = \(value)")
         }
     }
 
     var body: some Scene {
         WindowGroup {
-            switch scenario {
-            case .dragCard: DragCardScenario()
-            case .trickyDragCard: TrickyDragCardScenario()
-            case .focusField: FocusFieldScenario()
-            case .dimmer: DimmerScenario()
-            case .saveButton: SaveButtonScenario()
+            Group {
+                switch scenario {
+                case .dragCard: DragCardScenario()
+                case .trickyDragCard: TrickyDragCardScenario()
+                case .focusField: FocusFieldScenario()
+                case .dimmer: DimmerScenario()
+                case .saveButton: SaveButtonScenario()
+                }
             }
+            // No phantom view: the payload rides on the container element
+            // itself — identifier to find it, value to read it (that's what
+            // the accessibility pair is for; XCUITest reads it as `.value`).
+            // `.contain` keeps every child fully accessible.
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("logNames")
+            .accessibilityValue(logNames.joined(separator: ","))
         }
         .environment(\.testLog, testLog)
     }

@@ -19,8 +19,9 @@ final class SaveButtonUITests: SnapshotTestCase {
 
         button.tap()
 
-        let fetched = NSPredicate(format: "label == '?'")
-        expectation(for: fetched, evaluatedWith: label)
-        waitForExpectations(timeout: 5)
+        // The finish line: exactly these three logs, in this order — the sync
+        // action, the awaited fetch, and the state write of its fallback.
+        expectLogNames(app, "onSave,getUserName,userName")
+        XCTAssertEqual(label.label, "?")
     }
 }

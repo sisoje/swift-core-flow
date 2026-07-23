@@ -45,6 +45,17 @@ class SnapshotTestCase: XCTestCase {
             "Mutation snapshot changed — \(snapshotFile.path) (delete it to re-record)")
     }
 
+    /// Waits until the hidden `logNames` element reads exactly `expected` —
+    /// the test's finish line: precisely these names were logged, in this
+    /// order, and the run is complete. Values are then verified by the
+    /// snapshot diff in tearDown.
+    @MainActor
+    func expectLogNames(_ app: XCUIApplication, _ expected: String) {
+        let names = app.otherElements["logNames"]
+        expectation(for: NSPredicate(format: "value == %@", expected), evaluatedWith: names)
+        waitForExpectations(timeout: 5)
+    }
+
     /// Launches the app on `scenario` with mutation logging wired to this
     /// test's snapshot file. The app is a separate process; the filesystem
     /// is the shared channel.

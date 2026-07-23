@@ -21,5 +21,8 @@ final class TrickyDragCardUITests: SnapshotTestCase {
         let firedPredicate = NSPredicate(format: "label == 'resets 1'")
         expectation(for: firedPredicate, evaluatedWith: resets)
         waitForExpectations(timeout: 5)
+
+        // The finish line: exactly one logged write, nothing else.
+        expectLogNames(app, "resetsSeen")
     }
 }

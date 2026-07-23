@@ -26,7 +26,14 @@ granularity nobody needed.)
   the App scene installs the one sink via `.environment(\.testLog, …)`,
   appending every write as a `name = value` line to the `SNAPSHOT_LOG`
   file the moment it happens — at the write site, not via a view-layer
-  observer replaying history. Deterministic scenarios diff that log
+  observer replaying history. The sink also accumulates the logged NAMES
+  (comma-joined @State) into the scenario `Group`'s own
+  `accessibilityValue` (`.accessibilityElement(children: .contain)` +
+  identifier `logNames` — no phantom view, no opacity tricks; XCUITest
+  reads it as `.value`): `expectLogNames(app,
+  "onSave,getUserName,userName")` in `SnapshotTestCase` is each test's
+  finish line — it knows exactly when the run completed and what it
+  expects, before tearDown diffs the values. Deterministic scenarios diff that log
   against `Snapshots/<test>.txt` (`SnapshotTestCase`): the first run
   records and skips, later runs compare — delete the file to re-record.
   Value-streaming scenarios (drag distances) stay predicate-asserted.
