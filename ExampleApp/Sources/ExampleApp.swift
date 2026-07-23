@@ -1,3 +1,4 @@
+import CoreFlow
 import SwiftUI
 
 // Which Core component this launch hosts — selected via the
@@ -8,20 +9,10 @@ enum ExampleScenario: String {
     case trickyDragCard = "TrickyDragCard"
     case focusField = "FocusField"
     case dimmer = "Dimmer"
+    case saveButton = "SaveButton"
 
     /// Used when EXAMPLE_SCENARIO isn't set — running from Xcode (Cmd-R).
     static var defaultScenario: ExampleScenario { .focusField }
-}
-
-/// Injected once from the App scene; scenarios call it from a binding's
-/// `didSet` so every mutation is logged the moment it happens. The default
-/// is a no-op — plain runs (Cmd-R, non-snapshot tests) log nothing.
-struct Logger {
-    var mylog: (String, Any) -> Void = { _, _ in }
-}
-
-extension EnvironmentValues {
-    @Entry var mylog: Logger = .init()
 }
 
 @main
@@ -39,12 +30,16 @@ struct ExampleApp: App {
         self.scenario = scenario
     }
 
-    var logger: Logger {
+    /// The one sink every @TestHost scenario reports through — appends each
+    /// mutation as a `name = value` line the moment it happens. CoreFlow's
+    /// `\.testLog` entry defaults to a no-op, so plain runs (Cmd-R,
+    /// non-snapshot tests) log nothing.
+    var testLog: @MainActor (String, String) -> Void {
         guard let path = ProcessInfo.processInfo.environment["SNAPSHOT_LOG"] else {
-            return Logger()
+            return { _, _ in }
         }
         let url = URL(fileURLWithPath: path)
-        return Logger { property, value in
+        return { property, value in
             try! url.append("\(property) = \(value)")
         }
     }
@@ -56,8 +51,9 @@ struct ExampleApp: App {
             case .trickyDragCard: TrickyDragCardScenario()
             case .focusField: FocusFieldScenario()
             case .dimmer: DimmerScenario()
+            case .saveButton: SaveButtonScenario()
             }
         }
-        .environment(\.mylog, logger)
+        .environment(\.testLog, testLog)
     }
 }

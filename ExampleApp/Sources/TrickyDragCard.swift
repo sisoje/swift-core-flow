@@ -41,17 +41,13 @@ struct TrickyDragCard: View {
 }
 
 // Core component under test, mutations logged at the write site: the
-// didSet-wrapped binding reports `resetsSeen` the moment Core's copied body
-// writes it — exactly once per completed drag (deterministically `1` in a
-// fresh process), so the snapshot is stable.
+// @TestState-generated $resetsSeen binding reports the moment Core's copied
+// body writes it — exactly once per completed drag (deterministically `1` in
+// a fresh process), so the snapshot is stable.
 struct TrickyDragCardScenario: View {
-    @Environment(\.mylog) var mylog
-    @State private var resetsSeen = 0
+    @TestState var resetsSeen: Int = 0
 
     var body: some View {
-        TrickyDragCard.Core(
-            resetsSeen: $resetsSeen.didSet { val in
-                mylog.mylog("resetsSeen", val)
-            })
+        TrickyDragCard.Core(resetsSeen: $resetsSeen)
     }
 }

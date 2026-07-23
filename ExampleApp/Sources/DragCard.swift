@@ -34,12 +34,12 @@ struct DragCard: View {
 }
 
 // The component under test is the CORE, not the host: the scenario owns
-// maxDistance and hands Core a binding; dragOffset is Core's own live
-// @GestureState. No mutation logging here — drag distances are
-// device/timing-dependent, so this scenario is verified by behavior
-// assertions, not snapshots.
+// maxDistance and hands Core the generated logged binding; dragOffset is
+// Core's own live @GestureState. Drag distances are device/timing-dependent,
+// so this scenario is verified by behavior assertions, not snapshots — the
+// $maxDistance writes still flow through \.testLog, which defaults to a no-op.
 struct DragCardScenario: View {
-    @State private var maxDistance: CGFloat = 0
+    @TestState var maxDistance: CGFloat = 0
 
     var body: some View {
         DragCard.Core(maxDistance: $maxDistance)
