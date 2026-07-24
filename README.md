@@ -36,9 +36,12 @@ Seemann's "impureim sandwich" (see [References](#references)).
 The host view is the imperative shell — its wrappers (`@State`, `@Query`,
 `@AppStorage`) are where the runtime does I/O. `Core` is the functional
 core the macro extracts from it: the identical logic with every piece of
-I/O pushed out to the boundary as something the caller injects — state
-behind `Binding`s, fetched data as a plain value, effects as closures.
-Stateless by construction, so it's constructible and assertable anywhere.
+*data* I/O pushed out to the boundary as something the caller injects —
+state behind `Binding`s, fetched data as a plain value, effects as
+closures — which makes it constructible and assertable anywhere, no
+runtime required. (Apple's UI-runtime wrappers that aren't data — gestures,
+focus, view identity — can't be pushed to a boundary and ride along as-is;
+see the [wrapper mapping reference](#wrapper-mapping-reference).)
 
 Concretely: a `member` macro generating a nested `Core` struct —
 always internal, regardless of the attached type's own access level —
@@ -102,6 +105,18 @@ SwiftUI hasn't shipped yet — all ride onto `Core` byte-for-byte (attribute
 arguments and default value kept, `private` kept, `public` erased) and just
 behave there. Private verbatim copies are sealed — no init parameter, no
 reads — they just behave.
+
+There's a principle behind the rule split, not just pragmatism. The
+whitelisted wrappers hold *data* — a value, a fetched array — and data can
+be pushed out to the functional core's boundary for a caller to inject.
+Most of the rest are Apple's own UI-runtime machinery: `@GestureState` is a
+live gesture's lifecycle, `@FocusState` is the focus system, `@Namespace`
+is view identity for matched geometry, `@ScaledMetric` tracks the display's
+dynamic type, `@Environment` is the view tree's own value propagation.
+None of that is data a caller could supply — there is no functional-core
+form of a live gesture — so no boundary substitution is attempted: those
+declarations stay imperative-shell plumbing even on `Core`, verbatim, live
+when hosted and inert defaults otherwise.
 
 Types are left out below on purpose: each attribute already implies its own
 type (`@Binding` → `Binding<T>`, `@QueryCore` → `QueryCore<T>`, and so on).

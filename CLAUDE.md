@@ -316,7 +316,13 @@ binding-shaped, mockable stand-ins so a test captures every write, plus
 **rule 3**, any other wrapper — `@Binding`, `@Environment`, `@GestureState`,
 `@Namespace`, `@ScaledMetric`, `@Bindable`, `@StateObject`, a custom one —
 copied verbatim (attribute with arguments and default kept, `private` kept,
-`public` erased, via `StoredProperty.attributeText`). Plus a verbatim copy
+`public` erased, via `StoredProperty.attributeText`). The split is
+principled: rule 2 covers wrappers holding *data*, which can be pushed to
+the core's boundary for injection; most rule-3 wrappers are Apple's own
+UI-runtime machinery (gesture lifecycle, focus, view identity, display
+metrics, environment propagation) — not data a caller could supply, no
+functional-core form exists — so they stay imperative-shell plumbing on
+`Core` too, verbatim. Plus a verbatim copy
 of every non-stored member (`copiedMemberSources`, `ShellMacro.swift`) —
 `body`, helpers, methods, `static` members, nested types. Initializers are
 the one member kind *not* copied: `Core` is constructed through Swift's
