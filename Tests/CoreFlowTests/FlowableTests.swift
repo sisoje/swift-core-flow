@@ -92,6 +92,49 @@ final class FlowableTests: XCTestCase {
         )
     }
 
+    func testSingleClosurePropertyMakesFlowParameterEscaping() {
+        // The 1-field collapse makes `flow` a DIRECT function parameter when
+        // that field is a closure — non-escaping by default, yet forwarded to
+        // the init's @escaping parameter. Caught live by the ReadingList
+        // example (`@Flowable @Shell struct BookList { let onDelete: … }`).
+        assertMacroExpansion(
+            """
+            @Flowable
+            struct Deleter {
+                let onDelete: (String) -> Void
+            }
+            """,
+            expandedSource: """
+                struct Deleter {
+                    let onDelete: (String) -> Void
+
+                    init(onDelete: @escaping (String) -> Void) {
+                        self.onDelete = onDelete
+                    }
+
+                    typealias InFlowSplat = (String) -> Void
+
+                    static func makeFlow(_ flow: @escaping InFlowSplat) -> Self {
+                        Self(onDelete: flow)
+                    }
+
+                    typealias InFlow = (String) -> Void
+
+                    var inFlow: InFlow {
+                        onDelete
+                    }
+
+                    typealias OutFlow = (String) -> Void
+
+                    var outFlow: OutFlow {
+                        onDelete
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
     func testWorksOnAClass() {
         // Works on a class too — e.g. an @Observable class, which Swift gives no
         // memberwise init at all. Access level mirrors the type (internal here).

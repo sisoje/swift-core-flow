@@ -151,9 +151,17 @@ func renderInFlowSplatFactory(properties: [StoredProperty], access: String) -> D
         return "\(p.name): \(source)"
     }.joined(separator: ", ")
 
+    // The single-field collapse makes `flow` a DIRECT function parameter when
+    // that one field is a closure — non-escaping by default, yet it's passed
+    // to the init's @escaping parameter. Only this case needs the annotation:
+    // inside a real tuple a closure is already escaping (and @escaping on the
+    // tuple parameter would be ill-formed).
+    let escaping =
+        !isTuple && (initParams[0].type.map(isFunctionType) ?? false) ? "@escaping " : ""
+
     return DeclSyntax(
         stringLiteral: """
-            \(access)static func makeFlow(_ flow: InFlowSplat) -> Self {
+            \(access)static func makeFlow(_ flow: \(escaping)InFlowSplat) -> Self {
                 Self(\(args))
             }
             """
