@@ -103,9 +103,8 @@ private func dedented(_ source: String) -> String {
 }
 
 /// Adds a nested `Core` struct to the struct, class, or actor it's attached
-/// to: the same field set `@Flowable`'s own `OutFlow`/`outFlow` capture
-/// (every non-private participating property, plus every recognized private
-/// source-of-truth wrapper) as substituted plain fields, plus a verbatim copy
+/// to: every collected stored property (non-private participating properties
+/// plus every private wrapper field) as substituted plain fields, plus a verbatim copy
 /// of every non-stored member (`copiedMemberSources` above) — so the host is
 /// written as one completely ordinary SwiftUI view, and `Core` is its
 /// standalone, directly-constructible twin for tests and previews.
@@ -115,15 +114,11 @@ private func dedented(_ source: String) -> String {
 /// conform to the same protocol — satisfied by the copied
 /// `body`/`body(content:)`.
 ///
-/// A separate macro from `@Flowable` — doesn't replace `OutFlow`/`outFlow`, and
-/// works with or without `@Flowable` also attached, since it collects the
-/// type's stored properties itself.
+/// A separate macro from `@Flowable` — works with or without `@Flowable` also
+/// attached, since it collects the type's stored properties itself.
 ///
 /// Entry-point boilerplate is `validatedProperties`, shared with `@Flowable`;
-/// `renderShell` (in `ShellRendering.swift`) does the actual work, reusing
-/// `@Flowable`'s own `outFlowProperties`/`outFlowFieldType`/
-/// `outFlowFieldReadExpression` (`FlowableRendering.swift`) rather than
-/// re-deriving the same field set.
+/// `renderShell` (in `ShellRendering.swift`) does the actual work.
 public enum ShellMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,

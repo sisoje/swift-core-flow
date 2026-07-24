@@ -2,7 +2,7 @@
 /// attached type's own access level, and carrying no `@Flowable` — the
 /// host's standalone, directly-constructible twin. Two ingredients:
 ///
-/// 1. **Fields** — the same field set as `@Flowable`'s `OutFlow`/`outFlow`,
+/// 1. **Fields** — every stored property the host declares,
 ///    in exactly two kinds: *mapped* wrappers substituted with a mockable
 ///    stand-in (the whitelist below — the only wrappers this package really
 ///    knows), and everything else — *unknown* — copied verbatim.
@@ -150,13 +150,12 @@
 ///
 /// Independent of `@Flowable` — works with or without it attached.
 ///
-/// ## Why `Core` exists alongside `OutFlow`
-/// `OutFlow` is a tuple — structurally convenient, but tuples can't conform to
-/// protocols (verified directly: `error: type '(...)' cannot conform to
-/// 'Equatable' — only concrete types such as structs, enums and classes can
-/// conform to protocols`). `Core` is a real nominal struct capturing the
-/// same data, so it can — and it can carry copied members, which a tuple
-/// never could.
+/// ## Why `Core` is a nominal struct, not a tuple
+/// A tuple is structurally convenient but can't conform to protocols
+/// (verified directly: `error: type '(...)' cannot conform to 'Equatable' —
+/// only concrete types such as structs, enums and classes can conform to
+/// protocols`). `Core` is a real nominal struct, so it can — and it carries
+/// copied members and hosts live, which a tuple never could.
 ///
 /// ## Why `Core` is always internal, and carries no `@Flowable`
 /// `Core` is a testing/preview seam, not API surface — even when the host is

@@ -44,10 +44,11 @@ func fieldAssignment(_ p: StoredProperty, source: String) -> String {
 /// `Binding<T>` field type); everything else — including a `@ViewBuilder` field, in
 /// either form — reads `x` directly.
 ///
-/// `$x`, not `_x`, on this read side — same `$`-projection convention every
-/// other `Binding`-producing wrapper in this file already uses
-/// (`@State`/`@AppStorage`/`@SceneStorage` in `outFlowFieldReadExpression`,
-/// `FlowableRendering.swift`), rather than a `@Binding`-only special case.
+/// `$x`, not `_x`, on this read side — the same `$`-projection convention
+/// every other `Binding`-producing wrapper follows
+/// (`@State`/`@AppStorage`/`@SceneStorage` project `Binding<T>` too, which
+/// is what `@Shell`'s `Core` substitution relies on), rather than a
+/// `@Binding`-only special case.
 /// Verified directly: `Binding`'s own `projectedValue` is `{ self }` — reading
 /// `$x` from inside the type gives back the identical `Binding<T>` `_x`
 /// would, real write-through included. `_x` is kept only on the *assignment*

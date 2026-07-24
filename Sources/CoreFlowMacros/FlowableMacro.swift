@@ -2,8 +2,8 @@ import SwiftSyntax
 import SwiftSyntaxMacros
 
 /// Adds a memberwise `init` to the struct, class, or actor it is attached to, at the
-/// type's own access level — plus the `InFlowSplat`/`InFlow`/`OutFlow`
-/// typealiases and their `makeFlow(_:)`/`inFlow`/`outFlow` accessors alongside it.
+/// type's own access level — plus the `InFlowSplat`/`InFlow`
+/// typealiases and their `makeFlow(_:)`/`inFlow` accessors alongside it.
 ///
 /// Swift only *synthesizes* an `internal` memberwise initializer for a struct, and
 /// only when you write no init of your own; a class or actor gets none at all. This

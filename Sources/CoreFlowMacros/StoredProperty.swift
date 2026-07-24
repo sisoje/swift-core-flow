@@ -5,7 +5,7 @@ import SwiftSyntaxMacros
 // MARK: - Stored-property model
 
 /// A stored property that participates in `@Flowable`'s generated init and
-/// `InFlowSplat`/`InFlow`/`OutFlow` typealiases (and `@Shell`'s `Core`).
+/// `InFlowSplat`/`InFlow` typealiases (and `@Shell`'s `Core`).
 public struct StoredProperty {
     public let name: String
     public let type: TypeSyntax?
@@ -74,7 +74,7 @@ public struct StoredProperty {
         isBindingBackedStorage || isQuery
     }
 
-    /// `@Query` (SwiftData) — the `OutFlow`/`Core` field is always
+    /// `@Query` (SwiftData) — the `Core` field is always
     /// `QueryCore<WrappedType>`, this package's own drop-in stand-in for the
     /// live wrapper (see `QueryCore.swift` in `Sources/CoreFlow`), carrying
     /// its exact instance surface: `wrappedValue`, `fetchError`, and
@@ -233,7 +233,7 @@ public func collectStoredProperties(
             // caller supplies — there's no room for it in pure data flow. This
             // used to fall through silently, excluded like a genuine
             // source-of-truth field but with nothing to show for it in
-            // OutFlow/Core; now it fails loudly instead.
+            // Core; now it fails loudly instead.
             if property.isPrivate, property.wrapperName == nil {
                 context.diagnose(
                     Diagnostic(
@@ -249,8 +249,8 @@ public func collectStoredProperties(
 
             // Every property that gets this far needs a written type — init
             // parameters obviously, but private wrapper fields too, even the
-            // ones excluded from the init: `OutFlow` reads the type to build
-            // its tuple field. A wrapper this macro doesn't map
+            // ones excluded from the init: `Core` reads the type to declare
+            // its substituted field. A wrapper this macro doesn't map
             // (@Environment, @GestureState, @StateObject, a custom one, …) is
             // deliberately NOT refused — it's unknown, and unknowns are
             // copied onto `Core` verbatim (see `renderShell`). `@Namespace`

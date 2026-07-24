@@ -2,12 +2,13 @@ import CoreFlow
 import SwiftUI
 import Testing
 
-// Real, compiled usage — same reasoning as OutFlowTests: exercise actual runtime
-// behavior, not just the syntactic shape assertMacroExpansion checks (see
-// ShellSyntaxTests for that side). @Flowable and @Shell coexist on one
-// type here specifically to verify they don't interfere with each other — even
-// though Core itself never carries @Flowable (see ShellRendering.swift),
-// relying instead on Swift's own memberwise-init synthesis.
+// Real, compiled usage — same reasoning as EndToEndTests/ReflectorTests:
+// exercise actual runtime behavior, not just the syntactic shape
+// assertMacroExpansion checks (see ShellSyntaxTests for that side).
+// @Flowable and @Shell coexist on one type here specifically to verify they
+// don't interfere with each other — even though Core itself never carries
+// @Flowable (see ShellRendering.swift), relying instead on Swift's own
+// memberwise-init synthesis.
 
 @Flowable
 @Shell
@@ -87,7 +88,7 @@ private final class CardModel {
         // off the host — the identical code runs with no live view anywhere.
         // `heading` reads Core's own verbatim-copied @Environment colorScheme,
         // which outside a live view is the default EnvironmentValues (.light —
-        // same behavior OutFlowTests verifies for the host's own wrapper), so
+        // verified directly for the host's own wrapper too), so
         // the title comes back un-uppercased. Mocking an environment *value*
         // is the one thing direct construction can't do — that's the
         // wrapper's own design (get-only, no wrappedValue init); hosted in a

@@ -31,7 +31,7 @@ private struct CounterHost: View {
 }
 
 // View conformance implies @MainActor isolation for the whole type, so the
-// suite must match — same rule as OutFlowTests/ShellTests.
+// suite must match — same rule as ShellTests.
 @MainActor
 @Suite struct TestSupportEndToEndTests {
 

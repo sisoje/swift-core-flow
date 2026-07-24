@@ -42,8 +42,8 @@
 /// error, since that makes them unreachable. Every recognized source-of-truth
 /// wrapper — `@State`, `@Environment`, `@Query`, `@AppStorage`, `@SceneStorage`,
 /// `@FocusState`, `@Namespace` — is view-owned or injected, must be `private`,
-/// and is **excluded** from the init (though not from `OutFlow`/`Core`
-/// — see below), so `@Flowable` works cleanly on a `View`. A private property
+/// and is **excluded** from the init (though not from `@Shell`'s `Core`),
+/// so `@Flowable` works cleanly on a `View`. A private property
 /// with no property wrapper at all (`private var cache = 0`) is also a compile
 /// error — pure data flow has no room for opaque private state that's neither
 /// a source of truth nor caller-supplied.
@@ -113,87 +113,19 @@
 ///   directly — an `InFlow` value converts into `InFlowSplat`'s unlabeled
 ///   parameter the same way any differently-labeled tuple does.
 ///
-/// ## `FlowableRepresentable` — removed
-/// An earlier revision had a separate, opt-in protocol naming this whole shape
-/// (`associatedtype InFlowSplat`, `associatedtype InFlow`, `static func
-/// makeFlow(_ flow: InFlowSplat) -> Self`, `var inFlow: InFlow { get }`) for
-/// generic code written against "any `@Flowable` type" by constraint. Removed —
-/// not enough real generic-code use cases materialized to justify keeping a
-/// protocol whose only value was naming a shape `@Flowable` already generates
-/// concretely on every type it's attached to.
-///
-/// ## `allFieldNames` — removed
-/// An earlier revision had a `static var allFieldNames: [String]` here, listing
-/// **every** stored property's name unconditionally, with no filtering at all —
-/// including plain private fields with no recognized wrapper (legal at the
-/// time), which never appeared in `InFlowSplat`/`InFlow`/`OutFlow` (none of
-/// those are tuples over the *whole* type, only over specific field subsets).
-/// Removed once it became clear `Reflector.fieldNames(of:)` already covers the
-/// same need for any *specific* tuple (`InFlow`, `OutFlow`, …) without a
-/// dedicated generated member — the gap that removal opened (a totally-private,
-/// non-wrapper field has no tuple type anywhere to reflect over) is moot now
-/// anyway: that kind of field is a compile error, not a silently-excluded one
-/// (see the property-wrappers section above).
-///
-/// ## `OutFlow` and the `outFlow` property
-/// A wider version of `InFlow`/`inFlow`: every non-private participating property,
-/// **plus every recognized private source-of-truth wrapper** —
-/// `@Query`/`@State`/`@AppStorage`/`@SceneStorage`/`@FocusState`/
-/// `@Environment`/`@Namespace`, no exceptions — a view's own
-/// externally-relevant *capturable* state, alongside its public data, in
-/// declaration order (not data-layout fields first, wrapper fields appended
-/// after). Every property here is already guaranteed one of these two shapes —
-/// a private property with no recognized wrapper (`private var cache = 0`) or
-/// an unrecognized wrapper (`@StateObject`, …) is refused outright at the
-/// property-collection stage, not silently excluded here.
-///
-/// ```swift
-/// @Flowable
-/// struct Card: View {
-///     @Query private var items: [Item]
-///     @State private var isExpanded: Bool = false
-///     let title: String
-///     // generates:
-///     // typealias OutFlow = (items: QueryCore<[Item]>,
-///     //                       isExpanded: Binding<Bool>, title: String)
-///     // var outFlow: OutFlow {
-///     //     (items: QueryCore(wrappedValue: _items.wrappedValue,
-///     //          fetchError: _items.fetchError, modelContext: _items.modelContext),
-///     //      isExpanded: $isExpanded, title: title)
-///     // }
-/// }
-/// ```
-///
-/// - **`@Query` → always `QueryCore<WrappedType>`** — this package's own
-///   drop-in stand-in for the live wrapper (see `QueryCore.swift`), not a
-///   passthrough of the declared type. One-to-one with the real `Query`'s
-///   instance surface: `wrappedValue`, `fetchError`, and `modelContext`, no
-///   `projectedValue` — verified directly against the `_SwiftData_SwiftUI`
-///   interface — all three captured verbatim off the wrapper instance.
-/// - **`@State`/`@AppStorage`/`@SceneStorage` → `Binding<WrappedType>`, read via
-///   the *projected* value** (`$x`, not `_x` — verified directly that `_x`
-///   gives the wrapper instance itself, `State<T>`, not `Binding<T>`) — the
-///   view's own externally read-*and-write*-able storage.
-/// - **`@FocusState` → `FocusState<WrappedType>.Binding`, read the same way**
-///   (`$x`) — **not** `Binding<WrappedType>`, despite the identical read
-///   expression. Verified directly against the real SwiftUI interface:
-///   `FocusState<T>.Binding` (its own `projectedValue` type) exposes only
-///   `wrappedValue`, no public initializer at all and no conversion to
-///   `Binding<T>` — so it can't share the row above, even though both are
-///   reached via `$x`.
-/// - **`@Environment`/`@Namespace` → the plain declared type**, read the same
-///   way any non-private field is (`x`) — no exclusion. A captured value
-///   going stale if the real environment changes, or `@Environment`'s own
-///   mocking story, are things worth knowing about the *snapshot*, not
-///   reasons to leave the field out of it.
-/// - **Every recognized wrapper kind needs an explicit type even though it's
-///   private** — every other private property is exempt from the "needs a type"
-///   rule, but `OutFlow` reads the type to build its field, so the exemption
-///   doesn't extend to any of them. `@Namespace` is the one exception — its
-///   wrapped type is always `Namespace.ID`, so there's nothing to annotate.
+/// ## Deliberately nothing more
+/// These five members are the whole surface. No protocol names the shape
+/// (generic code against "any `@Flowable` type" has no proven use case; a
+/// protocol's only value would be naming what's already generated concretely
+/// on every type). No field-names member (`Reflector.fieldNames(of:
+/// SomeType.InFlow.self)` already reports any generated tuple's field
+/// names). And no snapshot member wider than `InFlow`: capturing a view's
+/// private wrapper state for tests is `@Shell`'s `Core`'s job — a real
+/// nominal struct can conform to protocols (a tuple can't), host live, and
+/// be constructed with mocks directly — see `Shell.swift`.
 @attached(
     member, names: named(init), named(InFlowSplat), named(makeFlow), named(InFlow),
-    named(inFlow), named(OutFlow), named(outFlow)
+    named(inFlow)
 )
 public macro Flowable() =
     #externalMacro(

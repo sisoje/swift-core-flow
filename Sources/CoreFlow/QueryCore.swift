@@ -10,10 +10,14 @@
     /// `$x` projection either.
     ///
     /// `@Shell` declares every `@Query` field on `Core` as `@QueryCore var x: T`,
-    /// so `core.x` reads the fetched value directly — body code written against
-    /// the live `@Query` property moves onto `Core` unchanged, and `_x.fetchError`
-    /// /`_x.modelContext` keep working the same way they do on the live wrapper
-    /// (via the backing storage, reachable from same-file extensions).
+    /// so `core.x` reads the mock's array directly. That read-surface match is
+    /// the point: the host's `body` text — written against the live wrapper
+    /// (`x.isEmpty`, `ForEach(x)`) — is copied onto `Core` verbatim, and it
+    /// compiles there only because `x` still means "the array" (a bare
+    /// `(wrappedValue:, fetchError:)` tuple field would break the copy: every
+    /// read would need `.wrappedValue`). `_x.fetchError`/`_x.modelContext`
+    /// spell the same on both sides too (via the backing storage, reachable
+    /// from same-file extensions).
     ///
     /// Both extra fields default — `fetchError` to `nil`, `modelContext` to the
     /// environment's own default context (`Environment(\.modelContext)
@@ -26,9 +30,7 @@
     /// takes the *bare* value (`x: T`), not the wrapper type — verified
     /// directly — which is exactly the ergonomic point: a test writes
     /// `Core(items: [item], title: "t")` with no `QueryCore` spelling at all.
-    /// (`@Flowable`'s
-    /// `outFlow` tuple still captures all three off the live wrapper.) To seed
-    /// either field explicitly, construct the wrapper yourself at
+    /// To seed either field explicitly, construct the wrapper yourself at
     /// construction time — e.g. through a hand-written extension init that
     /// assigns the `_items` backing (see `QueryCoreTests`' `FakeCore`).
     @propertyWrapper

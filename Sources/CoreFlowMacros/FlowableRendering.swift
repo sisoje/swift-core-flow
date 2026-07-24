@@ -1,16 +1,15 @@
 import SwiftSyntax
 
 /// Render a memberwise initializer for `properties` at the given access level, plus
-/// five supporting members: an unlabeled `InFlowSplat` typealias and a
+/// four supporting members: an unlabeled `InFlowSplat` typealias and a
 /// `makeFlow(_:)` factory for building `Self` *from* one (splat-friendly,
-/// see `renderInFlowSplatTypealias`/`renderInFlowSplatFactory`), a labeled
+/// see `renderInFlowSplatTypealias`/`renderInFlowSplatFactory`), and a labeled
 /// `InFlow` typealias with an `inFlow` computed property for reading the current
 /// instance's data back *out* (readable/reflectable, see
-/// `renderInFlowTypealias`/`renderInFlowProperty`), and an `OutFlow` typealias
-/// with an `outFlow` computed property: `InFlow`'s fields plus every private
-/// wrapper field, mapped or not (see `outFlowProperties`), in declaration
-/// order (see `renderOutFlowTypealias`/`renderOutFlowProperty`). `access` is a
-/// modifier prefix such as `"public "` or `""` (internal).
+/// `renderInFlowTypealias`/`renderInFlowProperty`). `access` is a
+/// modifier prefix such as `"public "` or `""` (internal). Deliberately
+/// nothing wider — snapshotting private wrapper state is `@Shell`'s `Core`'s
+/// job (see `ShellRendering.swift`).
 public func renderFlowable(properties: [StoredProperty], access: String) -> [DeclSyntax] {
     let initParams = properties.filter { !$0.isPrivate }
 
@@ -66,12 +65,6 @@ public func renderFlowable(properties: [StoredProperty], access: String) -> [Dec
     }
     if let property = renderInFlowProperty(properties: properties, access: access) {
         decls.append(property)
-    }
-    if let outFlowTypealias = renderOutFlowTypealias(properties: properties, access: access) {
-        decls.append(outFlowTypealias)
-    }
-    if let outFlowProperty = renderOutFlowProperty(properties: properties, access: access) {
-        decls.append(outFlowProperty)
     }
     return decls
 }
@@ -226,141 +219,6 @@ func renderInFlowProperty(properties: [StoredProperty], access: String) -> DeclS
     return DeclSyntax(
         stringLiteral: """
             \(access)var inFlow: InFlow {
-                \(value)
-            }
-            """
-    )
-}
-
-/// The properties `OutFlow`/`outFlow` (below) include: **all of them** —
-/// every non-private participating property (same set `InFlow` has), plus
-/// every private wrapper field, mapped or unknown. In declaration order, same
-/// as `properties` itself; not data-layout fields first and wrapper fields
-/// appended after.
-///
-/// The identity return is deliberate, not an oversight — there's nothing left
-/// to exclude: a private property with no wrapper (`private var cache = 0`)
-/// is refused outright by `collectStoredProperties`
-/// (`plainPrivatePropertyNotAllowed`, `StoredProperty.swift`), and any
-/// *unmapped* wrapper (`@Environment`, `@GestureState`, `@StateObject`, a
-/// custom one, …) participates uniformly — its `OutFlow` field is the bare
-/// declared type read as `x` (`baseTypeText`/`fieldReadExpression`'s
-/// default), and `@Shell` copies its declaration onto `Core` verbatim. (An
-/// earlier revision refused unrecognized private wrappers with a dedicated
-/// diagnostic, back when each recognized wrapper needed hand-built capture
-/// logic; the verbatim-copy default made that gatekeeping pointless.) The
-/// function is kept — rather than inlined away — as the single shared name
-/// `renderShell` and the `OutFlow` renderers below all draw their field set
-/// from.
-func outFlowProperties(_ properties: [StoredProperty]) -> [StoredProperty] {
-    properties
-}
-
-/// A field's `OutFlow` type — distinct from `baseTypeText` (used by
-/// `InFlowSplat`/`InFlow`), since the whitelisted wrappers need their own
-/// mapping, not the `@Binding`/`@ViewBuilder` one `baseTypeText` knows:
-/// - **Non-private fields** use `baseTypeText` unchanged — same rules `InFlow`
-///   already applies (`Binding<T>` for `@Binding`, `@ViewBuilder` unwrapped to its
-///   bare type, everything else as declared).
-/// - **`@Query`** (`isQuery`) → `QueryCore<WrappedType>` — this package's own
-///   drop-in stand-in for the live wrapper (see `QueryCore.swift` in
-///   `Sources/CoreFlow`), carrying the exact instance surface the real
-///   `Query` has (`wrappedValue`/`fetchError`/`modelContext`, no
-///   `projectedValue` — verified directly against the `_SwiftData_SwiftUI`
-///   interface). `WrappedType` is the property's own declared type (e.g.
-///   `[Item]` for `@Query private var items: [Item]`). An earlier revision
-///   synthesized a bare `(wrappedValue:, fetchError:)` tuple via `#pick`
-///   instead — replaced by the real wrapper so `Core`'s field reads the
-///   fetched value directly (`core.items`, not `.items.wrappedValue`).
-/// - **`@State`/`@AppStorage`/`@SceneStorage`** (`isBindingBackedStorage`) →
-///   `Binding<T>`, since these are the view's own read-*and-write*-able
-///   storage from the outside — `$x` already gives the real thing, since
-///   all three wrappers' `projectedValue` genuinely *is* `Binding<T>`
-///   (verified directly against the real SwiftUI interface, `@SceneStorage`
-///   included).
-/// - **Every unmapped wrapper needs no case here** — `@Environment`,
-///   `@GestureState`, `@FocusState`, `@Namespace`, `@StateObject`, a custom
-///   one, … all fall through to `baseTypeText`: the bare declared type, a
-///   plain-value snapshot of the current `wrappedValue`. (`Core`, `@Shell`'s
-///   twin, copies an unmapped wrapper's whole declaration verbatim instead;
-///   see `renderShell` in `ShellRendering.swift`.)
-func outFlowFieldType(_ p: StoredProperty) -> String {
-    if p.isBindingBackedStorage {
-        return "Binding<\(p.type?.trimmedDescription ?? "")>"
-    }
-    if p.isQuery {
-        return "QueryCore<\(p.type?.trimmedDescription ?? "")>"
-    }
-    return baseTypeText(p, wrapViewBuilder: false)
-}
-
-/// A field's `OutFlow` *read* expression, the `outFlow` property's counterpart to
-/// `outFlowFieldType` above. No `self.` prefix anywhere here, same reasoning as
-/// `fieldReadExpression`: every caller reads inside the `outFlow`/`core`
-/// getter, neither of which has a parameter list, so there's nothing for a bare
-/// identifier to collide with (verified directly).
-/// - **Non-private fields** use `fieldReadExpression` unchanged (`x`, or
-///   `$x` for `@Binding`).
-/// - **`@State`/`@AppStorage`/`@SceneStorage`** all read the
-///   *projected* value, `$x` — not `_x`, which gives the wrapper
-///   instance itself (`State<T>`, not `Binding<T>`; verified directly).
-/// - **`@Query`** reads `QueryCore(wrappedValue: _x.wrappedValue, fetchError:
-///   _x.fetchError, modelContext: _x.modelContext)` — `_x` is the wrapper
-///   *instance* itself (type `Query<Element, Result>`, the same
-///   underscore-prefixed access `@Binding`'s assignment side already uses),
-///   and all three are its real members, captured verbatim into the drop-in
-///   `QueryCore` declared by `outFlowFieldType` above. Reading
-///   `modelContext` outside a live container works — verified directly, no
-///   crash — so capturing it eagerly here is safe even for snapshots built in
-///   plain code.
-/// - **Every unmapped wrapper** reads `x` — the plain current wrapped value,
-///   same as any non-private field (see `outFlowFieldType` above for why none
-///   needs a dedicated case).
-func outFlowFieldReadExpression(_ p: StoredProperty) -> String {
-    if p.isBindingBackedStorage {
-        return "$\(p.name)"
-    }
-    if p.isQuery {
-        return
-            "QueryCore(wrappedValue: _\(p.name).wrappedValue, fetchError: _\(p.name).fetchError, modelContext: _\(p.name).modelContext)"
-    }
-    return fieldReadExpression(p)
-}
-
-/// The `OutFlow` typealias — same collapse/absence rules as `InFlowSplat`/
-/// `InFlow` (two-or-more → labeled tuple, exactly one → bare type, zero →
-/// no typealias), but over `outFlowProperties`'s wider field set rather than just
-/// the non-private ones.
-func renderOutFlowTypealias(properties: [StoredProperty], access: String) -> DeclSyntax? {
-    let fields = outFlowProperties(properties)
-    guard !fields.isEmpty else { return nil }
-
-    let rhs =
-        fields.count > 1
-        ? "(" + fields.map { "\($0.name): \(outFlowFieldType($0))" }.joined(separator: ", ") + ")"
-        : outFlowFieldType(fields[0])
-
-    return DeclSyntax(stringLiteral: "\(access)typealias OutFlow = \(rhs)")
-}
-
-/// The `outFlow` computed property — extracts the current instance's `OutFlow`
-/// value, reading each field per `outFlowFieldReadExpression`. Present exactly when
-/// `OutFlow` is.
-func renderOutFlowProperty(properties: [StoredProperty], access: String) -> DeclSyntax? {
-    let fields = outFlowProperties(properties)
-    guard !fields.isEmpty else { return nil }
-
-    let isTuple = fields.count > 1
-    let value =
-        isTuple
-        ? "("
-            + fields.map { "\($0.name): \(outFlowFieldReadExpression($0))" }.joined(separator: ", ")
-            + ")"
-        : outFlowFieldReadExpression(fields[0])
-
-    return DeclSyntax(
-        stringLiteral: """
-            \(access)var outFlow: OutFlow {
                 \(value)
             }
             """

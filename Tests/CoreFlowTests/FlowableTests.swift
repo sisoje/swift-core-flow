@@ -37,12 +37,6 @@ final class FlowableTests: XCTestCase {
                     public var inFlow: InFlow {
                         (id: id, isActive: isActive)
                     }
-
-                    public typealias OutFlow = (id: UUID, isActive: Bool)
-
-                    public var outFlow: OutFlow {
-                        (id: id, isActive: isActive)
-                    }
                 }
                 """,
             macros: macros
@@ -78,12 +72,6 @@ final class FlowableTests: XCTestCase {
                     typealias InFlow = (x: Int, y: Int)
 
                     var inFlow: InFlow {
-                        (x: x, y: y)
-                    }
-
-                    typealias OutFlow = (x: Int, y: Int)
-
-                    var outFlow: OutFlow {
                         (x: x, y: y)
                     }
                 }
@@ -123,12 +111,6 @@ final class FlowableTests: XCTestCase {
                     var inFlow: InFlow {
                         onDelete
                     }
-
-                    typealias OutFlow = (String) -> Void
-
-                    var outFlow: OutFlow {
-                        onDelete
-                    }
                 }
                 """,
             macros: macros
@@ -165,12 +147,6 @@ final class FlowableTests: XCTestCase {
                     var inFlow: InFlow {
                         ii
                     }
-
-                    typealias OutFlow = Int
-
-                    var outFlow: OutFlow {
-                        ii
-                    }
                 }
                 """,
             macros: macros
@@ -204,12 +180,6 @@ final class FlowableTests: XCTestCase {
                     public typealias InFlow = Int
 
                     public var inFlow: InFlow {
-                        count
-                    }
-
-                    public typealias OutFlow = Int
-
-                    public var outFlow: OutFlow {
                         count
                     }
                 }
@@ -252,12 +222,6 @@ final class FlowableTests: XCTestCase {
                     public typealias InFlow = (onChange: () -> Void, onMain: @MainActor () -> Void, onSend: @Sendable (Int) -> Void)
 
                     public var inFlow: InFlow {
-                        (onChange: onChange, onMain: onMain, onSend: onSend)
-                    }
-
-                    public typealias OutFlow = (onChange: () -> Void, onMain: @MainActor () -> Void, onSend: @Sendable (Int) -> Void)
-
-                    public var outFlow: OutFlow {
                         (onChange: onChange, onMain: onMain, onSend: onSend)
                     }
                 }
@@ -304,12 +268,6 @@ final class FlowableTests: XCTestCase {
                     public var inFlow: InFlow {
                         (nickname: nickname, onChange: onChange, onSend: onSend)
                     }
-
-                    public typealias OutFlow = (nickname: String?, onChange: (() -> Void)?, onSend: (@Sendable (Int) -> Void)!)
-
-                    public var outFlow: OutFlow {
-                        (nickname: nickname, onChange: onChange, onSend: onSend)
-                    }
                 }
                 """,
             macros: macros
@@ -318,21 +276,17 @@ final class FlowableTests: XCTestCase {
 
     func testOnlyBindingWrappersReachTheInit() {
         // @Binding is threaded through as Binding<T>; every other wrapper (@State,
-        // @Environment, …) is excluded from the INIT — but @Environment/@State
-        // still need an explicit type even though private: @Environment because
-        // OutFlow reads its type too now (see below), @State because it's one of
-        // OutFlow's other recognized wrapper kinds.
+        // @Environment, …) is excluded from the init and both typealiases —
+        // but @Environment/@State still need an explicit type even though
+        // private: @Shell's Core reads the type to declare its field, and the
+        // shared collection enforces it uniformly.
         // Binding<T> carries into the InFlowSplat typealias too, and the inFlow
         // property reads its projected form ($isOn), not the wrapped Bool
-        // value — the same $-projection convention @State's own read
-        // ($isExpanded) uses, not a @Binding-only special case (verified
+        // value — the same $-projection convention every Binding-producing
+        // wrapper follows, not a @Binding-only special case (verified
         // directly that $isOn and the backing-storage _isOn give the
         // identical Binding<Bool>, write-through included; _isOn is kept only
-        // on the init's assignment side, where $isOn is immutable). OutFlow
-        // reads isOn the same way (it's non-private) and now includes
-        // colorScheme too (a plain, unattributed let, read the same way any
-        // non-private field is) — every private source-of-truth wrapper this
-        // package recognizes belongs in OutFlow, no exceptions.
+        // on the init's assignment side, where $isOn is immutable).
         assertMacroExpansion(
             """
             @Flowable
@@ -366,12 +320,6 @@ final class FlowableTests: XCTestCase {
                     public var inFlow: InFlow {
                         (isOn: $isOn, title: title)
                     }
-
-                    public typealias OutFlow = (colorScheme: ColorScheme, isOn: Binding<Bool>, isExpanded: Binding<Bool>, title: String)
-
-                    public var outFlow: OutFlow {
-                        (colorScheme: colorScheme, isOn: $isOn, isExpanded: $isExpanded, title: title)
-                    }
                 }
                 """,
             macros: macros
@@ -380,8 +328,8 @@ final class FlowableTests: XCTestCase {
 
     func testDiagnosesPlainPrivatePropertyWithNoWrapper() {
         // A private property with no recognized wrapper used to fall through
-        // silently, excluded from the init/typealiases with nothing to show for
-        // it in OutFlow either — now it's a compile error: pure data flow has no
+        // silently, excluded from the init/typealiases with nothing to show
+        // for it anywhere — now it's a compile error: pure data flow has no
         // room for opaque private state that's neither a source of truth nor
         // something a caller supplies.
         assertMacroExpansion(
@@ -504,12 +452,6 @@ final class FlowableTests: XCTestCase {
                     public var inFlow: InFlow {
                         (title: title, content: content, footer: footer)
                     }
-
-                    public typealias OutFlow = (title: String, content: () -> Content, footer: Content)
-
-                    public var outFlow: OutFlow {
-                        (title: title, content: content, footer: footer)
-                    }
                 }
                 """,
             macros: macros
@@ -550,12 +492,6 @@ final class FlowableTests: XCTestCase {
                     public var inFlow: InFlow {
                         (x: x, y: y)
                     }
-
-                    public typealias OutFlow = (x: Double, y: Double)
-
-                    public var outFlow: OutFlow {
-                        (x: x, y: y)
-                    }
                 }
                 """,
             macros: macros
@@ -591,12 +527,6 @@ final class FlowableTests: XCTestCase {
                     public typealias InFlow = Int
 
                     public var inFlow: InFlow {
-                        value
-                    }
-
-                    public typealias OutFlow = Int
-
-                    public var outFlow: OutFlow {
                         value
                     }
                 }
@@ -635,12 +565,6 @@ final class FlowableTests: XCTestCase {
                     public var inFlow: InFlow {
                         (x: x, y: y)
                     }
-
-                    public typealias OutFlow = (x: Int, y: Int)
-
-                    public var outFlow: OutFlow {
-                        (x: x, y: y)
-                    }
                 }
                 """,
             macros: macros
@@ -648,7 +572,7 @@ final class FlowableTests: XCTestCase {
     }
 
     func testZeroPropertiesGeneratesOnlyTheBareInit() {
-        // Nothing to alias/build from — InFlowSplat/InFlow/OutFlow all
+        // Nothing to alias/build from — InFlowSplat/InFlow both
         // collapse together with the same "at least one participating property"
         // rule, so a zero-property type gets only the bare init, nothing else.
         assertMacroExpansion(
@@ -662,243 +586,6 @@ final class FlowableTests: XCTestCase {
 
                     public init() {
 
-                    }
-                }
-                """,
-            macros: macros
-        )
-    }
-
-    func testOutFlowSynthesizesQueryAsAQueryCoreDropIn() {
-        // @Query is NOT a passthrough of its declared type the way @Environment
-        // is — OutFlow always synthesizes QueryCore<WrappedType>, this package's
-        // own drop-in stand-in carrying the live wrapper's exact instance
-        // surface: wrappedValue, fetchError, and modelContext, no projectedValue
-        // (verified directly against the _SwiftData_SwiftUI interface). All
-        // three are captured verbatim off the wrapper instance (_items), and
-        // reading modelContext outside a live container works — verified
-        // directly, no crash.
-        assertMacroExpansion(
-            """
-            @Flowable
-            public struct ItemList {
-                @Query private var items: [Item]
-                public let title: String
-            }
-            """,
-            expandedSource: """
-                public struct ItemList {
-                    @Query private var items: [Item]
-                    public let title: String
-
-                    public init(title: String) {
-                        self.title = title
-                    }
-
-                    public typealias InFlowSplat = String
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
-                        Self(title: flow)
-                    }
-
-                    public typealias InFlow = String
-
-                    public var inFlow: InFlow {
-                        title
-                    }
-
-                    public typealias OutFlow = (items: QueryCore<[Item]>, title: String)
-
-                    public var outFlow: OutFlow {
-                        (items: QueryCore(wrappedValue: _items.wrappedValue, fetchError: _items.fetchError, modelContext: _items.modelContext), title: title)
-                    }
-                }
-                """,
-            macros: macros
-        )
-    }
-
-    func testOutFlowMapsFocusStateAsItsBareWrappedValue() {
-        // @FocusState is unmapped now — cut from the whitelist because its
-        // FocusState<T>.Binding projection has no public initializer (a test
-        // can't back it with its own closures) and its writes no-op outside a
-        // live view anyway (verified directly) — so its OutFlow field falls
-        // through to the bare wrapped value, read `x`, like any other
-        // unmapped wrapper.
-        assertMacroExpansion(
-            """
-            @Flowable
-            public struct SearchField {
-                @FocusState private var isFocused: Bool
-                public let title: String
-            }
-            """,
-            expandedSource: """
-                public struct SearchField {
-                    @FocusState private var isFocused: Bool
-                    public let title: String
-
-                    public init(title: String) {
-                        self.title = title
-                    }
-
-                    public typealias InFlowSplat = String
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
-                        Self(title: flow)
-                    }
-
-                    public typealias InFlow = String
-
-                    public var inFlow: InFlow {
-                        title
-                    }
-
-                    public typealias OutFlow = (isFocused: Bool, title: String)
-
-                    public var outFlow: OutFlow {
-                        (isFocused: isFocused, title: title)
-                    }
-                }
-                """,
-            macros: macros
-        )
-    }
-
-    func testOutFlowMapsGestureStateAsItsBareWrappedValue() {
-        // @GestureState needs no dedicated OutFlow case — it falls through to
-        // the plain non-private treatment, same as @Environment/@Namespace:
-        // GestureState's own surface is nothing beyond wrappedValue/a
-        // self-returning projectedValue, so a bare-value snapshot loses no
-        // metadata worth keeping. (Core, @Shell's twin, is a different story —
-        // it copies the property's own declaration verbatim; see
-        // ShellSyntaxTests.)
-        assertMacroExpansion(
-            """
-            @Flowable
-            public struct Draggable {
-                @GestureState private var dragOffset: CGSize = .zero
-                public let title: String
-            }
-            """,
-            expandedSource: """
-                public struct Draggable {
-                    @GestureState private var dragOffset: CGSize = .zero
-                    public let title: String
-
-                    public init(title: String) {
-                        self.title = title
-                    }
-
-                    public typealias InFlowSplat = String
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
-                        Self(title: flow)
-                    }
-
-                    public typealias InFlow = String
-
-                    public var inFlow: InFlow {
-                        title
-                    }
-
-                    public typealias OutFlow = (dragOffset: CGSize, title: String)
-
-                    public var outFlow: OutFlow {
-                        (dragOffset: dragOffset, title: title)
-                    }
-                }
-                """,
-            macros: macros
-        )
-    }
-
-    func testOutFlowMapsAccessibilityFocusStateAndScaledMetric() {
-        // Both unmapped — an exact @FocusState clone and a get-only
-        // scaled-value wrapper — so both fall through to the bare declared
-        // type, read x, same as every other unmapped wrapper.
-        assertMacroExpansion(
-            """
-            @Flowable
-            public struct IconRow {
-                @AccessibilityFocusState private var a11yFocused: Bool
-                @ScaledMetric private var iconSize: CGFloat = 24
-                public let title: String
-            }
-            """,
-            expandedSource: """
-                public struct IconRow {
-                    @AccessibilityFocusState private var a11yFocused: Bool
-                    @ScaledMetric private var iconSize: CGFloat = 24
-                    public let title: String
-
-                    public init(title: String) {
-                        self.title = title
-                    }
-
-                    public typealias InFlowSplat = String
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
-                        Self(title: flow)
-                    }
-
-                    public typealias InFlow = String
-
-                    public var inFlow: InFlow {
-                        title
-                    }
-
-                    public typealias OutFlow = (a11yFocused: Bool, iconSize: CGFloat, title: String)
-
-                    public var outFlow: OutFlow {
-                        (a11yFocused: a11yFocused, iconSize: iconSize, title: title)
-                    }
-                }
-                """,
-            macros: macros
-        )
-    }
-
-    func testOutFlowFoldsSceneStorageIntoTheSameBindingMappingAsAppStorage() {
-        // @SceneStorage's own wrappedValue is get/nonmutating-set and its
-        // projectedValue genuinely IS Binding<T> — verified directly against
-        // the real SwiftUI interface, the same shape @State/@AppStorage have —
-        // so it folds into their exact mapping, no separate case needed
-        // (unlike @FocusState, whose projection genuinely can't share it —
-        // which is also why @FocusState isn't whitelisted at all anymore).
-        assertMacroExpansion(
-            """
-            @Flowable
-            public struct SearchField {
-                @SceneStorage("isPinned") private var isPinned: Bool = false
-                public let title: String
-            }
-            """,
-            expandedSource: """
-                public struct SearchField {
-                    @SceneStorage("isPinned") private var isPinned: Bool = false
-                    public let title: String
-
-                    public init(title: String) {
-                        self.title = title
-                    }
-
-                    public typealias InFlowSplat = String
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
-                        Self(title: flow)
-                    }
-
-                    public typealias InFlow = String
-
-                    public var inFlow: InFlow {
-                        title
-                    }
-
-                    public typealias OutFlow = (isPinned: Binding<Bool>, title: String)
-
-                    public var outFlow: OutFlow {
-                        (isPinned: $isPinned, title: title)
                     }
                 }
                 """,
@@ -997,12 +684,6 @@ final class FlowableTests: XCTestCase {
                     typealias InFlow = (isOn: Bool, count: Int, label: String)
 
                     var inFlow: InFlow {
-                        (isOn: isOn, count: count, label: label)
-                    }
-
-                    typealias OutFlow = (isOn: Bool, count: Int, label: String)
-
-                    var outFlow: OutFlow {
                         (isOn: isOn, count: count, label: label)
                     }
                 }

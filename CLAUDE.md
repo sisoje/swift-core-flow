@@ -5,10 +5,8 @@ non-macro addition that pairs with `@Flowable`), all in ONE package/target
 pair — not one target per macro. Consumers add a single dependency
 (`.product(name: "CoreFlow", package: "CoreFlow")`) and get every macro; adding a
 new macro is "add a file to each of two targets," not "add a product + three targets
-to Package.swift." (An earlier revision split every macro into its own
-declaration/plugin/test/product target set — deliberately flattened back to this
-shape because the ceremony-per-macro wasn't worth the per-macro dependency
-granularity nobody needed.)
+to Package.swift." (Per-macro target/product sets were considered and rejected:
+the ceremony-per-macro isn't worth dependency granularity nobody needs.)
 
 - Build/test: `swift build && swift test`
 - Format: `swift format --in-place --recursive Sources Tests`
@@ -35,10 +33,10 @@ granularity nobody needed.)
   plain `XCTAssertEqual` on their own lines: `app.logNames` compared as
   the raw JSON string (names are fixed identifiers), `app.logValues` as a
   decoded `[String]` (values are arbitrary — a class-typed payload with
-  an unstable description is skipped by index). (An earlier revision diffed a `SNAPSHOT_LOG` file recorded via a
-  first skipped run — dropped: the element carries the same data
-  in-process, with no record/re-record dance and no unstable-description
-  poisoning of an all-or-nothing file diff.) Value-streaming scenarios
+  an unstable description is skipped by index). In-process assertion is
+  deliberate — no recorded snapshot file: the element carries the same
+  data live, with no record/re-record dance and no unstable-description
+  poisoning of an all-or-nothing file diff. Value-streaming scenarios
   (drag distances) stay predicate-asserted.
 
 Targets Swift 6.3 (`swift-tools-version: 6.3`); swift-syntax `600.0.0..<700.0.0`, whose
@@ -50,7 +48,7 @@ concurrency) throughout.
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — the last holds `@TestState` + `@TestAction`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction` plus the `\.testLog` `@Entry`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`.s drop-in stand-in on `Core`/`OutFlow`, see the `@Flowable` OutFlow notes) |
+| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction` plus the `\.testLog` `@Entry`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`.s drop-in stand-in on `Core`, see the `@Shell` notes) |
 | `CoreFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites |
 
 Adding a new macro: one new file in `CoreFlowMacros` for the implementation
@@ -65,27 +63,20 @@ collection (`validatedProperties` in `MemberMacroEntry.swift`) and
 everything being one module is exactly what makes that free (no cross-target
 `public`, no extra target wiring).
 
-This package has gone through a few macro-boundary redesigns worth knowing about if
-you're extending it further:
+Two macro-boundary decisions worth knowing if you're extending it further:
 
-- **`@FlowableInit` used to be its own macro** — an init taking every stored
-  property as one tuple-typed parameter, plus the `InFlowSplat` typealias
-  describing that tuple. It's gone as a standalone macro now: the typealias half
-  was folded directly into `@Flowable` (every `@Flowable` type gets an
-  `InFlowSplat` typealias alongside its init, for free), and the "one tuple
-  *parameter*" half was dropped entirely rather than carried over —
-  `@Flowable`'s own init is unchanged, `InFlowSplat` is declared but nothing
-  consumes it as a single init argument anymore. If a future macro wants that
-  back, `renderInFlowSplatTypealias` in `FlowableRendering.swift` already has
-  the tuple-vs-bare-type collapse logic to build on.
-- **`@DataInit`** generated both `@Flowable`'s and `@FlowableInit`'s
-  initializers from one attribute — removed even before `@FlowableInit` was (see
-  git history for both). If you want a macro that combines what two existing macros
-  generate, the lesson from it still applies: collect stored properties **once** and
-  call each renderer directly, rather than spelling it as "stack the two existing
-  attribute macros" on the same type — stacking works when the two sets of generated
-  members don't collide, but it collects (and diagnoses) the same properties once
-  per stacked macro.
+- **Everything a `@Flowable` type gets comes from the one attribute** — there
+  is deliberately no separate macro for the tuple typealias, and no init
+  taking the whole tuple as a single parameter (`InFlowSplat` is declared,
+  nothing consumes it as one init argument). If a future macro wants a
+  tuple-parameter init, `renderInFlowSplatTypealias` in
+  `FlowableRendering.swift` already has the tuple-vs-bare-type collapse logic
+  to build on.
+- **A macro that combines what two existing macros generate should collect
+  stored properties ONCE and call each renderer directly** — not be spelled as
+  "stack the two existing attribute macros" on the same type. Stacking works
+  when the generated member sets don't collide, but it collects (and
+  diagnoses) the same properties once per stacked macro.
 
 ## @Flowable — tricky points
 
@@ -94,13 +85,13 @@ struct, class, or actor — plus two typealias/accessor pairs bridging to/from i
 unlabeled `InFlowSplat` typealias with a `makeFlow(_:)` factory building
 `Self` *from* one — splat-friendly construction — and a labeled `InFlow` typealias
 with an `inFlow` computed property reading the current instance's data back
-*out* — readable/reflectable), plus a wider `OutFlow`/`outFlow` pair (see below).
-Entry point: `Sources/CoreFlowMacros/FlowableMacro.swift`. Rendering: all six —
+*out* — readable/reflectable).
+Entry point: `Sources/CoreFlowMacros/FlowableMacro.swift`. Rendering: all five —
 `renderFlowable` (the init), `renderInFlowSplatTypealias`,
-`renderInFlowSplatFactory`, `renderInFlowTypealias`,
-`renderInFlowProperty`, `renderOutFlowTypealias`, and `renderOutFlowProperty` — live in
-`Sources/CoreFlowMacros/FlowableRendering.swift`; the last five are called
-from inside the first, so one macro expansion always produces all six together (or
+`renderInFlowSplatFactory`, `renderInFlowTypealias`, and
+`renderInFlowProperty` — live in
+`Sources/CoreFlowMacros/FlowableRendering.swift`; the last four are called
+from inside the first, so one macro expansion always produces all five together (or
 just the bare init, if there are zero properties to alias/build from).
 
 The init:
@@ -111,17 +102,16 @@ The init:
   syntax node kind (`inferredLiteralType`, `StoredProperty.swift`) with no type
   checker involved — same spirit as `@Namespace`'s auto-inferred `Namespace.ID`
   just below. Anything else uninferable (a call, an identifier, `nil`, a
-  collection literal, …) still needs an explicit annotation. This also means an
+  collection literal, …) still needs an explicit annotation. Note an
   inline-initialized instance `let` with one of these three literal defaults
-  (`let seed = 42`) now gets *past* the missing-type check and fails later, on
-  Swift's own `let`-reassignment error instead — see "No stored `let` constants"
-  below; the outcome (won't compile) is unchanged, only where the failure
-  surfaces.
+  (`let seed = 42`) gets *past* the missing-type check and fails on
+  Swift's own `let`-reassignment error instead — see "No stored `let`
+  constants" below; either way it won't compile, only where the failure
+  surfaces differs.
 - **`private` means private, and it must mean something — enforced with
   dedicated diagnostics, not silent exclusion.** A private property with no
-  wrapper at all (`private var cache = 0`) used to be silently
-  excluded from the init/typealiases, with nothing to show for it in
-  `OutFlow`/`Core` either — now it's `plainPrivatePropertyNotAllowed`:
+  wrapper at all (`private var cache = 0`) is refused
+  (`plainPrivatePropertyNotAllowed`):
   pure data flow has no room for opaque private state that's neither a source
   of truth nor something a caller supplies. And `@Binding`/
   `@ViewBuilder` — the kinds a *caller* supplies through the generated
@@ -132,11 +122,9 @@ The init:
   (`@State`/`@AppStorage`/`@SceneStorage`/`@Query`,
   `sourceOfTruthMustBePrivate`'s
   domain — those must be private) or any unmapped wrapper (`@Environment`,
-  `@GestureState`, `@FocusState`, `@StateObject`, a custom one, …), which carries no
-  privacy rule at all — an earlier revision refused unrecognized private
-  wrappers outright (`unsupportedPrivateWrapper`, deleted), back when every
-  recognized wrapper needed hand-built capture logic; `@Shell`'s
-  verbatim-copy default made that gatekeeping pointless.
+  `@GestureState`, `@FocusState`, `@StateObject`, a custom one, …), which
+  carries no privacy rule at all — `@Shell`'s verbatim-copy default means
+  unrecognized wrappers need no gatekeeping.
   `private(set)`/`fileprivate(set)` fall into these same
   diagnostics (the `isPrivate` check matches the keyword regardless of the
   `(set)` detail) — deliberately not special-cased: setter-restricted
@@ -256,151 +244,36 @@ present under the same collapse/zero rules as `InFlowSplat` above:
   since an `InFlow` value converts into `InFlowSplat`'s unlabeled parameter
   the same way any differently-labeled tuple does (see "Why unlabeled" above).
 
-`allFieldNames` — **removed.** An earlier revision had a `static var
-allFieldNames: [String]` here, unconditionally listing every stored property's
-name with no filtering at all (private, unwrapped fields included) — the one
-member with no tuple counterpart, since no `InFlowSplat`/`InFlow`/`OutFlow`
-captured a totally-private, non-wrapper field like `private var cache = 0`
-(legal at the time) either. Removed once it was clear `Reflector.fieldNames(of:)`
-already covers the same need for any *specific* generated tuple without a
-dedicated member — the gap that removal opened (a plain private field
-genuinely has no tuple anywhere to reflect over) is moot now anyway: that kind
-of field is a compile error (`plainPrivatePropertyNotAllowed`, above), not a
-silently-excluded one. See the equivalent note in
-`Sources/CoreFlow/Flowable.swift`.
+Deliberately NOT generated: a field-names member (`Reflector.fieldNames(of:
+SomeType.InFlow.self)` already reports any generated tuple's field names —
+see `Reflector` below), and any state-snapshot member wider than `InFlow`
+(a tuple over private wrapper state can't conform to protocols or host
+live; `@Shell`'s `Core` is the one snapshot story, over this same field
+set — see below).
 
-`OutFlow`/`outFlow` — a labeled tuple typealias + computed property (`outFlowFieldType`,
-`outFlowFieldReadExpression`, `renderOutFlowTypealias`, `renderOutFlowProperty`, all
-in `FlowableRendering.swift`) wider than `InFlow`/`inFlow`, for
-"give me a view's full externally-relevant *capturable* state, not just its
-constructor data":
-
-**Why this exists — testability, not just wider read access.** Any SwiftUI node
-that owns or reads live state via
-`@State`/`@Query`/`@AppStorage`/`@SceneStorage` introduces a
-source of truth (SOT) that only works inside a real render pipeline (view
-identity, a live `ModelContext`) — which makes it hard to test directly.
-`OutFlow` converts that SOT into a plain, stateless snapshot: construct the
-type, read `.outFlow`, assert on the fields — no live view hierarchy required.
-That's the actual motivating idea behind targeting exactly these wrapper kinds,
-not "read private state too" for its own sake. See
-`Tests/CoreFlowTests/OutFlowTests.swift` for this property demonstrated
-directly (`outFlowReadsFlowableFieldsAndRecognizedPrivateWrappersTogether`
-constructs a `Card` and reads `.outFlow.isExpanded`/`.isOn` with no live view
-ever installed).
-
-**No wrapper is excluded, mapped or unknown.** An earlier revision left
-`@Environment` out of `OutFlow` on the theory that a captured snapshot goes
-stale the instant the real environment changes; a later one refused
-*unrecognized* private wrappers with a dedicated diagnostic. Both are gone:
-every private wrapper field participates — mapped ones with their mapped
-tuple shape, unknown ones as the bare wrapped value — and `OutFlow`'s field
-set is identical to `@Shell`'s `Core`'s.
-
-- **Field set: everything** — `outFlowProperties(_:)` is the identity
-  function now (kept as the single shared name `renderShell` and the
-  `OutFlow` renderers draw from). Nothing reaching it needs filtering: a
-  private property with no wrapper (`private var cache = 0`) is refused by
-  `collectStoredProperties` (`plainPrivatePropertyNotAllowed`,
-  `StoredProperty.swift`), and everything else is legal by construction.
-- **Declaration order, preserved as one interleaved list** — not data-layout fields
-  first with wrapper fields appended after: `properties` is already
-  declaration-ordered, so a `@Query` field declared
-  before a plain `public let` one comes first in `OutFlow` too.
-- **The type mappings, all in `outFlowFieldType`**:
-  - `@Query` (`isQuery`) → **always** `QueryCore<WrappedType>` — this
-    package's own drop-in stand-in for the live wrapper
-    (`Sources/CoreFlow/QueryCore.swift`, a plain non-macro `@propertyWrapper`
-    like `Reflector` is a plain non-macro utility), **not** a passthrough of
-    the declared type. One-to-one with the real `Query<Element, Result>`'s
-    instance surface — verified directly against the `_SwiftData_SwiftUI`
-    interface: exactly `wrappedValue`, `fetchError`, and `modelContext`, and
-    **no `projectedValue`**, so `QueryCore` carries the same three members and
-    no `$x` projection either. Reading `modelContext` outside a live container
-    works — verified directly, no crash — so the eager capture is safe even
-    for snapshots built in plain code. An earlier
-    revision synthesized a bare `(wrappedValue:, fetchError:)` tuple via
-    `#pick` instead (and one before that dropped `modelContext` as
-    unexercised plumbing); replaced by the real wrapper so `Core`'s field
-    reads the fetched value directly — `core.items`, not
-    `.items.wrappedValue` — making body code written against the live
-    `@Query` property move onto `Core` unchanged. Both of `QueryCore`'s
-    extra init params default — `fetchError` to `nil`, `modelContext` to
-    `Environment(\.modelContext).wrappedValue`, the environment's own
-    default context, evaluated outside any live view (verified directly, a
-    real context, no trap) — since a test mocking a fetched result almost
-    never cares about either: `QueryCore(wrappedValue: [item])` just works.
-    An init callable with `wrappedValue` alone makes Swift's synthesized
-    memberwise init for a `@QueryCore` field take the *bare* value
-    (verified directly, locked in by `QueryCoreTests`) — deliberately so:
-    tests write `Core(items: [item], title: "t")` with no `QueryCore`
-    spelling at all; a directly constructed `Core`'s
-    `fetchError`/`modelContext` take the defaults.
-    An earlier revision kept `fetchError` required precisely to *prevent*
-    this flip, back when `@Shell` generated a `core` capture property that
-    passed a fully-constructed `QueryCore` through the memberwise init; both
-    the constraint and the capture property itself are gone now.
-  - **Every unmapped wrapper needs no case here** — `@Environment`,
-    `@GestureState`, `@Namespace`, `@ScaledMetric`, `@StateObject`, a custom
-    one, … all fall through to `baseTypeText`: the bare declared type, a
-    plain-value snapshot of the current `wrappedValue`, read `x`. (`Core`,
-    `@Shell`'s twin, copies an unmapped wrapper's whole declaration verbatim
-    instead — `StoredProperty.attributeText`, `renderShell` in
-    `ShellRendering.swift`; see the `@Shell` section below.)
-  - `@State`/`@AppStorage`/`@SceneStorage` (`isBindingBackedStorage`) →
-    `Binding<WrappedType>`, since these are the view's own externally
-    read-*and-write*-able storage — all three wrappers' own `projectedValue`
-    genuinely *is* `Binding<T>` (verified directly against the real SwiftUI
-    interface, `@SceneStorage` included — `wrappedValue` is `{ get nonmutating
-    set }`, same shape as `@State`/`@AppStorage`, no separate case needed).
-  - `@FocusState`/`@AccessibilityFocusState` → unmapped now, bare wrapped
-    value like every other unknown. They were once whitelisted (mapped to
-    their own `.Binding` projections); cut because those projections have no
-    public initializer — a test can't back one with its own closures — and
-    their writes no-op outside a live view anyway (verified directly), so
-    the substitution was a pass-through pretending to be a mock.
-  - Everything else (non-private fields) uses `baseTypeText` unchanged — the same
-    rule `InFlow` already applies.
-- **Matching read-expression mappings, in `outFlowFieldReadExpression`**:
-  `@Binding`/`@State`/`@AppStorage`/`@SceneStorage` all read the
-  *projected* value, `$x` — one shared convention, no `@Binding`-only special
-  case (verified directly: `Binding`'s own `projectedValue` is `{ self }`, so
-  `$x` gives back the identical `Binding<T>` the backing storage `_x` would,
-  write-through included — `_x` survives only on `fieldAssignment`'s side,
-  where `$x` is immutable). For `@State`/`@AppStorage`/`@SceneStorage`,
-  `$x` is **not** `_x`, which gives the wrapper instance itself
-  (`State<T>`, not `Binding<T>`; verified directly). `@Query` reads
-  `QueryCore(wrappedValue: _x.wrappedValue, fetchError: _x.fetchError,
-  modelContext: _x.modelContext)` — `_x` is the wrapper instance itself
-  (`Query<Element, Result>`), the same underscore-prefixed access
-  `@Binding`'s *assignment* side uses.
-  Every other field — non-private ones, plus every private unmapped wrapper —
-  uses `fieldReadExpression` unchanged (`x`, or `$x` for `@Binding`).
-- **Every property needs an explicit type**, in `collectStoredProperties`
-  (`StoredProperty.swift`) — init parameters obviously, but private wrapper
-  fields too: `OutFlow` reads the type to build its tuple field. (The old
-  "private properties are exempt" nuance is gone with the wrapper-less
-  private fields it existed for.) `@Namespace` is the one exception — it
-  needs *no* explicit type at all, since its wrapped type is always
-  `Namespace.ID`; see its own note in `StoredProperty.swift`.
-- **Verified directly that a `@State`-derived `OutFlow` binding doesn't write
-  through outside a live SwiftUI view render** — constructing a `@Flowable` type
-  directly in plain code (never installed into a real view hierarchy) and mutating
-  `outFlow.someStateField.wrappedValue` silently no-ops instead of persisting. This
-  is `@State`'s own behavior (its storage only installs once SwiftUI actually
-  renders the view), not a bug in `OutFlow` — a genuine caller-supplied `@Binding`
-  field, by contrast, really does write through (it's just a getter/setter pair,
-  not tied to view identity). `@SceneStorage` behaves identically
-  here — verified directly, same no-op-outside-a-live-view caveat, even though
-  it's backed by persistent storage rather than in-memory view
-  identity. (The same fact for `@FocusState` is part of why it was cut from
-  the whitelist entirely.) See `OutFlowTests.swift`.
-- **`@MainActor` is required on any test suite exercising `outFlow` on a
-  `View`-conforming type** — verified directly (a real crash, not a guess): `View`
-  conformance implicitly infers `@MainActor` isolation for the whole type, so
-  touching its members from a nonisolated swift-testing `@Test` function crosses
-  that isolation boundary at runtime and traps (`SIGTRAP`) under Swift 6 strict
-  concurrency, even though it merely reads a computed property.
+`QueryCore` (`Sources/CoreFlow/QueryCore.swift`, a plain non-macro
+`@propertyWrapper` the way `Reflector` is a plain non-macro utility) — the
+drop-in stand-in `@Shell` substitutes for `@Query` (`@QueryCore var name:
+T`). One-to-one with the real `Query<Element, Result>`'s instance surface —
+verified directly against the `_SwiftData_SwiftUI` interface: exactly
+`wrappedValue`, `fetchError`, and `modelContext`, and **no
+`projectedValue`**, so `QueryCore` carries the same three members and no
+`$x` projection either — a bare `(wrappedValue:, fetchError:)` tuple is
+deliberately not enough. The point is read-surface parity with the live
+wrapper: the host's `body` text (`items.isEmpty`, `ForEach(items)`) is
+copied onto `Core` verbatim, and it compiles there only because
+`core.items` still reads the array directly — a tuple field would force
+`.items.wrappedValue` on every copied read. Both extra init params
+default — `fetchError` to `nil`,
+`modelContext` to `Environment(\.modelContext).wrappedValue`, the
+environment's own default context, evaluated outside any live view
+(verified directly, a real context, no trap) — since a test mocking a
+fetched result almost never cares about either: `QueryCore(wrappedValue:
+[item])` just works. An init callable with `wrappedValue` alone makes
+Swift's synthesized memberwise init for a `@QueryCore` field take the
+*bare* value (verified directly, locked in by `QueryCoreTests`) —
+deliberately so: tests write `Core(items: [item], title: "t")` with no
+`QueryCore` spelling at all.
 
 ## Deliberately unmapped: `@StateObject` / `@ObservedObject`
 
@@ -416,8 +289,8 @@ the `swiftui-mv-architecture` skill for the broader argument against
 
 ## @Shell — tricky points
 
-A separate `member` macro from `@Flowable` — not a mode of it, doesn't replace
-`OutFlow`/`outFlow`, can be attached with or without `@Flowable` also present
+A separate `member` macro from `@Flowable` — not a mode of it, can be
+attached with or without `@Flowable` also present
 (it collects the type's stored properties itself via the same shared
 `validatedProperties`). Entry point: `Sources/CoreFlowMacros/ShellMacro.swift`.
 Rendering: `renderShell`, in `Sources/CoreFlowMacros/ShellRendering.swift`.
@@ -442,19 +315,15 @@ of every non-stored member (`copiedMemberSources`, `ShellMacro.swift`) —
 `body`, helpers, methods, `static` members, nested types. Initializers are
 the one member kind *not* copied: `Core` is constructed through Swift's
 synthesized memberwise init, and a copied init would suppress it. No `core`
-capture property is generated either — an earlier revision emitted
-`var core: Core { Core(...) }` off the live host, dragging a whole
-per-rule capture-expression mapping with it; deleted, since Core is for
-testing and tests construct it directly (a unit test never has a live host
-to capture from). The host runs its own hand-written body. Rule-1 fields keep the host's
+capture property off the live host either — Core is for
+testing, tests construct it directly, and a unit test never has a live host
+to capture from. The host runs its own hand-written body. Rule-1 fields keep the host's
 own `let`/`var` (a `let` with a default is a constant and drops out of
 Core's memberwise init, exactly like on the host); wrapped fields are
-`var`; private verbatim copies are sealed, they just behave. The all-`var`
-rule and the `@RawProperty` macro (an internal `raw_name` accessor over a
-wrapper's hardcoded-private `_name` backing, SE-0258) were relics of the
-same deleted design — post-construction instance swapping on captured
-copies — and both are REMOVED: mocking happens at construction, and where
-raw backing access is genuinely needed, a same-file extension init/accessor
+`var`; private verbatim copies are sealed, they just behave. Mocking
+happens at construction — no post-construction instance swapping, no raw
+backing accessors; where raw backing access is genuinely needed, a
+same-file extension init/accessor
 reaches `_name` by hand (see `QueryCoreTests`' `FakeCore`). Mocking the
 `Binding`-typed parameters is USE-SITE code, deliberately not generated: a
 test backs each with `.constant`, a `Binding(get:set:)` capturing writes
@@ -462,14 +331,12 @@ into a local, or a hand-written `@Observable @MainActor` model class whose
 `Bindable(model).x` projections mint real write-through bindings in plain
 code, no view needed (`handWrittenObservableModelBacksEveryBinding` in
 `ShellTests.swift` — note @Observable can't attach to a LOCAL type, so
-such a model must be file-scoped). An earlier revision generated exactly
-that as a sibling `CoreModel` class (with per-property `didSet` history
-logging) plus a `@MainActor static func make(model:...)` wiring
-constructor on `Core`; both were cut on the grounds that the few
-situational lines they saved belong at the use site, shaped by the test.
-Lessons from that era worth keeping if anyone regenerates something like
-it: the compiler expands attached macros inside another macro's generated
-code just fine (@Binding/@QueryCore today, @Observable then); `@MainActor`
+such a model must be file-scoped). A generated binding-wiring model class
+was considered and rejected — the few situational lines it would save
+belong at the use site, shaped by the test. If anyone generates one
+anyway, three verified facts:
+the compiler expands attached macros inside another macro's generated
+code just fine (@Binding/@QueryCore today); `@MainActor`
 must be explicit on a generated class because a nested type does NOT
 inherit the enclosing View-conformance isolation (verified directly); and
 a generated observable class must be a SIBLING of `Core`, not nested
@@ -477,9 +344,10 @@ inside it — nesting breaks `@Observable`'s extension-macro half, which
 type-checks but fails at link with a missing `Observable` conformance
 descriptor for the doubly-nested class (one level of macro-generated
 nesting is the compiler's limit; both verified directly).
-The field set is *identical* to `OutFlow`'s — `renderShell` calls
-`outFlowProperties` directly (the identity function now; see
-`FlowableRendering.swift`).
+The field set is every collected stored property — nothing needs filtering:
+a private property with no wrapper (`private var cache = 0`) is refused by
+`collectStoredProperties` (`plainPrivatePropertyNotAllowed`,
+`StoredProperty.swift`), and everything else is legal by construction.
 
 The copy is legal because it happens inside `@Shell`'s *own* expansion —
 only *cross*-expansion name references are forbidden, the same Swift-level
@@ -500,12 +368,13 @@ expansion machinery re-shifts every line by the splice position, so without
 it copies land double-indented. Members in a separate extension of the host
 aren't seen (same syntax-only limitation as host-kind detection).
 
-- **Why a second, nominal member alongside `OutFlow`'s tuple at all**: tuples
-  can't conform to protocols — verified directly, `type '(x: Int, y: String)'
-  cannot conform to 'Equatable' — only concrete types such as structs, enums and
-  classes can conform to protocols`. `OutFlow` can never support `Equatable`/
-  `Codable`/a shared "any stateless snapshot" protocol for that reason. A real
-  nominal struct can, for free, once declared.
+- **Why a nominal struct, not a tuple**:
+  tuples can't conform to protocols — verified directly, `type '(x: Int, y:
+  String)' cannot conform to 'Equatable' — only concrete types such as
+  structs, enums and classes can conform to protocols`. A tuple snapshot can
+  never support `Equatable`/`Codable`/a shared "any stateless snapshot"
+  protocol, carry copied members, or host live. A real nominal struct can,
+  for free, once declared.
 - **`Core` is always internal — the struct itself and every mapped field —
   regardless of the attached type's own access level, and never
   `@Flowable`** (verbatim-copied fields keep `private` if the host declared
@@ -532,19 +401,26 @@ aren't seen (same syntax-only limitation as host-kind detection).
   its rule-3 verbatim copy already lands on this exact shape, and it's the
   mock vehicle itself: `Binding(get:set:)` in a test captures every write.)
   `@Query` → `@QueryCore var name: T`, this package's own drop-in stand-in
-  (see the `OutFlow` section above — `someCore.name` reads the fetched value
+  (see the `QueryCore` notes above — `someCore.name` reads the fetched value
   directly). Every mapped
   stand-in is fabricatable from plain code — `Binding` from `.constant`/a
   getter-setter pair, `@QueryCore` needs no fabrication at all
   (`Core(items: [item], …)` just works) — which is what makes direct `Core`
   construction work with zero live-view machinery; see `makeCore` in
   `ShellTests.swift`. The whitelist is exactly the wrappers where a
-  substitution buys a REAL mock — `@FocusState`/`@AccessibilityFocusState`
-  were once here and got cut: their `.Binding` projections have no public
+  substitution buys a REAL mock, and the substitution is *needed*: a
+  `@State`/`@SceneStorage`-derived binding read off a directly-constructed
+  instance doesn't write through outside a live view render (verified
+  directly, both — `@State`'s storage only installs once SwiftUI renders
+  the view, and `@SceneStorage` behaves identically despite its persistent
+  backing), while a caller-supplied `Binding(get:set:)` writes through
+  regardless — it's just a getter/setter pair, not tied to view identity.
+  `@FocusState`/`@AccessibilityFocusState` are deliberately NOT
+  whitelisted: their `.Binding` projections have no public
   initializer (verified directly — a test can't back one with its own
   closures) and their writes no-op outside a live view anyway (verified
-  directly), a pass-through pretending to be a mock; as verbatim copies they
-  behave identically when hosted.
+  directly) — a substitution would be a pass-through pretending to be a
+  mock; as verbatim copies they behave identically when hosted.
 - **The mapped source-of-truth wrappers must be private — enforced with a
   diagnostic, not accommodated.** `sourceOfTruthMustBePrivate`
   (`StoredProperty.swift`, checked in `collectStoredProperties`) rejects
@@ -555,19 +431,23 @@ aren't seen (same syntax-only limitation as host-kind detection).
   Unknown wrappers carry no privacy rule — copied verbatim either way; a
   non-private one stays a memberwise-init parameter like any other
   non-private field.
+- **Every property needs an explicit type — private wrapper fields
+  included**, enforced in `collectStoredProperties` (`StoredProperty.swift`):
+  `Core` reads the type to declare its substituted field. `@Namespace` is
+  the one exception — it needs *no* annotation at all, since its wrapped
+  type is always `Namespace.ID`; see its own note in `StoredProperty.swift`.
 - **The unknown rule: copy the whole declaration verbatim** — attribute text
   with any arguments (`StoredProperty.attributeText`), access modifier, and
   default value, spliced as-is by `renderShell`'s fallthrough. Whatever
   behavior lives in the attribute's own arguments (a
   `@GestureState(reset:)` closure, an `@Environment` key path, a
   `@ScaledMetric(relativeTo:)`) rides along byte-for-byte with nothing to
-  reconstruct — proved live by `TrickyDragCardUITests`: an earlier design
-  *reconstructed* `@GestureState var name: T` from just the bare wrapper
-  name and silently dropped a custom reset closure for the default one; a
-  later one wrapped the host's *live instance* in a dedicated
-  `GestureStateCore` stand-in to carry it at runtime; the verbatim copy gets
-  the same fidelity with no machinery, since `Core`'s field *is* the same
-  declaration. A private copy is self-initializing by construction (the
+  reconstruct — proved live by `TrickyDragCardUITests`, whose custom
+  `@GestureState(reset:)` closure fires on `Core`'s copy exactly as on the
+  host (reconstructing the declaration from the bare wrapper name would
+  silently swap that closure for the default one; the verbatim copy can't,
+  since `Core`'s field *is* the same
+  declaration). A private copy is self-initializing by construction (the
   host compiled without an init assigning it) and so drops out of `Core`'s
   synthesized memberwise init — verified directly for all three
   self-initialization forms: attribute arguments (`@Environment(\.x)`),
@@ -617,11 +497,16 @@ aren't seen (same syntax-only limitation as host-kind detection).
     can't see conformance declared in a separate extension, via a typealias or
     protocol composition, or a qualified spelling (`SwiftUI.View`) — a macro
     never gets a type checker.
+- **`@MainActor` is required on any test suite touching a
+  `View`-conforming type's members** — `Core` included. Verified directly
+  (a real crash, not a guess): `View` conformance implicitly infers
+  `@MainActor` isolation for the whole type, so a nonisolated swift-testing
+  `@Test` function crosses that boundary at runtime and traps (`SIGTRAP`)
+  under Swift 6 strict concurrency, even just reading a computed property.
 - See `Tests/CoreFlowTests/ShellTests.swift` for the model demonstrated
   end-to-end — fully-mocked direct `Core` construction (`makeCore`), the
   copied body/helper evaluating against mocked fields, and the `@MainActor`
-  requirement on any test suite touching a `View`-conforming type (same
-  reasoning as `OutFlow`'s equivalent note above) — and
+  requirement above in force — and
   `Tests/CoreFlowTests/ShellSyntaxTests.swift` for the expansion shape,
   including the copy rules
   (`testHelpersStaticMembersAndNestedTypesAreCopiedButInitsAreNot`), the
@@ -640,10 +525,10 @@ binding is exactly that) and `@TestAction` to a stored `var` closure. Both
 hardcode the `\.testLog` key path — the entry ships in this package, no
 key-path parameter. NO diagnostics: an unspellable shape (missing
 type/default, `let` on either macro, non-closure on `@TestAction`)
-generates nothing, and the use site fails in the compiler's own words. An earlier revision was one type-level
-`@TestHost(\.keyPath)` member macro (and before that, an
-`@Observable`-style stamped-worker design) — replaced by these on request;
-git history has both.
+generates nothing, and the use site fails in the compiler's own words.
+Per-property attachment is deliberate — no type-level `@TestHost(\.keyPath)`
+macro deciding which properties participate; each property opts in where
+it's declared.
 
 - **`@TestState var count: Int = 0` is a drop-in `@State` that logs —
   accessor + peer, the property stays LIVE.** The accessor role rewrites
@@ -725,7 +610,7 @@ git history has both.
   Outside a live view the env field reads default `EnvironmentValues` —
   no-op logging — so package unit tests verify the generated surface and
   action forwarding (`TestSupportTests.swift`, `@MainActor` suite —
-  View-conforming type, same rule as OutFlow/Shell tests) while the actual
+  View-conforming type, same rule as ShellTests) while the actual
   log-through-environment path is verified live by the ExampleApp's UI
   tests. Expansion shapes: `TestSupportSyntaxTests.swift`.
 - **Log effects, never getters — the criterion is who owns the invocation

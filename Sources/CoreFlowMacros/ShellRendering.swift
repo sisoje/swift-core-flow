@@ -1,8 +1,10 @@
 import SwiftSyntax
 
 /// Renders `@Shell`'s one generated member — a nested `Core` struct — over
-/// exactly `OutFlow`'s field set (`outFlowProperties`, reused directly — see
-/// its doc comment in `FlowableRendering.swift`), followed by a verbatim copy
+/// every collected stored property (nothing reaching here needs filtering: a
+/// private property with no wrapper is refused by `collectStoredProperties`
+/// — `plainPrivatePropertyNotAllowed`, `StoredProperty.swift` — and
+/// everything else is legal by construction), followed by a verbatim copy
 /// of every non-stored host member (`copiedMembers` — computed by
 /// `copiedMemberSources` in `ShellMacro.swift`, `body` included). The host
 /// stays a completely ordinary SwiftUI view; `Core` is its standalone twin,
@@ -45,7 +47,7 @@ import SwiftSyntax
 /// (substituted with their own `.Binding` projections) and got cut: those
 /// projections have no public initializer — a test can't back one with its
 /// own closures — and their writes no-op outside a live view anyway
-/// (verified directly, `OutFlowTests`' old caveat), so the substitution was
+/// (verified directly), so the substitution was
 /// a pass-through pretending to be a mock. As rule-3 verbatim copies they
 /// behave identically when hosted.
 ///
@@ -94,9 +96,7 @@ func renderShell(
     properties: [StoredProperty], hostKind: ShellHostKind = .none,
     copiedMembers: [String] = []
 ) -> [DeclSyntax] {
-    // Core's field set is identical to OutFlow's — reused directly rather
-    // than duplicating the filter.
-    let fields = outFlowProperties(properties)
+    let fields = properties
 
     // Every field is internal — never `access` — regardless of the attached
     // type's own access level, except verbatim-copied private wrappers,
