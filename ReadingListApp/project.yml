@@ -1,0 +1,75 @@
+name: ReadingList
+options:
+  bundleIdPrefix: com.coreflow.examples
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  ReadingListUI:
+    path: ReadingListUI
+targets:
+  # The real app — normal `import ReadingListUI`, public hosts, live SwiftData.
+  ReadingList:
+    type: application
+    platform: iOS
+    sources: [RealApp]
+    dependencies:
+      - package: ReadingListUI
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        SWIFT_VERSION: "6.0"
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        CODE_SIGNING_ALLOWED: NO
+  # The testing app — `@testable import ReadingListUI` reaches the internal
+  # scenarios (and through them the internal Cores); hosts the log element.
+  ReadingListTestApp:
+    type: application
+    platform: iOS
+    sources: [TestApp]
+    dependencies:
+      - package: ReadingListUI
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        SWIFT_VERSION: "6.0"
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        CODE_SIGNING_ALLOWED: NO
+  ReadingListUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: ReadingListTestApp
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        # No MainActor default here: XCTestCase's inherited inits are
+        # nonisolated, and a MainActor-by-default subclass can't override them.
+        CODE_SIGNING_ALLOWED: NO
+        TEST_TARGET_NAME: ReadingListTestApp
+schemes:
+  ReadingList:
+    build:
+      targets:
+        ReadingList: all
+    run:
+      config: Debug
+  ReadingListTestApp:
+    build:
+      targets:
+        ReadingListTestApp: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      debugEnabled: false
+      targets:
+        - ReadingListUITests
