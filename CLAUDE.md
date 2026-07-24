@@ -296,7 +296,13 @@ attached with or without `@Flowable` also present
 Rendering: `renderShell`, in `Sources/CoreFlowMacros/ShellRendering.swift`.
 
 Generates a nested `Core` struct — always internal, carrying no
-`@Flowable` — the host's standalone twin. Three transform rules, in
+`@Flowable` — the host's standalone twin. The names are the pattern:
+functional core, imperative shell (Gary Bernhardt's "Boundaries"; Scott
+Wlaschin's push-I/O-to-the-edges; Mark Seemann's impureim sandwich — links
+in the README's References section). The host's wrappers are where the runtime
+does I/O; `Core` is the same logic with every piece of I/O injected at the
+boundary — state behind `Binding`s, fetched data as plain values, effects
+as closures — stateless by construction. Three transform rules, in
 `renderShell`'s order:
 **rule 1**, no wrapper: `let|var name: T [= default]` — specifier and
 initial value kept (a `var` default makes the memberwise parameter
@@ -518,7 +524,13 @@ aren't seen (same syntax-only limitation as host-kind detection).
 
 Per-property mutation-logging macros for test-host views
 (`TestSupportMacros.swift`; declarations + the `\.testLog` `@Entry` in
-`Sources/CoreFlow/TestSupport.swift`). No type-level macro — attach
+`Sources/CoreFlow/TestSupport.swift`). The testing model is how you'd test
+`Button` itself: its whole contract is "a tap calls the action", so you
+mock the action with a logger and assert it fired on a real tap. A `Core`
+is stateless and executes nothing (see the `@Shell` section) — its whole
+behavior is binding writes and action calls — so scenarios inject these
+logging mocks (actions inert, `= { _ in }`) and tests assert the ordered
+execution log, never an effect. No type-level macro — attach
 `@TestState` to a stored `var` (ANY type, function types included: a `var`
 closure means someone wants to mutate the closure itself, and its `$name`
 binding is exactly that) and `@TestAction` to a stored `var` closure. Both
@@ -634,7 +646,10 @@ it's declared.
 ## @Capability — tricky points
 
 `member` macro that bundles every eligible *computed* property/method into a
-`Capability` typealias + `capability` computed property. Entry point + collection +
+`Capability` typealias + `capability` computed property — Scott Wlaschin's
+capability-based design ("Designing with capabilities", fsharpforfunandprofit.com/cap):
+hand a consumer exactly the functions it may call, as plain values, not the
+whole object. Entry point + collection +
 rendering all live in `Sources/CoreFlowMacros/CapabilityMacro.swift` — doesn't
 share `StoredProperty.swift`'s model at all (that's for *stored* properties; this
 macro is deliberately about the opposite thing, and mixes properties with methods,
