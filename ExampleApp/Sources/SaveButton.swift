@@ -1,10 +1,8 @@
 import CoreFlow
 import SwiftUI
 
-// A component with an action AND a rest-api-looking async dependency: every
-// tap fires the plain action, then fetches the user's name and writes it
-// into its own @State. @Shell copies the body onto Core — the closures ride
-// along as plain memberwise parameters, @State becomes @Binding.
+// An action plus an async throwing dependency — the closures ride onto Core
+// as plain memberwise parameters, @State becomes @Binding.
 @Shell
 struct SaveButton: View {
     @State private var userName: String = ""

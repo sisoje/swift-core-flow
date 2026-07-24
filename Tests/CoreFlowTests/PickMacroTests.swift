@@ -274,16 +274,9 @@ private let testMacros: [String: Macro.Type] = [
         )
     }
 
-    // NOTE on composition: `#pick(from: #pick(from: t, \.a, \.b), \.a)` —
-    // literally nesting one #pick call inside another's arguments, as ONE
-    // expression — does NOT compile, for ANY combination of arities. Every
-    // arity of #pick shares the same implementation type (PickMacro), and
-    // Swift refuses to expand the same macro implementation type from
-    // within its own expansion tree, even though the two invocations here
-    // have entirely distinct arguments; there's no syntactic distinction it
-    // makes between "textually nested" and "actually recursive." The
-    // working form splits into two statements —
-    // `let inner = #pick(from: t, \.a, \.b); let outer = #pick(from: inner, \.a)`
-    // — which is what EndToEndTests.pickOfPickComposesOnATupleValue
-    // exercises for real. See the README for the full error.
+    // NOTE on composition: two #pick calls resolving to the SAME declared
+    // overload can't nest as one expression ("recursive expansion" — the
+    // guard keys on the resolved overload, not the shared implementation
+    // type; different arities DO nest — see TuplePicker.swift). The
+    // two-statement form is what EndToEndTests exercises for real.
 }

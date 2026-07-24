@@ -2,12 +2,8 @@ import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-/// Validates that `declaration` is a struct, class, or actor and collects its stored
-/// properties — diagnosing (and returning nil) on either failure. `@Flowable`'s
-/// `expansion` reduces to calling this and then rendering; kept as its own function
-/// (rather than inlined) since any future macro generating both an init and a
-/// `Flowable`-style typealias from stored properties would want the exact same
-/// validate-then-collect shape.
+/// The shared validate-then-collect entry for every macro generating members
+/// from stored properties (`@Flowable`, `@Shell`, future ones).
 func validatedProperties(
     of declaration: some DeclGroupSyntax,
     attachedTo node: AttributeSyntax,

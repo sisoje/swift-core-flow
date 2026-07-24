@@ -33,12 +33,6 @@ struct ReadingListTestApp: App {
         self.scenario = scenario
     }
 
-    var testLog: ComparableLog {
-        ComparableLog { property, value in
-            logItems.append((property, value))
-        }
-    }
-
     var body: some Scene {
         WindowGroup {
             Group {
@@ -53,8 +47,10 @@ struct ReadingListTestApp: App {
             .accessibilityIdentifier("log")
             .accessibilityLabel(logNamesJSON)
             .accessibilityValue(logValuesJSON)
+            .testLog { property, value in
+                logItems.append((property, value))
+            }
         }
-        .environment(\.testLog, testLog)
     }
 
     var logNamesJSON: String { json(logItems.map(\.0)) }

@@ -2,8 +2,8 @@ import CoreFlow
 import SwiftUI
 
 // Which Core component this launch hosts — selected via the
-// EXAMPLE_SCENARIO environment variable (see UITests/SnapshotTestCase.swift
-// for how it reaches the app under test). One case per component, flat.
+// EXAMPLE_SCENARIO environment variable (see UITests/LaunchHelper.swift).
+// One case per component, flat.
 enum ExampleScenario: String {
     case dragCard = "DragCard"
     case trickyDragCard = "TrickyDragCard"
@@ -39,12 +39,6 @@ struct ExampleApp: App {
         self.scenario = scenario
     }
 
-    var testLog: ComparableLog {
-        ComparableLog { property, value in
-            logItems.append((property, value))
-        }
-    }
-
     var body: some Scene {
         WindowGroup {
             Group {
@@ -61,7 +55,9 @@ struct ExampleApp: App {
             .accessibilityIdentifier("log")
             .accessibilityLabel(logNamesJSON)
             .accessibilityValue(logValuesJSON)
+            .testLog { property, value in
+                logItems.append((property, value))
+            }
         }
-        .environment(\.testLog, testLog)
     }
 }

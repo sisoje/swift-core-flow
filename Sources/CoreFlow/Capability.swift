@@ -21,12 +21,9 @@
 /// }
 /// ```
 ///
-/// Unlike `@Flowable` — which collects *stored* properties and therefore
-/// cannot usefully attach to an extension (extensions can't declare stored
-/// properties, so there'd be nothing to find) — `@Capability` collects *computed*
-/// members, which extensions can declare freely. So `@Capability` works attached
-/// directly to a struct/class/actor, or to an extension of one; either way it only
-/// sees whatever's written in the exact declaration it's attached to.
+/// Works on an extension — it collects *computed* members, which extensions
+/// declare freely (unlike `@Flowable`'s stored properties, which they
+/// can't). Either way it sees only the exact declaration it's attached to.
 ///
 /// ## What's collected
 /// - **Computed properties** (a `var` with a getter — stored properties, and ones with

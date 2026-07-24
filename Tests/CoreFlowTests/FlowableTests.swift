@@ -33,10 +33,6 @@ final class FlowableTests: XCTestCase {
                     }
 
                     public typealias InFlow = (id: UUID, isActive: Bool)
-
-                    public var inFlow: InFlow {
-                        (id: id, isActive: isActive)
-                    }
                 }
                 """,
             macros: macros
@@ -70,10 +66,6 @@ final class FlowableTests: XCTestCase {
                     }
 
                     typealias InFlow = (x: Int, y: Int)
-
-                    var inFlow: InFlow {
-                        (x: x, y: y)
-                    }
                 }
                 """,
             macros: macros
@@ -81,10 +73,9 @@ final class FlowableTests: XCTestCase {
     }
 
     func testSingleClosurePropertyMakesFlowParameterEscaping() {
-        // The 1-field collapse makes `flow` a DIRECT function parameter when
-        // that field is a closure — non-escaping by default, yet forwarded to
-        // the init's @escaping parameter. Caught live by the ReadingList
-        // example (`@Flowable @Shell struct BookList { let onDelete: … }`).
+        // The 1-field collapse makes `flow` a DIRECT function parameter —
+        // non-escaping by default, yet forwarded to the init's @escaping
+        // parameter. Caught live by the ReadingList example.
         assertMacroExpansion(
             """
             @Flowable
@@ -107,10 +98,6 @@ final class FlowableTests: XCTestCase {
                     }
 
                     typealias InFlow = (String) -> Void
-
-                    var inFlow: InFlow {
-                        onDelete
-                    }
                 }
                 """,
             macros: macros
@@ -143,10 +130,6 @@ final class FlowableTests: XCTestCase {
                     }
 
                     typealias InFlow = Int
-
-                    var inFlow: InFlow {
-                        ii
-                    }
                 }
                 """,
             macros: macros
@@ -178,10 +161,6 @@ final class FlowableTests: XCTestCase {
                     }
 
                     public typealias InFlow = Int
-
-                    public var inFlow: InFlow {
-                        count
-                    }
                 }
                 """,
             macros: macros
@@ -220,10 +199,6 @@ final class FlowableTests: XCTestCase {
                     }
 
                     public typealias InFlow = (onChange: () -> Void, onMain: @MainActor () -> Void, onSend: @Sendable (Int) -> Void)
-
-                    public var inFlow: InFlow {
-                        (onChange: onChange, onMain: onMain, onSend: onSend)
-                    }
                 }
                 """,
             macros: macros
@@ -231,11 +206,10 @@ final class FlowableTests: XCTestCase {
     }
 
     func testOptionalVarsAreImplicitlyNilDefaulted() {
-        // An optional `var` is implicitly nil-initialized, so its parameter defaults
-        // to nil — just like Swift's own memberwise init. Optional closures also get
-        // no @escaping (an optional parameter is already escaping; adding the
-        // attribute to an optional type is a compile error). The InFlowSplat typealias
-        // carries none of these defaults — tuple element types can't have them.
+        // Optional vars default to nil like Swift's own synthesizer; optional
+        // closures get no @escaping (already escaping — adding it is a
+        // compile error); the typealias carries no defaults (tuple element
+        // types can't).
         assertMacroExpansion(
             """
             @Flowable
@@ -264,10 +238,6 @@ final class FlowableTests: XCTestCase {
                     }
 
                     public typealias InFlow = (nickname: String?, onChange: (() -> Void)?, onSend: (@Sendable (Int) -> Void)!)
-
-                    public var inFlow: InFlow {
-                        (nickname: nickname, onChange: onChange, onSend: onSend)
-                    }
                 }
                 """,
             macros: macros
@@ -275,18 +245,9 @@ final class FlowableTests: XCTestCase {
     }
 
     func testOnlyBindingWrappersReachTheInit() {
-        // @Binding is threaded through as Binding<T>; every other wrapper (@State,
-        // @Environment, …) is excluded from the init and both typealiases —
-        // but @Environment/@State still need an explicit type even though
-        // private: @Shell's Core reads the type to declare its field, and the
-        // shared collection enforces it uniformly.
-        // Binding<T> carries into the InFlowSplat typealias too, and the inFlow
-        // property reads its projected form ($isOn), not the wrapped Bool
-        // value — the same $-projection convention every Binding-producing
-        // wrapper follows, not a @Binding-only special case (verified
-        // directly that $isOn and the backing-storage _isOn give the
-        // identical Binding<Bool>, write-through included; _isOn is kept only
-        // on the init's assignment side, where $isOn is immutable).
+        // Only @Binding reaches the init/typealiases; private wrappers still
+        // need explicit types (Core reads them — enforced uniformly by the
+        // shared collection).
         assertMacroExpansion(
             """
             @Flowable
@@ -316,10 +277,6 @@ final class FlowableTests: XCTestCase {
                     }
 
                     public typealias InFlow = (isOn: Binding<Bool>, title: String)
-
-                    public var inFlow: InFlow {
-                        (isOn: $isOn, title: title)
-                    }
                 }
                 """,
             macros: macros
@@ -327,11 +284,10 @@ final class FlowableTests: XCTestCase {
     }
 
     func testDiagnosesPlainPrivatePropertyWithNoWrapper() {
-        // A private property with no recognized wrapper used to fall through
-        // silently, excluded from the init/typealiases with nothing to show
-        // for it anywhere — now it's a compile error: pure data flow has no
-        // room for opaque private state that's neither a source of truth nor
-        // something a caller supplies.
+        // A private property with no property wrapper is a compile error, not
+        // a silent exclusion: pure data flow has no room for opaque private
+        // state that's neither a source of truth nor something a caller
+        // supplies.
         assertMacroExpansion(
             """
             @Flowable
@@ -375,12 +331,9 @@ final class FlowableTests: XCTestCase {
     }
 
     func testCallerSuppliedWrapperDeclaredPrivateIsDiagnosed() {
-        // @Binding/@ViewBuilder are the opposite of a source-of-truth
-        // wrapper — a caller supplies them through the generated init —
-        // so declaring one private makes it unreachable and is rejected with
-        // a dedicated message. (Only these two: any other wrapper, @Bindable
-        // included, is unmapped — a private one is simply copied onto Core
-        // verbatim, no diagnostic.)
+        // Caller-supplied kinds declared private are unreachable — rejected
+        // with a dedicated message. Only these two: any other private
+        // wrapper copies onto Core verbatim, no diagnostic.
         assertMacroExpansion(
             """
             @Flowable
@@ -406,18 +359,10 @@ final class FlowableTests: XCTestCase {
     }
 
     func testViewBuilderPropertiesGetBuilderParameters() {
-        // @ViewBuilder carries onto the init parameter. A stored closure
-        // (() -> Content) becomes an @escaping builder closure; a stored value
-        // (Content) becomes a () -> Content builder the init calls
-        // (self.footer = footer()). The InFlowSplat typealias ignores @ViewBuilder
-        // entirely: footer keeps its own type (Content), not a builder closure —
-        // there's no parameter position inside a tuple type for the trailing-closure
-        // sugar wrapping exists to enable, and a closure isn't Equatable/storable.
-        // makeFlow(_:) re-wraps footer into a trivial closure to satisfy the
-        // init, reading it positionally (flow.2) since InFlowSplat is unlabeled.
-        // The inFlow property is the reverse: it reads footer directly, no
-        // wrapping needed — the stored property already holds the plain Content
-        // value regardless of what the init's parameter looks like.
+        // The init wraps a stored-value @ViewBuilder field into a builder
+        // and calls it; the typealiases keep the bare type; makeFlow(_:)
+        // re-wraps as a trivial closure. Reasons: baseTypeText/
+        // renderInFlowSplatFactory docs.
         assertMacroExpansion(
             """
             @Flowable
@@ -448,10 +393,6 @@ final class FlowableTests: XCTestCase {
                     }
 
                     public typealias InFlow = (title: String, content: () -> Content, footer: Content)
-
-                    public var inFlow: InFlow {
-                        (title: title, content: content, footer: footer)
-                    }
                 }
                 """,
             macros: macros
@@ -488,10 +429,6 @@ final class FlowableTests: XCTestCase {
                     }
 
                     public typealias InFlow = (x: Double, y: Double)
-
-                    public var inFlow: InFlow {
-                        (x: x, y: y)
-                    }
                 }
                 """,
             macros: macros
@@ -499,10 +436,8 @@ final class FlowableTests: XCTestCase {
     }
 
     func testOnePropertyCollapsesInFlowSplatToItsBareType() {
-        // No 1-tuples in Swift, so (value: Int) as a type is just Int — and
-        // makeFlow(_:) takes it as that bare value directly (no positional
-        // index needed either, unlike the tuple case). Same collapse for
-        // InFlow, since there's no label left to preserve either.
+        // Swift has no 1-tuples — both typealiases collapse to the bare type
+        // and makeFlow(_:) takes the value directly, no positional index.
         assertMacroExpansion(
             """
             @Flowable
@@ -525,10 +460,6 @@ final class FlowableTests: XCTestCase {
                     }
 
                     public typealias InFlow = Int
-
-                    public var inFlow: InFlow {
-                        value
-                    }
                 }
                 """,
             macros: macros
@@ -561,10 +492,6 @@ final class FlowableTests: XCTestCase {
                     }
 
                     public typealias InFlow = (x: Int, y: Int)
-
-                    public var inFlow: InFlow {
-                        (x: x, y: y)
-                    }
                 }
                 """,
             macros: macros
@@ -618,11 +545,8 @@ final class FlowableTests: XCTestCase {
     }
 
     func testDiagnosesMissingType() {
-        // count = 0 would be a Bool/Int/String literal default, inferable
-        // without a type annotation (see
-        // testLiteralDefaultsInferBoolIntAndStringWithNoExplicitAnnotation) —
-        // this uses a call expression instead, which isn't one of those three
-        // recognized literal kinds, to keep testing the genuine missing-type path.
+        // Uses a call expression, not a Bool/Int/String literal, so it isn't
+        // one of the three inferable kinds — the genuine missing-type path.
         assertMacroExpansion(
             """
             @Flowable
@@ -648,12 +572,9 @@ final class FlowableTests: XCTestCase {
     }
 
     func testLiteralDefaultsInferBoolIntAndStringWithNoExplicitAnnotation() {
-        // Simple syntactic literal inference — Bool/Int/String are the only
-        // three literal kinds unambiguous enough to recognize without a real
-        // type checker (no numeric-literal-defaults-to-Double, no protocol
-        // witness resolution). Same spirit as @Namespace's auto-inferred
-        // Namespace.ID above: a specific, unambiguous case handled without
-        // giving up the macro's syntax-only design.
+        // Bool/Int/String are the only literal kinds unambiguous without a
+        // type checker — no numeric-defaults-to-Double, no witness
+        // resolution.
         assertMacroExpansion(
             """
             @Flowable
@@ -682,10 +603,6 @@ final class FlowableTests: XCTestCase {
                     }
 
                     typealias InFlow = (isOn: Bool, count: Int, label: String)
-
-                    var inFlow: InFlow {
-                        (isOn: isOn, count: count, label: label)
-                    }
                 }
                 """,
             macros: macros
@@ -693,11 +610,9 @@ final class FlowableTests: XCTestCase {
     }
 
     func testDiagnosesNonPrivateSourceOfTruthWrappers() {
-        // @State/@Environment/@Query/@AppStorage/@SceneStorage/@FocusState/
-        // @Namespace are a view's own source of truth, never something a
-        // caller supplies — enforced here rather than accommodated: every
-        // downstream renderer can assume these seven are always private, with
-        // no "what if it's also public" case to handle.
+        // Enforced rather than accommodated: downstream renderers assume the
+        // source-of-truth set is always private, no "what if it's public"
+        // case.
         assertMacroExpansion(
             """
             @Flowable

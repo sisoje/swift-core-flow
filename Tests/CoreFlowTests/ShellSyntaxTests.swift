@@ -8,16 +8,11 @@ final class ShellSyntaxTests: XCTestCase {
     let macros: [String: Macro.Type] = ["Shell": ShellMacro.self]
 
     func testMixOfPlainQueryEnvironmentStateAndBindingFields() {
-        // @Query's capture passes the bare fetched value (_items.wrappedValue),
-        // not a constructed QueryCore: with fetchError/modelContext both
-        // defaulted, QueryCore's init is callable with the wrapped value alone,
-        // so Core's synthesized memberwise init takes the bare value — tests
-        // write `Core(items: [item], ...)` with no QueryCore spelling at all.
-        // @Environment is copied verbatim (key-path argument and `private`
-        // kept, like @GestureState): initialized by its own attribute
-        // arguments, it drops out of Core's memberwise init, so the capture
-        // omits it — Core reads the live environment when hosted, the default
-        // EnvironmentValues otherwise.
+        // All three rules in one type. @Environment: verbatim copy,
+        // self-initialized by its key-path argument, so it drops out of
+        // Core's memberwise init — live environment when hosted, default
+        // EnvironmentValues otherwise. Bare-value @QueryCore init:
+        // QueryCore.swift.
         assertMacroExpansion(
             """
             @Shell
@@ -51,14 +46,10 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testFocusStateIsUnmappedSoItIsCopiedVerbatim() {
-        // @FocusState was once whitelisted (substituted with its own
-        // FocusState<T>.Binding projection) and got cut: that projection has
-        // no public initializer — a test can't back it with its own closures
-        // — and its writes no-op outside a live view anyway (verified
-        // directly), so the substitution was a pass-through pretending to be
-        // a mock. Unmapped now: copied verbatim, private kept, dropped from
-        // the memberwise init (FocusState self-initializes via its own
-        // init()) — sealed, like every private verbatim copy.
+        // Deliberately unmapped — a stand-in would be a pass-through, not a
+        // mock (no public initializer on FocusState<T>.Binding; writes no-op
+        // outside a live view — both verified directly). Private verbatim
+        // copy: sealed, out of the memberwise init.
         assertMacroExpansion(
             """
             @Shell
@@ -83,16 +74,11 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testGestureStateIsCopiedVerbatimOntoCorePrivateKept() {
-        // @GestureState isn't on the mapping whitelist — unknown, used as-is:
-        // its whole declaration — attribute (with reset: arguments), default,
-        // and `private` — is copied onto Core byte-for-byte, not substituted
-        // with a stand-in type. The reset closure lives in the copied
-        // attribute text, so it carries over with nothing to reconstruct (an
-        // earlier design that reconstructed a fresh @GestureState var from
-        // the bare wrapper name silently swapped it for the default reset,
-        // proved live by TrickyDragCardUITests). Because the field stays
-        // private with a default, it drops out of Core's memberwise init — so
-        // `core` omits dragOffset entirely (it starts fresh at .zero).
+        // The reset: closure rides in the copied attribute text — rebuilding
+        // from the bare wrapper name would swap it for the default (proved
+        // live by TrickyDragCardUITests). Private with a default →
+        // self-initializing → no memberwise parameter; each Core starts a
+        // fresh gesture at .zero.
         assertMacroExpansion(
             """
             @Shell
@@ -119,17 +105,12 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testAWrapperThisPackageHasNeverHeardOfIsCopiedVerbatimToo() {
-        // The whole point of the whitelist design: anything not on it —
-        // @StateObject, a future SwiftUI wrapper, a custom one — is unknown
-        // and gets the identical verbatim-copy treatment (arguments, access
-        // modifier, and default included). No refusal diagnostic (an earlier
-        // revision rejected unrecognized private wrappers outright). A
-        // private one drops out of Core's memberwise init, sealed, no raw_;
-        // a non-private one stays a parameter of the wrapper's own type,
-        // captured as its backing instance `_x`, with stamped
-        // (raw_ goes on non-private wrapper fields only). Plain fields keep
-        // their initial value too (`flavor` below), so their memberwise
-        // parameter comes defaulted.
+        // Anything off the whitelist — @StateObject, a custom wrapper, a
+        // future SwiftUI one — gets the identical verbatim treatment:
+        // arguments, access, and default included, no refusal diagnostic.
+        // Private → sealed, out of the memberwise init; non-private
+        // (@Whatever) → a parameter of the wrapper's own type. Plain fields
+        // keep their default, so the parameter comes defaulted.
         assertMacroExpansion(
             """
             @Shell
@@ -161,8 +142,7 @@ final class ShellSyntaxTests: XCTestCase {
 
     func testAccessibilityFocusStateGetsFocusStatesExactTreatment() {
         // An exact @FocusState clone (verified directly against the real
-        // SwiftUI interface), so it gets the identical unmapped treatment:
-        // copied verbatim, private kept, dropped from the memberwise init.
+        // SwiftUI interface) — identical unmapped treatment.
         assertMacroExpansion(
             """
             @Shell
@@ -187,12 +167,9 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testScaledMetricIsUnmappedSoItIsCopiedVerbatim() {
-        // @ScaledMetric isn't on the mapping whitelist — unknown, copied onto
-        // Core verbatim with its BASE value and any relativeTo: argument
-        // riding along in the attribute text. No double-scaling here, unlike
-        // the old capture-the-scaled-value design would have hit if it had
-        // redeclared the wrapper from the bare name: Core's copy scales its
-        // own base value itself, exactly like the host.
+        // The verbatim copy carries the BASE value plus any relativeTo:
+        // argument — Core's copy scales its own base itself, exactly like
+        // the host, so nothing double-scales.
         assertMacroExpansion(
             """
             @Shell
@@ -217,10 +194,9 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testSceneStorageFoldsIntoTheSameBindingSubstitutionAsAppStorage() {
-        // @SceneStorage shares @State/@AppStorage's exact shape (settable
-        // wrappedValue, projectedValue genuinely Binding<T> — verified directly
-        // against the real SwiftUI interface), so it gets the same @Binding var
-        // substitution, no separate case needed unlike @FocusState.
+        // Shares @State/@AppStorage's exact shape (settable wrappedValue,
+        // projectedValue genuinely Binding<T> — verified directly), hence
+        // the same substitution with no separate case.
         assertMacroExpansion(
             """
             @Shell
@@ -245,15 +221,10 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testNamespaceIsUnmappedSoItIsCopiedVerbatim() {
-        // @Namespace isn't on the mapping whitelist, so it's unknown to
-        // @Shell and copied onto Core verbatim, `private` kept — Core mints
-        // its own namespace, self-initialized by the wrapper's own init(), so
-        // the field drops out of Core's memberwise init and the capture
-        // omits it (verified directly that a self-initializing private
-        // wrapper keeps the memberwise init internal). The one @Namespace
-        // nicety that DOES survive: it needs no explicit type annotation —
-        // it has exactly one possible wrapped type (`Namespace.ID`), so the
-        // collection fills that in rather than diagnosing a missing type.
+        // Core mints its own namespace — self-initialized via the wrapper's
+        // init(), out of the memberwise init. And @Namespace alone needs no
+        // type annotation: exactly one possible wrapped type, filled in as
+        // `Namespace.ID` by the collection.
         assertMacroExpansion(
             """
             @Shell
@@ -278,10 +249,9 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testZeroEligibleFieldsStillGeneratesAnEmptyCoreStruct() {
-        // No plain private fallthrough field here — a private property with no
-        // recognized wrapper is a compile error now (see
-        // testDiagnosesPlainPrivatePropertyWithNoWrapper), so zero eligible fields
-        // means zero stored properties at all.
+        // Zero eligible fields means zero stored properties at all — a
+        // private property with no wrapper is a compile error, never a
+        // silent fallthrough.
         assertMacroExpansion(
             """
             @Shell
@@ -300,15 +270,11 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testPlainViewBuilderAndUnmappedNonPrivateFieldsStayInTheInit() {
-        // @ViewBuilder is kept only for the stored-closure form (content) —
-        // its field type is already a closure, so the attribute is pure upside.
-        // For the stored-value form (footer), keeping it would force Swift's
-        // synthesized init to wrap the parameter in a builder closure purely to
-        // satisfy the attribute (verified directly) — dropped entirely instead,
-        // so footer stays a plain field, passed straight through with no
-        // wrapping on either side. @Bindable is unmapped — copied verbatim
-        // (no @RawProperty, nothing to mock) — and being non-private it stays
-        // a memberwise-init parameter like any other non-private field.
+        // @ViewBuilder survives only on the stored-closure form (content);
+        // on the stored-value form (footer) it would force the synthesized
+        // init to wrap the parameter in a builder closure to no benefit
+        // (verified directly). @Bindable: unmapped, non-private → an
+        // ordinary memberwise parameter.
         assertMacroExpansion(
             """
             @Shell
@@ -339,13 +305,9 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testBodyIsCopiedIntoCoreVerbatim() {
-        // The host writes a completely normal SwiftUI body; @Shell copies it
-        // verbatim into Core (same expansion — referencing its own generated
-        // fields is legal; only cross-expansion references are forbidden), and
-        // Core's `: View` conformance is satisfied by the copy. One source
-        // text serves both types: the identifiers resolve against the host's
-        // real wrappers on one side and Core's substituted fields on the
-        // other, by the one-to-one read-surface design.
+        // The copy is legal (same expansion — only cross-expansion name
+        // references are forbidden) and compiles on both types by
+        // read-surface parity: one source text, two types.
         assertMacroExpansion(
             """
             @Shell
@@ -377,11 +339,10 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testBodyContentIsCopiedIntoCoreForViewModifierHosts() {
-        // Same copy for the ViewModifier shape: `Content` inside the copied
-        // body(content:) resolves to Core's own ViewModifier.Content — a
-        // different concrete type from the host's (each is keyed on its own
-        // conforming type — verified directly), which is fine: each type
-        // satisfies the protocol independently.
+        // `Content` in the copied body(content:) resolves to Core's OWN
+        // ViewModifier.Content — a different concrete type than the host's,
+        // fine: each satisfies the protocol independently (verified
+        // directly).
         assertMacroExpansion(
             """
             @Shell
@@ -413,13 +374,9 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testHelpersStaticMembersAndNestedTypesAreCopiedButInitsAreNot() {
-        // Every non-stored member rides along into Core — helper computed
-        // properties, methods, static members (static stored included: a body
-        // referencing `spacing` unqualified needs Core to carry its own copy),
-        // nested types — so the copied body's helpers resolve without a
-        // separate extension. Initializers are the one exception: Core is
-        // constructed through Swift's synthesized memberwise init (in tests,
-        // with mocks), and a copied init would suppress that synthesis.
+        // Static stored members copy too — a body referencing `spacing`
+        // unqualified needs Core's own. Inits are the one exclusion: a
+        // copied init would suppress the synthesized memberwise init.
         assertMacroExpansion(
             """
             @Shell
@@ -491,10 +448,8 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testConformanceDeclaredInASeparateExtensionIsNotDetected() {
-        // Syntax-only detection reads the attached declaration's own inheritance
-        // clause — conformance added elsewhere (a separate `extension Card: View`)
-        // is invisible to it, since macros never get a type checker. Documented
-        // limitation, not a bug: no `: View` on Core.
+        // Conformance in a separate extension is invisible to syntax-only
+        // detection — documented limitation: no `: View` on Core.
         assertMacroExpansion(
             """
             @Shell

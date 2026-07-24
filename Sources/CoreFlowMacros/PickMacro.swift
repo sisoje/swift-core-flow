@@ -6,23 +6,12 @@ import SwiftSyntaxMacros
 ///   `{ let __v0 = store; let __v1 = actions;
 ///      return (expenses: __v0.expenses, limit: __v0.limit, alerts: __v1.alerts) }()`
 ///
-/// The ONE implementation behind every arity of `#pick` (one, two, or three
-/// sources — see the overloads in `TuplePicker.swift`), selected by Swift's
-/// own overload resolution from argument count, not anything this macro
-/// inspects itself. `from:` is a real, predeclared parameter label — one per
-/// source — not an arbitrary caller-chosen one; that's what lets a labeled
-/// parameter mark the boundary between separate variadic pack parameters in
-/// the same signature, verified directly (see the README).
-///
-/// Every `from:`-labeled argument starts a new group; every argument after
-/// it, up to the next `from:`, is a pick belonging to that source — a bare
-/// key path or one renamed via `=>` (see `KeyPathPick`). Output field order
-/// is exactly the written order across all groups; a single group with a
-/// single pick collapses to the bare value (Swift has no 1-tuples). The
-/// same source value can appear after more than one `from:` — it's bound
-/// once, in order of first appearance, not re-evaluated per group.
-/// Duplicate output labels are a compile error with a Fix-It suggesting a
-/// distinct rename.
+/// The ONE implementation behind every arity of `#pick`, selected by Swift's
+/// own overload resolution from argument count — nothing this macro inspects
+/// itself. Rules and their verification: the public overloads' doc in
+/// `TuplePicker.swift`. Each `from:` starts a group; a repeated source value
+/// is bound once (`__v0`, …), in order of first appearance, not re-evaluated
+/// per group.
 public struct PickMacro: ExpressionMacro {
 
     private static let diagnosticDomain = "TuplePicker.pick"

@@ -1,33 +1,42 @@
 import SwiftUI
 
-/// The mutation-log seam `@TestState`/`@TestAction` call: `(name, value
-/// description)` for every logged write and call. A callable struct, not a
-/// bare closure — a closure-typed `@Entry` warns that dependents may
-/// invalidate on every update (closures aren't comparable); this wraps the
-/// sink and compares always-equal, honest for a seam installed once at the
-/// scene root. `callAsFunction` keeps call sites spelled like the closure
-/// they replace. The sink is `@MainActor` (Sendable, serialized on the main
-/// actor whatever context the logged action runs in) with `String` payloads,
-/// so nothing non-Sendable rides through. The `@MainActor` on the sink is
-/// load-bearing: without it a `@Sendable async` action wrapper calls the
-/// sink off the main actor — a data race for any sink touching @State.
-public struct ComparableLog: Equatable, Sendable {
-    public init(sink: @escaping @MainActor (String, String) -> Void = { _, _ in }) {
-        self.sink = sink
-    }
+/// A struct, not a bare closure — a closure-typed `@Entry` warns that
+/// dependents may invalidate on every update; always-equal is honest for a
+/// seam installed once. The sink is `@MainActor` (without it a `@Sendable
+/// async` action wrapper would call it off the main actor — a data race for
+/// any sink touching @State) and takes `String`s, so nothing non-Sendable
+/// rides through.
+struct ComparableLog: Equatable {
+    var sink: @MainActor (_ name: String, _ value: String) -> Void = { _, _ in }
 
-    let sink: @MainActor (_ name: String, _ value: String) -> Void
-
-    @MainActor
-    public func callAsFunction(_ name: String, _ value: String) {
-        sink(name, value)
-    }
-
-    public static func == (lhs: Self, rhs: Self) -> Bool { true }
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
 }
 
 extension EnvironmentValues {
-    @Entry public var testLog = ComparableLog()
+    @Entry var testLog = ComparableLog()
+}
+
+/// The macros' generated log field (`private let log_x = TestLog()`) —
+/// explicit because macro-generated `@Environment` sugar crashes swiftc
+/// (see CLAUDE.md); the hand-written sugar in here is fine, and nested
+/// DynamicProperties install by type, so injection stays reactive.
+@propertyWrapper
+public struct TestLog: DynamicProperty {
+    @Environment(\.testLog) private var entry
+
+    public init() {}
+
+    public var wrappedValue: @MainActor (_ name: String, _ value: String) -> Void {
+        entry.sink
+    }
+}
+
+extension View {
+    public func testLog(
+        _ sink: @escaping @MainActor (_ name: String, _ value: String) -> Void
+    ) -> some View {
+        environment(\.testLog, ComparableLog(sink: sink))
+    }
 }
 
 /// A drop-in `@State` that logs — attach to a defaulted stored `var`.

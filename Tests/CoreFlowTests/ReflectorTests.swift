@@ -40,9 +40,8 @@ struct Point {
     }
 
     @Test func fieldNamesPairsWithInFlowToNameAnInFlowsFields() {
-        // `Reflector.fieldNames` needs only the *type* — no instance — so it
-        // reports the same names `Point.inFlow` returns values for, without
-        // ever constructing a `Point`.
+        // Needs only the *type* — the generated labeled tuple's real field
+        // names, without ever constructing a `Point`.
         #expect(Reflector.fieldNames(of: Point.InFlow.self) == ["x", "y"])
     }
 }

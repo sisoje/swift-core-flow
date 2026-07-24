@@ -10,30 +10,40 @@ the ceremony-per-macro isn't worth dependency granularity nobody needs.)
 
 - Build/test: `swift build && swift test`
 - Format: `swift format --in-place --recursive Sources Tests`
-- Example app: `ExampleApp/project.yml` — ONE real app (xcodegen; the
-  generated `.xcodeproj` is gitignored) component-testing the generated
-  `Core`s live, via XCUITests. Every scenario hosts a CORE (owning
+- Docs: `README.md` — per-macro reference; `DataFlowMasterclass.md` — the
+  conceptual article. House prose rules: facts and decisions, never removal
+  history; compressed, no information lost; references at the bottom;
+  nothing named before its chapter introduces it.
+- Example apps (xcodegen; the generated `.xcodeproj`s are gitignored),
+  both component-testing the generated `Core`s live via XCUITests, each
+  run with `sh test.sh` in its directory:
+  - `ExampleApp` — one app, scenario per component, selected via the
+    `EXAMPLE_SCENARIO` env var (`defaultScenario` when unset, so Cmd-R
+    just works). Covers the tricky wrappers: `@GestureState(reset:)`,
+    `@FocusState`, a `ViewModifier` host, an async throwing action.
+  - `ReadingListApp` — the production shape: `ReadingListUI` is a real SPM
+    library (public `@Flowable @Shell` hosts, SwiftData `@Query` +
+    `@AppStorage`); `RealApp` consumes it with a plain import and live
+    wrappers; `TestApp` reaches the internal scenarios via `@testable
+    import`, selected via the `SCENARIO` env var.
+  Every scenario hosts a CORE (owning
   `@TestState private var` for each Binding-typed parameter, or bare
-  `Core()` when there are none), one component per scenario, selected via
-  the `EXAMPLE_SCENARIO` env var
-  (`ExampleScenario.defaultScenario` when unset, so Cmd-R just works).
-  `cd ExampleApp && sh test.sh` runs the suite once — each UI test launches
-  its own scenario. Scenarios wire Core through the generated `$name`
+  `Core()` when there are none). Scenarios wire Core through the generated `$name`
   members (properties internal and defaulted, so Swift's own memberwise
-  init constructs the host bare); the App scene installs the one sink via
-  `.environment(\.testLog, …)`, which appends `(name, value)` into plain
-  `@State` the moment it happens — at the write site, not via a
+  init constructs the host bare); the app installs the one sink on the
+  root view via `.testLog { … }`, appending `(name, value)` into
+  plain `@State` the moment it happens — at the write site, not via a
   view-layer observer replaying history. That log is exposed on the
   scenario `Group`'s own accessibility channels
   (`.accessibilityElement(children: .contain)` + identifier `log`, names
   JSON in `label`, values JSON in `value` — no phantom view, no opacity
   tricks, and JSON survives any description content; XCUITest reads
-  `.label`/`.value`). Tests wait on their own UI finish signal (the label
-  the last write produces — `element.wait(for: \.label, toEqual:)`), then
-  plain `XCTAssertEqual` on their own lines: `app.logNames` compared as
-  the raw JSON string (names are fixed identifiers), `app.logValues` as a
-  decoded `[String]` (values are arbitrary — a class-typed payload with
-  an unstable description is skipped by index). In-process assertion is
+  `.label`/`.value`). Tests wait on their own UI finish signal —
+  `log.wait(for: \.label, toEqual:)` against the expected names JSON, which
+  doubles as the names assertion (names are fixed identifiers, raw-string
+  comparable) — then `XCTAssertEqual` on `app.logValues` decoded as
+  `[String]` (values are arbitrary — a class-typed payload with an
+  unstable description is skipped by index). In-process assertion is
   deliberate — no recorded snapshot file: the element carries the same
   data live, with no record/re-record dance and no unstable-description
   poisoning of an all-or-nothing file diff. Value-streaming scenarios
@@ -48,7 +58,7 @@ concurrency) throughout.
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — the last holds `@TestState` + `@TestAction`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction` plus the `\.testLog` `@Entry`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`.s drop-in stand-in on `Core`, see the `@Shell` notes) |
+| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction`, `testLog`, `TestLog`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`.s drop-in stand-in on `Core`, see the `@Shell` notes) |
 | `CoreFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus TuplePicker's and Reflector's real-compiled end-to-end suites |
 
 Adding a new macro: one new file in `CoreFlowMacros` for the implementation
@@ -80,19 +90,17 @@ Two macro-boundary decisions worth knowing if you're extending it further:
 
 ## @Flowable — tricky points
 
-`member` macro that writes a memberwise `init` at the type's own access level, for a
-struct, class, or actor — plus two typealias/accessor pairs bridging to/from it (an
-unlabeled `InFlowSplat` typealias with a `makeFlow(_:)` factory building
-`Self` *from* one — splat-friendly construction — and a labeled `InFlow` typealias
-with an `inFlow` computed property reading the current instance's data back
-*out* — readable/reflectable).
-Entry point: `Sources/CoreFlowMacros/FlowableMacro.swift`. Rendering: all five —
+`member` macro that writes a memberwise `init` at the type's own access
+level, for a struct, class, or actor — plus two tuple typealiases: an
+unlabeled `InFlowSplat` with a `makeFlow(_:)` factory building `Self` *from*
+one (splat-friendly construction), and `InFlow`, its labeled twin
+(readable, `Mirror`-reflectable). Entry point:
+`Sources/CoreFlowMacros/FlowableMacro.swift`. Rendering: all four —
 `renderFlowable` (the init), `renderInFlowSplatTypealias`,
-`renderInFlowSplatFactory`, `renderInFlowTypealias`, and
-`renderInFlowProperty` — live in
-`Sources/CoreFlowMacros/FlowableRendering.swift`; the last four are called
-from inside the first, so one macro expansion always produces all five together (or
-just the bare init, if there are zero properties to alias/build from).
+`renderInFlowSplatFactory`, and `renderInFlowTypealias` — live in
+`Sources/CoreFlowMacros/FlowableRendering.swift`; the last three are called
+from inside the first, so one expansion always produces all four together
+(or just the bare init, with zero properties to alias/build from).
 
 The init:
 - **Syntax-only, no real type inference — except three unambiguous literal
@@ -216,37 +224,22 @@ The `makeFlow(_:)` factory — a `static func` (not a second `init`) building
   deliberate naming choice: the factory is spelled `makeFlow(_:)`, called as
   `Type.makeFlow(someFlow)`, not `Type.make(inFlowSplatted: someFlow)`.
 
-The `InFlow` typealias and `inFlow` property — the reverse direction,
-present under the same collapse/zero rules as `InFlowSplat` above:
-- **`InFlow` is `InFlowSplat`, labeled.** Same fields, same types, same
-  1-tuple collapse and zero-properties-means-nothing rules — just
-  `(x: Int, y: Int)` instead of `(Int, Int)`. Built by
-  `renderInFlowTypealias`, always with `wrapViewBuilder: false` like
-  `InFlowSplat` itself, for the same reasons (no tuple parameter position, and a
-  closure would make the field non-`Equatable`).
-- **Exists for readable access and real `Mirror` support.** Verified directly:
-  `Mirror(reflecting:)` reports each field's actual name over a *labeled* tuple, but
-  only positional labels (`.0`, `.1`) over an *unlabeled* one — `InFlowSplat`
-  alone can't support generic field reflection (see `Reflector` below), `InFlow`
-  can.
-- **`inFlow` reads every field straight off `self`** via
-  `fieldReadExpression` (`FieldRendering.swift`) — `x` for everything except
-  `@Binding`, which reads its projected form `$x` to match `InFlowSplat`'s
-  `Binding<T>` field type.
-- **No `@ViewBuilder` wrapping needed here, unlike `makeFlow(_:)`'s reverse
-  direction.** A stored property already holds exactly its own declared type
-  regardless of `@ViewBuilder` — that attribute only ever reshapes the *init
-  parameter*, never the property's own storage — so every field is just read
-  directly, no unwrap/rewrap logic like `makeFlow(_:)` needs for a
-  `@ViewBuilder`-stored value.
-- **Round-trips through `makeFlow(_:)` with no manual conversion.**
-  `Self.makeFlow(someInstance.inFlow)` works as-is — verified directly —
-  since an `InFlow` value converts into `InFlowSplat`'s unlabeled parameter
-  the same way any differently-labeled tuple does (see "Why unlabeled" above).
+The `InFlow` typealias — `InFlowSplat`, labeled, same collapse/zero rules
+and same `wrapViewBuilder: false`:
+- **Exists for readable spelling and real `Mirror` support.** Verified
+  directly: `Mirror(reflecting:)` reports each field's actual name over a
+  *labeled* tuple, only positional labels (`.0`, `.1`) over an *unlabeled*
+  one — `InFlowSplat` alone can't support generic field reflection (see
+  `Reflector` below), `InFlow` can.
+- **Feeds `makeFlow(_:)` with no conversion** — an `InFlow` value converts
+  into the unlabeled parameter like any differently-labeled tuple (see "Why
+  unlabeled" above).
 
-Deliberately NOT generated: a field-names member (`Reflector.fieldNames(of:
-SomeType.InFlow.self)` already reports any generated tuple's field names —
-see `Reflector` below), and any state-snapshot member wider than `InFlow`
+Deliberately NOT generated: an accessor reading an instance back out into an
+`InFlow` (data flows in at construction; nothing needed the backward
+read), a field-names member (`Reflector.fieldNames(of:
+SomeType.InFlow.self)` already reports any generated tuple's field names),
+and any state-snapshot member wider than `InFlow`
 (a tuple over private wrapper state can't conform to protocols or host
 live; `@Shell`'s `Core` is the one snapshot story, over this same field
 set — see below).
@@ -296,14 +289,11 @@ attached with or without `@Flowable` also present
 Rendering: `renderShell`, in `Sources/CoreFlowMacros/ShellRendering.swift`.
 
 Generates a nested `Core` struct — always internal, carrying no
-`@Flowable` — the host's standalone twin. The names are the pattern:
-functional core, imperative shell (Gary Bernhardt's "Boundaries"; Scott
-Wlaschin's push-I/O-to-the-edges; Mark Seemann's impureim sandwich — links
-in the README's References section). The host's wrappers are where the runtime
-does I/O; `Core` is the same logic with every piece of I/O injected at the
-boundary — state behind `Binding`s, fetched data as plain values, effects
-as closures — stateless by construction. Three transform rules, in
-`renderShell`'s order:
+`@Flowable` — the host's standalone twin: the functional core to the
+host's imperative shell (Bernhardt/Wlaschin/Seemann — links in README's
+References). Same logic, data I/O injected at the boundary — state behind
+`Binding`s, fetched data as plain values, effects as closures. Three
+transform rules, in `renderShell`'s order:
 **rule 1**, no wrapper: `let|var name: T [= default]` — specifier and
 initial value kept (a `var` default makes the memberwise parameter
 defaulted; a `let` with a default is a constant, excluded from the
@@ -316,13 +306,11 @@ binding-shaped, mockable stand-ins so a test captures every write, plus
 **rule 3**, any other wrapper — `@Binding`, `@Environment`, `@GestureState`,
 `@Namespace`, `@ScaledMetric`, `@Bindable`, `@StateObject`, a custom one —
 copied verbatim (attribute with arguments and default kept, `private` kept,
-`public` erased, via `StoredProperty.attributeText`). The split is
-principled: rule 2 covers wrappers holding *data*, which can be pushed to
-the core's boundary for injection; most rule-3 wrappers are Apple's own
+`public` erased, via `StoredProperty.attributeText`). The split: rule 2 =
+wrappers holding data, injectable at the boundary; rule 3 = mostly Apple's
 UI-runtime machinery (gesture lifecycle, focus, view identity, display
-metrics, environment propagation) — not data a caller could supply, no
-functional-core form exists — so they stay imperative-shell plumbing on
-`Core` too, verbatim. Plus a verbatim copy
+metrics, environment propagation) — no caller can supply it, so it stays
+verbatim. Plus a verbatim copy
 of every non-stored member (`copiedMemberSources`, `ShellMacro.swift`) —
 `body`, helpers, methods, `static` members, nested types. Initializers are
 the one member kind *not* copied: `Core` is constructed through Swift's
@@ -529,19 +517,17 @@ aren't seen (same syntax-only limitation as host-kind detection).
 ## @TestState / @TestAction — tricky points
 
 Per-property mutation-logging macros for test-host views
-(`TestSupportMacros.swift`; declarations + the `\.testLog` `@Entry` in
-`Sources/CoreFlow/TestSupport.swift`). The testing model is how you'd test
-`Button` itself: its whole contract is "a tap calls the action", so you
-mock the action with a logger and assert it fired on a real tap. A `Core`
-is stateless and executes nothing (see the `@Shell` section) — its whole
-behavior is binding writes and action calls — so scenarios inject these
-logging mocks (actions inert, `= { _ in }`) and tests assert the ordered
-execution log, never an effect. No type-level macro — attach
+(`TestSupportMacros.swift`; declarations plus `testLog`/`TestLog` in
+`Sources/CoreFlow/TestSupport.swift`). The model is how you'd test
+`Button`: the contract is "a tap calls the action", so mock the action
+with a logger and assert it fired on a real tap. A `Core`'s whole behavior
+is binding writes and action calls, so scenarios inject logging mocks
+(actions inert, `= { _ in }`) and tests assert the ordered execution log,
+never an effect. No type-level macro — attach
 `@TestState` to a stored `var` (ANY type, function types included: a `var`
 closure means someone wants to mutate the closure itself, and its `$name`
 binding is exactly that) and `@TestAction` to a stored `var` closure. Both
-hardcode the `\.testLog` key path — the entry ships in this package, no
-key-path parameter. NO diagnostics: an unspellable shape (missing
+hardcode the seam — no key-path parameter. NO diagnostics: an unspellable shape (missing
 type/default, `let` on either macro, non-closure on `@TestAction`)
 generates nothing, and the use site fails in the compiler's own words.
 Per-property attachment is deliberate — no type-level `@TestHost(\.keyPath)`
@@ -554,8 +540,8 @@ it's declared.
   count_storage)`) funnels the inline default into the storage, `get`
   reads `count_storage.wrappedValue`, and the single logging point is the
   `nonmutating set`. Peers: `private var count_storage: State<Int>`
-  (initialized via the init accessor), `private let log_count =
-  Environment(\.testLog)`, and `` `$count` `` — a `Binding` routed through
+  (initialized via the init accessor), `private let log_count = TestLog()`,
+  and `` `$count` `` — a `Binding` routed through
   the property itself, so direct writes and binding writes log through the
   same setter. Everything generated is `private` — `$name` included; only
   the host's own `body` wires it. Type from the annotation or the shared
@@ -567,8 +553,8 @@ it's declared.
   — `String(describing:)` of `()` for zero args, of bare `a0` for one, of
   a tuple beyond — then
   forwarding with `return`/`try`/`await` each added iff the declared type
-  needs it. The getter extracts `log` (the resolved `\.testLog` value,
-  `@Sendable`) and `storage` into locals first, so the wrapper captures
+  needs it. The getter extracts `log` (the resolved sink closure,
+  `@MainActor` hence Sendable) and `storage` into locals first, so the wrapper captures
   two plain values and never `self` — deliberate: no view copy dragged
   into `async`/`@Sendable` action closures, and Environment resolution
   happens at the view copy's install either way (an env change re-renders
@@ -582,10 +568,11 @@ it's declared.
   6.4 (signal 11 emitting the wrapper's synthesized getter — verified
   directly; hand-written identical source compiles fine, and it crashes
   with `\.self`/`EnvironmentValues` too, so it's not the closure-typed
-  entry). The explicit `private let log_x = Environment(\.testLog)` field
-  dodges it, and SwiftUI installs DynamicProperties by field type, not
-  wrapper syntax, so injection stays reactive. Same pattern as `State<T>`
-  for the value storage.
+  entry). The explicit `private let log_x = TestLog()` field dodges it —
+  `TestLog` is a `DynamicProperty` wrapping the hand-written sugar, and
+  SwiftUI installs DynamicProperties by field type, not wrapper syntax, so
+  injection stays reactive (nested installation verified live by the UI
+  tests). Same pattern as `State<T>` for the value storage.
 - **Host properties stay internal, and no init is needed** — Swift's
   synthesized memberwise init (all parameters defaulted) constructs the
   host bare, cross-file. `private` on a host property would drag that init
@@ -593,44 +580,30 @@ it's declared.
   the storage is subsumed by the init accessor and `log_x` carries a
   default, so neither becomes a parameter). Dollar names are legal from
   macros: `names: prefixed($), prefixed(log_)[, suffixed(_storage)]`.
-- **`@Entry public var testLog` ships in CoreFlow** as the one seam
-  (`@MainActor (String, String) -> Void`, no-op default — globally-isolated
-  function types are implicitly Sendable, every sink runs serialized on
-  the main actor). The payload is `String`, not `Any`, for two reasons:
-  an `Any` holding a class would trip region-isolation at the
-  `@Sendable async` wrapper's `await log(...)` — an error INSIDE the
-  expansion, which a macro user can't fix; `String(describing:)` runs in
-  the argument's own region and only the Sendable result crosses. And a
-  logged class reference could mutate before a sink formats it —
-  describing at the call site freezes the value the moment it happens,
-  which is the snapshot contract. Same text as `Any` interpolation, so
-  no log format change. Sync wrappers/setters call it directly (they run
-  on the main actor with the host), and so do plain async wrappers — a
-  non-Sendable closure inherits the host's main-actor isolation, and an
-  `await` there draws the unnecessary-await warning (verified directly).
-  Only a `@Sendable async` wrapper — the one shape that can't inherit the
-  isolation — `await`s the log, IN ORDER before forwarding; deliberately
-  no fire-and-forget `Task`, which could reorder log lines against
-  synchronous state writes. (`@Sendable` *sync* can neither inherit nor
-  await — its direct call draws an actor-isolation warning, the type
-  author's own trade.) The entry value is
-  `ComparableLog`, a callable struct (`callAsFunction` keeps generated
-  call sites spelled like the closure they replace, so the macros needed
-  no change) — a bare closure-typed `@Entry` draws a "dependents may
-  invalidate on every update" warning; the struct compares always-equal,
-  honest for a seam installed once at the scene root. One earned fact:
-  `wrapper.wrappedValue(args)` and even a local's `value(args)` DON'T
-  route to a cross-module `callAsFunction` that doesn't exist — the
-  diagnostic is "cannot call value of non-function type", so if it ever
-  appears, check the struct actually declares `callAsFunction`. The ExampleApp
-  installs `.environment(\.testLog) { … }` once at the App scene, feeding
-  the inspectable `log` element (see the example-app bullet).
-  Outside a live view the env field reads default `EnvironmentValues` —
-  no-op logging — so package unit tests verify the generated surface and
-  action forwarding (`TestSupportTests.swift`, `@MainActor` suite —
-  View-conforming type, same rule as ShellTests) while the actual
-  log-through-environment path is verified live by the ExampleApp's UI
-  tests. Expansion shapes: `TestSupportSyntaxTests.swift`.
+- **The seam: `testLog` installs, `TestLog` reads.** The `\.testLog`
+  `@Entry` and its `ComparableLog` value are internal — a struct, not a bare
+  closure-typed entry (which warns that dependents may invalidate on every
+  update; always-equal is honest for a seam installed once). `TestLog` is a
+  `DynamicProperty` wrapping the `@Environment` read; the macros generate it
+  as an explicit stored field (`private let log_x = TestLog()`) and its
+  `wrappedValue` IS the sink closure, so generated call sites are direct
+  closure calls. The sink is `@MainActor (String, String) -> Void` —
+  globally-isolated function types are implicitly Sendable, every sink runs
+  serialized on the main actor. Payloads are `String`, not `Any`: an `Any`
+  holding a class would trip region-isolation at the `@Sendable async`
+  wrapper's `await log(...)` — an error INSIDE the expansion a user can't
+  fix — and `String(describing:)` at the call site freezes the value the
+  moment it happens, the snapshot contract. Sync wrappers/setters and plain
+  async wrappers call the sink directly (a non-Sendable closure inherits the
+  host's main-actor isolation; an `await` there draws the unnecessary-await
+  warning — verified directly). Only a `@Sendable async` wrapper — the one
+  shape that can't inherit the isolation — `await`s the log IN ORDER before
+  forwarding; deliberately no fire-and-forget `Task`, which could reorder
+  log lines against synchronous state writes. Outside a live view the entry
+  reads its no-op default, so package unit tests verify the generated
+  surface and forwarding (`TestSupportTests.swift`, `@MainActor` suite)
+  while the log-through-environment path is verified live by both example
+  apps' UI tests. Expansion shapes: `TestSupportSyntaxTests.swift`.
 - **Log effects, never getters — the criterion is who owns the invocation
   timing.** Setters and action calls fire when the component's own logic
   decides — deterministic, so snapshot-diffable. Getter reads (the state

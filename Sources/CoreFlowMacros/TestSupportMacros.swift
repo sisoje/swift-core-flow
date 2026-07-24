@@ -1,33 +1,20 @@
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-// Two per-property macros for mutation-logging test hosts. Both hardcode the
-// `\.testLog` environment entry (it ships in this package) and generate their
-// own `log_<name>` environment read as an explicit `Environment` stored field
-// (`private let log_x = Environment(\.testLog)`) — the `@Environment` sugar is
-// a swiftc crash when PEER-macro-generated (see CLAUDE.md), and SwiftUI
-// installs DynamicProperties by field type, not wrapper syntax, so injection
-// is identical — and there's no shared seam member to coordinate. Same shape
-// requirements for both: a stored `var` with an initial value. No diagnostics:
-// a skipped shape generates nothing, and the use site fails in the compiler's
-// own words.
+// Per-property mutation-logging macros for test hosts. Both generate
+// `private let log_x = TestLog()` (TestSupport.swift explains why not
+// `@Environment` sugar). Required shape: a stored `var` with an initial
+// value; anything else generates nothing, no diagnostics — the use site
+// fails in the compiler's own words.
 
 /// `@TestState private var count: Int = 0` — a drop-in `@State` that logs.
-/// The property is rewritten to read/write a generated `State` storage (so it
-/// stays LIVE, exactly like `@State`'s own wrappedValue), with the logging call
-/// in its setter — every write logs, wherever it comes from:
-/// - accessors: an init accessor funneling the inline default into the storage,
-///   `get { count_storage.wrappedValue }`, and a logging `nonmutating set`.
-/// - `private let count_storage: State<Int>` — initialized via the init
-///   accessor, installed by SwiftUI as a DynamicProperty by type.
-/// - `private let log_count = Environment(\.testLog)`
-/// - `` `$count` ``: `Binding<Int>` routed through the property itself, so
-///   binding writes log through the same single setter.
-///
-/// Works on a `var` of ANY type, function types included — a `var` closure
-/// means someone wants to mutate the closure itself, and the binding is exactly
-/// that. Type comes from the annotation or the shared three-literal inference
-/// (`= false` / `= 0` / `= "x"`).
+/// The property reads/writes a generated `State` storage, so it stays LIVE
+/// exactly like `@State`'s own wrappedValue; the one logging point is the
+/// setter, and the generated `$count` binding routes through the property
+/// itself, so binding writes log through that same setter. Works on a `var`
+/// of ANY type, closures included — a `var` closure means someone wants to
+/// mutate the closure itself, and the binding is exactly that. Type from
+/// the annotation or the shared three-literal inference.
 public enum TestStateMacro: AccessorMacro, PeerMacro {
     public static func expansion(
         of node: AttributeSyntax,
@@ -65,7 +52,7 @@ public enum TestStateMacro: AccessorMacro, PeerMacro {
         let typeText = type.trimmedDescription
         return [
             "private let \(raw: name)_storage: State<\(raw: typeText)>",
-            "private let log_\(raw: name) = Environment(\\.testLog)",
+            "private let log_\(raw: name) = TestLog()",
             """
             private var `$\(raw: name)`: Binding<\(raw: typeText)> {
                 Binding(
@@ -94,21 +81,11 @@ public enum TestStateMacro: AccessorMacro, PeerMacro {
     }
 }
 
-/// `@TestAction private var save: (Item) -> Void = { _ in }` — the property's
-/// own getter returns the stored closure wrapped with logging; reading `save`
-/// IS the logged action, nothing extra to wire:
-/// - accessors: an init accessor funneling the inline default into the
-///   storage, and a getter returning `{ a0 in log…; storage(a0) }` — the
-///   wrapper logs `("save", payload)` then forwards — payload `""` for zero
-///   arguments, `String(describing:)` of the bare argument for one, of a
-///   tuple beyond; `async`/`throws`/return value carried through
-///   (`await` on the log only for `@Sendable async` types, see
-///   `wrapperClosure`).
-/// - `private let save_storage: (Item) -> Void` + `private let log_save =
-///   Environment(\.testLog)`.
-///
-/// Closures only, and `var` — the compiler refuses accessor expansion on
-/// `let`. No setter: an action is wired, not mutated.
+/// `@TestAction private var save: (Item) -> Void = { _ in }` — the getter
+/// returns the stored closure wrapped with logging; reading `save` IS the
+/// logged action, nothing extra to wire (payload shapes and effect handling:
+/// `wrapperClosure` below). Closures only, and `var` — the compiler refuses
+/// accessor expansion on `let`. No setter: an action is wired, not mutated.
 public enum TestActionMacro: AccessorMacro, PeerMacro {
     public static func expansion(
         of node: AttributeSyntax,
@@ -142,7 +119,7 @@ public enum TestActionMacro: AccessorMacro, PeerMacro {
         guard let (name, type, _) = actionProperty(declaration) else { return [] }
         return [
             "private let \(raw: name)_storage: \(raw: type.trimmedDescription)",
-            "private let log_\(raw: name) = Environment(\\.testLog)",
+            "private let log_\(raw: name) = TestLog()",
         ]
     }
 

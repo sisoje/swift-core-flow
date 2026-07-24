@@ -22,11 +22,9 @@ struct Dimmer: ViewModifier {
     }
 }
 
-// Core component under test, mutations logged at the write site: every tap
-// on the toggle (inside Core's COPIED body) writes through the
-// @TestState-generated $isDimmed binding and lands in the snapshot log the
-// moment it happens — deterministic, so the whole interaction is verified
-// as a recorded mutation sequence.
+// Every tap inside Core's COPIED body writes through the generated
+// $isDimmed binding — the whole interaction verifies as a recorded
+// mutation sequence.
 struct DimmerScenario: View {
     @TestState var isDimmed = false
 

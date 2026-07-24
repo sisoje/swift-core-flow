@@ -35,7 +35,7 @@ final class TestSupportSyntaxTests: XCTestCase {
 
                     private let count_storage: State<Int>
 
-                    private let log_count = Environment(\\.testLog)
+                    private let log_count = TestLog()
 
                     private var `$count`: Binding<Int> {
                         Binding(
@@ -81,7 +81,7 @@ final class TestSupportSyntaxTests: XCTestCase {
 
                     private let isOn_storage: State<Bool>
 
-                    private let log_isOn = Environment(\\.testLog)
+                    private let log_isOn = TestLog()
 
                     private var `$isOn`: Binding<Bool> {
                         Binding(
@@ -109,7 +109,7 @@ final class TestSupportSyntaxTests: XCTestCase {
 
                     private let jump_storage: State<() -> Void>
 
-                    private let log_jump = Environment(\\.testLog)
+                    private let log_jump = TestLog()
 
                     private var `$jump`: Binding<() -> Void> {
                         Binding(
@@ -156,7 +156,7 @@ final class TestSupportSyntaxTests: XCTestCase {
 
                     private let refresh_storage: () -> Void
 
-                    private let log_refresh = Environment(\\.testLog)
+                    private let log_refresh = TestLog()
                     private var save: (String) -> Void {
                         @storageRestrictions(initializes: save_storage)
                         init(initialValue) {
@@ -174,7 +174,7 @@ final class TestSupportSyntaxTests: XCTestCase {
 
                     private let save_storage: (String) -> Void
 
-                    private let log_save = Environment(\\.testLog)
+                    private let log_save = TestLog()
                     private var fetch: @Sendable (Int, Bool) async throws -> [String] {
                         @storageRestrictions(initializes: fetch_storage)
                         init(initialValue) {
@@ -192,7 +192,7 @@ final class TestSupportSyntaxTests: XCTestCase {
 
                     private let fetch_storage: @Sendable (Int, Bool) async throws -> [String]
 
-                    private let log_fetch = Environment(\\.testLog)
+                    private let log_fetch = TestLog()
                     private var ping: (Int) async -> Void {
                         @storageRestrictions(initializes: ping_storage)
                         init(initialValue) {
@@ -210,7 +210,7 @@ final class TestSupportSyntaxTests: XCTestCase {
 
                     private let ping_storage: (Int) async -> Void
 
-                    private let log_ping = Environment(\\.testLog)
+                    private let log_ping = TestLog()
                 }
                 """,
             macros: macros
