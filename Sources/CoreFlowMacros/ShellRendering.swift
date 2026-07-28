@@ -4,8 +4,8 @@ import SwiftSyntax
 /// (collection already refused anything unrenderable —
 /// `plainPrivatePropertyNotAllowed`, `StoredProperty.swift`) plus a verbatim
 /// copy of every non-stored member. Two field rules — substitute the
-/// whitelist (plus `@ViewBuilder`'s init-machinery tweak), copy everything
-/// else verbatim — each documented at its branch below.
+/// whitelist, copy everything else verbatim — each documented at its
+/// branch below.
 ///
 /// `Core` and every mapped field are always internal, regardless of the
 /// host's access (verbatim copies keep their own access, `public` erased):
@@ -42,38 +42,15 @@ func renderShell(
         if p.isQuery {
             return "@QueryCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
-        // @ViewBuilder isn't a property wrapper: the stored-closure form
-        // keeps the attribute (real builder syntax at Core's init call
-        // site), the stored-value form drops it — keeping it would make the
-        // synthesized init wrap the parameter in a builder closure to no
-        // benefit (verified directly).
-        if p.isViewBuilder {
-            let type = p.type?.trimmedDescription ?? ""
-            let isStoredValue = !(p.type.map(isFunctionType) ?? false)
-            return isStoredValue
-                ? "var \(p.name): \(type)"
-                : "@ViewBuilder var \(p.name): \(type)"
-        }
-        // Rule 2 — everything else, wrapper or not: the host's own
-        // declaration node re-rendered as written; nothing is reassembled
-        // from parsed pieces. Access is erased by not copying modifiers —
-        // with one exception, `private`/`fileprivate` stay: a private copy is
-        // self-initializing by construction, so it drops out of the
-        // memberwise init (verified for @Environment arguments, @GestureState
-        // inline default, and @Namespace wrapper init()) — sealed: an
-        // @Environment copy reads the real environment when hosted (mock via
-        // .environment(...)) and default EnvironmentValues outside;
-        // @GestureState starts a fresh gesture at its declared default.
-        // Erasing `private` instead would resurface each such field as a
-        // wrapper-typed init parameter. A PLAIN private field never gets
-        // here — collection refused it (`plainPrivatePropertyNotAllowed`).
-        // Attribute arguments ride along byte-for-byte — proved live by
-        // TrickyDragCardUITests: its custom @GestureState(reset:) closure
-        // fires on Core's copy exactly as on the host; rebuilding from the
-        // bare wrapper name would swap it for the default.
+        // Rule 2 — everything else, wrapper or not, @ViewBuilder included:
+        // the host's own declaration re-rendered as written, access erased
+        // by not copying modifiers. `private`/`fileprivate` stay — a private
+        // wrapper copy is self-initializing and sealed out of the memberwise
+        // init; erasing it would resurface the field as a wrapper-typed
+        // parameter. Attribute arguments (a @GestureState(reset:) closure)
+        // ride along byte-for-byte — rebuilding from the wrapper name would
+        // swap them out (proved live by TrickyDragCardUITests).
         if p.isPrivate {
-            // A private field reaching this rule always carries an attribute
-            // (self-initializing wrapper) — collection refused the plain ones.
             assert(!p.varDecl.attributes.isEmpty, "plain private fields are refused at collection")
         }
         var copy = p.varDecl

@@ -166,6 +166,21 @@ public func collectStoredProperties(
                 continue
             }
 
+            // @ViewBuilder content is caller-supplied and never reassigned —
+            // `var` is refused.
+            if property.isViewBuilder, !property.isLet {
+                context.diagnose(
+                    Diagnostic(
+                        node: Syntax(binding),
+                        message: DataTypeMacroDiagnostic.viewBuilderMustBeLet(
+                            macroName: macroName, propertyName: property.name
+                        )
+                    )
+                )
+                hadError = true
+                continue
+            }
+
             // A private property with no property wrapper at all is opaque
             // view-owned state that's neither a source of truth nor something
             // a caller supplies — pure data flow has no room for it, so it
@@ -337,6 +352,16 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
             message:
                 "'\(propertyName)' uses @\(wrapperName), which a caller supplies through @\(macroName)'s generated init — declaring it private makes it unreachable. Remove `private`/`fileprivate` from '\(propertyName)'.",
             id: "callerSuppliedWrapperMustNotBePrivate"
+        )
+    }
+
+    public static func viewBuilderMustBeLet(macroName: String, propertyName: String)
+        -> DataTypeMacroDiagnostic
+    {
+        DataTypeMacroDiagnostic(
+            message:
+                "'\(propertyName)' must be a `let` — @ViewBuilder content is caller-supplied through @\(macroName)'s generated init and never reassigned.",
+            id: "viewBuilderMustBeLet"
         )
     }
 

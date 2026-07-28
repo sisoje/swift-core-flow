@@ -326,11 +326,12 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testPlainViewBuilderAndUnmappedNonPrivateFieldsStayInTheInit() {
-        // @ViewBuilder survives only on the stored-closure form (content);
-        // on the stored-value form (footer) it would force the synthesized
-        // init to wrap the parameter in a builder closure to no benefit
-        // (verified directly). @Bindable: unmapped, non-private → an
-        // ordinary memberwise parameter.
+        // @ViewBuilder is copied untouched on both forms, `let` included —
+        // an attribute like any other, so Core keeps the host's own
+        // declaration. On the stored-value form (footer) that means Core's
+        // synthesized init takes a builder closure rather than a bare value
+        // (verified directly), matching the host's call shape. @Bindable:
+        // unmapped, non-private → an ordinary memberwise parameter.
         assertMacroExpansion(
             """
             @Shell
@@ -351,11 +352,36 @@ final class ShellSyntaxTests: XCTestCase {
                     struct Core {
                         var subtitle: String?
                         @Bindable var model: Settings
-                        @ViewBuilder var content: () -> Content
-                        var footer: Content
+                        @ViewBuilder let content: () -> Content
+                        @ViewBuilder let footer: Content
                     }
                 }
                 """,
+            macros: macros
+        )
+    }
+
+    func testViewBuilderDeclaredVarIsDiagnosed() {
+        // @ViewBuilder content is caller-supplied and never reassigned —
+        // `var` is a compile error, not accommodated.
+        assertMacroExpansion(
+            """
+            @Shell
+            struct ProfileCard<Content: View> {
+                @ViewBuilder var footer: Content
+            }
+            """,
+            expandedSource: """
+                struct ProfileCard<Content: View> {
+                    @ViewBuilder var footer: Content
+                }
+                """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message:
+                        "'footer' must be a `let` — @ViewBuilder content is caller-supplied through @Shell's generated init and never reassigned.",
+                    line: 3, column: 22)
+            ],
             macros: macros
         )
     }
