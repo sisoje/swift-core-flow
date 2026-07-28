@@ -3,8 +3,9 @@ import SwiftSyntax
 /// `Core` — the host's standalone twin: every collected stored property
 /// (collection already refused anything unrenderable —
 /// `plainPrivatePropertyNotAllowed`, `StoredProperty.swift`) plus a verbatim
-/// copy of every non-stored member. Three field rules, each documented at
-/// its branch below.
+/// copy of every non-stored member. Two field rules — substitute the
+/// whitelist (plus `@ViewBuilder`'s init-machinery tweak), copy everything
+/// else verbatim — each documented at its branch below.
 ///
 /// `Core` and every mapped field are always internal, regardless of the
 /// host's access (verbatim copies keep their own access, `public` erased):
@@ -24,7 +25,7 @@ func renderShell(
     copiedMembers: [String] = []
 ) -> [DeclSyntax] {
     let fieldDecls = properties.map { p -> String in
-        // Rule 2 — the whitelist (`isSubstitutedOnCore`): the source-of-truth
+        // Rule 1 — the whitelist (`isSubstitutedOnCore`): the source-of-truth
         // set becomes test-suppliable stand-ins. @State/@AppStorage/
         // @SceneStorage share one case — each one's projectedValue genuinely
         // IS Binding<T> (verified directly), so a test-supplied
@@ -53,33 +54,34 @@ func renderShell(
                 ? "var \(p.name): \(type)"
                 : "@ViewBuilder var \(p.name): \(type)"
         }
-        // Rule 1 — plain let/var: specifier and default kept, access
-        // stripped. Swift's memberwise rules then apply as on the host: a
-        // `let` with a default is a constant, no init parameter.
-        guard let attributeText = p.attributeText else {
-            let def = p.defaultValue.map { " = \($0.trimmedDescription)" } ?? ""
-            let spec = p.isLet ? "let" : "var"
-            return "\(spec) \(p.name): \(p.type?.trimmedDescription ?? "")\(def)"
-        }
-        // Rule 3 — ANY other wrapper (@Binding included — its verbatim copy
-        // already IS the mock vehicle): whole declaration copied — attribute
-        // arguments, default, `private` kept, `public` erased. Argument
-        // behavior rides along byte-for-byte — proved live by
-        // TrickyDragCardUITests: its custom @GestureState(reset:) closure
-        // fires on Core's copy exactly as on the host; rebuilding from the
-        // bare wrapper name would swap it for the default. A private copy is
+        // Rule 2 — everything else, wrapper or not: the host's own
+        // declaration node re-rendered as written; nothing is reassembled
+        // from parsed pieces. Access is erased by not copying modifiers —
+        // with one exception, `private`/`fileprivate` stay: a private copy is
         // self-initializing by construction, so it drops out of the
         // memberwise init (verified for @Environment arguments, @GestureState
         // inline default, and @Namespace wrapper init()) — sealed: an
         // @Environment copy reads the real environment when hosted (mock via
         // .environment(...)) and default EnvironmentValues outside;
-        // @GestureState starts a fresh gesture at its declared default. A
-        // non-private copy stays a memberwise parameter of the wrapper's
-        // own type.
-        let access = p.isPrivate ? "private " : ""
-        let type = p.type.map { ": \($0.trimmedDescription)" } ?? ""
-        let def = p.defaultValue.map { " = \($0.trimmedDescription)" } ?? ""
-        return "\(attributeText) \(access)var \(p.name)\(type)\(def)"
+        // @GestureState starts a fresh gesture at its declared default.
+        // Erasing `private` instead would resurface each such field as a
+        // wrapper-typed init parameter. A PLAIN private field never gets
+        // here — collection refused it (`plainPrivatePropertyNotAllowed`).
+        // Attribute arguments ride along byte-for-byte — proved live by
+        // TrickyDragCardUITests: its custom @GestureState(reset:) closure
+        // fires on Core's copy exactly as on the host; rebuilding from the
+        // bare wrapper name would swap it for the default.
+        if p.isPrivate {
+            // A private field reaching this rule always carries an attribute
+            // (self-initializing wrapper) — collection refused the plain ones.
+            assert(!p.varDecl.attributes.isEmpty, "plain private fields are refused at collection")
+        }
+        var copy = p.varDecl
+        copy.modifiers = copy.modifiers.filter {
+            $0.name.tokenKind == .keyword(.private) || $0.name.tokenKind == .keyword(.fileprivate)
+        }
+        copy.bindings = PatternBindingListSyntax([p.binding.with(\.trailingComma, nil)])
+        return copy.trimmedDescription
     }.joined(separator: "\n")
 
     let conformance: String

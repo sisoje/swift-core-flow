@@ -13,15 +13,17 @@ public struct StoredProperty {
     public let defaultValue: ExprSyntax?
     /// The property-wrapper type name (`Binding`, `State`, `Environment`, …), or nil.
     public let wrapperName: String?
-    /// The attribute list's source text verbatim, or nil — what `renderShell`
-    /// splices for rule-3 copies: attribute arguments (a `reset:` closure, a
-    /// key path, a `relativeTo:`) can't be reconstructed from the bare
-    /// wrapper name.
-    public let attributeText: String?
     /// True if the property is declared `private` or `fileprivate` — implementation
     /// detail, excluded from the init. This is also what keeps view-owned wrappers
     /// out: `@State`, `@Environment`, … are always private.
     public let isPrivate: Bool
+    /// The raw declaration this property was collected from (`binding` is the
+    /// one pattern binding it covers). `@Shell`'s verbatim copies render from
+    /// these nodes alone (`ShellRendering.swift`); the parsed fields above are
+    /// `@Flowable`'s init/typealias channel and the substituted rows' — the
+    /// two never mix.
+    public let varDecl: VariableDeclSyntax
+    public let binding: PatternBindingSyntax
 
     /// The one wrapper threaded through the init, as its projected `Binding<T>`.
     public var isBinding: Bool {
@@ -44,7 +46,7 @@ public struct StoredProperty {
 
     /// THE mapping whitelist — the only wrappers this package really knows,
     /// exactly the ones `sourceOfTruthMustBePrivate` requires private. Why
-    /// exactly these and no others: `renderShell`'s rule-2 comment.
+    /// exactly these and no others: `renderShell`'s rule-1 comment.
     public var isSubstitutedOnCore: Bool {
         isBindingBackedStorage || isQuery
     }
@@ -123,9 +125,9 @@ public func collectStoredProperties(
                 isLet: isLet,
                 defaultValue: binding.initializer?.value,
                 wrapperName: wrapperName,
-                attributeText: varDecl.attributes.isEmpty
-                    ? nil : varDecl.attributes.trimmedDescription,
-                isPrivate: isPrivate
+                isPrivate: isPrivate,
+                varDecl: varDecl,
+                binding: binding
             )
 
             // A source of truth is a view's own, never caller-supplied

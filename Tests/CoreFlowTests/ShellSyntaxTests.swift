@@ -131,7 +131,7 @@ final class ShellSyntaxTests: XCTestCase {
                     struct Core {
                         @StateObject private var vm: VM = VM()
                         @Whatever(flavor: .spicy) var knob: Int = 7
-                        var flavor: String = "mild"
+                        var flavor = "mild"
                         let title: String
                     }
                 }
@@ -239,8 +239,64 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @Namespace private var ns: Namespace.ID
+                        @Namespace private var ns
                         let title: String
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
+    func testWrapperSpelledWithAQualifiedNameIsStillCopiedVerbatim() {
+        // The verbatim rule keys on "carries attributes", not "carries a
+        // recognized wrapper name": a qualified spelling has no bare
+        // identifier for `propertyWrapperName` to report, and must still
+        // ride along byte-for-byte rather than be stripped to a plain field.
+        assertMacroExpansion(
+            """
+            @Shell
+            struct Card {
+                @MyModule.Tracked var count = 0
+                let title: String
+            }
+            """,
+            expandedSource: """
+                struct Card {
+                    @MyModule.Tracked var count = 0
+                    let title: String
+
+                    struct Core {
+                        @MyModule.Tracked var count = 0
+                        let title: String
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
+    func testPublicIsErasedAndLetIsKeptOnVerbatimCopies() {
+        // Access never reaches Core — `public` is erased by not copying
+        // modifiers — while the host's own `let`/`var` and default ride
+        // along, so a defaulted `let` stays a constant on Core exactly as on
+        // the host.
+        assertMacroExpansion(
+            """
+            @Shell
+            public struct Card {
+                public let title: String = "x"
+                public var subtitle: String
+            }
+            """,
+            expandedSource: """
+                public struct Card {
+                    public let title: String = "x"
+                    public var subtitle: String
+
+                    struct Core {
+                        let title: String = "x"
+                        var subtitle: String
                     }
                 }
                 """,
