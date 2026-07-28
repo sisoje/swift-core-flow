@@ -10,4 +10,5 @@ xcodegen generate
 xcodebuild test \
     -project ExampleApp.xcodeproj \
     -scheme ExampleApp \
-    -destination "platform=iOS Simulator,name=iPhone 17 Pro"
+    -destination "platform=iOS Simulator,name=iPhone 17 Pro" \
+    -collect-test-diagnostics never
