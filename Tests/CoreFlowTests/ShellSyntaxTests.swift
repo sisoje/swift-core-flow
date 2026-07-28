@@ -8,7 +8,8 @@ final class ShellSyntaxTests: XCTestCase {
     let macros: [String: Macro.Type] = ["Shell": ShellMacro.self]
 
     func testMixOfPlainQueryEnvironmentStateAndBindingFields() {
-        // All three rules in one type. @Environment: verbatim copy,
+        // Both rules in one type. @State: Core's own state, the host's line
+        // renamed to @TestState. @Environment: verbatim copy,
         // self-initialized by its key-path argument, so it drops out of
         // Core's memberwise init — live environment when hosted, default
         // EnvironmentValues otherwise. Bare-value @QueryCore init:
@@ -35,7 +36,7 @@ final class ShellSyntaxTests: XCTestCase {
                     struct Core {
                         @QueryCore var items: [Item]
                         @Environment(\\.colorScheme) private var colorScheme: ColorScheme
-                        @Binding var isExpanded: Bool
+                        @TestState private var isExpanded: Bool = false
                         @Binding var isOn: Bool
                         let title: String
                     }
@@ -194,9 +195,10 @@ final class ShellSyntaxTests: XCTestCase {
     }
 
     func testSceneStorageFoldsIntoTheSameBindingSubstitutionAsAppStorage() {
-        // Shares @State/@AppStorage's exact shape (settable wrappedValue,
-        // projectedValue genuinely Binding<T> — verified directly), hence
-        // the same substitution with no separate case.
+        // External storage is a dependency, injected as @Binding, the mock
+        // vehicle — same shape as @AppStorage (settable wrappedValue,
+        // Binding projection — verified directly), one case for both. The
+        // key is dropped: a test twin doesn't persist.
         assertMacroExpansion(
             """
             @Shell
@@ -361,6 +363,31 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
+    func testStateWithoutAnInlineDefaultIsDiagnosed() {
+        // Core re-declares @State as @TestState with the host's default
+        // copied — nothing to copy is diagnosed, never silently patched.
+        assertMacroExpansion(
+            """
+            @Shell
+            struct Card {
+                @State private var selection: Int?
+            }
+            """,
+            expandedSource: """
+                struct Card {
+                    @State private var selection: Int?
+                }
+                """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message:
+                        "'selection' needs an inline default — @Shell re-declares @State as @TestState on Core and copies the default.",
+                    line: 3, column: 24)
+            ],
+            macros: macros
+        )
+    }
+
     func testViewBuilderDeclaredVarIsDiagnosed() {
         // @ViewBuilder content is caller-supplied and never reassigned —
         // `var` is a compile error, not accommodated.
@@ -408,7 +435,7 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     struct Core: View {
-                        @Binding var count: Int
+                        @TestState private var count: Int = 0
 
                         var body: some View {
                             Text("\\(count)")
@@ -443,7 +470,7 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     struct Core: ViewModifier {
-                        @Binding var level: Double
+                        @TestState private var level: Double = 0.5
 
                         func body(content: Content) -> some View {
                             content.opacity(level)
@@ -503,7 +530,7 @@ final class ShellSyntaxTests: XCTestCase {
                     }
 
                     struct Core: View {
-                        @Binding var count: Int
+                        @TestState private var count: Int = 0
 
                         static let spacing: CGFloat = 8
 

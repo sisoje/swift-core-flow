@@ -26,9 +26,10 @@ func renderShell(
 ) -> [DeclSyntax] {
     let fieldDecls = properties.map { p -> String in
         // Rule 1 — the whitelist (`isSubstitutedOnCore`): the source-of-truth
-        // set becomes test-suppliable stand-ins. @State/@AppStorage/
-        // @SceneStorage share one case — each one's projectedValue genuinely
-        // IS Binding<T> (verified directly), so a test-supplied
+        // set becomes test-suppliable stand-ins (@State's stand-in is a
+        // renamed verbatim copy — rule 2). @AppStorage/@SceneStorage are
+        // external storage, injected as @Binding — each one's projectedValue
+        // genuinely IS Binding<T> (verified directly), so a test-supplied
         // Binding(get:set:) captures every write the copied body makes.
         // @Query → @QueryCore, whose extra fields default so the memberwise
         // init takes the bare fetched value: `Core(items: [item], …)`.
@@ -36,7 +37,7 @@ func renderShell(
         // their .Binding projections have no public initializer and their
         // writes no-op outside a live view (both verified directly) — a
         // substitution would be a pass-through, not a mock.
-        if p.isBindingBackedStorage {
+        if p.isExternalStorage {
             return "@Binding var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         if p.isQuery {
@@ -54,6 +55,21 @@ func renderShell(
             assert(!p.varDecl.attributes.isEmpty, "plain private fields are refused at collection")
         }
         var copy = p.varDecl
+        // @State — the view's OWN state — copies with just the wrapper
+        // renamed: @TestState, still private and defaulted, logging every
+        // mutation.
+        if p.isOwnState {
+            assert(p.isPrivate, "collection refuses non-private @State")
+            copy.attributes = AttributeListSyntax(
+                copy.attributes.map { element in
+                    guard case .attribute(var a) = element,
+                        a.attributeName.trimmedDescription == "State"
+                    else { return element }
+                    a.attributeName = TypeSyntax("TestState")
+                        .with(\.trailingTrivia, a.attributeName.trailingTrivia)
+                    return .attribute(a)
+                })
+        }
         copy.modifiers = copy.modifiers.filter {
             $0.name.tokenKind == .keyword(.private) || $0.name.tokenKind == .keyword(.fileprivate)
         }

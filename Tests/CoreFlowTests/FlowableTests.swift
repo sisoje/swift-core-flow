@@ -283,6 +283,40 @@ final class FlowableTests: XCTestCase {
         )
     }
 
+    func testStateWithoutAnInlineDefaultIsFineHereItIsShellsRule() {
+        // @Shell diagnoses a defaultless @State (Core copies the default
+        // onto its @TestState field); @Flowable renders nothing from a
+        // private @State, so it has no stake and stays out of the way.
+        assertMacroExpansion(
+            """
+            @Flowable
+            struct Card: View {
+                @State private var selection: Int?
+                var title: String
+            }
+            """,
+            expandedSource: """
+                struct Card: View {
+                    @State private var selection: Int?
+                    var title: String
+
+                    init(title: String) {
+                        self.title = title
+                    }
+
+                    typealias InFlowSplat = String
+
+                    static func makeFlow(_ flow: InFlowSplat) -> Self {
+                        Self(title: flow)
+                    }
+
+                    typealias InFlow = String
+                }
+                """,
+            macros: macros
+        )
+    }
+
     func testDiagnosesPlainPrivatePropertyWithNoWrapper() {
         // A private property with no property wrapper is a compile error, not
         // a silent exclusion: pure data flow has no room for opaque private

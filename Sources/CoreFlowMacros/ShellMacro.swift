@@ -1,3 +1,4 @@
+import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
@@ -91,6 +92,19 @@ public enum ShellMacro: MemberMacro {
         else {
             return []
         }
+        // Core re-declares @State as @TestState and copies the host's
+        // default — nothing to copy is diagnosed, never silently patched.
+        var hadError = false
+        for p in properties where p.isOwnState && p.defaultValue == nil {
+            context.diagnose(
+                Diagnostic(
+                    node: Syntax(p.binding),
+                    message: DataTypeMacroDiagnostic.stateNeedsInlineDefault(propertyName: p.name)
+                )
+            )
+            hadError = true
+        }
+        if hadError { return [] }
         return renderShell(
             properties: properties, hostKind: detectHostKind(of: declaration),
             copiedMembers: copiedMemberSources(of: declaration))

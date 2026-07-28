@@ -9,6 +9,7 @@
 /// @Shell
 /// struct Card: View {
 ///     @Query private var items: [Item]
+///     @AppStorage("sortByAuthor") private var sortByAuthor = false
 ///     @State private var isExpanded: Bool = false
 ///     let title: String
 ///
@@ -17,44 +18,51 @@
 ///     // generates:
 ///     // struct Core: View {
 ///     //     @QueryCore var items: [Item]
-///     //     @Binding var isExpanded: Bool
+///     //     @Binding var sortByAuthor: Bool
+///     //     @TestState private var isExpanded: Bool = false
 ///     //     let title: String
 ///     //     var body: some View { ... }   <- the same text, copied
 ///     // }
 /// }
 ///
 /// // constructed directly, no live view — the @QueryCore parameter is the
-/// // bare fetched value:
-/// // Card.Core(items: [item], isExpanded: .constant(true), title: "t")
+/// // bare fetched value; the private state field isn't a parameter at all:
+/// // Card.Core(items: [item], sortByAuthor: .constant(false), title: "t")
 /// ```
 ///
 /// Field rules (full reference: README's Shell chapter; rationale at each
 /// branch in `ShellRendering.swift`):
 ///
-/// - **Plain fields** copy as-is, `public` stripped; a *private* plain field
-///   is a compile error (`plainPrivatePropertyNotAllowed`).
-/// - **The whitelist** — `@State`/`@AppStorage`/`@SceneStorage` → `@Binding`,
-///   `@Query` → `@QueryCore` (`QueryCore.swift`) — must be private
-///   (`sourceOfTruthMustBePrivate`): a view's own source of truth is never
-///   caller-supplied. Conversely `@Binding`/`@ViewBuilder` must NOT be
-///   private — callers supply them through the init.
-/// - **Every other wrapper** copies verbatim — attribute arguments, default,
-///   and `private` kept. A private copy is self-initializing and sealed
-///   (an `@Environment` copy reads the real environment when hosted — mock
-///   it via `.environment(...)` — and default `EnvironmentValues` outside);
-///   a non-private copy stays a memberwise parameter of the wrapper's type.
+/// - **The whitelist**, required private (`sourceOfTruthMustBePrivate`):
+///   `@State` → `@TestState private`, the host's line with the wrapper
+///   renamed — Core owns the state itself, sealed, starting at the host's
+///   inline default (required — `stateNeedsInlineDefault`), logging every
+///   mutation. `@AppStorage`/`@SceneStorage` → `@Binding` — external
+///   storage is a dependency the test supplies (keys dropped). `@Query` →
+///   `@QueryCore` (`QueryCore.swift`) — the fetched value as a bare init
+///   parameter. Conversely `@Binding`/`@ViewBuilder` must NOT be private —
+///   callers supply them through the init.
+/// - **Everything else copies verbatim**, wrapper or not — attribute
+///   arguments, `let`/`var`, and default as written; access erased except
+///   `private`, which is kept (a *plain* private field is a compile error,
+///   `plainPrivatePropertyNotAllowed`). A private copy is self-initializing
+///   and sealed (an `@Environment` copy reads the real environment when
+///   hosted — mock it via `.environment(...)` — and default
+///   `EnvironmentValues` outside); a non-private copy stays a memberwise
+///   parameter of the wrapper's type.
 ///
 /// No init is generated or copied — tests construct `Core` through Swift's
 /// synthesized memberwise init, and a copied init would suppress it.
-/// Mocking is use-site code, deliberately not generated:
+/// Backing a `Binding` parameter is use-site code, deliberately not
+/// generated:
 ///
 /// ```swift
 /// var writes: [Bool] = []
 /// let core = Card.Core(
 ///     items: [item],
-///     isExpanded: Binding(get: { false }, set: { writes.append($0) }),
+///     sortByAuthor: Binding(get: { false }, set: { writes.append($0) }),
 ///     title: "t")
-/// core.isExpanded = true          // body writes land in `writes`
+/// core.sortByAuthor = true        // body writes land in `writes`
 /// ```
 ///
 /// `Core` is always internal, never `@Flowable` — a testing/preview seam,

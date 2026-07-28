@@ -48,7 +48,7 @@ public struct StoredProperty {
     /// exactly the ones `sourceOfTruthMustBePrivate` requires private. Why
     /// exactly these and no others: `renderShell`'s rule-1 comment.
     public var isSubstitutedOnCore: Bool {
-        isBindingBackedStorage || isQuery
+        isOwnState || isExternalStorage || isQuery
     }
 
     /// `@Query` → `@QueryCore` on `Core` (`QueryCore.swift` documents the
@@ -57,15 +57,18 @@ public struct StoredProperty {
         wrapperName == "Query"
     }
 
-    /// One case for all three because all three share the same shape —
-    /// verified directly against the real SwiftUI interface: `wrappedValue`
-    /// is `{ get nonmutating set }` and `projectedValue` genuinely *is*
-    /// `Binding<T>` ($x; `_x` gives the wrapper instance itself, `State<T>`).
-    /// Their storage installs only inside a live view, so they can't be
-    /// redeclared as themselves on a plain struct — `@Binding` is the
-    /// injectable substitute.
-    public var isBindingBackedStorage: Bool {
-        wrapperName == "State" || wrapperName == "AppStorage" || wrapperName == "SceneStorage"
+    /// The view's OWN state → `@TestState private` on `Core`: the host's
+    /// line with the wrapper renamed — same default, every mutation logged.
+    public var isOwnState: Bool {
+        wrapperName == "State"
+    }
+
+    /// EXTERNAL storage — a dependency, injected as `@Binding` on `Core`:
+    /// same shape (settable `wrappedValue`, `projectedValue` genuinely *is*
+    /// `Binding<T>` — verified directly), and their storage installs only
+    /// inside a live view, so they can't be redeclared on a plain struct.
+    public var isExternalStorage: Bool {
+        wrapperName == "AppStorage" || wrapperName == "SceneStorage"
     }
 }
 
@@ -362,6 +365,19 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
             message:
                 "'\(propertyName)' must be a `let` — @ViewBuilder content is caller-supplied through @\(macroName)'s generated init and never reassigned.",
             id: "viewBuilderMustBeLet"
+        )
+    }
+
+    /// `@Shell`'s own rule, checked in `ShellMacro` rather than the shared
+    /// collection — `@Flowable` renders nothing from a private `@State`, so
+    /// it has no stake in the default.
+    public static func stateNeedsInlineDefault(propertyName: String)
+        -> DataTypeMacroDiagnostic
+    {
+        DataTypeMacroDiagnostic(
+            message:
+                "'\(propertyName)' needs an inline default — @Shell re-declares @State as @TestState on Core and copies the default.",
+            id: "stateNeedsInlineDefault"
         )
     }
 
