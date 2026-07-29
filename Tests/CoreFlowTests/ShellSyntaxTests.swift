@@ -278,6 +278,33 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
+    func testPrivateQualifiedWrapperIsNotMistakenForPlainPrivateState() {
+        // The plain-private lint keys on "no attributes at all": a qualified
+        // spelling reports no bare wrapper name yet IS a wrapper — sealed
+        // verbatim copy, not a refusal.
+        assertMacroExpansion(
+            """
+            @Shell
+            struct Card {
+                @MyModule.Tracked private var count = 0
+                let title: String
+            }
+            """,
+            expandedSource: """
+                struct Card {
+                    @MyModule.Tracked private var count = 0
+                    let title: String
+
+                    struct Core {
+                        @MyModule.Tracked private var count = 0
+                        let title: String
+                    }
+                }
+                """,
+            macros: macros
+        )
+    }
+
     func testPublicIsErasedAndLetIsKeptOnVerbatimCopies() {
         // Access never reaches Core — `public` is erased by not copying
         // modifiers — while the host's own `let`/`var` and default ride

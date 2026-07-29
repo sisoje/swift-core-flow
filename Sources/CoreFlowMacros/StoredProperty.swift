@@ -184,11 +184,14 @@ public func collectStoredProperties(
                 continue
             }
 
-            // A private property with no property wrapper at all is opaque
+            // A private property with no attributes at all is opaque
             // view-owned state that's neither a source of truth nor something
             // a caller supplies — pure data flow has no room for it, so it
-            // fails loudly instead of being silently excluded.
-            if property.isPrivate, property.wrapperName == nil {
+            // fails loudly instead of being silently excluded. "No attributes",
+            // NOT "no recognized wrapper name": a qualified spelling
+            // (`@MyModule.Tracked`) reports no bare identifier yet is a
+            // wrapper, riding rule 2 verbatim like its unqualified twin.
+            if property.isPrivate, varDecl.attributes.isEmpty {
                 context.diagnose(
                     Diagnostic(
                         node: Syntax(binding),
