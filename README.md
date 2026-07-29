@@ -148,7 +148,7 @@ gesture, so no substitution is attempted: machinery stays verbatim on
 > the mapped wrappers instead. These are classes: reference-type state
 > containers bolted onto a value-type dataflow, opaque to SwiftUI's
 > dependency graph and to any snapshot of plain data — they clog the data
-> flow. This isn't a fringe position — see the anti-MVVM entries in
+> flow. The full argument: the anti-MVVM entries in
 > [References](#references).
 
 ### Mocking the bindings
@@ -1122,6 +1122,10 @@ Swift tools version 6.3, Swift 6 language mode (strict concurrency), swift-synta
 
 ## References
 
+The conceptual model, taught macro-free — the split these macros mechanize:
+
+- Lazar Otasevic — [SwiftUI Data Flow Masterclass](https://medium.com/@redhotbits/swiftui-data-flow-masterclass-099f0768f776) — nodes, waves, boundary events, the shell/core split, execution-log testing
+
 Data-flow programming and data coupling — the model behind the package as a
 whole: a SwiftUI app as nodes (views, view modifiers) coupled only by the
 plain data flowing between them:
@@ -1141,6 +1145,5 @@ Capability-based design — the idea behind `@Capability`:
 
 Against ViewModels/`ObservableObject` in SwiftUI — why `@StateObject`/`@ObservedObject` stay unmapped:
 
-- Apple Developer Forums — [Stop using MVVM for SwiftUI](https://developer.apple.com/forums/thread/699003)
-- karamage — [Stop using MVVM with SwiftUI](https://medium.com/@karamage/stop-using-mvvm-with-swiftui-2c46eb2cc8dc)
-- Azam Sharp — [SwiftUI Architecture: A Complete Guide to the MV Pattern Approach](https://medium.com/better-programming/swiftui-architecture-a-complete-guide-to-mv-pattern-approach-5f411eaaaf9e) ("the View is the view model")
+- Lazar Otasevic — [Why MVVM Fails in SwiftUI](https://medium.com/@redhotbits/why-mvvm-fails-in-swiftui-47f73b05b458)
+- Lazar Otasevic — [The Logical Fallacy Behind Your Broken SwiftUI Mental Model](https://medium.com/@redhotbits/from-science-to-swiftui-the-reification-of-behavior-1800f86a6aed)
