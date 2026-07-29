@@ -61,10 +61,13 @@ extension View {
 /// expecting `$name` fails in the compiler's own words.
 ///
 /// `$name` and every other generated member is private — only the host's own
-/// `body` wires them. Keep the property itself internal: `private` would drag
-/// Swift's memberwise init down to `private` too, forcing a hand-written
-/// `init() {}` (the generated peers don't — the storage is subsumed by the
-/// init accessor and `log_x` has a default, so neither becomes a parameter).
+/// `body` wires them. The property's own access picks its role: internal +
+/// defaulted → a defaulted memberwise-init parameter (a scenario host
+/// constructs bare); private + defaulted → excluded from the memberwise
+/// init entirely, a sealed source of truth that logs (what `@Shell`
+/// generates on `Core` — verified directly, the init stays internal; the
+/// generated peers never become parameters either way — the storage is
+/// subsumed by the init accessor and `log_x` has a default).
 /// Outside a live view, `\.testLog` reads its no-op default — logging is
 /// verified where a real render installs the sink.
 @attached(accessor, names: named(init), named(get), named(set))

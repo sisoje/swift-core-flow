@@ -13,9 +13,8 @@ public struct StoredProperty {
     public let defaultValue: ExprSyntax?
     /// The property-wrapper type name (`Binding`, `State`, `Environment`, …), or nil.
     public let wrapperName: String?
-    /// True if the property is declared `private` or `fileprivate` — implementation
-    /// detail, excluded from the init. This is also what keeps view-owned wrappers
-    /// out: `@State`, `@Environment`, … are always private.
+    /// `private` marks a source of truth (or runtime machinery) — excluded
+    /// from the init; data flows in through the non-private properties.
     public let isPrivate: Bool
     /// The raw declaration this property was collected from (`binding` is the
     /// one pattern binding it covers). `@Shell`'s verbatim copies render from

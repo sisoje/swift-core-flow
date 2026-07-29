@@ -390,6 +390,31 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
+    func testNonPrivateSourceOfTruthIsDiagnosedUnderShellToo() {
+        // The shared collection enforces the privacy invariant for @Shell
+        // exactly as for @Flowable — a non-private SOT is never accommodated.
+        assertMacroExpansion(
+            """
+            @Shell
+            struct Card {
+                @State var isOn: Bool = false
+            }
+            """,
+            expandedSource: """
+                struct Card {
+                    @State var isOn: Bool = false
+                }
+                """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message:
+                        "'isOn' must be private — @State/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                    line: 3, column: 16)
+            ],
+            macros: macros
+        )
+    }
+
     func testStateWithoutAnInlineDefaultIsDiagnosed() {
         // Core re-declares @State as @TestState with the host's default
         // copied — nothing to copy is diagnosed, never silently patched.

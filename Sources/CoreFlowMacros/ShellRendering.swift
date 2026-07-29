@@ -7,9 +7,11 @@ import SwiftSyntax
 /// whitelist, copy everything else verbatim — each documented at its
 /// branch below.
 ///
-/// `Core` and every mapped field are always internal, regardless of the
-/// host's access (verbatim copies keep their own access, `public` erased):
-/// a testing/preview seam, not API surface. No init is generated or
+/// `Core` is always internal, regardless of the host's access — a
+/// testing/preview seam, not API surface. Field access follows the branch:
+/// the `@State` substitution stays private (the view's own SOT), the other
+/// mapped fields are internal, verbatim copies keep their own access
+/// (`public` erased). No init is generated or
 /// copied — a copied init would suppress the synthesized memberwise init,
 /// the only way tests construct a `Core`, and synthesis already reproduces
 /// every field-specific behavior (verified directly: a wrapper without
