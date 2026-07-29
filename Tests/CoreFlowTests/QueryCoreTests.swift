@@ -8,10 +8,10 @@
     // ModelContainer anywhere in this file.
 
     /// A hand-written stand-in for what `@Shell` generates: because
-    /// `QueryCore.init` is callable with the wrapped value alone (both extra
-    /// params default), Swift's synthesized memberwise init here takes the
+    /// `QueryCore.init` is callable with the wrapped value alone (`fetchError`
+    /// defaults), Swift's synthesized memberwise init here takes the
     /// *bare* fetched value — `FakeCore(items: [1], title: "t")`, no
-    /// `QueryCore` spelling — which is the ergonomic point of those defaults.
+    /// `QueryCore` spelling — which is the ergonomic point of that default.
     private struct FakeCore {
         @QueryCore var items: [Int]
         var title: String
@@ -32,15 +32,13 @@
 
     @Suite struct QueryCoreTests {
 
-        @Test func bothExtraFieldsDefaultSoOneArgConstructionWorks() {
-            // `fetchError` defaults to nil; `modelContext` defaults to
-            // `Environment(\.modelContext).wrappedValue`, evaluated outside any
-            // live view — this test IS the "verified directly, no trap" claim in
-            // QueryCore.swift's doc comment.
+        @Test func fetchErrorDefaultsSoOneArgConstructionWorks() {
+            // `fetchError` defaults to nil, so the wrapper constructs from the
+            // value alone; `modelContext` is environment-fed and installs only
+            // hosted — nothing to read here.
             let snap = QueryCore(wrappedValue: [1, 2, 3])
             #expect(snap.wrappedValue == [1, 2, 3])
             #expect(snap.fetchError == nil)
-            _ = snap.modelContext  // reachable, real, no trap
         }
 
         @Test func memberwiseInitTakesTheBareFetchedValue() {

@@ -88,17 +88,6 @@ private final class CardModel {
         #expect(stored == false)
     }
 
-    @Test func copiedBodyAndHelperEvaluateAgainstTheDefaultEnvironment() {
-        // The copied @Environment reads default EnvironmentValues outside a
-        // live view (.light — hence un-uppercased). Mocking an environment
-        // VALUE is the one thing direct construction can't do (get-only
-        // wrapper); hosted, `.environment(\.colorScheme, .dark)` is the
-        // native story.
-        let snap = makeCore(title: "abc")
-        #expect(snap.heading == "abc")
-        _ = snap.body
-    }
-
     @Test func bindingFieldWritesThroughRealStorage() {
         // A Binding is just a getter/setter pair, not tied to view identity —
         // writes through Core reach the backing storage.
@@ -134,9 +123,10 @@ private final class CardModel {
     @Test func privateVerbatimWrappersAreCompletelySealed() {
         // Private verbatim copies are sealed: no init parameter, no exposed
         // value. All that's observable is that construction works without
-        // them and the copied members still evaluate.
+        // them. (Evaluating body/heading here would read the copied
+        // @Environment uninstalled — a SwiftUI runtime issue; hosted is
+        // that story.)
         let snap = makeCore(title: "t")
         #expect(snap.title == "t")
-        _ = snap.body
     }
 }

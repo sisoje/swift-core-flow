@@ -270,18 +270,20 @@ drop-in stand-in `@Shell` substitutes for `@Query` (`@QueryCore var name:
 T`). One-to-one with the real `Query<Element, Result>`'s instance surface —
 verified directly against the `_SwiftData_SwiftUI` interface: exactly
 `wrappedValue`, `fetchError`, and `modelContext`, and **no
-`projectedValue`**, so `QueryCore` carries the same three members and no
+`projectedValue`**, so `QueryCore` carries the same three members (its
+`modelContext` private) and no
 `$x` projection either — a bare `(wrappedValue:, fetchError:)` tuple is
 deliberately not enough. The point is read-surface parity with the live
 wrapper: the host's `body` text (`items.isEmpty`, `ForEach(items)`) is
 copied onto `Core` verbatim, and it compiles there only because
 `core.items` still reads the array directly — a tuple field would force
-`.items.wrappedValue` on every copied read. Both extra init params
-default — `fetchError` to `nil`,
-`modelContext` to `Environment(\.modelContext).wrappedValue`, the
-environment's own default context, evaluated outside any live view
-(verified directly, a real context, no trap) — since a test mocking a
-fetched result almost never cares about either: `QueryCore(wrappedValue:
+`.items.wrappedValue` on every copied read. `modelContext` is
+environment-fed like the live wrapper's — a private `@Environment`
+(`\.modelContext`) field, installed when `Core` is hosted (`QueryCore` is
+a `DynamicProperty`; mock via `.modelContainer`/`.environment`), never
+read unhosted, not an init parameter. `fetchError` defaults to `nil` — a
+test mocking a
+fetched result almost never cares: `QueryCore(wrappedValue:
 [item])` just works. An init callable with `wrappedValue` alone makes
 Swift's synthesized memberwise init for a `@QueryCore` field take the
 *bare* value (verified directly, locked in by `QueryCoreTests`) —
@@ -537,10 +539,11 @@ aren't seen (same syntax-only limitation as host-kind detection).
   `@Test` function crosses that boundary at runtime and traps (`SIGTRAP`)
   under Swift 6 strict concurrency, even just reading a computed property.
 - See `Tests/CoreFlowTests/ShellTests.swift` for the model demonstrated
-  end-to-end — direct `Core` construction (`makeCore`), the copied
-  body/helper evaluating against mocked fields, the external-storage
-  binding capturing writes, and the `@MainActor` requirement above in
-  force — and
+  end-to-end — direct `Core` construction (`makeCore`), the
+  external-storage binding capturing writes, and the `@MainActor`
+  requirement above in force (body/heading stay unevaluated there: the
+  copied `@Environment` would be an uninstalled read, a SwiftUI runtime
+  issue) — and
   `Tests/CoreFlowTests/ShellSyntaxTests.swift` for the expansion shape,
   including the copy rules
   (`testHelpersStaticMembersAndNestedTypesAreCopiedButInitsAreNot`), the
@@ -641,9 +644,10 @@ it's declared.
   shape that can't inherit the isolation — `await`s the log IN ORDER before
   forwarding; deliberately no fire-and-forget `Task`, which could reorder
   log lines against synchronous state writes. Outside a live view the entry
-  reads its no-op default, so package unit tests verify the generated
-  surface and forwarding (`TestSupportTests.swift`, `@MainActor` suite)
-  while the log-through-environment path is verified live by the example
+  reads its no-op default — but SwiftUI flags the uninstalled read as a
+  runtime issue, so package unit tests stop at the generated surface and
+  seed reads (`TestSupportTests.swift`, `@MainActor` suite) while logging
+  and forwarding are verified live by the example
   app's UI tests. Expansion shapes: `TestSupportSyntaxTests.swift`.
 - **Log effects, never getters — the criterion is who owns the invocation
   timing.** Setters and action calls fire when the component's own logic

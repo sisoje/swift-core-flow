@@ -184,19 +184,20 @@ Swift 6 strict concurrency, even just reading a computed property.
   Verified directly against the `_SwiftData_SwiftUI` interface: `Query`'s
   instance surface is exactly `wrappedValue`, `fetchError`, and
   `modelContext`, with **no `projectedValue`** — so `QueryCore` carries the
-  same three and nothing else. That read-surface match is what lets the
+  same three (its `modelContext` private) and nothing else. That read-surface match is what lets the
   copied `body` compile on `Core`: the host's body text was written against
   the live wrapper (`items.isEmpty`, `ForEach(items)`), and on `Core` the
   same text still works because `core.items` reads the mock's array
-  directly — `_items.fetchError`/`_items.modelContext` spell the same on
-  both sides too. Both extra fields
-  default (`fetchError` to `nil`, `modelContext` to the environment's own
-  default context — safe outside any live view, verified directly, no crash),
+  directly — `_items.fetchError` spells the same on
+  both sides too. `modelContext` is environment-fed like the live
+  wrapper's (a private `@Environment` field — `QueryCore` is a
+  `DynamicProperty`, so it installs when `Core` is hosted, mocked via
+  `.modelContainer`/`.environment`, and is never read unhosted);
+  `fetchError` defaults to `nil`,
   which makes `QueryCore`'s init callable with the wrapped value alone — so
   `Core`'s synthesized memberwise init takes the *bare* fetched value, and a
   test writes `Core(items: [item], title: "t")` with no `QueryCore` spelling
-  at all (a directly constructed `Core`'s `fetchError`/`modelContext` take
-  `QueryCore`'s defaults).
+  at all.
 - **The verbatim row is one uniform rule, not a bag of special cases.**
   Whatever behavior lives in an unmapped wrapper's own attribute arguments —
   a `@GestureState(reset:)` closure, an `@Environment` key path, a
