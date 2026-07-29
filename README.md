@@ -238,6 +238,15 @@ substitutions stay private (the view's own source of truth), the other
 substitutions are internal, verbatim copies keep `private` if the host
 declared it (`public` is erased).
 
+Internal also means **release builds ship no `Core` at all** — verified
+directly against a release binary (`-O`, whole-module optimization, the
+default for SPM and Xcode alike): an internal type nothing reaches is
+eliminated by the *compiler* — code, metadata, and its `View` conformance
+record, zero symbols in the binary — while the host beside it keeps every
+symbol; the same source in a debug build carries the full `Core`. Tests and
+previews run in debug, where the twin is fully present, so no `#if DEBUG`
+is needed anywhere: release pays zero bytes for `Core`.
+
 No init is generated or copied either. Swift's own memberwise-init synthesis
 already handles every field-specific behavior — verified directly: a
 property-wrapper field with no
