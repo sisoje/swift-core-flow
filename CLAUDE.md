@@ -330,8 +330,8 @@ init parameter, no SwiftData stack (see the `QueryCore` notes above);
 **rule 2**, everything else, wrapper or not: the host's own declaration
 node re-rendered as written — attribute arguments, `let`/`var`, default,
 and any `willSet`/`didSet` observer block ride along byte-for-byte (the
-`binding` is spliced whole). Access is erased by NOT copying modifiers;
-`private`/`fileprivate` alone survive the filter — a private copy is
+`binding` is spliced whole). `public` is erased — Core is internal;
+`private` stays — a private copy is
 self-initializing and sealed out of the memberwise init, and erasing it
 would resurface the field as a wrapper-typed init parameter. A plain
 private field can't reach rendering (collection refused it —

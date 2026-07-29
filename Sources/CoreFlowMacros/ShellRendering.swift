@@ -44,8 +44,8 @@ func renderShell(
             return "@QueryCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         // Rule 2 — everything else, wrapper or not, @ViewBuilder included:
-        // the host's own declaration re-rendered as written, access erased
-        // by not copying modifiers. `private`/`fileprivate` stay — a private
+        // the host's own declaration re-rendered as written, `public` erased
+        // (Core is internal). `private` stays — a private
         // wrapper copy is self-initializing and sealed out of the memberwise
         // init; erasing it would resurface the field as a wrapper-typed
         // parameter. Attribute arguments (a @GestureState(reset:) closure)
@@ -71,7 +71,7 @@ func renderShell(
                 })
         }
         copy.modifiers = copy.modifiers.filter {
-            $0.name.tokenKind == .keyword(.private) || $0.name.tokenKind == .keyword(.fileprivate)
+            $0.name.tokenKind != .keyword(.public)
         }
         copy.bindings = PatternBindingListSyntax([p.binding.with(\.trailingComma, nil)])
         return copy.trimmedDescription
