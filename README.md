@@ -202,7 +202,7 @@ Swift 6 strict concurrency, even just reading a computed property.
   a `@GestureState(reset:)` closure, an `@Environment` key path, a
   `@ScaledMetric(relativeTo:)` — rides onto `Core` byte-for-byte with
   nothing to reconstruct, proved live by a UI test (`TrickyDragCardUITests`
-  in the ExampleApp: the custom reset closure fires on `Core`'s copy
+  in `CoreFlowExample`: the custom reset closure fires on `Core`'s copy
   exactly as on the host). A private copy is self-initializing (the host compiled
   without an init assigning it), so it drops out of `Core`'s memberwise init
   and produces its value live instead: an `@Environment` copy reads the *real* environment
@@ -353,7 +353,7 @@ action that *logs*, tap it for real, check the log. Literally:
 
 ```swift
 struct ButtonTestHost: View {
-    @TestAction var action: () -> Void = {}   // inert — reading it IS the logged action
+    @TestAction private var action: () -> Void = {}   // inert — reading it IS the logged action
 
     var body: some View {
         Button("Save", action: action)
@@ -422,8 +422,8 @@ behavior.**
   assertion. A test that needs "was this read?" uses a use-site spy binding
   instead.
 
-Demonstrated live in both example apps (`ExampleApp`, `ReadingListApp` —
-each deliberately collapsed to a `SPEC.md` its sources regenerate from): the
+Demonstrated live in the example app (`CoreFlowExample` — deliberately
+collapsed to a `SPEC.md` its sources regenerate from): the
 app appends every `(name, value)` into plain `@State` and exposes the
 log on an accessibility element (names JSON in `label`, values JSON in
 `value`); each XCUITest drives one scenario, waits for the label to equal the

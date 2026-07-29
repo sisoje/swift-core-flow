@@ -1,19 +1,19 @@
-name: ReadingList
+name: CoreFlowExample
 options:
   bundleIdPrefix: com.coreflow.examples
   deploymentTarget:
     iOS: "17.0"
 packages:
-  ReadingListUI:
-    path: ReadingListUI
+  CoreFlowExampleUI:
+    path: CoreFlowExampleUI
 targets:
-  # The real app — normal `import ReadingListUI`, public hosts, live SwiftData.
-  ReadingList:
+  # The real app — normal `import CoreFlowExampleUI`, public hosts, live SwiftData.
+  CoreFlowRealApp:
     type: application
     platform: iOS
     sources: [RealApp]
     dependencies:
-      - package: ReadingListUI
+      - package: CoreFlowExampleUI
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -23,14 +23,15 @@ targets:
         SWIFT_APPROACHABLE_CONCURRENCY: YES
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         CODE_SIGNING_ALLOWED: NO
-  # The testing app — `@testable import ReadingListUI` reaches the internal
-  # scenarios (and through them the internal Cores); hosts the log element.
-  ReadingListTestApp:
+  # The testing app — one file: `@testable import CoreFlowExampleUI` reaches
+  # the library's internal scenarios (and through them the internal Cores);
+  # hosts the log element.
+  CoreFlowTestApp:
     type: application
     platform: iOS
     sources: [TestApp]
     dependencies:
-      - package: ReadingListUI
+      - package: CoreFlowExampleUI
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -40,12 +41,12 @@ targets:
         SWIFT_APPROACHABLE_CONCURRENCY: YES
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
         CODE_SIGNING_ALLOWED: NO
-  ReadingListUITests:
+  CoreFlowUITests:
     type: bundle.ui-testing
     platform: iOS
     sources: [UITests]
     dependencies:
-      - target: ReadingListTestApp
+      - target: CoreFlowTestApp
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
@@ -54,22 +55,26 @@ targets:
         # No MainActor default here: XCTestCase's inherited inits are
         # nonisolated, and a MainActor-by-default subclass can't override them.
         CODE_SIGNING_ALLOWED: NO
-        TEST_TARGET_NAME: ReadingListTestApp
+        TEST_TARGET_NAME: CoreFlowTestApp
 schemes:
-  ReadingList:
+  CoreFlowRealApp:
     build:
       targets:
-        ReadingList: all
+        CoreFlowRealApp: all
     run:
       config: Debug
-  ReadingListTestApp:
+  CoreFlowTestApp:
     build:
       targets:
-        ReadingListTestApp: all
+        CoreFlowTestApp: all
     run:
       config: Debug
     test:
       config: Debug
+      # No lldb attach on Cmd-U — attaching to the UI-test runner is denied on
+      # this macOS/Xcode beta pair even with developer mode enabled, and the
+      # xcodebuild path (test.sh) never attaches anyway. Cost: no breakpoints
+      # inside tests.
       debugEnabled: false
       targets:
-        - ReadingListUITests
+        - CoreFlowUITests

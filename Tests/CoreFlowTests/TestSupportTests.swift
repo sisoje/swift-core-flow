@@ -4,7 +4,7 @@ import Testing
 
 // `\.testLog` is hardcoded to the package entry, whose default is a no-op —
 // outside a live view @Environment reads that default, so the logging itself
-// is verified live by the ExampleApp's UI snapshot tests. What's verifiable
+// is verified live by CoreFlowExample's UI snapshot tests. What's verifiable
 // here: the generated surface compiles against real SwiftUI, bindings read
 // their seeds, and action wrappers forward arguments, effects, and results.
 private enum SaveProbe {

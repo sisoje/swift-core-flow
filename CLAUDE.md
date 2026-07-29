@@ -18,23 +18,26 @@ the ceremony-per-macro isn't worth dependency granularity nobody needs.)
   House prose rules: facts
   and decisions, never removal history; compressed, no information lost;
   references at the bottom; nothing named before its chapter introduces it.
-- Example apps (xcodegen; each directory holds exactly `project.yml`,
-  `test.sh`, and `SPEC.md` — the Swift sources are deliberately collapsed
-  into the spec and regenerate from it; `project.yml`/`test.sh` are kept
-  verbatim as part of the spec. Regenerate, then verify with `sh test.sh`
-  in the directory — the UI tests component-test the generated `Core`s
-  live. `-collect-test-diagnostics never` skips post-test simulator
+- Example app (`CoreFlowExample`, xcodegen; the directory holds exactly
+  `project.yml`, `test.sh`, `generate.sh`, and `SPEC.md` — the Swift
+  sources are deliberately collapsed into the spec and regenerate from it
+  (`sh generate.sh`, headless claude);
+  `project.yml`/`test.sh`/`generate.sh` are kept verbatim as part of the
+  spec. Regenerate, then verify with `sh test.sh` in the directory — the
+  UI tests component-test the generated `Core`s live.
+  `-collect-test-diagnostics never` skips post-test simulator
   diagnostics, which intermittently time out at exactly 600s on this
-  Xcode beta — observed once; the flag makes run time deterministic):
-  - `ExampleApp` — one app, scenario per component, selected via the
-    `EXAMPLE_SCENARIO` env var (`defaultScenario` when unset, so Cmd-R
-    just works). Covers the tricky wrappers: `@GestureState(reset:)`,
-    `@FocusState`, a `ViewModifier` host, an async throwing action.
-  - `ReadingListApp` — the production shape: `ReadingListUI` is a real SPM
-    library (public `@Flowable @Shell` hosts, SwiftData `@Query` +
-    `@AppStorage`); `RealApp` consumes it with a plain import and live
-    wrappers; `TestApp` reaches the internal scenarios via `@testable
-    import`, selected via the `SCENARIO` env var.
+  Xcode beta — observed once; the flag makes run time deterministic).
+  The production shape: `CoreFlowExampleUI` is a real SPM library holding
+  ALL the components, one file each (host, scenario, `#Preview`) — the
+  reading-list trio with public `@Flowable @Shell` hosts (SwiftData
+  `@Query` + `@AppStorage`) and five internal tricky-wrapper ones
+  (`@GestureState(reset:)`, `@FocusState`, a `ViewModifier` host, an
+  async throwing action). `RealApp` (scheme `CoreFlowRealApp`) consumes the
+  public hosts with a plain import and live wrappers; `TestApp` (scheme
+  `CoreFlowTestApp`, one file) reaches the internal scenarios via
+  `@testable import`, selected via the `SCENARIO` env var
+  (`defaultScenario` when unset, so Cmd-R just works).
   Every scenario hosts a CORE — often bare `Core()`, since the substituted
   `@TestState` fields own and log their own state; the scenario adds only
   what the host takes from callers (`@TestAction` closures, data
@@ -381,7 +384,7 @@ only *cross*-expansion name references are forbidden, the same Swift-level
 rule that makes `#Preview` unable to see `Core` or any macro-generated name
 (verified directly, five ways). `#Preview { Card() }` works since the
 host's `body` is hand-written source, and a mocked `Core` previews through
-any hand-written wrapper — the example apps' scenarios double as exactly
+any hand-written wrapper — the example app's scenarios double as exactly
 that (`#Preview { DragCardScenario() }`): the scenario is an ordinary
 name, so the cross-expansion rule never triggers. A macro-generated name
 also fails in a file-scope TYPE position (`func f() -> DragCard.Core` →
@@ -543,8 +546,8 @@ aren't seen (same syntax-only limitation as host-kind detection).
   (`testHelpersStaticMembersAndNestedTypesAreCopiedButInitsAreNot`), the
   diagnostics, the host-kind-detection cases, and the negative case
   (conformance in a separate extension isn't detected). Verified live by
-  the example apps' scenarios/UITests, all written in this model
-  (regenerable from each app's `SPEC.md`).
+  the example app's scenarios/UITests, all written in this model
+  (regenerable from its `SPEC.md`).
 
 ## @TestState / @TestAction — tricky points
 
@@ -611,10 +614,10 @@ it's declared.
 - **The property's own access picks its role, and no init is ever
   needed** — Swift's synthesized memberwise init constructs the host
   bare, cross-file. Internal + defaulted → a defaulted memberwise-init
-  parameter (the scenario-host form); private + defaulted → excluded from
-  the memberwise init entirely, a sealed source of truth that logs — what
-  `@Shell` generates on `Core` (verified directly: the init stays
-  internal). The generated peers never become parameters either way: the
+  parameter (`TestSupportTests`' probe hosts); private + defaulted →
+  excluded from the memberwise init entirely, a sealed source of truth
+  that logs — what `@Shell` generates on `Core` and what scenarios
+  declare (verified directly: the init stays internal). The generated peers never become parameters either way: the
   storage is subsumed by the init accessor and `log_x` carries a default.
   Dollar names are legal from
   macros: `names: prefixed($), prefixed(log_)[, suffixed(_storage)]`.
@@ -641,7 +644,7 @@ it's declared.
   reads its no-op default, so package unit tests verify the generated
   surface and forwarding (`TestSupportTests.swift`, `@MainActor` suite)
   while the log-through-environment path is verified live by the example
-  apps' UI tests. Expansion shapes: `TestSupportSyntaxTests.swift`.
+  app's UI tests. Expansion shapes: `TestSupportSyntaxTests.swift`.
 - **Log effects, never getters — the criterion is who owns the invocation
   timing.** Setters and action calls fire when the component's own logic
   decides — deterministic, so snapshot-diffable. Getter reads (the state
