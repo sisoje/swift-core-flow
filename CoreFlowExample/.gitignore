@@ -1,0 +1,4 @@
+# Sources are generated from SPEC.md (`sh generate.sh`) — only project.yml,
+# test.sh, generate.sh, and SPEC.md are source.
+*.swift
+Package.resolved

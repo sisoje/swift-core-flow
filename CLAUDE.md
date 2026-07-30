@@ -30,11 +30,17 @@ the ceremony-per-macro isn't worth dependency granularity nobody needs.)
   Xcode beta — observed once; the flag makes run time deterministic).
   The production shape: `CoreFlowExampleUI` is a real SPM library holding
   ALL the components, one file each (host, scenario, `#Preview`) — the
-  reading-list trio with public `@Flowable @Shell` hosts (SwiftData
-  `@Query` + `@AppStorage`) and five internal tricky-wrapper ones
-  (`@GestureState(reset:)`, `@FocusState`, a `ViewModifier` host, an
+  reading-list set (internal `@Shell` hosts with SwiftData
+  `@Query` + `@AppStorage`, their composed public `@Flowable @Shell`
+  `ReadingListScreen` — the app's one entry point — and a
+  `BookStore` capability: a struct of closures behind a public `@Entry`,
+  mocked by construction, always-equal `Equatable`) and five internal
+  tricky-wrapper components (plain `@GestureState`,
+  `@GestureState(reset:)`, `@FocusState`, a `ViewModifier` host, an
   async throwing action). `RealApp` (scheme `CoreFlowRealApp`) consumes the
-  public hosts with a plain import and live wrappers; `TestApp` (scheme
+  composed screen with a plain import and live wrappers, and owns the live
+  side of the capability — a `ViewModifier` injector reading the real
+  `modelContext`; `TestApp` (scheme
   `CoreFlowTestApp`, one file) reaches the internal scenarios via
   `@testable import`, selected via the `SCENARIO` env var
   (`defaultScenario` when unset, so Cmd-R just works).

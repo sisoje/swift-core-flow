@@ -2,7 +2,9 @@
 
 The Swift sources of this example are deliberately collapsed into this spec;
 regenerate them from the contracts below — `sh generate.sh` does it headlessly
-via the claude CLI. `project.yml`, `test.sh`, and `generate.sh` are kept
+via the claude CLI (deleting every generated `.swift` first, so files an
+older spec created can't linger). `project.yml`, `test.sh`, `generate.sh`,
+and `.gitignore` (ignoring the generated sources) are kept
 verbatim next to this file and are part of the spec (targets, schemes, build
 settings, the no-lldb-attach note, and the test/generate invocations live
 there). Verify a regeneration with `sh test.sh` in this directory.
@@ -12,23 +14,31 @@ The spec assumes the `@Shell` mapping where `@State` substitutes to
 sealed, out of the memberwise init, host's inline default required),
 `@AppStorage`/`@SceneStorage` → `@Binding` (external storage is an injected
 dependency; keys dropped), `@Query` → `@QueryCore` (fetched array as a bare
-init parameter), `@Binding` copied verbatim (the mock vehicle itself), and
-unknown wrappers (`@GestureState`, `@FocusState`) copied verbatim with their
-attribute arguments.
+init parameter), and unknown wrappers (`@GestureState`, `@FocusState`,
+`@Environment`) copied verbatim with their attribute arguments — an
+`@Environment` copy reads whatever the scenario installs with
+`.environment(...)`, the environment's own mocking story.
 
 ## What this example is
 
 The production shape: one SPM library holding ALL the components, consumed
-by two thin app targets. The reading-list trio and the five tricky-wrapper
-components (`@GestureState(reset:)`, `@FocusState`, a `ViewModifier` host,
-an async throwing action) live side by side in the library, one file per
-component — host, scenario, `#Preview { TheScenario() }`. Only what the
-real app consumes is `public` (with `@Flowable` for the cross-module init):
-`AddBookField`, `BookList`, and the `Book` model. Everything else — `BookRow`
-(composed only inside `BookList`'s body), the five tricky hosts, every
+by two thin app targets. The reading-list set (the pair, their composed
+screen, and the store capability) and the five tricky-wrapper
+components (plain `@GestureState`, `@GestureState(reset:)`, `@FocusState`,
+a `ViewModifier` host, an async throwing action) live side by side in the
+library, one file per component — host, scenario,
+`#Preview { TheScenario() }` (`BookStore.swift` being the one non-component
+file). Only what the
+real app consumes is `public`: the composed `ReadingListScreen` (with
+`@Flowable` for the cross-module init), the
+`Book` model (hand-written init), and the `BookStore` capability with its
+public `\.bookStore` entry — the package defines the seam, the app supplies
+the live implementation. Everything else — `AddBookField` and `BookList`
+(composed only inside `ReadingListScreen`), the five tricky hosts, every
 scenario, every `Core` — is internal, reached by the test app via
 `@testable import`. Scenario structs are named `<Component>Scenario`, except
-`AddBookField`'s, which is `AddBookScenario`.
+`AddBookField`'s (`AddBookScenario`) and `ReadingListScreen`'s
+(`ReadingListScenario`).
 
 - `CoreFlowExampleUI` — SPM library; hosts + internal scenarios/Cores.
 - `RealApp` → `CoreFlowRealApp` scheme: plain `import CoreFlowExampleUI`, the
@@ -37,7 +47,7 @@ scenario, every `Core` — is internal, reached by the test app via
 - `TestApp` → `CoreFlowTestApp` scheme: one file — `@testable import
   CoreFlowExampleUI` reaches the internal scenarios, selected per launch via
   the `SCENARIO` env var; hosts the accessibility log element.
-- `UITests` — XCUITests against the test app, one suite per component (eight).
+- `UITests` — XCUITests against the test app, one suite per component (seven).
 
 ## Layout
 
@@ -46,10 +56,12 @@ CoreFlowExample/
   project.yml                  (kept)
   test.sh                      (kept)
   generate.sh                  (kept)
+  .gitignore                   (kept)
   CoreFlowExampleUI/
     Package.swift
-    Sources/CoreFlowExampleUI/ Book.swift, BookRow.swift, AddBookField.swift,
-                               BookList.swift, DragCard.swift,
+    Sources/CoreFlowExampleUI/ Book.swift, BookStore.swift,
+                               AddBookField.swift, BookList.swift,
+                               ReadingListScreen.swift, DragCard.swift,
                                TrickyDragCard.swift, FocusField.swift,
                                DimmerDemo.swift, SaveButton.swift
   RealApp/RealApp.swift
@@ -66,108 +78,149 @@ with `.package(name: "CoreFlow", path: "../..")`.
 ## Book.swift
 
 `import SwiftData`. `@Model public final class Book` with `public var title:
-String`, `public var author: String`, `public var isFavorite = false`, and a
-`public init(title:author:isFavorite:)` whose `isFavorite` defaults to `false`.
+String` and a `public init(title:)`. Plus `extension Book:
+CustomStringConvertible { public var description: String { title } }` —
+action payloads log via `String(describing:)`, and the title is the readable
+identity, keeping log snapshots pinnable where a bare class description
+wouldn't be.
 
-## BookRow.swift — a @Binding host
+## BookStore.swift — the DB capability
 
-The favorite is NOT row-owned state — `Book` owns it, persisted — so the row
-receives a channel: `@Binding`, caller-supplied, copied verbatim onto `Core`.
+The DB service as data: a struct of closures — mocked by construction, no
+protocol. Public with a public `@Entry`: the package defines the seam and
+its no-op default; the LIVE implementation belongs to the consuming app,
+next to the SwiftData it wires (see RealApp below).
 
 ```swift
-@Shell
-struct BookRow: View {
-    let title: String
-    let author: String
-    @Binding var isFavorite: Bool
+@Flowable
+public struct BookStore: Equatable {
+    var insert: (Book) -> Void
+    var delete: (Book) -> Void
+
+    public static func == (lhs: BookStore, rhs: BookStore) -> Bool { true }
 }
 ```
 
-Body: an `HStack` of a leading-aligned `VStack` — `Text(title)` (identifier
-`bookTitle`) over `Text(author)` in `.caption`/`.secondary` — then `Spacer()`,
-then `Button(isFavorite ? "★" : "☆") { isFavorite.toggle() }` (identifier
-`favoriteButton`); `.padding(.horizontal)` on the stack.
+`@Flowable` supplies the public cross-module memberwise init (`@Flowable`
+on a plain non-View struct; the closure parameters get `@escaping`).
+Always-equal `Equatable`, deliberately: a seam installed once — closure
+fields can't compare, and invalidating every dependent on each render would
+misreport a value that never meaningfully changes (same argument as
+CoreFlow's own `testLog` entry).
 
-Scenario (internal, as all scenarios): `@TestState private var isFavorite = false`,
-body `BookRow.Core(title: "Dune", author: "Herbert", isFavorite: $isFavorite)`
-— the use-site backing for a genuine `@Binding` parameter. Plus
-`#Preview { BookRowScenario() }` (every scenario file has one).
+`extension EnvironmentValues { @Entry public var bookStore = BookStore(
+insert: { _ in }, delete: { _ in }) }` — no-op default: components render
+without a store; the app's injector or a scenario's logging mock supplies
+the real one. Not a component — no scenario, no `#Preview`.
 
 ## AddBookField.swift — own state, logged by Core itself
 
 Text entry: the draft title is view-owned `@State` (→ `@TestState private` on
-`Core`, so every keystroke logs at the write site); submitting hands the title
-to the caller and clears the field.
+`Core`, so every keystroke logs at the write site); submitting inserts
+through the `\.bookStore` capability and clears the field.
 
 ```swift
-@Flowable
 @Shell
-public struct AddBookField: View {
+struct AddBookField: View {
     @State private var title = ""
-    let onSubmit: (String) -> Void
-    public var body: some View { ... }
+    @Environment(\.bookStore) private var bookStore: BookStore
+    var body: some View { ... }
 }
 ```
 
 Body: `HStack` of `TextField("Title", text: $title)` with
 `.autocorrectionDisabled()`, `.textInputAutocapitalization(.never)` (both
 matter — the UI test types literal text and pins exact log values), identifier
-`titleField`; and `Button("Add") { onSubmit(title); title = "" }`, identifier
-`addButton`; `.padding(.horizontal)`.
+`titleField`; and `Button("Add") { bookStore.insert(Book(title: title));
+title = "" }` with
+`.disabled(title.isEmpty)` (an empty title adds a blank, delete-hostile row),
+identifier `addButton`; `.padding(.horizontal)`.
 
-Scenario: `@TestAction private var onSubmit: (String) -> Void = { _ in }` only — the
-`@State` substitution needs no backing, `Core` owns and logs it:
-`AddBookField.Core(onSubmit: onSubmit)`.
+Scenario: `@TestAction private var insert: (Book) -> Void = { _ in }` and
+`@TestAction private var delete: (Book) -> Void = { _ in }` — the `@State`
+substitution needs no backing, `Core` owns and logs it; body
+`AddBookField.Core()` with `.environment(\.bookStore, BookStore(insert:
+insert, delete: delete))` — the WHOLE store is logging mocks (`delete` too,
+though this component never deletes: an unexpected call must poison the log
+snapshot, not vanish into an inert stub), installed on `Core`, whose copied
+`@Environment` reads it.
 
 ## BookList.swift — the SwiftData screen
 
 `@Query` → `@QueryCore` on `Core`, so a scenario hands the fetched array in
 directly — no `ModelContainer` anywhere in the tests — and `@AppStorage` →
-`@Binding`, external storage injected. Deleting is the caller's business,
-passed in as an action.
+`@Binding`, external storage injected. Deleting goes through the
+`\.bookStore` capability.
 
 ```swift
-@Flowable
 @Shell
-public struct BookList: View {
+struct BookList: View {
     @Query private var books: [Book]
-    @AppStorage("sortByAuthor") private var sortByAuthor = false
-    let onDelete: (String) -> Void
-    public var body: some View { ... }
+    @AppStorage("sortDescending") private var sortDescending = false
+    @Environment(\.bookStore) private var bookStore: BookStore
+    var body: some View { ... }
 }
 ```
 
-Body: `VStack` of `Toggle("Sort by author", isOn: $sortByAuthor)`
+Body: `VStack` of `Toggle("Sort Z–A", isOn: $sortDescending)`
 (`.padding(.horizontal)`, identifier `sortToggle`) and a `List` whose local
-`shown` is `books` sorted by `author` when `sortByAuthor` else by `title`;
-`ForEach(shown)` binds `@Bindable var book = book` and rows an `HStack` of
-`BookRow(title: book.title, author: book.author, isFavorite: $book.isFavorite)`
-— the HOST, not its `Core`: production code composes components, `Core` is a
-test seam — and `Button("Delete") { onDelete(book.title) }` with identifier
-`delete-\(book.title)`.
+`shown` is `books` sorted by `title` descending when `sortDescending` else
+ascending; `ForEach(shown)` rows an `HStack` of `Text(book.title)`
+(identifier `bookTitle`), `Spacer()`, and `Button("Delete") {
+bookStore.delete(book) }` with identifier `delete-\(book.title)` — the model
+object itself, not its title: titles aren't unique, deletion is by identity.
 
-Scenario: `@TestState private var sortByAuthor = false`, `@TestAction private var onDelete:
-(String) -> Void = { _ in }`, body constructing `BookList.Core` with `books:`
-of exactly Dune/Herbert then Anathem/Stephenson, `sortByAuthor:
-$sortByAuthor`, `onDelete: onDelete`.
+Scenario: `@TestState private var sortDescending = false`, `@TestAction private var insert:
+(Book) -> Void = { _ in }`, `@TestAction private var delete:
+(Book) -> Void = { _ in }`, body constructing `BookList.Core` with `books:`
+of exactly `Book(title: "Dune")` then `Book(title: "Anathem")` and
+`sortDescending: $sortDescending`, plus `.environment(\.bookStore,
+BookStore(insert: insert, delete: delete))` on the `Core` — the whole store
+logging mocks, same rationale as `AddBookScenario`'s.
+
+## ReadingListScreen.swift — the composed screen
+
+The public pair stacked — pure composition, no state of its own,
+`@Flowable` for the public cross-module `init()`, `@Shell` for the `Core`
+twin; the `\.bookStore` capability comes from whoever hosts it. Body:
+`VStack { AddBookField(); BookList() }`. Not a component-tested host — the
+children are, no suite. Scenario: bare `ReadingListScreen.Core()`, exactly
+like `DragCardScenario` — the host takes nothing from callers, so the
+scenario adds nothing; the children's `\.bookStore` reads fall back to the
+entry's no-op default, and the composed `Core` hosts with NO
+`ModelContainer` (verified live: `BookList`'s uninstalled `@Query` renders
+empty, no crash). `#Preview { ReadingListScenario() }`. A preview must
+never construct `ReadingListScreen()` directly: `#Preview` is itself a
+macro expansion and can't reference the `@Flowable`-generated init (the
+cross-expansion rule; the generated init also suppresses the compiler's
+implicit one, leaving `#Preview` no accessible initializer at all — hit
+live); the scenario is ordinary source, so hosting `Core` there is the
+uniform escape.
 
 ## RealApp/RealApp.swift
 
-The REAL app: normal import, public hosts running their own live wrappers —
-`@Query` fetches from the real container, `@AppStorage` persists the sort. The
-closures are where data flow leaves the components: `@main struct
-CoreFlowRealApp: App` with `WindowGroup { ContentView() }` and
-`.modelContainer(for: Book.self)`. `ContentView` reads `@Environment(\.modelContext)`
-and stacks `AddBookField(onSubmit:)` — inserting `Book(title: $0, author:
-"Unknown")` — over `BookList(onDelete:)` — `try? context.delete(model:
-Book.self, where: #Predicate { $0.title == title })`.
+The REAL app: normal import, the composed screen with live wrappers —
+`@Query` fetches from the real container, `@AppStorage` persists the sort:
+`@main struct CoreFlowRealApp: App` with `WindowGroup {
+ReadingListScreen().liveBookStore() }` and `.modelContainer(for:
+Book.self)`. The injector lives HERE, next to the SwiftData it wires: an
+internal `LiveBookStore: ViewModifier` reading
+`@Environment(\.modelContext)` and setting `.environment(\.bookStore,
+BookStore(insert: { context.insert($0) }, delete: { context.delete($0) }))`
+on `content`, plus an internal `extension View { func liveBookStore() }`
+wrapping `modifier(LiveBookStore())`. The live store's `context.delete($0)`
+takes the row's own model object, so exactly the tapped book dies, and the
+context registers the change so `@Query` refreshes. Two dead ends, both
+observed live: predicate-matching by title deleted every same-titled
+duplicate in one tap, and the batch `delete(model:where:)` doesn't register
+changes in the context, so rows stayed until relaunch.
 
 ## TestApp/TestApp.swift
 
 `import CoreFlow`, `@testable import CoreFlowExampleUI`.
 
-- `enum Scenario: String` — cases `bookRow = "BookRow"`, `bookList =
-  "BookList"`, `addBook = "AddBook"`, `dragCard = "DragCard"`,
+- `enum Scenario: String` — cases `bookList = "BookList"`, `addBook =
+  "AddBook"`, `readingList = "ReadingList"`, `dragCard = "DragCard"`,
   `trickyDragCard = "TrickyDragCard"`, `focusField = "FocusField"`,
   `dimmer = "Dimmer"`, `saveButton = "SaveButton"`; `static var
   defaultScenario` is `.bookList` (used when `SCENARIO` is unset, so Cmd-R
@@ -329,27 +382,40 @@ the app is a separate process and inherits nothing from the shell that
 invoked xcodebuild (verified directly); every test states its scenario
 explicitly. An `XCUIApplication` extension adds `var log: XCUIElement {
 otherElements["log"] }` and `var logValues: [String]` JSON-decoding
-`log.value`. Tests wait on names — `log.wait(for: \.label, toEqual:)`, the
+`log.value` (empty array when the value is missing or undecodable). An
+`XCUIElement` extension adds the one shared wait every suite uses:
+
+```swift
+@discardableResult
+func wait<Value: Equatable>(
+    for keyPath: KeyPath<XCUIElement, Value>,
+    toEqual expected: Value,
+    timeout: TimeInterval
+) -> Bool
+```
+
+an `XCTNSPredicateExpectation` comparing `element[keyPath: keyPath] ==
+expected`, waited with `XCTWaiter()`. Tests wait on names —
+`log.wait(for: \.label, toEqual:)`, the
 finish line AND the names assertion — then `XCTAssertEqual` on `logValues`.
 Every wait (`waitForExistence`, `wait(for:toEqual:)`) uses `timeout: 5`.
 All test methods `@MainActor`, on plain `XCTestCase` (no MainActor default in
 this target — see project.yml).
 
-- `BookRowUITests.testFavoriteTogglesAndLogsEachWrite` — scenario `BookRow`:
-  `favoriteButton` starts `"☆"`; tap → `"★"`, tap → `"☆"` (each awaited);
-  names `["isFavorite","isFavorite"]`, values `["true", "false"]`.
 - `AddBookUITests.testTypingSubmittingAndClearingAllLogInOrder` — scenario
   `AddBook`: tap `titleField`, `typeText("Dune")`, tap `addButton`. The log
   pins TextField's REAL binding behavior: it writes TWICE per keystroke plus
-  two initial `""` writes on focus — pinned as-is; the submit hands the full
-  title to the action, the clear is the final write. Names: ten `"title"`,
-  then `"onSubmit"`, then `"title"`. Values:
+  two initial `""` writes on focus — pinned as-is; the insert hands the
+  built `Book` (logging as its title) to the store, the clear is the final
+  write. Names: ten `"title"`,
+  then `"insert"`, then `"title"`. Values:
   `["", "", "D", "D", "Du", "Du", "Dun", "Dun", "Dune", "Dune", "Dune", ""]`.
 - `BookListUITests.testSortWritesStorageAndDeleteLogsTheTitle` — scenario
-  `BookList`: first `bookTitle` static text is `"Anathem"` (title sort); tap
+  `BookList`: first `bookTitle` static text is `"Anathem"` (A–Z sort); tap
   the switch inside `sortToggle` (`app.switches["sortToggle"].switches
-  .firstMatch`) → first becomes `"Dune"` (author sort); tap `delete-Anathem`;
-  names `["sortByAuthor","onDelete"]`, values `["true", "Anathem"]`.
+  .firstMatch`) → first becomes `"Dune"` (Z–A sort); tap `delete-Anathem`;
+  names `["sortDescending","delete"]`, values `["true", "Anathem"]` — the
+  `Book` payload logs via its `description`, the title.
 - `DimmerUITests.testToggleDimWritesThroughCoreViewModifier` — scenario
   `Dimmer`: `dimStatusLabel` starts `"bright"`, `dimContent` exists; tap
   `toggleDimButton` → `"dimmed"`, tap again → `"bright"` (each awaited);
@@ -360,15 +426,18 @@ this target — see project.yml).
   `["onSave","getUserName","userName"]`, values
   `["draft", "42", "Error fetching user"]`.
 - `DragCardUITests.testDragUpdatesGestureStateAndResetsOnRelease` — scenario
-  `DragCard`: `maxLabel`/`currentLabel` start `"max 0"`/`"current 0"`; from
-  `dragBox`'s center coordinate, `press(forDuration: 0.2, thenDragTo:
-  start.withOffset(CGVector(dx: 120, dy: 80)))`; then `currentLabel` returns
-  to `"current 0"` (release reset) and `maxLabel` is no longer `"max 0"`.
-  Values are timing-dependent — behavior asserts only, no log snapshot.
+  `DragCard`: `maxLabel`/`currentLabel` start `"max 0"`/`"current 0"`; the
+  box is an `otherElements` match (`app.otherElements["dragBox"]` — an
+  identified shape is not a `staticText`); from its center coordinate
+  (`coordinate(withNormalizedOffset:)` at 0.5/0.5), `press(forDuration:
+  0.2, thenDragTo: start.withOffset(CGVector(dx: 120, dy: 80)))`; then
+  `currentLabel` returns to `"current 0"` (release reset) and `maxLabel` is
+  no longer `"max 0"`. Values are timing-dependent — behavior asserts only,
+  no log snapshot.
 - `TrickyDragCardUITests.testCustomResetClosureFiresWhenGestureEnds` —
   scenario `TrickyDragCard`: `trickyResetsLabel` starts `"resets 0"`; drag
-  from `trickyDragBox`'s center by `(80, -40)` (same press/drag call) →
-  `"resets 1"`; names `["resetsSeen"]`, values `["1"]`.
+  from `trickyDragBox`'s center by `(80, -40)` (same element lookup and
+  press/drag call) → `"resets 1"`; names `["resetsSeen"]`, values `["1"]`.
 - `FocusFieldUITests.testTappingFieldFocusesAndToggleButtonUnfocuses` —
   scenario `FocusField`: `focusStatusLabel` starts `"unfocused"`; tap
   `focusTextField` → `"focused"`; tap `toggleFocusButton` → `"unfocused"`;
