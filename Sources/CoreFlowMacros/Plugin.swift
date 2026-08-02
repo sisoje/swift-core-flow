@@ -10,5 +10,6 @@ struct CoreFlowPlugin: CompilerPlugin {
         PickMacro.self,
         TestStateMacro.self,
         TestActionMacro.self,
+        UnstructuredTaskMacro.self,
     ]
 }

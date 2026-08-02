@@ -73,8 +73,8 @@ concurrency) throughout.
 
 | Target | Kind | Contents |
 |---|---|---|
-| `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — the last holds `@TestState` + `@TestAction`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction`, `testLog`, `TestLog`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes) |
+| `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — and `UnstructuredTaskMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction`, `testLog`, `TestLog` — and `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `TaskStorage`/`CancellableTask`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes) |
 | `CoreFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus real-compiled end-to-end suites (TuplePicker, Reflector, Shell's `Core`, `QueryCore`, the test-support macros) |
 
 Adding a new macro: one new file in `CoreFlowMacros` for the implementation
@@ -672,6 +672,58 @@ it's declared.
   backing landed as an extra memberwise parameter — verified directly);
   and an init-accessor property's inline default runs at the top of EVERY
   init, so `let` storage peers double-initialize (verified directly).
+
+## @UnstructuredTask — tricky points
+
+The third macro in the `@TestState` family (`UnstructuredTaskMacro.swift`;
+declaration plus the runtime `TaskStorage`/`CancellableTask` in
+`Sources/CoreFlow/UnstructuredTask.swift`) — a view-owned slot for a
+cancellable unstructured `Task` that logs. Ported from the standalone
+`~/dev/TaskState` package (there a runtime `@propertyWrapper` around
+`@State`-held class storage); made a per-property macro here specifically
+so mutations log the property's ACTUAL name through `\.testLog`, which a
+plain wrapper can never know. Named for what it stores — the wrapper's job
+is giving an unstructured task the two structure guarantees it lacks
+(cancel on replace, cancel on view teardown) — and to keep a
+one-letter-apart `@TaskState`/`@TestState` pair out of the API.
+Production-safe, not test-only: the uninstalled sink is a no-op.
+
+- **Accessor + peer like `@TestState`, but the property becomes COMPUTED —
+  no init accessor, and the task always starts `nil`.** The storage peer
+  self-initializes (`= State(wrappedValue: TaskStorage())`), so the
+  property is never a memberwise-init parameter whatever its access level —
+  `@TestState`'s internal-vs-private role split doesn't exist here. The
+  initial value isn't configurable by design, and the guard deliberately
+  does NOT check for an initializer: accessors on an initialized `var` are
+  the compiler's own "variable with accessors can't have an initial value"
+  error at the right line, where a skip would leave a plain, silently
+  unmanaged stored property behind.
+- **Lifecycle lives in the `TaskStorage` box, one choke point.** A CLASS in
+  `State`, not `State<Task?>`: `willSet` cancels the replaced task, `deinit`
+  cancels the live one when SwiftUI releases the storage (a value in `State`
+  has no teardown hook). The `willSet` is equality-guarded — `Task`'s
+  stdlib `Equatable` is identity — so a self-reassignment (binding
+  round-trip, defensive `x = x`) is not a cancel; that's why
+  `CancellableTask` refines `Equatable`. `@Observable` (with `willSet` and
+  `deinit` — both compile and fire under the macro, locked by
+  `TaskStorageTests`) so a `body` reading the property re-renders on task
+  change.
+- **The storage element is the annotation minus its `?`, never a parsed
+  `Task<Success, Failure>`.** `TaskStorage<T: CancellableTask>` (public
+  protocol: `cancel()` + `Equatable`, conformance on `Task` itself) means
+  the macro only unwraps `OptionalTypeSyntax` — a typealiased task type
+  (`VoidTask?`) works, and there's no generic-argument parsing to get
+  wrong. Only the sugared `T?` counts: IUO (`T!`) and long-form
+  `Optional<T>` are skipped shapes. Both types public: generated code lands
+  in the consumer's module.
+- **Payload is `"task"`/`"nil"`, not `String(describing:)`.** A described
+  `Task` isn't snapshot-stable, and one nondeterministic line poisons the
+  all-or-nothing log diff — same criterion as the getters-don't-log rule.
+- **Under `@Shell` it's deliberately NOT whitelisted**: it rides rule 2 as
+  an unknown wrapper — the verbatim copy re-expands the macro on `Core`
+  (locked by `UnstructuredTaskTests`), and the computed property stays out
+  of the memberwise init on both types, so the twin cancels and logs
+  identically with nothing to substitute.
 
 ## @Capability — tricky points
 

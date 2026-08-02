@@ -28,6 +28,7 @@ is the per-macro reference.
 | [`@Flowable`](#flowable) | member macro | writes a memberwise `init` at the type's own access level, plus `InFlowSplat`/`InFlow` typealiases bundling the same properties into a tuple, unlabeled and labeled |
 | [`@TestState`](#teststate-and-testaction) | accessor + peer macro | a drop-in `@State` that logs every mutation — each write reaches the injected sink the moment it happens, binding writes included |
 | [`@TestAction`](#teststate-and-testaction) | accessor + peer macro | an action closure that logs every call — reading the property IS the logged action; each call logs its payload to the injected sink, then forwards |
+| [`@UnstructuredTask`](#unstructuredtask) | accessor + peer macro | a view-owned slot for a cancellable unstructured `Task` — assigning cancels the previous task, view teardown cancels the live one, and every mutation logs like `@TestState` |
 | [`TestLog`](#teststate-and-testaction) | dynamic property | reads the installed sink — what the macros generate as their log field (`private let log_x = TestLog()`); its `wrappedValue` IS the sink closure |
 | [`View.testLog(_:)`](#teststate-and-testaction) | View modifier | installs the one logging sink, once, on the root view; without it the log is a no-op, so hosts behave normally anywhere else |
 | [`@Capability`](#capability) | member macro | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
@@ -440,6 +441,66 @@ log on an accessibility element (names JSON in `label`, values JSON in
 expected name sequence, then asserts the decoded values — down to
 `TextField` writing its binding twice per keystroke, real behavior pinned
 as-is.
+
+---
+
+## UnstructuredTask
+
+A view-owned slot for a cancellable unstructured `Task` — with
+`@TestState`'s logging. An unstructured `Task { }` has no lifecycle of its
+own: hold one in plain `@State` and nothing cancels it when a new one
+replaces it or the view leaves the graph. `@UnstructuredTask` adds exactly
+those two structure guarantees, as a per-property macro in the `@TestState`
+family:
+
+```swift
+struct DownloadButton: View {
+    @UnstructuredTask private var download: Task<Data, Error>?
+
+    var body: some View {
+        Button("Download") {
+            download = Task { … }   // cancels any previous download, logs ("download", "task")
+        }
+    }
+}
+```
+
+- **Assigning cancels the previous task; teardown cancels the live one.**
+  The property reads/writes a `TaskStorage` box held in a generated `State`
+  field — a *class* in `State`, not `State<Task?>`, because the lifecycle is
+  the point: the box's `willSet` cancels on replacement, its `deinit` cancels
+  when SwiftUI releases the storage, a hook a value in `State` doesn't have.
+  The `willSet` is equality-guarded (`Task`'s `Equatable` is identity), so
+  writing the task it already holds back into it — a binding round-trip, a
+  defensive `x = x` — is not a cancel. The box is `@Observable`, so a `body`
+  reading the property re-renders when the task changes.
+- **The task always starts `nil`.** The property becomes *computed* over a
+  self-initialized storage peer: there is no inline default to write (one
+  fails in the compiler's own words — a variable with accessors can't have
+  an initial value), and the property is never a memberwise-init parameter,
+  whatever its access level.
+- **Every mutation logs the property's actual name**, through the same
+  `\.testLog` seam as [`@TestState`](#teststate-and-testaction), at the write
+  site — `("download", "task")` on assignment, `("download", "nil")` on
+  clearing. The payload is deterministic on purpose: a described `Task` isn't
+  snapshot-stable, and one nondeterministic line poisons an exact-sequence
+  assertion. In production no sink is installed and the log is a no-op — the
+  wrapper is not test-only.
+- **The generated `$download` binding routes through the property** — a
+  binding write cancels and logs exactly like a direct write. Private, like
+  every generated member; the host's own `body` wires it
+  (`ChildView(task: $download)`).
+- **Required shape:** a stored `var` with an optional-*sugared* type
+  annotation (`Task<Success, Failure>?` — or a typealias of a task type: the
+  storage's element is the annotation minus its `?`, constrained to the
+  `CancellableTask` protocol rather than parsed into `Task`'s generic
+  arguments; `Task<…>!` and long-form `Optional<Task<…>>` don't count).
+  Anything else generates nothing, no diagnostics — same policy as
+  `@TestState`.
+- **Under [`@Shell`](#shell)** it rides the verbatim-copy rule like any
+  unrecognized wrapper: `Core` gets the same declaration, the macro
+  re-expands there, and the computed property stays out of the memberwise
+  init — the twin cancels and logs identically.
 
 ---
 
@@ -1121,8 +1182,8 @@ One target pair shared by all macros — not a pair per macro:
 
 | Target | Kind | Contents |
 |---|---|---|
-| `CoreFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each, and `TestSupportMacros.swift` (`@TestState` + `@TestAction`) — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init and `InFlowSplat`/`InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` (`@TestState`/`@TestAction`, `View.testLog(_:)`, and the `TestLog` dynamic property) — plus two small non-macro additions: `Reflector.swift` and `QueryCore.swift` |
+| `CoreFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), and `UnstructuredTaskMacro.swift` (`@UnstructuredTask`) — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init and `InFlowSplat`/`InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `CoreFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` (`@TestState`/`@TestAction`, `View.testLog(_:)`, and the `TestLog` dynamic property), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime `TaskStorage` box and `CancellableTask` protocol) — plus two small non-macro additions: `Reflector.swift` and `QueryCore.swift` |
 | `CoreFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus real-compiled end-to-end suites (TuplePicker, Reflector, Shell's `Core`, `QueryCore`, the test-support macros) — both test frameworks coexist fine in one target |
 
 Swift tools version 6.3, Swift 6 language mode (strict concurrency), swift-syntax `600.0.0..<700.0.0`.
