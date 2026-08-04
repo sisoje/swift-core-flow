@@ -46,11 +46,13 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
-    func testFocusStateIsUnmappedSoItIsCopiedVerbatim() {
-        // Deliberately unmapped — a stand-in would be a pass-through, not a
-        // mock (no public initializer on FocusState<T>.Binding; writes no-op
-        // outside a live view — both verified directly). Private verbatim
-        // copy: sealed, out of the memberwise init.
+    func testFocusStateIsRenamedToTestFocusStateOnCore() {
+        // The view's own focus, @State's exact treatment: the host's line
+        // with just the wrapper token renamed — still private, sealed out of
+        // the memberwise init (the substitute's storage peer
+        // self-initializes; @FocusState never carries a default). Hosted
+        // behavior stays the live wrapper's — @TestFocusState holds a REAL
+        // FocusState peer — with every programmatic write logged.
         assertMacroExpansion(
             """
             @Shell
@@ -65,11 +67,36 @@ final class ShellSyntaxTests: XCTestCase {
                     let title: String
 
                     struct Core {
-                        @FocusState private var isFocused: Bool
+                        @TestFocusState private var isFocused: Bool
                         let title: String
                     }
                 }
                 """,
+            macros: macros
+        )
+    }
+
+    func testNonPrivateFocusStateIsDiagnosed() {
+        // Focus is a view's own source of truth like @State — the shared
+        // privacy invariant covers it now that it's on the whitelist.
+        assertMacroExpansion(
+            """
+            @Shell
+            struct SearchField {
+                @FocusState var isFocused: Bool
+            }
+            """,
+            expandedSource: """
+                struct SearchField {
+                    @FocusState var isFocused: Bool
+                }
+                """,
+            diagnostics: [
+                DiagnosticSpec(
+                    message:
+                        "'isFocused' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                    line: 3, column: 21)
+            ],
             macros: macros
         )
     }
@@ -141,9 +168,11 @@ final class ShellSyntaxTests: XCTestCase {
         )
     }
 
-    func testAccessibilityFocusStateGetsFocusStatesExactTreatment() {
+    func testAccessibilityFocusStateStaysAnUnmappedVerbatimCopy() {
         // An exact @FocusState clone (verified directly against the real
-        // SwiftUI interface) — identical unmapped treatment.
+        // SwiftUI interface), but deliberately NOT whitelisted alongside it —
+        // no substitute macro yet, so it rides rule 2: private verbatim
+        // copy, sealed, out of the memberwise init.
         assertMacroExpansion(
             """
             @Shell
@@ -408,7 +437,7 @@ final class ShellSyntaxTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'isOn' must be private — @State/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                        "'isOn' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
                     line: 3, column: 16)
             ],
             macros: macros

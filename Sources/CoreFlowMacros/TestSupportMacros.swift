@@ -144,7 +144,7 @@ public enum TestActionMacro: AccessorMacro, PeerMacro {
 
 // MARK: - Helpers
 
-/// Shared with `UnstructuredTaskMacro`, the third macro in this family.
+/// Shared across the family (`UnstructuredTaskMacro`, `TestFocusStateMacro`).
 func isStatic(_ varDecl: VariableDeclSyntax) -> Bool {
     varDecl.modifiers.contains {
         $0.name.tokenKind == .keyword(.static) || $0.name.tokenKind == .keyword(.class)

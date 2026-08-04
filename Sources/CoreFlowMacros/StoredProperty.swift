@@ -47,7 +47,7 @@ public struct StoredProperty {
     /// exactly the ones `sourceOfTruthMustBePrivate` requires private. Why
     /// exactly these and no others: `renderShell`'s rule-1 comment.
     public var isSubstitutedOnCore: Bool {
-        isOwnState || isExternalStorage || isQuery
+        isOwnState || isFocusState || isExternalStorage || isQuery
     }
 
     /// `@Query` → `@QueryCore` on `Core` (`QueryCore.swift` documents the
@@ -60,6 +60,15 @@ public struct StoredProperty {
     /// line with the wrapper renamed — same default, every mutation logged.
     public var isOwnState: Bool {
         wrapperName == "State"
+    }
+
+    /// The view's own focus → `@TestFocusState private` on `Core`: the
+    /// host's line with the wrapper renamed — same live `FocusState`
+    /// underneath (a real one, held as the macro's peer), every
+    /// programmatic write logged. No default to carry — `@FocusState` has
+    /// no `init(wrappedValue:)`, so a host line never has one.
+    public var isFocusState: Bool {
+        wrapperName == "FocusState"
     }
 
     /// EXTERNAL storage — a dependency, injected as `@Binding` on `Core`:
@@ -333,7 +342,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-                "'\(propertyName)' must be private — @State/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                "'\(propertyName)' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
             id: "sourceOfTruthMustBePrivate"
         )
     }

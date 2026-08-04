@@ -37,10 +37,11 @@ struct StatefulCard: View {
 }
 
 /// A directly constructed Core, no live view anywhere. isExpanded (@State)
-/// is Core's own @TestState — private, defaulted, out of the memberwise
-/// init, logging; isPinned (@SceneStorage, external storage) is a @Binding
-/// parameter, mocked like any dependency; the unmapped private wrappers
-/// (@Environment/@Namespace/@FocusState/@GestureState) just behave.
+/// is Core's own @TestState and isFocused (@FocusState) its
+/// @TestFocusState — private, out of the memberwise init, logging; isPinned
+/// (@SceneStorage, external storage) is a @Binding parameter, mocked like
+/// any dependency; the unmapped private wrappers
+/// (@Environment/@Namespace/@GestureState) just behave.
 @MainActor
 private func makeCore(
     isPinned: Binding<Bool> = .constant(false),

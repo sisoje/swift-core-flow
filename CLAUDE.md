@@ -73,8 +73,8 @@ concurrency) throughout.
 
 | Target | Kind | Contents |
 |---|---|---|
-| `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — and `UnstructuredTaskMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction`, `testLog`, `TestLog` — and `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `TaskStorage`/`CancellableTask`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes) |
+| `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift`, and `UnstructuredTaskMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction`, `testLog`, `TestLog` — `TestFocusState.swift`, and `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `TaskStorage`/`CancellableTask`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes) |
 | `CoreFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus real-compiled end-to-end suites (TuplePicker, Reflector, Shell's `Core`, `QueryCore`, the test-support macros) |
 
 Adding a new macro: one new file in `CoreFlowMacros` for the implementation
@@ -150,10 +150,10 @@ The init:
   makes it unreachable; that's `callerSuppliedWrapperMustNotBePrivate`
   (`property.isCallerSuppliedWrapper`, `StoredProperty.swift`). Any *other*
   private property just needs *some* wrapper: the mapped source-of-truth set
-  (`@State`/`@AppStorage`/`@SceneStorage`/`@Query`,
+  (`@State`/`@FocusState`/`@AppStorage`/`@SceneStorage`/`@Query`,
   `sourceOfTruthMustBePrivate`'s
   domain — those must be private) or any unmapped wrapper (`@Environment`,
-  `@GestureState`, `@FocusState`, `@StateObject`, a custom one, …), which
+  `@GestureState`, `@StateObject`, a custom one, …), which
   carries no privacy rule at all — `@Shell`'s verbatim-copy default means
   unrecognized wrappers need no gatekeeping.
   `private(set)`/`fileprivate(set)` fall into these same
@@ -334,6 +334,10 @@ definition, never a test parameter, so the default is required
 (`stateNeedsInlineDefault`, checked in `ShellMacro` against the carried
 `binding` node — `@Shell`'s own rule: `@Flowable` renders nothing from a
 private `@State` and has no stake, locked by a `FlowableTests` case).
+`@FocusState`, the view's own focus → `@TestFocusState private`, the same
+rename treatment — no default to carry (`@FocusState` has no
+`init(wrappedValue:)`, so a host line never has one; the substitute's
+storage peer self-initializes).
 `@AppStorage`/`@SceneStorage`, EXTERNAL storage → `@Binding var name: T` —
 a dependency the constructor supplies; keys dropped, a test twin doesn't
 persist. `@Query` → `@QueryCore var name: T` — the fetched result as an
@@ -456,17 +460,20 @@ aren't seen (same syntax-only limitation as host-kind detection).
   the live wrapper's change-notification channel is gone with it. Every
   mapped stand-in is fabricatable from plain code, which is what makes
   direct `Core` construction work with zero live-view machinery; see
-  `makeCore` in `ShellTests.swift`.
-  `@FocusState`/`@AccessibilityFocusState` are deliberately NOT
-  whitelisted: their `.Binding` projections have no public
-  initializer (verified directly — a test can't back one with its own
-  closures) and their writes no-op outside a live view anyway (verified
-  directly) — a substitution would be a pass-through pretending to be a
-  mock; as verbatim copies they behave identically when hosted.
+  `makeCore` in `ShellTests.swift`. `@FocusState` → `@TestFocusState`:
+  not a mock — none is possible (`FocusState<T>.Binding` is
+  `@propertyWrapper` but has NO public initializer, and focus writes no-op
+  outside a live view; both verified directly against the real interface) —
+  but a live instrument: the substitute holds a REAL `FocusState` peer, so
+  hosted behavior is unchanged and every programmatic write logs (see the
+  `@TestFocusState` section below). `@AccessibilityFocusState` is
+  deliberately NOT whitelisted — an exact `@FocusState` clone
+  interface-wise, but no substitute macro exists for it yet, so it rides
+  rule 2 verbatim.
 - **The mapped source-of-truth wrappers must be private — enforced with a
   diagnostic, not accommodated.** `sourceOfTruthMustBePrivate`
   (`StoredProperty.swift`, checked in `collectStoredProperties`) rejects
-  `@State`/`@AppStorage`/`@SceneStorage`/`@Query` declared non-private: they're a view's
+  `@State`/`@FocusState`/`@AppStorage`/`@SceneStorage`/`@Query` declared non-private: they're a view's
   own source of truth, never something a caller supplies (`@Binding` is for
   that). Every renderer downstream can assume the substituted set is always
   private, with no "what if it's also public" case to reason about or test.
@@ -724,6 +731,70 @@ Production-safe, not test-only: the uninstalled sink is a no-op.
   (locked by `UnstructuredTaskTests`), and the computed property stays out
   of the memberwise init on both types, so the twin cancels and logs
   identically with nothing to substitute.
+
+## @TestFocusState — tricky points
+
+The fourth macro in the `@TestState` family (`TestFocusStateMacro.swift`;
+declaration in `TestFocusState.swift`) — a drop-in `@FocusState` that logs,
+and `@Shell`'s substitution for `@FocusState` on `Core` (the `@State →
+@TestState` rename treatment exactly: wrapper token renamed on the host's
+own line, private required via `sourceOfTruthMustBePrivate`).
+
+- **Computed over a self-initialized REAL `FocusState<T>` peer** (`private
+  let name_storage: FocusState<T> = FocusState()`) — accessor + peer like
+  the family, but no init accessor: `@FocusState` has no
+  `init(wrappedValue:)`, so a host line never carries a default and there
+  is nothing to funnel; the property is never a memberwise-init parameter
+  whatever its access level (same shape as `@UnstructuredTask`). **Bad
+  shapes are refused by the macro itself — expansion THROWS**
+  (`MacroExpansionErrorMessage`, a compile error at the attribute) on
+  `let`, an inline default, a missing annotation, or a
+  non-single-stored-instance-var shape — deliberately NOT the family's
+  silent-skip policy, because here a skip can COMPILE: `@TestFocusState
+  var focus = false` skipped is a plain, unmanaged stored property that
+  never logs, and the compiler accepts macro-added `get`/`set` accessors
+  on an initialized `var` without complaint (verified directly — the
+  "variable with accessors can't have an initial value" error does NOT
+  fire for macro-added accessors on this toolchain, so "let the compiler
+  catch it" cannot work; note this contradicts the older verified claim
+  recorded for `@UnstructuredTask`'s written-default case, which predates
+  this toolchain). The accessor role throws, the peer role stays silent
+  (`try?`) so the error reports once. `FocusState()` exists only for
+  `Bool` and optional values, so any other annotation still fails in the
+  compiler's own words on the generated peer, exactly like the live
+  wrapper.
+- **`$name` forwards the REAL `FocusState<T>.Binding`**
+  (`name_storage.projectedValue`) — `.focused(_:equals:)` demands that
+  exact nominal type, and it cannot be wrapped or fabricated: verified
+  directly against the SDK swiftinterface, `FocusState.Binding` is
+  `@frozen @propertyWrapper` exposing exactly `wrappedValue`
+  (`nonmutating set`) and `projectedValue` (itself), with NO public
+  initializer. Deliberate consequence: writes through the binding — the
+  SYSTEM moving focus on tap, keyboard dismissal, … — don't log; only
+  programmatic property writes do. **The property logs, the projection
+  wires.** Same criterion as getters-don't-log: scheduler-owned timing has
+  no place in an all-or-nothing snapshot diff. (This is the one family
+  member whose `$name` can NOT route through the property the way
+  `@TestState`'s does — the projection must be the native type.)
+- **Receiving-side support (a host storing `FocusState<T>.Binding`) was
+  designed at length and deliberately dropped.** The blocking fact: a
+  stored native binding's writes are uninterceptable — `name.wrappedValue
+  = x` executes inside Apple's sealed type after the getter has returned
+  it, and no macro role can wrap a foreign type's member setter — while
+  every parity-surface stand-in changes either the declaration type, the
+  construction label, or the body spelling. Owner-side only; a child
+  needing focus gets `.focused` attached at the owner's use site.
+- **Unhosted, reads return the wrapper's reset value and writes log then
+  no-op** like the live wrapper's own — the log still records the intent,
+  so a directly-constructed `Core` can assert "logic tried to focus X"
+  with zero view machinery. Package tests stop at the lifecycle
+  boundary — no unit test evaluates unhosted wrapper behavior; what's
+  locked here is the expansion shape (`TestSupportSyntaxTests`) and the
+  substitution + the non-private diagnostic (`ShellSyntaxTests`);
+  read/write/projection parity holds by type identity (`name` reads the
+  bare value on both sides, `$name` is the same nominal
+  `FocusState<T>.Binding` on both). Live focus movement and logging are
+  the example app's story.
 
 ## @Capability — tricky points
 

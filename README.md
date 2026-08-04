@@ -28,6 +28,7 @@ is the per-macro reference.
 | [`@Flowable`](#flowable) | member macro | writes a memberwise `init` at the type's own access level, plus `InFlowSplat`/`InFlow` typealiases bundling the same properties into a tuple, unlabeled and labeled |
 | [`@TestState`](#teststate-and-testaction) | accessor + peer macro | a drop-in `@State` that logs every mutation — each write reaches the injected sink the moment it happens, binding writes included |
 | [`@TestAction`](#teststate-and-testaction) | accessor + peer macro | an action closure that logs every call — reading the property IS the logged action; each call logs its payload to the injected sink, then forwards |
+| [`@TestFocusState`](#testfocusstate) | accessor + peer macro | a drop-in `@FocusState` that logs every programmatic write — a real `FocusState` underneath, so focus genuinely moves when hosted; `$name` is the real `FocusState<T>.Binding` |
 | [`@UnstructuredTask`](#unstructuredtask) | accessor + peer macro | a view-owned slot for a cancellable unstructured `Task` — assigning cancels the previous task, view teardown cancels the live one, and every mutation logs like `@TestState` |
 | [`TestLog`](#teststate-and-testaction) | dynamic property | reads the installed sink — what the macros generate as their log field (`private let log_x = TestLog()`); its `wrappedValue` IS the sink closure |
 | [`View.testLog(_:)`](#teststate-and-testaction) | View modifier | installs the one logging sink, once, on the root view; without it the log is a no-op, so hosts behave normally anywhere else |
@@ -108,11 +109,16 @@ test supplies the storage and captures every write (keys dropped — a test
 twin doesn't persist). `@Query` → `@QueryCore`: fetched data as a
 bare-value init parameter (reading a fetched array shouldn't require
 standing up an entire SwiftData stack).
+`@FocusState` is the view's own focus →
+[`@TestFocusState`](#testfocusstate), the same rename treatment as
+`@State` — not a mock (none is possible: `FocusState<T>.Binding` has no
+public initializer, and focus writes no-op outside a live view) but a live
+instrument: a real `FocusState` underneath, every programmatic write
+logged.
 Exactly the wrappers where the substitution buys something real — a log, a
-mock vehicle, a bare value — and nothing else qualifies (`@FocusState`'s
-`.Binding` projection, say, can't be
-test-backed — no public initializer — and no-ops outside a live view, so a
-stand-in would be a pass-through, not a mock).
+mock vehicle, a bare value — and nothing else qualifies
+(`@AccessibilityFocusState`, `@FocusState`'s interface-exact clone, has no
+substitute macro yet and rides the verbatim rule).
 **Copied verbatim** — everything else, wrapper or not: the host's own
 declaration as written. A plain field keeps its `let`/`var` and default (a
 defaulted `let` is a constant on `Core` too — no memberwise parameter,
@@ -129,8 +135,8 @@ behave.
 The split is principled. Whitelisted wrappers hold *data* — a value, a
 fetched array — so they can be owned-and-logged, mocked, or handed in at
 the boundary. Most of the rest is Apple's
-UI-runtime machinery: `@GestureState` (gesture lifecycle), `@FocusState`
-(focus), `@Namespace` (view identity), `@ScaledMetric` (display metrics),
+UI-runtime machinery: `@GestureState` (gesture lifecycle), `@Namespace`
+(view identity), `@ScaledMetric` (display metrics),
 `@Environment` (the tree's value propagation). No caller can supply a live
 gesture, so no substitution is attempted: machinery stays verbatim on
 `Core` — live when hosted, inert defaults otherwise.
@@ -138,6 +144,7 @@ gesture, so no substitution is attempted: machinery stays verbatim on
 | Shell | Core |
 |---|---|
 | `@State` | `@TestState` |
+| `@FocusState` | `@TestFocusState` |
 | `@AppStorage` / `@SceneStorage` | `@Binding` |
 | `@Query` | `@QueryCore` |
 
@@ -331,7 +338,7 @@ flowchart TD
     end
 
     subgraph SN["Card.Core — its standalone twin"]
-        Fields["substituted fields<br/>@TestState (logs) · @Binding (writes through) · @QueryCore (bare value)"]
+        Fields["substituted fields<br/>@TestState/@TestFocusState (log) · @Binding (writes through) · @QueryCore (bare value)"]
         SNBody["body + helpers<br/>the same text, compiler-copied"]
         Fields --> SNBody
     end
@@ -501,6 +508,51 @@ struct DownloadButton: View {
   unrecognized wrapper: `Core` gets the same declaration, the macro
   re-expands there, and the computed property stays out of the memberwise
   init — the twin cancels and logs identically.
+
+## TestFocusState
+
+A drop-in `@FocusState` that logs every programmatic write — and what
+[`@Shell`](#shell) substitutes for `@FocusState` on `Core`, the same
+rename treatment as `@State → @TestState`:
+
+```swift
+struct LoginScenario: View {
+    @TestFocusState private var focus: Field?
+
+    var body: some View {
+        TextField("email", text: $email)
+            .focused($focus, equals: .email)   // $focus IS FocusState<Field?>.Binding
+        Button("next") { focus = .password }   // logs ("focus", "Optional(MyApp.Field.password)")
+                                               // — String(describing:) qualifies enum cases
+    }
+}
+```
+
+- **A real `FocusState` underneath.** The property becomes computed over a
+  self-initialized `FocusState<T>` peer, so hosted behavior is the live
+  wrapper's own — focus genuinely moves — and the setter logs each
+  programmatic write the moment it happens. Like `@FocusState`, there is
+  no inline default (focus starts at the wrapper's reset value —
+  `false`/`nil`) and the property is never a memberwise-init parameter,
+  whatever its access level.
+- **The property logs, the projection wires.** `$name` forwards the real
+  `FocusState<T>.Binding` — the exact nominal type `.focused(_:equals:)`
+  demands, and one with no public initializer to wrap — so writes through
+  the binding (the *system* moving focus: a tap, keyboard dismissal)
+  deliberately don't log. Scheduler-owned timing has no place in a
+  snapshot log — the same criterion that keeps getter reads out of it.
+  Programmatic focus moves are the component's own decisions, and those
+  all log.
+- **Unhosted** (a directly constructed `Core`), reads return the reset
+  value and writes log then no-op, exactly like the live wrapper — the log
+  still records the intent, so a unit test can assert "logic tried to
+  focus X" with zero view machinery.
+- Required shape: a stored instance `var` with a type annotation (`Bool`
+  or an optional, the values `@FocusState` itself accepts) and no initial
+  value. Anything else is a compile error at the attribute, thrown by the
+  macro itself — never a silent skip: a skipped `@TestFocusState var focus
+  = false` would compile as a plain, unmanaged stored property that never
+  logs.
 
 ---
 
@@ -1182,8 +1234,8 @@ One target pair shared by all macros — not a pair per macro:
 
 | Target | Kind | Contents |
 |---|---|---|
-| `CoreFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), and `UnstructuredTaskMacro.swift` (`@UnstructuredTask`) — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init and `InFlowSplat`/`InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` (`@TestState`/`@TestAction`, `View.testLog(_:)`, and the `TestLog` dynamic property), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime `TaskStorage` box and `CancellableTask` protocol) — plus two small non-macro additions: `Reflector.swift` and `QueryCore.swift` |
+| `CoreFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift` (`@TestFocusState`), and `UnstructuredTaskMacro.swift` (`@UnstructuredTask`) — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init and `InFlowSplat`/`InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `CoreFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` (`@TestState`/`@TestAction`, `View.testLog(_:)`, and the `TestLog` dynamic property), `TestFocusState.swift` (`@TestFocusState`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime `TaskStorage` box and `CancellableTask` protocol) — plus two small non-macro additions: `Reflector.swift` and `QueryCore.swift` |
 | `CoreFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus real-compiled end-to-end suites (TuplePicker, Reflector, Shell's `Core`, `QueryCore`, the test-support macros) — both test frameworks coexist fine in one target |
 
 Swift tools version 6.3, Swift 6 language mode (strict concurrency), swift-syntax `600.0.0..<700.0.0`.

@@ -35,10 +35,12 @@ func renderShell(
         // Binding(get:set:) captures every write the copied body makes.
         // @Query → @QueryCore, whose extra fields default so the memberwise
         // init takes the bare fetched value: `Core(items: [item], …)`.
-        // @FocusState/@AccessibilityFocusState are deliberately NOT here:
-        // their .Binding projections have no public initializer and their
-        // writes no-op outside a live view (both verified directly) — a
-        // substitution would be a pass-through, not a mock.
+        // @FocusState — like @State, the view's own — is a renamed verbatim
+        // copy (rule 2 below): @TestFocusState holds a REAL FocusState peer
+        // (no mock exists: FocusState<T>.Binding has no public initializer,
+        // verified directly), so hosted behavior stays live and every
+        // programmatic write logs. @AccessibilityFocusState is deliberately
+        // NOT here — same shape, no substitute macro yet; verbatim copy.
         if p.isExternalStorage {
             return "@Binding var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
@@ -57,17 +59,20 @@ func renderShell(
             assert(!p.varDecl.attributes.isEmpty, "plain private fields are refused at collection")
         }
         var copy = p.varDecl
-        // @State — the view's OWN state — copies with just the wrapper
-        // renamed: @TestState, still private and defaulted, logging every
-        // mutation.
-        if p.isOwnState {
-            assert(p.isPrivate, "collection refuses non-private @State")
+        // @State/@FocusState — the view's OWN state/focus — copy with just
+        // the wrapper renamed: @TestState (still private and defaulted) /
+        // @TestFocusState (still private, no default — @FocusState can't
+        // carry one), logging every programmatic mutation.
+        if p.isOwnState || p.isFocusState {
+            assert(p.isPrivate, "collection refuses non-private @State/@FocusState")
+            let (from, to) =
+                p.isOwnState ? ("State", "TestState") : ("FocusState", "TestFocusState")
             copy.attributes = AttributeListSyntax(
                 copy.attributes.map { element in
                     guard case .attribute(var a) = element,
-                        a.attributeName.trimmedDescription == "State"
+                        a.attributeName.trimmedDescription == from
                     else { return element }
-                    a.attributeName = TypeSyntax("TestState")
+                    a.attributeName = TypeSyntax(stringLiteral: to)
                         .with(\.trailingTrivia, a.attributeName.trailingTrivia)
                     return .attribute(a)
                 })
