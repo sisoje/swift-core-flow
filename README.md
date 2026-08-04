@@ -30,7 +30,7 @@ is the per-macro reference.
 | [`@TestAction`](#teststate-and-testaction) | accessor + peer macro | an action closure that logs every call — reading the property IS the logged action; each call logs its payload to the injected sink, then forwards |
 | [`@TestFocusState`](#testfocusstate) | accessor + peer macro | a drop-in `@FocusState` that logs every programmatic write — a real `FocusState` underneath, so focus genuinely moves when hosted; `$name` is the real `FocusState<T>.Binding` |
 | [`@UnstructuredTask`](#unstructuredtask) | accessor + peer macro | a view-owned slot for a cancellable unstructured `Task` — assigning cancels the previous task, view teardown cancels the live one, and every mutation logs like `@TestState` |
-| [`TestLog`](#the-testlog-seam) | dynamic property | reads the installed sink — what the macros generate as their log field (`private let log_x = TestLog()`); its `wrappedValue` IS the sink closure |
+| [`@TestLog`](#the-testlog-seam) | property wrapper | reads the installed sink — `@TestLog private var log` self-initializes and `log(name, value)` is a direct call (verified); the macros generate the same thing as an explicit field, `private let log_x = TestLog()` |
 | [`View.testLog(_:)`](#the-testlog-seam) | View modifier | installs the one logging sink, once, on the root view; without it the log is a no-op, so hosts behave normally anywhere else |
 | [`@Capability`](#capability) | member macro | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
 | [`#pick`](#pick-tuplepicker) | expression macro | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
