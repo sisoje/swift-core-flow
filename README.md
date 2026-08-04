@@ -25,13 +25,13 @@ is the per-macro reference.
 | Concept | Form | Does |
 |---|---|---|
 | [`@Shell`](#shell) | member macro | generates a nested `Core` struct — the host's standalone twin: same body, every data boundary observable, directly constructible in tests and previews |
-| [`@Flowable`](#flowable) | member macro | writes a memberwise `init` at the type's own access level, plus `InFlowSplat`/`InFlow` typealiases bundling the same properties into a tuple, unlabeled and labeled |
+| [`@Flowable`](#flowable) | member macro | writes a memberwise `init` at the type's own access level, plus a `makeFlow(_:)` factory taking the same properties as one unlabeled tuple and an `InFlow` typealias naming their labeled shape |
 | [`@TestState`](#teststate-and-testaction) | accessor + peer macro | a drop-in `@State` that logs every mutation — each write reaches the injected sink the moment it happens, binding writes included |
 | [`@TestAction`](#teststate-and-testaction) | accessor + peer macro | an action closure that logs every call — reading the property IS the logged action; each call logs its payload to the injected sink, then forwards |
 | [`@TestFocusState`](#testfocusstate) | accessor + peer macro | a drop-in `@FocusState` that logs every programmatic write — a real `FocusState` underneath, so focus genuinely moves when hosted; `$name` is the real `FocusState<T>.Binding` |
 | [`@UnstructuredTask`](#unstructuredtask) | accessor + peer macro | a view-owned slot for a cancellable unstructured `Task` — assigning cancels the previous task, view teardown cancels the live one, and every mutation logs like `@TestState` |
-| [`TestLog`](#teststate-and-testaction) | dynamic property | reads the installed sink — what the macros generate as their log field (`private let log_x = TestLog()`); its `wrappedValue` IS the sink closure |
-| [`View.testLog(_:)`](#teststate-and-testaction) | View modifier | installs the one logging sink, once, on the root view; without it the log is a no-op, so hosts behave normally anywhere else |
+| [`TestLog`](#the-testlog-seam) | dynamic property | reads the installed sink — what the macros generate as their log field (`private let log_x = TestLog()`); its `wrappedValue` IS the sink closure |
+| [`View.testLog(_:)`](#the-testlog-seam) | View modifier | installs the one logging sink, once, on the root view; without it the log is a no-op, so hosts behave normally anywhere else |
 | [`@Capability`](#capability) | member macro | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
 | [`#pick`](#pick-tuplepicker) | expression macro | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
 | [`Reflector`](#reflector) | runtime utility | lists a value type's field names off its type alone, no instance needed — pairs with `@Flowable`'s `InFlow` |
@@ -417,9 +417,17 @@ behavior.**
   type needs. The wrapper captures two locals, never the view — no `self`
   dragged into `async`/`@Sendable` action closures. Closures only, `var`
   only, and no setter: an action is wired, not mutated.
+### The testLog seam
+
 - **One seam, two ends.** `testLog { name, value in … }` installs the
-  sink; the macros read it through `TestLog`, a `DynamicProperty` generated
-  as an explicit stored field. Neither macro emits diagnostics, on purpose:
+  sink; the macros read it through `TestLog`, a `DynamicProperty` and real
+  `@propertyWrapper`. Hand-written code may use either spelling —
+  `@TestLog var log: …` sugar or a constructed field — but generated code
+  gets only the explicit field (`private let log_x = TestLog()`):
+  macro-generated wrapper *sugar* crashes swiftc (verified directly;
+  hand-written identical sugar compiles fine), so the constructed-value
+  form is the one the macros can emit — and why the table spells the type
+  bare. Neither macro emits diagnostics, on purpose:
   an unspellable shape (missing type/default, `let`, non-closure on
   `@TestAction`) generates nothing, and the use site fails in the compiler's
   own words.
@@ -562,17 +570,17 @@ A `member` macro that writes a memberwise `init` for the type it's attached to, 
 the type's own access level**. It fills the initializers Swift won't synthesize: the
 `public init` a public struct needs, and *any* init for a `class` or `actor` —
 including an `@Observable final class`. Alongside the init, it also declares
-two tuple typealiases — an unlabeled `InFlowSplat` with a `makeFlow(_:)`
-factory building `Self` *from* one, and `InFlow`, its labeled twin. See
-[below](#the-inflowsplat-typealias), [below that](#the-makeflow_-factory),
-and [below that](#the-inflow-typealias).
+`makeFlow(_:)` — a factory building `Self` from the same properties bundled
+as one unlabeled tuple — and `InFlow`, the labeled tuple typealias naming
+that shape. See [below](#the-makeflow_-factory) and
+[below that](#the-inflow-typealias).
 
 Independent of [`@Shell`](#shell) — attach either or both. `Core`
 deliberately carries no `@Flowable`: Swift's synthesized memberwise init
 reproduces the same field behaviors, and nothing round-trips a `Core` back
 into itself.
 
-See the [diagram below](#how-inflowsplat-and-inflow-relate) for how the whole
+See the [diagram below](#how-makeflow-and-inflow-relate) for how the whole
 shape fits together.
 
 ```swift
@@ -586,10 +594,10 @@ public struct User {
 //     self.id = id
 //     self.isActive = isActive
 // }
-// public typealias InFlowSplat = (UUID, Bool)
-// public static func makeFlow(_ flow: InFlowSplat) -> Self {
+// public static func makeFlow(_ flow: (UUID, Bool)) -> Self {
 //     Self(id: flow.0, isActive: flow.1)
 // }
+// public typealias InFlow = (id: UUID, isActive: Bool)
 ```
 
 Works the same on a `class` or `actor`:
@@ -600,8 +608,7 @@ Works the same on a `class` or `actor`:
     var count = 0
 }
 // init(count: Int = 0) { self.count = count }
-// typealias InFlowSplat = Int          // one property → bare type, not a 1-tuple
-// static func makeFlow(_ flow: InFlowSplat) -> Self { Self(count: flow) }
+// static func makeFlow(_ flow: Int) -> Self { Self(count: flow) }   // one property → bare type, not a 1-tuple
 ```
 
 ### What it does
@@ -669,12 +676,12 @@ struct Card<Content: View>: View {
   entirely. Same for caller-supplied kinds: `@Binding`/`@ViewBuilder`
   declared private are unreachable and rejected outright.
 
-### The InFlowSplat typealias
+### The makeFlow(_:) factory
 
-Alongside the init, `@Flowable` declares `InFlowSplat` — the same properties
-bundled into a tuple type, for API uniformity/discoverability (e.g. `Foo.InFlowSplat`
-is always there to reference generically) rather than as a second constructor;
-nothing in the init routes through it.
+Alongside the init, `@Flowable` declares `makeFlow(_:)` — a static factory
+building `Self` from the same properties bundled into one **unlabeled**
+tuple parameter, spelled inline in the signature, forwarded field by field
+into the init:
 
 ```swift
 @Flowable
@@ -682,16 +689,24 @@ public struct User {
     public let id: UUID
     public let name: String
 }
-// public typealias InFlowSplat = (UUID, String)
+// public static func makeFlow(_ flow: (UUID, String)) -> Self {
+//     Self(id: flow.0, name: flow.1)
+// }
 
-let flow: User.InFlowSplat = (id: someID, name: "Ada")
+let user = User.makeFlow((id: someID, name: "Ada"))
+
+// Any structurally-compatible tuple works, not just one built with these
+// field names — the parameter is unlabeled:
+let differentlyLabeled = (uuid: someID, label: "Ada")
+let user2 = User.makeFlow(differentlyLabeled)
 ```
 
-It's built independently of the init, so it diverges from it in a few ways:
+The parameter is built independently of the init, so it diverges from it in
+a few ways:
 
 - **Unlabeled** — `(UUID, String)`, not `(id: UUID, name: String)` — deliberately,
   so any structurally-compatible tuple converts into it, not just one built with
-  these exact field names ("splat" in the name). Verified directly: a tuple
+  these exact field names. Verified directly: a tuple
   *value* already bound with different labels (`let t = (xxx: 1, yyy: 2)`) fails
   to convert into a *labeled* tuple type of the same shape (`error: cannot
   convert value of type '(xxx: Int, yyy: Int)' to expected argument type '(x:
@@ -699,46 +714,37 @@ It's built independently of the init, so it diverges from it in a few ways:
   enforces label agreement between two *labeled* tuple types. A labeled tuple
   *literal* (`(id: someID, name: "Ada")`, as above) converts into an unlabeled
   target either way, so you can still write field names for your own
-  readability when constructing the value — only a pre-existing,
+  readability at the call site — only a pre-existing,
   differently-labeled variable needed the loosening. The real cost: with no
   labels, the compiler no longer catches two same-typed fields passed in the
   wrong order.
+- **Spelled inline — deliberately no typealias naming the unlabeled tuple.**
+  A second name for the shape earns nothing: [`InFlow`](#the-inflow-typealias)
+  feeds the parameter with no conversion and is the better spelling for
+  storing and diffing, and generic code couldn't constrain on a generated
+  member typealias anyway (no protocol declares one — see
+  [below](#deliberately-no-protocol-naming-the-shape)).
 - **No per-field defaults.** Tuple element types can't carry `= default` — so an
   inline `var` default, and an optional `var`'s implicit `nil`, are both dropped,
   unlike the init right above it.
-- **One property still gets an `InFlowSplat` — just not a tuple.** Swift has no
-  1-tuples — `(Int)` as a type collapses to plain `Int` regardless of labels — so
-  with exactly one participating property, `InFlowSplat` aliases the bare field
-  type directly (`typealias InFlowSplat = Int`).
-- **Zero properties → no typealias at all.** There's nothing to alias, and the init
-  already covers the zero-property case on its own (`init() {}`).
-- **Never `@escaping`**, even on function-typed fields — a closure nested inside a
-  tuple type is already escaping; writing the attribute there is a compile error.
-- **`@ViewBuilder` is ignored entirely.** A stored-value field
-  (`@ViewBuilder let footer: Content`) keeps its own type in the typealias
-  (`Content`, not `() -> Content`) and would be assigned directly if anything
-  consumed it. The init wraps that field in a builder closure specifically to get
-  trailing-closure syntax at the call site; a tuple type has no parameter position
-  for that syntax to attach to, so the wrapping would buy nothing here — and would
-  actively work against the point of `InFlowSplat`, which is data you pass
-  around, store, or diff, not a closure.
-
-### The makeFlow(_:) factory
-
-A `static func makeFlow(_ flow: InFlowSplat) -> Self` that builds an instance from
-an `InFlowSplat` value — declared whenever `InFlowSplat` itself is (same
-collapse/absence rules). It forwards each field directly:
-
-```swift
-let flow: User.InFlowSplat = (id: someID, name: "Ada")
-let user = User.makeFlow(flow)
-
-// Any structurally-compatible tuple works, not just one built with these field
-// names — InFlowSplat is unlabeled:
-let differentlyLabeled = (uuid: someID, label: "Ada")
-let user2 = User.makeFlow(differentlyLabeled)
-```
-
+- **One property collapses the parameter to the bare field type** — Swift has no
+  1-tuples (`(Int)` as a type is plain `Int` regardless of labels) — and `flow`
+  is then the value directly, no positional index: `makeFlow(_ flow: Int)`,
+  `Self(count: flow)`. Zero properties → no factory at all: nothing to build
+  from, and the init already covers the zero-property case on its own
+  (`init() {}`).
+- **Never `@escaping` inside the tuple**, even on function-typed fields — a
+  closure nested inside a tuple type is already escaping; writing the attribute
+  there is a compile error. The single-field collapse is the one case that
+  *does* need it (the closure becomes a direct function parameter), and the
+  factory spells it exactly there.
+- **`@ViewBuilder` fields ride as plain values.** A stored-value field
+  (`@ViewBuilder let footer: Content`) keeps its own type in the tuple
+  (`Content`, not `() -> Content`). The init wraps that field in a builder
+  closure specifically to get trailing-closure syntax at the call site; a tuple
+  type has no parameter position for that syntax to attach to, and a closure
+  isn't `Equatable`, storable, or diffable. `makeFlow(_:)` re-wraps the plain
+  value into a trivial closure for the init: `footer: { flow.2 }`.
 - **A static function, not a second `init`** — deliberately, so it works the same on
   a struct, class, or actor. A delegating second `init` (`init(...)`) requires
   the `convenience` keyword on a class/actor and drags in Swift's
@@ -747,20 +753,16 @@ let user2 = User.makeFlow(differentlyLabeled)
 - **Direct field forwarding**, not a trick. `Self(x: flow.0, y: flow.1)`
   — not `[layout].map(Self.init).first!`, which is what you'd reach for by hand to
   get an *unapplied* `Self.init` reference to accept a tuple positionally (it works,
-  but the macro doesn't need it: it already knows every field's position).
-- **Fields are read positionally** — `flow.0`, `flow.1`, … in field
-  order — since `InFlowSplat` itself is unlabeled.
-- **A `@ViewBuilder`-stored value is the one field that isn't forwarded as-is.**
-  `InFlowSplat` holds it as a plain value, but the primary init still wants a
-  `() -> Content` builder for it — so `makeFlow(_:)` wraps it back into a
-  trivial closure: `footer: { flow.2 }`.
-- **Positional, unlabeled parameter (`_ flow:`)**, not a labeled `make(inFlowSplatted:)`
-  — a deliberate naming choice, so the call site reads `Type.makeFlow(someFlow)`.
+  but the macro doesn't need it: it already knows every field's position). Fields
+  are read positionally — `flow.0`, `flow.1`, … in field order — since the tuple
+  is unlabeled.
+- **Positional, unlabeled parameter (`_ flow:`)** — a deliberate naming choice,
+  so the call site reads `Type.makeFlow(someFlow)`.
 
 ### The InFlow typealias
 
-The reverse direction from `InFlowSplat`: the same fields and types, but **labeled**
-— `(id: UUID, name: String)`, not `(UUID, String)`. Same collapse/absence rules
+The same fields and types as `makeFlow(_:)`'s parameter, but **labeled** —
+`(id: UUID, name: String)`, not `(UUID, String)`. Same collapse/absence rules
 (one property → bare type, zero → nothing).
 
 ```swift
@@ -770,8 +772,8 @@ let named: User.InFlow = (id: someID, name: "Ada")
 Labeled specifically for readable spelling (`named.id`, not `named.0`) and real
 reflection support — verified directly: `Mirror(reflecting:)` reports each field's
 actual name over a *labeled* tuple, but only positional labels (`.0`, `.1`) over an
-*unlabeled* one, so `InFlowSplat` alone can't back a generic field-name utility.
-`InFlow` can — see [`Reflector`](#reflector) below. An `InFlow`-typed value
+*unlabeled* one, so the unlabeled parameter alone can't back a generic
+field-name utility. `InFlow` can — see [`Reflector`](#reflector) below. An `InFlow`-typed value
 feeds `makeFlow(_:)` with no conversion (an unlabeled parameter accepts any
 labels — verified directly).
 
@@ -785,28 +787,28 @@ live; a tuple can't, and a tuple of `$state` bindings wouldn't write
 through outside a live view anyway (verified directly, `@State` and
 `@SceneStorage` both).
 
-### How InFlowSplat and InFlow relate
+### How makeFlow and InFlow relate
 
 ```mermaid
 flowchart LR
     IF["InFlow<br/>(labeled tuple — the readable,<br/>Mirror-reflectable name)"]
-    IFS["InFlowSplat<br/>(unlabeled tuple)"]
+    IFS["unlabeled tuple<br/>(makeFlow's parameter, spelled inline)"]
     IF -. "converts into<br/>(unlabeled accepts any label)" .-> IFS
     IFS -- "makeFlow(_:)" --> T((Self))
 ```
 
-Both name the same shape; only `InFlowSplat` sits in a parameter position.
-**Honest caveat:** the typealiases are declared mainly *because the
-properties are already collected* for the init — cheap API surface, real
+Both spell the same shape; only the unlabeled one sits in a parameter
+position. **Honest caveat:** the flow members are declared mainly *because
+the properties are already collected* for the init — cheap API surface, real
 `Mirror` support — not because real code has demanded them yet. The diagram
 below makes that distinction explicit.
 
 **Why tuples, not a dedicated generated struct per type:** a tuple is a
 *structural* type — two tuples with the same element types match regardless of
 where they came from, with no shared nominal declaration needed. That's
-exactly what a data-flow shape wants: `InFlow` and `InFlowSplat` need to
-convert into each other, and any external, differently-labeled tuple needs to
-splat into `makeFlow(_:)`, without this package generating (and you naming) a
+exactly what a data-flow shape wants: `InFlow` needs to convert into
+`makeFlow(_:)`'s unlabeled parameter, and so does any external,
+differently-labeled tuple, without this package generating (and you naming) a
 bespoke struct type for every field combination across every `@Flowable`
 type. A nominal type would need its own declaration, its own name, and
 explicit conversion code between every pair that should interoperate — an
@@ -822,16 +824,16 @@ show *why* each one is there. They don't all have the same reason:
 flowchart TD
     props(["stored properties<br/>collected once"])
     props --> init["init<br/>the actual reason @Flowable exists —<br/>Swift won't synthesize a public one"]
-    props --> flow["InFlowSplat / makeFlow(_:) / InFlow<br/>free once properties are collected —<br/>splat construction and Mirror support,<br/>not proven demand yet"]
+    props --> flow["makeFlow(_:) / InFlow<br/>free once properties are collected —<br/>tuple construction and Mirror support,<br/>not proven demand yet"]
     props --> node["Core (@Shell)<br/>earns its keep: construct directly<br/>with mocks, assert, host live —<br/>a real type: View / ViewModifier,<br/>Equatable, Codable, ..."]
 ```
 
 - **`init`** — not optional, not speculative: it's the specific gap `@Flowable`
   fills (Swift only synthesizes an *internal* memberwise init, never a public
   one).
-- **`InFlowSplat`/`makeFlow(_:)`/`InFlow`** — a byproduct of already
+- **`makeFlow(_:)`/`InFlow`** — a byproduct of already
   having collected the properties for the init. Cheap to generate, genuinely
-  useful *if* you need splat-construction or `Mirror`-based field names — the
+  useful *if* you need tuple construction or `Mirror`-based field names — the
   package's own tests exercise them
   (`Reflector.fieldNames(of: Point.InFlow.self)`), but only to demonstrate
   they work, not because another feature needed them to. Nothing
@@ -849,7 +851,7 @@ flowchart TD
 A `member` macro that bundles every eligible **computed** property and method of the
 type — or extension — it's attached to into one `Capability` tuple typealias and a
 `capability` computed property: a lightweight "protocol witness"-style bundle of
-*behavior*, as opposed to `@Flowable`'s `InFlowSplat` typealias, which bundles
+*behavior*, as opposed to `@Flowable`'s `InFlow` typealias, which bundles
 *data*. The idea is Scott Wlaschin's capability-based design
 ("Designing with capabilities" — see [References](#references)):
 instead of handing a consumer the whole object (or a protocol it must
@@ -896,7 +898,7 @@ well attached directly to a struct/class/actor or to an extension of one.
   compile.
 
 One eligible member collapses `Capability` to that member's bare type/value — same
-1-tuple collapse `@Flowable`'s `InFlowSplat` typealias does, for the same reason
+1-tuple collapse `@Flowable`'s `InFlow` typealias does, for the same reason
 (Swift has no 1-tuples). Zero eligible members is a diagnostic, not an empty
 `Capability`.
 
@@ -1198,7 +1200,7 @@ verified directly, both ways:
 
 ### Pairs with @Flowable
 
-Point it at `InFlow`, not `InFlowSplat`:
+Point it at `InFlow`:
 
 ```swift
 @Flowable
@@ -1207,19 +1209,19 @@ struct Point {
     var y: Int
 }
 
-Reflector.fieldNames(of: Point.InFlow.self)          // ["x", "y"]
-Reflector.fieldNames(of: Point.InFlowSplat.self)  // [".0", ".1"] — InFlowSplat is unlabeled
+Reflector.fieldNames(of: Point.InFlow.self)   // ["x", "y"]
+Reflector.fieldNames(of: (Int, Int).self)     // [".0", ".1"] — unlabeled tuples have only positional labels
 ```
 
-`InFlowSplat` isn't wrong to reflect on — it just has no real labels to report, since
-it's deliberately unlabeled (see [above](#the-inflowsplat-typealias)). `InFlow`
-is the one built for this.
+An unlabeled tuple isn't wrong to reflect on — it just has no real labels to
+report, which is why `makeFlow(_:)`'s parameter shape isn't the one to point
+`Reflector` at. `InFlow` is the one built for this.
 
 ---
 
 ## Deliberately no protocol naming the shape
 
-There is no `FlowableRepresentable` protocol (`associatedtype InFlowSplat`,
+There is no `FlowableRepresentable` protocol (`associatedtype InFlow`,
 `static func makeFlow(_:) -> Self`) for
 writing generic code against "any `@Flowable` type" by constraint. Decided
 against: without real generic-code use cases, such a protocol's only value
@@ -1234,7 +1236,7 @@ One target pair shared by all macros — not a pair per macro:
 
 | Target | Kind | Contents |
 |---|---|---|
-| `CoreFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift` (`@TestFocusState`), and `UnstructuredTaskMacro.swift` (`@UnstructuredTask`) — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init and `InFlowSplat`/`InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `CoreFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift` (`@TestFocusState`), and `UnstructuredTaskMacro.swift` (`@UnstructuredTask`) — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `makeFlow(_:)`, and `InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
 | `CoreFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` (`@TestState`/`@TestAction`, `View.testLog(_:)`, and the `TestLog` dynamic property), `TestFocusState.swift` (`@TestFocusState`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime `TaskStorage` box and `CancellableTask` protocol) — plus two small non-macro additions: `Reflector.swift` and `QueryCore.swift` |
 | `CoreFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus real-compiled end-to-end suites (TuplePicker, Reflector, Shell's `Core`, `QueryCore`, the test-support macros) — both test frameworks coexist fine in one target |
 

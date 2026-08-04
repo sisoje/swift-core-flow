@@ -1,7 +1,7 @@
 import SwiftSyntax
 
-/// The memberwise init plus `InFlowSplat`/`makeFlow(_:)`/`InFlow`
-/// (each renderer below documents its own rules). `access` is a modifier
+/// The memberwise init plus `makeFlow(_:)`/`InFlow` (each renderer below
+/// documents its own rules). `access` is a modifier
 /// prefix — `"public "` or `""`. Deliberately nothing wider: snapshotting
 /// private wrapper state is `@Shell`'s `Core`'s job (`ShellRendering.swift`).
 public func renderFlowable(properties: [StoredProperty], access: String) -> [DeclSyntax] {
@@ -45,10 +45,7 @@ public func renderFlowable(properties: [StoredProperty], access: String) -> [Dec
         """
 
     var decls = [DeclSyntax(stringLiteral: initDecl)]
-    if let inFlowSplat = renderInFlowSplatTypealias(properties: properties, access: access) {
-        decls.append(inFlowSplat)
-    }
-    if let factory = renderInFlowSplatFactory(properties: properties, access: access) {
+    if let factory = renderMakeFlowFactory(properties: properties, access: access) {
         decls.append(factory)
     }
     if let inFlow = renderInFlowTypealias(properties: properties, access: access) {
@@ -57,44 +54,41 @@ public func renderFlowable(properties: [StoredProperty], access: String) -> [Dec
     return decls
 }
 
-/// One property collapses to its bare type (Swift has no 1-tuples); zero →
-/// no typealias.
-///
-/// **Deliberately unlabeled** — "splat": any structurally-compatible tuple
-/// converts into it. Verified directly: a tuple *value* bound with different
-/// labels fails to convert into a *labeled* target of the same shape but
-/// succeeds into an unlabeled one — Swift only enforces label agreement
-/// between two labeled tuple types. A labeled *literal* converts either way,
-/// so callers can still spell field names when constructing. Tradeoff: no
-/// labels means two swapped same-typed fields aren't caught.
-///
-/// `wrapViewBuilder: false`, and never `@escaping` (only legal directly on a
-/// function parameter; a closure inside a tuple type is already escaping).
-/// Per-field defaults are dropped — tuple element types can't carry them.
-func renderInFlowSplatTypealias(properties: [StoredProperty], access: String) -> DeclSyntax? {
-    let initParams = properties.filter { !$0.isPrivate }
-    guard !initParams.isEmpty else { return nil }
-
-    let rhs =
-        initParams.count > 1
-        ? "(" + initParams.map { baseTypeText($0, wrapViewBuilder: false) }.joined(separator: ", ")
-            + ")"
-        : baseTypeText(initParams[0], wrapViewBuilder: false)
-
-    return DeclSyntax(stringLiteral: "\(access)typealias InFlowSplat = \(rhs)")
-}
-
 /// A static func, not a second `init`, so it works identically on
 /// struct/class/actor — a delegating init needs `convenience` on a
-/// class/actor; `Self(...)` in a static func sidesteps that. Fields read
-/// positionally (`flow.0`, …) since `InFlowSplat` is unlabeled. A
+/// class/actor; `Self(...)` in a static func sidesteps that.
+///
+/// **The parameter is the unlabeled tuple of the init's fields, spelled
+/// inline — deliberately no typealias naming it** (a second name for the
+/// shape earned nothing: `InFlow` feeds it with no conversion, and generic
+/// code can't constrain on a generated member typealias anyway). Unlabeled
+/// so any structurally-compatible tuple converts in. Verified directly: a
+/// tuple *value* bound with different labels fails to convert into a
+/// *labeled* target of the same shape but succeeds into an unlabeled one —
+/// Swift only enforces label agreement between two labeled tuple types. A
+/// labeled *literal* converts either way, so callers can still spell field
+/// names when constructing. Tradeoff: no labels means two swapped
+/// same-typed fields aren't caught.
+///
+/// One property collapses the parameter to the bare field type (Swift has
+/// no 1-tuples); zero properties → no factory. `wrapViewBuilder: false`,
+/// and never `@escaping` inside the tuple (only legal directly on a
+/// function parameter; a closure inside a tuple type is already escaping).
+/// Per-field defaults are dropped — tuple element types can't carry them.
+/// Fields read positionally (`flow.0`, …) since the tuple is unlabeled. A
 /// `@ViewBuilder`-stored *value* is a plain value in the tuple but the init
 /// wants a builder, so it forwards as a trivial closure (`{ flow.0 }`).
-func renderInFlowSplatFactory(properties: [StoredProperty], access: String) -> DeclSyntax? {
+func renderMakeFlowFactory(properties: [StoredProperty], access: String) -> DeclSyntax? {
     let initParams = properties.filter { !$0.isPrivate }
     guard !initParams.isEmpty else { return nil }
 
     let isTuple = initParams.count > 1
+    let flowType =
+        isTuple
+        ? "(" + initParams.map { baseTypeText($0, wrapViewBuilder: false) }.joined(separator: ", ")
+            + ")"
+        : baseTypeText(initParams[0], wrapViewBuilder: false)
+
     let args = initParams.enumerated().map { index, p -> String in
         let source = isTuple ? "flow.\(index)" : "flow"
         if p.isViewBuilder, !(p.type.map(isFunctionType) ?? false) {
@@ -113,21 +107,20 @@ func renderInFlowSplatFactory(properties: [StoredProperty], access: String) -> D
 
     return DeclSyntax(
         stringLiteral: """
-            \(access)static func makeFlow(_ flow: \(escaping)InFlowSplat) -> Self {
+            \(access)static func makeFlow(_ flow: \(escaping)\(flowType)) -> Self {
                 Self(\(args))
             }
             """
     )
 }
 
-/// `InFlowSplat`, labeled — the readable, `Mirror`-reflectable name of the
-/// shape (verified directly: `Mirror` reports actual field names over a
-/// labeled tuple, only `.0`/`.1` over an unlabeled one). Same
-/// collapse/absence rules. An `InFlow` value converts into the unlabeled
-/// `InFlowSplat` parameter like any differently-labeled tuple (verified
-/// directly). Deliberately no generated accessor reading an instance back
-/// out into one: data flows in at construction, and nothing needed the
-/// backward read.
+/// The labeled, `Mirror`-reflectable name of the shape (verified directly:
+/// `Mirror` reports actual field names over a labeled tuple, only `.0`/`.1`
+/// over an unlabeled one). Same collapse/absence rules as the factory. An
+/// `InFlow` value converts into `makeFlow(_:)`'s unlabeled parameter like
+/// any differently-labeled tuple (verified directly). Deliberately no
+/// generated accessor reading an instance back out into one: data flows in
+/// at construction, and nothing needed the backward read.
 func renderInFlowTypealias(properties: [StoredProperty], access: String) -> DeclSyntax? {
     let initParams = properties.filter { !$0.isPrivate }
     guard !initParams.isEmpty else { return nil }

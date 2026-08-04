@@ -26,9 +26,7 @@ final class FlowableTests: XCTestCase {
                         self.isActive = isActive
                     }
 
-                    public typealias InFlowSplat = (UUID, Bool)
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
+                    public static func makeFlow(_ flow: (UUID, Bool)) -> Self {
                         Self(id: flow.0, isActive: flow.1)
                     }
 
@@ -59,9 +57,7 @@ final class FlowableTests: XCTestCase {
                         self.y = y
                     }
 
-                    typealias InFlowSplat = (Int, Int)
-
-                    static func makeFlow(_ flow: InFlowSplat) -> Self {
+                    static func makeFlow(_ flow: (Int, Int)) -> Self {
                         Self(x: flow.0, y: flow.1)
                     }
 
@@ -91,9 +87,7 @@ final class FlowableTests: XCTestCase {
                         self.onDelete = onDelete
                     }
 
-                    typealias InFlowSplat = (String) -> Void
-
-                    static func makeFlow(_ flow: @escaping InFlowSplat) -> Self {
+                    static func makeFlow(_ flow: @escaping (String) -> Void) -> Self {
                         Self(onDelete: flow)
                     }
 
@@ -107,7 +101,7 @@ final class FlowableTests: XCTestCase {
     func testWorksOnAClass() {
         // Works on a class too — e.g. an @Observable class, which Swift gives no
         // memberwise init at all. Access level mirrors the type (internal here).
-        // One property collapses InFlowSplat to its bare type, not a 1-tuple.
+        // One property collapses makeFlow's parameter to its bare type, not a 1-tuple.
         assertMacroExpansion(
             """
             @Flowable
@@ -123,9 +117,7 @@ final class FlowableTests: XCTestCase {
                         self.ii = ii
                     }
 
-                    typealias InFlowSplat = Int
-
-                    static func makeFlow(_ flow: InFlowSplat) -> Self {
+                    static func makeFlow(_ flow: Int) -> Self {
                         Self(ii: flow)
                     }
 
@@ -154,9 +146,7 @@ final class FlowableTests: XCTestCase {
                         self.count = count
                     }
 
-                    public typealias InFlowSplat = Int
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
+                    public static func makeFlow(_ flow: Int) -> Self {
                         Self(count: flow)
                     }
 
@@ -168,8 +158,8 @@ final class FlowableTests: XCTestCase {
     }
 
     func testClosuresGetEscaping() {
-        // The init gets @escaping on every function-typed param; the InFlowSplat
-        // typealias never does (a closure nested inside a tuple type is already
+        // The init gets @escaping on every function-typed param; makeFlow's
+        // tuple never does (a closure nested inside a tuple type is already
         // escaping — @escaping is only legal directly on a function parameter).
         assertMacroExpansion(
             """
@@ -192,9 +182,7 @@ final class FlowableTests: XCTestCase {
                         self.onSend = onSend
                     }
 
-                    public typealias InFlowSplat = (() -> Void, @MainActor () -> Void, @Sendable (Int) -> Void)
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
+                    public static func makeFlow(_ flow: (() -> Void, @MainActor () -> Void, @Sendable (Int) -> Void)) -> Self {
                         Self(onChange: flow.0, onMain: flow.1, onSend: flow.2)
                     }
 
@@ -231,9 +219,7 @@ final class FlowableTests: XCTestCase {
                         self.onSend = onSend
                     }
 
-                    public typealias InFlowSplat = (String?, (() -> Void)?, (@Sendable (Int) -> Void)!)
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
+                    public static func makeFlow(_ flow: (String?, (() -> Void)?, (@Sendable (Int) -> Void)!)) -> Self {
                         Self(nickname: flow.0, onChange: flow.1, onSend: flow.2)
                     }
 
@@ -270,9 +256,7 @@ final class FlowableTests: XCTestCase {
                         self.title = title
                     }
 
-                    public typealias InFlowSplat = (Binding<Bool>, String)
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
+                    public static func makeFlow(_ flow: (Binding<Bool>, String)) -> Self {
                         Self(isOn: flow.0, title: flow.1)
                     }
 
@@ -304,9 +288,7 @@ final class FlowableTests: XCTestCase {
                         self.title = title
                     }
 
-                    typealias InFlowSplat = String
-
-                    static func makeFlow(_ flow: InFlowSplat) -> Self {
+                    static func makeFlow(_ flow: String) -> Self {
                         Self(title: flow)
                     }
 
@@ -394,9 +376,9 @@ final class FlowableTests: XCTestCase {
 
     func testViewBuilderPropertiesGetBuilderParameters() {
         // The init wraps a stored-value @ViewBuilder field into a builder
-        // and calls it; the typealiases keep the bare type; makeFlow(_:)
-        // re-wraps as a trivial closure. Reasons: baseTypeText/
-        // renderInFlowSplatFactory docs.
+        // and calls it; makeFlow's tuple and InFlow keep the bare type;
+        // makeFlow(_:) re-wraps as a trivial closure. Reasons: baseTypeText/
+        // renderMakeFlowFactory docs.
         assertMacroExpansion(
             """
             @Flowable
@@ -418,9 +400,7 @@ final class FlowableTests: XCTestCase {
                         self.footer = footer()
                     }
 
-                    public typealias InFlowSplat = (String, () -> Content, Content)
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
+                    public static func makeFlow(_ flow: (String, () -> Content, Content)) -> Self {
                         Self(title: flow.0, content: flow.1, footer: {
                                 flow.2
                             })
@@ -456,9 +436,7 @@ final class FlowableTests: XCTestCase {
                         self.y = y
                     }
 
-                    public typealias InFlowSplat = (Double, Double)
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
+                    public static func makeFlow(_ flow: (Double, Double)) -> Self {
                         Self(x: flow.0, y: flow.1)
                     }
 
@@ -469,9 +447,10 @@ final class FlowableTests: XCTestCase {
         )
     }
 
-    func testOnePropertyCollapsesInFlowSplatToItsBareType() {
-        // Swift has no 1-tuples — both typealiases collapse to the bare type
-        // and makeFlow(_:) takes the value directly, no positional index.
+    func testOnePropertyCollapsesTheFlowShapeToItsBareType() {
+        // Swift has no 1-tuples — makeFlow's parameter and InFlow both
+        // collapse to the bare type; the value passes directly, no positional
+        // index.
         assertMacroExpansion(
             """
             @Flowable
@@ -487,9 +466,7 @@ final class FlowableTests: XCTestCase {
                         self.value = value
                     }
 
-                    public typealias InFlowSplat = Int
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
+                    public static func makeFlow(_ flow: Int) -> Self {
                         Self(value: flow)
                     }
 
@@ -500,7 +477,7 @@ final class FlowableTests: XCTestCase {
         )
     }
 
-    func testTwoPropertiesGetATupleInFlowSplat() {
+    func testTwoPropertiesGetATupleFlowShape() {
         assertMacroExpansion(
             """
             @Flowable
@@ -519,9 +496,7 @@ final class FlowableTests: XCTestCase {
                         self.y = y
                     }
 
-                    public typealias InFlowSplat = (Int, Int)
-
-                    public static func makeFlow(_ flow: InFlowSplat) -> Self {
+                    public static func makeFlow(_ flow: (Int, Int)) -> Self {
                         Self(x: flow.0, y: flow.1)
                     }
 
@@ -533,9 +508,9 @@ final class FlowableTests: XCTestCase {
     }
 
     func testZeroPropertiesGeneratesOnlyTheBareInit() {
-        // Nothing to alias/build from — InFlowSplat/InFlow both
-        // collapse together with the same "at least one participating property"
-        // rule, so a zero-property type gets only the bare init, nothing else.
+        // Nothing to alias/build from — makeFlow(_:) and InFlow share the
+        // same "at least one participating property" rule, so a zero-property
+        // type gets only the bare init, nothing else.
         assertMacroExpansion(
             """
             @Flowable
@@ -630,9 +605,7 @@ final class FlowableTests: XCTestCase {
                         self.label = label
                     }
 
-                    typealias InFlowSplat = (Bool, Int, String)
-
-                    static func makeFlow(_ flow: InFlowSplat) -> Self {
+                    static func makeFlow(_ flow: (Bool, Int, String)) -> Self {
                         Self(isOn: flow.0, count: flow.1, label: flow.2)
                     }
 

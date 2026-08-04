@@ -99,10 +99,10 @@ declaration from parsed pieces.
 Two macro-boundary decisions worth knowing if you're extending it further:
 
 - **Everything a `@Flowable` type gets comes from the one attribute** — there
-  is deliberately no separate macro for the tuple typealias, and no init
-  taking the whole tuple as a single parameter (`InFlowSplat` is declared,
-  nothing consumes it as one init argument). If a future macro wants a
-  tuple-parameter init, `renderInFlowSplatTypealias` in
+  is deliberately no separate macro for the flow members, and no init
+  taking the whole tuple as a single parameter (`makeFlow(_:)` is a static
+  factory, deliberately not an init overload). If a future macro wants a
+  tuple-parameter init, `renderMakeFlowFactory` in
   `FlowableRendering.swift` already has the tuple-vs-bare-type collapse logic
   to build on.
 - **A macro that combines what two existing macros generate should collect
@@ -114,15 +114,16 @@ Two macro-boundary decisions worth knowing if you're extending it further:
 ## @Flowable — tricky points
 
 `member` macro that writes a memberwise `init` at the type's own access
-level, for a struct, class, or actor — plus two tuple typealiases: an
-unlabeled `InFlowSplat` with a `makeFlow(_:)` factory building `Self` *from*
-one (splat-friendly construction), and `InFlow`, its labeled twin
-(readable, `Mirror`-reflectable). Entry point:
-`Sources/CoreFlowMacros/FlowableMacro.swift`. Rendering: all four —
-`renderFlowable` (the init), `renderInFlowSplatTypealias`,
-`renderInFlowSplatFactory`, and `renderInFlowTypealias` — live in
-`Sources/CoreFlowMacros/FlowableRendering.swift`; the last three are called
-from inside the first, so one expansion always produces all four together
+level, for a struct, class, or actor — plus `makeFlow(_:)`, a static
+factory building `Self` from the same properties bundled as one *unlabeled*
+tuple, spelled inline in the signature (deliberately no typealias naming
+it), and `InFlow`, the labeled tuple typealias naming the shape (readable,
+`Mirror`-reflectable). Entry point:
+`Sources/CoreFlowMacros/FlowableMacro.swift`. Rendering: all three —
+`renderFlowable` (the init), `renderMakeFlowFactory`, and
+`renderInFlowTypealias` — live in
+`Sources/CoreFlowMacros/FlowableRendering.swift`; the last two are called
+from inside the first, so one expansion always produces all three together
 (or just the bare init, with zero properties to alias/build from).
 
 The init:
@@ -182,39 +183,18 @@ The init:
   failure, paste the "actual" block into `expandedSource`. Diagnostic specs anchor
   `line`/`column` at the property's name, not the line start.
 
-The `InFlowSplat` typealias — same property collection as the init above,
-rendered differently:
-- **Two or more properties** → an *unlabeled* tuple: `public typealias
-  InFlowSplat = (T, U)`, not `(x: T, y: U)`. Deliberate, not an oversight — see
-  below.
-- **Exactly one property still gets an `InFlowSplat`, just not a tuple.** Swift
-  has no 1-tuples — `(x: T)` as a type collapses to plain `T`, no `.x` accessor —
-  so `InFlowSplat` aliases the bare field type directly (`typealias
-  InFlowSplat = T`).
-- **Zero properties** → no typealias at all — there's nothing to alias, and the init
-  above already covers the zero-property case on its own (`init() {}`).
-- **No per-field defaults.** Tuple element types can't carry `= default`, so an inline
-  `var` default and optional-implies-`nil` are both *dropped* here — unlike the init,
-  which keeps them.
-- **Never `@escaping`, even on function-typed fields.** `@escaping` is only legal
-  directly on a function parameter; here the parameter is the tuple (or the collapsed
-  single field), so a closure nested inside it is already escaping — same reasoning
-  as the init's optional-closure case, just applied to every function-typed field
-  instead of only optional ones.
-- **`@ViewBuilder` is ignored entirely.** A stored-value field
-  (`@ViewBuilder let footer: Content`) keeps its own type (`Content`) in the
-  typealias, *not* the `() -> Content` builder the init uses right above it. The init
-  wants that wrapping — it's what buys trailing-closure syntax at the call site. That
-  reason doesn't exist for a tuple type (no parameter position for a trailing closure
-  to attach to), and wrapping would actively hurt: `InFlowSplat` is meant to be
-  data you pass around/store/diff, and a closure isn't `Equatable` or comparable.
-  `baseTypeText` (in `FieldRendering.swift`) takes a `wrapViewBuilder` flag for
-  exactly this — the init's own rendering passes `true` (the default), the typealias
-  rendering passes `false`.
-- **The init doesn't route through the typealias** — `InFlowSplat` isn't a
-  parameter of the init above. It's declared for API uniformity/discoverability
-  (every `@Flowable` type has one to reference, e.g. in generic code) independent
-  of the init's own signature.
+The `makeFlow(_:)` factory — a `static func` (not a second `init`) building
+`Self` from the same property collection as the init above, bundled into one
+unlabeled tuple parameter spelled inline in the signature:
+- **A static func, not a delegating `init`, specifically to work uniformly across
+  struct/class/actor.** A second `init` calling `init(...)` needs the
+  `convenience` keyword on a class/actor and drags in Swift's designated/convenience
+  init rules; `Self(...)` inside a plain static function sidesteps that entirely.
+- **The parameter is an *unlabeled* tuple** — `(T, U)`, not `(x: T, y: U)` —
+  **carrying no typealias that names it**: a second name for the shape earns
+  nothing (`InFlow` below feeds the parameter with no conversion and is the
+  better spelling for storing/diffing, and generic code can't constrain on a
+  generated member typealias — no protocol declares one).
 - **Why unlabeled: verified directly, both ways.** A tuple *value* already bound
   with different labels (`let t = (xxx: 1, yyy: 2)`) fails to convert into a
   *labeled* tuple type of the same shape (`error: cannot convert value of type
@@ -226,37 +206,44 @@ rendered differently:
   pre-existing, differently-labeled variable needed the loosening. Real cost: with
   no labels, the type checker no longer catches two same-typed fields swapped in
   the wrong order.
-
-The `makeFlow(_:)` factory — a `static func` (not a second `init`) building
-`Self` from an `InFlowSplat`, present exactly when `InFlowSplat` is:
-- **A static func, not a delegating `init`, specifically to work uniformly across
-  struct/class/actor.** A second `init` calling `init(...)` needs the
-  `convenience` keyword on a class/actor and drags in Swift's designated/convenience
-  init rules; `Self(...)` inside a plain static function sidesteps that entirely.
+- **Exactly one property collapses the parameter to the bare field type, not a
+  1-tuple.** Swift has no 1-tuples — `(x: T)` as a type collapses to plain `T`,
+  no `.x` accessor — and `flow` is then the one field's value directly, no
+  positional index: `Self(value: flow)`. This single-field collapse is also the
+  one case that needs `@escaping` (the closure becomes a direct function
+  parameter; inside a real tuple a closure is already escaping, and `@escaping`
+  on the tuple parameter would be ill-formed).
+- **Zero properties** → no factory — nothing to build from, and the init
+  above already covers the zero-property case on its own (`init() {}`).
+- **No per-field defaults.** Tuple element types can't carry `= default`, so an inline
+  `var` default and optional-implies-`nil` are both *dropped* here — unlike the init,
+  which keeps them.
+- **`@ViewBuilder` wrapping is ignored in the parameter.** A stored-value field
+  (`@ViewBuilder let footer: Content`) keeps its own type (`Content`) in the
+  tuple, *not* the `() -> Content` builder the init uses right above it. The init
+  wants that wrapping — it's what buys trailing-closure syntax at the call site. That
+  reason doesn't exist for a tuple type (no parameter position for a trailing closure
+  to attach to), and a closure isn't `Equatable` or comparable.
+  `baseTypeText` (in `FieldRendering.swift`) takes a `wrapViewBuilder` flag for
+  exactly this — the init's own rendering passes `true` (the default), the flow
+  rendering passes `false`. `makeFlow(_:)` re-wraps the plain value back into a
+  trivial closure for the init: `footer: { flow.2 }`.
 - **Forwards each field directly** — `Self(x: flow.0, y: flow.1)` — not
   the `[layout].map(Self.init).first!` trick an *unapplied* `Self.init` reference
   needs to accept a tuple positionally. The macro already knows every field's
-  position, so it just spells out the call.
-- **Fields are read positionally** (`flow.0`, `flow.1`, … in field
-  order), since `InFlowSplat` is unlabeled — not by name.
-- **A `@ViewBuilder`-stored value is the one field that isn't forwarded as-is.**
-  `InFlowSplat` stores it as a plain value (`Content`), but the primary init
-  still wants a `() -> Content` builder for it — so `makeFlow(_:)` wraps it back
-  into a trivial closure: `footer: { flow.2 }`.
-- **Single-property collapse carries through unchanged.** When `InFlowSplat` is
-  a bare type (not a tuple), `flow` *is* the one field's value directly — no
-  positional index needed: `Self(value: flow)`.
-- **Positional, unlabeled parameter (`_ flow:`), not `make(inFlowSplatted:)`** — a
-  deliberate naming choice: the factory is spelled `makeFlow(_:)`, called as
-  `Type.makeFlow(someFlow)`, not `Type.make(inFlowSplatted: someFlow)`.
+  position, so it just spells out the call. Fields are read positionally
+  (`flow.0`, `flow.1`, … in field order), since the tuple is unlabeled.
+- **Positional, unlabeled parameter (`_ flow:`)** — a deliberate naming
+  choice: the factory is spelled `makeFlow(_:)`, called as
+  `Type.makeFlow(someFlow)`.
 
-The `InFlow` typealias — `InFlowSplat`, labeled, same collapse/zero rules
-and same `wrapViewBuilder: false`:
+The `InFlow` typealias — `makeFlow(_:)`'s parameter shape, labeled, same
+collapse/zero rules and same `wrapViewBuilder: false`:
 - **Exists for readable spelling and real `Mirror` support.** Verified
   directly: `Mirror(reflecting:)` reports each field's actual name over a
   *labeled* tuple, only positional labels (`.0`, `.1`) over an *unlabeled*
-  one — `InFlowSplat` alone can't support generic field reflection (see
-  `Reflector` below), `InFlow` can.
+  one — the unlabeled parameter alone can't support generic field
+  reflection (see `Reflector` below), `InFlow` can.
 - **Feeds `makeFlow(_:)` with no conversion** — an `InFlow` value converts
   into the unlabeled parameter like any differently-labeled tuple (see "Why
   unlabeled" above).
@@ -824,7 +811,7 @@ which `StoredProperty` has no concept of).
   value type (`error: cannot reference 'mutating' method as function value`,
   verified directly), so including one would generate code that doesn't compile.
 - **One eligible member collapses `Capability` to its bare type/value**, same
-  1-tuple collapse `@Flowable`'s `InFlowSplat` typealias does. **Zero** is a
+  1-tuple collapse `@Flowable`'s `InFlow` typealias does. **Zero** is a
   diagnostic, not an empty tuple — there's no sensible "empty capability."
 - **Deliberately no `@Sendable`** on the generated closure fields. Verified directly
   both ways: marking them unconditionally makes the generated code fail to compile
@@ -905,12 +892,12 @@ this doc describes.
   memory read as a class reference isn't. A **struct** containing a class-typed (or
   closure, or array) field is fine — same uninitialized-memory read, but `Mirror`
   never needs to validate/retain that child to report its label.
-- **Pairs with `@Flowable`** by pointing it at `InFlow`, not `InFlowSplat`:
+- **Pairs with `@Flowable`** by pointing it at `InFlow`:
   `Reflector.fieldNames(of: Point.InFlow.self)` reports real field names
-  (`["x", "y"]`) because `InFlow` is labeled; the same call against
-  `InFlowSplat` would report positional labels (`[".0", ".1"]`) instead, since
-  `InFlowSplat` is deliberately unlabeled (see `@Flowable` above) — not a bug,
-  just the wrong typealias for this use.
+  (`["x", "y"]`) because `InFlow` is labeled; the same call against an
+  unlabeled tuple type would report positional labels (`[".0", ".1"]`)
+  instead — `Mirror` has no real labels to find there (see `@Flowable`
+  above), so `InFlow` is the right shape for this use.
 - **A top-level `private`/`fileprivate` type still restricts its own generated
   members' access to itself** — a `private struct Point` inside a test file means
   `@Flowable`'s generated `InFlow` is `private` too, which is scoped to

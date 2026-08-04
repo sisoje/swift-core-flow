@@ -3,7 +3,7 @@ import SwiftSyntaxMacros
 
 /// The memberwise init Swift won't synthesize — internal-only for structs,
 /// none at all for a class/actor (an `@Observable final class` otherwise
-/// writes one by hand) — plus `InFlowSplat`/`makeFlow(_:)`/`InFlow`.
+/// writes one by hand) — plus `makeFlow(_:)`/`InFlow`.
 /// Entry point only; `renderFlowable` (`FlowableRendering.swift`) documents
 /// the rules.
 public enum FlowableMacro: MemberMacro {

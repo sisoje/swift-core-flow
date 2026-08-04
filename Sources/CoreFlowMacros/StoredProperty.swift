@@ -4,8 +4,8 @@ import SwiftSyntaxMacros
 
 // MARK: - Stored-property model
 
-/// A stored property that participates in `@Flowable`'s generated init and
-/// `InFlowSplat`/`InFlow` typealiases (and `@Shell`'s `Core`).
+/// A stored property that participates in `@Flowable`'s generated init,
+/// `makeFlow(_:)`, and `InFlow` typealias (and `@Shell`'s `Core`).
 public struct StoredProperty {
     public let name: String
     public let type: TypeSyntax?
