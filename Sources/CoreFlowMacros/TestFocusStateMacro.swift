@@ -15,12 +15,12 @@ import SwiftSyntaxMacros
 /// the projection wires.
 ///
 /// Required shape: a stored instance `var` with a type annotation and no
-/// initial value — anything else THROWS, a compile error at the attribute.
-/// Deliberately not the family's silent-skip policy: a skipped
+/// initial value — anything else THROWS, a compile error at the attribute
+/// (the family-wide policy, and this macro is why: a skipped
 /// `@TestFocusState var focus = false` would compile as a plain, unmanaged
-/// stored property that never logs — and the compiler accepts macro-added
-/// accessors on an initialized `var` without complaint (verified directly),
-/// so only the macro itself can refuse it.
+/// stored property that never logs, and the compiler accepts macro-added
+/// accessors on an initialized `var` without complaint — verified
+/// directly — so only the macro itself can refuse it).
 public enum TestFocusStateMacro: AccessorMacro, PeerMacro {
     public static func expansion(
         of node: AttributeSyntax,
@@ -63,7 +63,8 @@ public enum TestFocusStateMacro: AccessorMacro, PeerMacro {
         ]
     }
 
-    /// The property's (name, type), or a thrown error naming what's wrong.
+    /// The `var`'s (name, type) — any other shape throws, a compile error
+    /// at the attribute stating the required shape.
     /// `FocusState()` only exists for `Bool` and optional values — a
     /// well-shaped property with any other annotation still fails in the
     /// compiler's own words on the generated peer, exactly like the live
@@ -73,26 +74,15 @@ public enum TestFocusStateMacro: AccessorMacro, PeerMacro {
     ) throws -> (name: String, type: TypeSyntax) {
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
             !isStatic(varDecl),
+            varDecl.bindingSpecifier.tokenKind == .keyword(.var),
             varDecl.bindings.count == 1, let binding = varDecl.bindings.first,
             let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
-            binding.accessorBlock == nil
+            binding.accessorBlock == nil,
+            binding.initializer == nil,
+            let type = binding.typeAnnotation?.type
         else {
             throw MacroExpansionErrorMessage(
-                "@TestFocusState must attach to a single stored instance property.")
-        }
-        guard varDecl.bindingSpecifier.tokenKind == .keyword(.var) else {
-            throw MacroExpansionErrorMessage(
-                "@TestFocusState must attach to a 'var' — like @FocusState, focus is view-managed state, not a constant."
-            )
-        }
-        guard binding.initializer == nil else {
-            throw MacroExpansionErrorMessage(
-                "@TestFocusState can't take an initial value — like @FocusState, focus always starts at the reset value (false/nil)."
-            )
-        }
-        guard let type = binding.typeAnnotation?.type else {
-            throw MacroExpansionErrorMessage(
-                "@TestFocusState needs an explicit type annotation (Bool or an optional) to spell its FocusState storage."
+                "@TestFocusState requires a stored instance 'var' with a type annotation (`Bool` or an optional) and no initial value."
             )
         }
         return (pattern.identifier.text, type)

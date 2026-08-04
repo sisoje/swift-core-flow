@@ -81,7 +81,7 @@ final class CapabilityTests: XCTestCase {
     }
 
     func testSingleEligibleMemberCollapsesToItsBareTypeNotATuple() {
-        // Same collapse @Flowable's Flowable typealias does for one property — Swift has no
+        // Same collapse @Flowable's InFlow typealias does for one property — Swift has no
         // 1-tuples, so (x: Int) as a type is indistinguishable from plain Int.
         assertMacroExpansion(
             """

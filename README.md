@@ -5,7 +5,7 @@ library — a single dependency gets you every macro below:
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/sisoje/swift-value-flow.git", from: "1.0.0"),
+.package(url: "https://github.com/sisoje/swift-core-flow.git", from: "1.0.0"),
 
 // target dependency
 .product(name: "CoreFlow", package: "CoreFlow"),
@@ -49,7 +49,7 @@ data as plain values, effects as injected closures — constructible and
 assertable anywhere. Mocking the external sources as data also severs
 their event channels: no storage change or fetch notification can trigger
 a re-render mid-test. UI-runtime wrappers that aren't data (gestures,
-focus, view identity) have no boundary form and ride along as-is
+view identity) have no boundary form and ride along as-is
 (see the [wrapper mapping reference](#wrapper-mapping-reference)).
 
 Concretely: a `member` macro generating a nested `Core` struct —
@@ -427,10 +427,10 @@ behavior.**
   macro-generated wrapper *sugar* crashes swiftc (verified directly;
   hand-written identical sugar compiles fine), so the constructed-value
   form is the one the macros can emit — and why the table spells the type
-  bare. Neither macro emits diagnostics, on purpose:
-  an unspellable shape (missing type/default, `let`, non-closure on
-  `@TestAction`) generates nothing, and the use site fails in the compiler's
-  own words.
+  bare. Bad shapes throw from expansion — a compile error at the
+  attribute naming what's wrong (missing type/default, `let`, non-closure
+  on `@TestAction`) — the family-wide policy: a silent skip can compile
+  as a plain, unmanaged stored property that never logs.
 - **The sink is `@MainActor (String, String) -> Void`** — every log lands
   serialized on the main actor whatever context the logged action runs in —
   and the default is a no-op, so hosts behave normally wherever no sink is
@@ -490,10 +490,9 @@ struct DownloadButton: View {
   defensive `x = x` — is not a cancel. The box is `@Observable`, so a `body`
   reading the property re-renders when the task changes.
 - **The task always starts `nil`.** The property becomes *computed* over a
-  self-initialized storage peer: there is no inline default to write (one
-  fails in the compiler's own words — a variable with accessors can't have
-  an initial value), and the property is never a memberwise-init parameter,
-  whatever its access level.
+  self-initialized storage peer: a written default is a compile error
+  thrown by the macro itself, and the property is never a memberwise-init
+  parameter, whatever its access level.
 - **Every mutation logs the property's actual name**, through the same
   `\.testLog` seam as [`@TestState`](#teststate-and-testaction), at the write
   site — `("download", "task")` on assignment, `("download", "nil")` on
@@ -510,8 +509,8 @@ struct DownloadButton: View {
   storage's element is the annotation minus its `?`, constrained to the
   `CancellableTask` protocol rather than parsed into `Task`'s generic
   arguments; `Task<…>!` and long-form `Optional<Task<…>>` don't count).
-  Anything else generates nothing, no diagnostics — same policy as
-  `@TestState`.
+  Anything else is a compile error at the attribute, thrown by the macro
+  itself — same policy as the whole family.
 - **Under [`@Shell`](#shell)** it rides the verbatim-copy rule like any
   unrecognized wrapper: `Core` gets the same declaration, the macro
   re-expands there, and the computed property stays out of the memberwise
@@ -552,15 +551,18 @@ struct LoginScenario: View {
   Programmatic focus moves are the component's own decisions, and those
   all log.
 - **Unhosted** (a directly constructed `Core`), reads return the reset
-  value and writes log then no-op, exactly like the live wrapper — the log
-  still records the intent, so a unit test can assert "logic tried to
-  focus X" with zero view machinery.
+  value and writes no-op, exactly like the live wrapper — and the setter's
+  sink call reaches only the no-op default, since `View.testLog(_:)` is
+  the one installer: asserting focus intent through the log needs a hosted
+  scenario with the sink installed, like every other logged event.
 - Required shape: a stored instance `var` with a type annotation (`Bool`
   or an optional, the values `@FocusState` itself accepts) and no initial
   value. Anything else is a compile error at the attribute, thrown by the
   macro itself — never a silent skip: a skipped `@TestFocusState var focus
   = false` would compile as a plain, unmanaged stored property that never
-  logs.
+  logs. (A well-shaped property with a non-`Bool`, non-optional annotation
+  passes the macro and fails on the generated `FocusState` peer instead,
+  in the compiler's own words — same as the live wrapper.)
 
 ---
 
@@ -627,7 +629,7 @@ Works the same on a `class` or `actor`:
 ### SwiftUI
 
 - **`private` properties are excluded** from the init. The source-of-truth
-  set (`@State`/`@AppStorage`/`@SceneStorage`/`@Query`) is *required*
+  set (`@State`/`@FocusState`/`@AppStorage`/`@SceneStorage`/`@Query`) is *required*
   private; the other view-owned wrappers (`@Environment`, …) are private by
   convention — either way they fall out automatically.
 - **`@Binding`** is threaded in as a projected `Binding<T>` parameter, assigned to the
@@ -642,7 +644,7 @@ Works the same on a `class` or `actor`:
 ```swift
 @Flowable
 struct Card<Content: View>: View {
-    @Environment(\.colorScheme) private var scheme   // excluded (private)
+    @Environment(\.colorScheme) private var scheme: ColorScheme   // excluded (private)
     @State private var expanded = false              // excluded (private)
     @Binding var isOn: Bool                           // init param: Binding<Bool>
     let title: String

@@ -566,11 +566,11 @@ ordered execution log, never an effect. No type-level macro — attach
 `@TestState` to a stored `var` (ANY type, function types included: a `var`
 closure means someone wants to mutate the closure itself, and its `$name`
 binding is exactly that) and `@TestAction` to a stored `var` closure. Both
-hardcode the seam — no key-path parameter. NO diagnostics: an unspellable shape (missing
-type/default, `let` on either macro, non-closure on `@TestAction`)
-generates nothing, and the use site fails in the compiler's own words
-(`@Shell` diagnoses the missing-default case itself before it gets that
-far — `stateNeedsInlineDefault`).
+hardcode the seam — no key-path parameter. Bad shapes THROW from
+expansion — the family-wide policy, one error stating the macro's
+required shape (rationale in the `@TestFocusState` section below; `@Shell`
+still diagnoses the missing-default case at collection, before
+expansion — `stateNeedsInlineDefault`).
 Per-property attachment is deliberate — no type-level `@TestHost(\.keyPath)`
 macro deciding which properties participate; each property opts in where
 it's declared.
@@ -580,7 +580,7 @@ it's declared.
   the property itself: an init accessor (`@storageRestrictions(initializes:
   count_storage)`) funnels the inline default into the storage, `get`
   reads `count_storage.wrappedValue`, and the single logging point is the
-  `nonmutating set`. Peers: `private var count_storage: State<Int>`
+  `nonmutating set`. Peers: `private let count_storage: State<Int>`
   (initialized via the init accessor), `private let log_count = TestLog()`,
   and `` `$count` `` — a `Binding` routed through
   the property itself, so direct writes and binding writes log through the
@@ -591,8 +591,8 @@ it's declared.
   getter IS the logged action, no `$name`, no setter.** Accessor + peer:
   an init accessor funnels the inline default into a `save_storage` peer,
   and the getter returns a wrapper closure logging an arity-shaped payload
-  — `String(describing:)` of `()` for zero args, of bare `a0` for one, of
-  a tuple beyond — then
+  — `""` for zero args, `String(describing:)` of bare `a0` for one, of a
+  tuple beyond — then
   forwarding with `return`/`try`/`await` each added iff the declared type
   needs it. The getter extracts `log` (the resolved sink closure,
   `@MainActor` hence Sendable) and `storage` into locals first, so the wrapper captures
@@ -601,8 +601,8 @@ it's declared.
   happens at the view copy's install either way (an env change re-renders
   `body`, minting a fresh wrapper — same net freshness as a self-capturing
   read). `var`, not `let` — the compiler refuses accessor expansion on
-  `let` (dead ends below); a `let` closure is skipped like any other
-  unspellable shape.
+  `let` (dead ends below); a `let` closure is a thrown compile error like
+  any other unspellable shape.
 - **Every generated DynamicProperty is an EXPLICIT stored field, never
   wrapper sugar — a compiler crash forces this.** A macro-generated
   `@Environment(\.testLog) private var log_x` SILGen/IRGen-crashes swiftc
@@ -707,9 +707,12 @@ Production-safe, not test-only: the uninstalled sink is a no-op.
   protocol: `cancel()` + `Equatable`, conformance on `Task` itself) means
   the macro only unwraps `OptionalTypeSyntax` — a typealiased task type
   (`VoidTask?`) works, and there's no generic-argument parsing to get
-  wrong. Only the sugared `T?` counts: IUO (`T!`) and long-form
-  `Optional<T>` are skipped shapes. Both types public: generated code lands
-  in the consumer's module.
+  wrong. Only the sugared `T?` counts: anything else — IUO (`T!`),
+  long-form `Optional<T>`, a missing annotation, `let`, a written
+  default — is a thrown compile error (family policy; the written-default
+  case is the reason it can't be left to the compiler — see the
+  `@TestFocusState` section). Both types public: generated code lands in
+  the consumer's module.
 - **Payload is `"task"`/`"nil"`, not `String(describing:)`.** A described
   `Task` isn't snapshot-stable, and one nondeterministic line poisons the
   all-or-nothing log diff — same criterion as the getters-don't-log rule.
@@ -736,16 +739,17 @@ own line, private required via `sourceOfTruthMustBePrivate`).
   shapes are refused by the macro itself — expansion THROWS**
   (`MacroExpansionErrorMessage`, a compile error at the attribute) on
   `let`, an inline default, a missing annotation, or a
-  non-single-stored-instance-var shape — deliberately NOT the family's
-  silent-skip policy, because here a skip can COMPILE: `@TestFocusState
-  var focus = false` skipped is a plain, unmanaged stored property that
-  never logs, and the compiler accepts macro-added `get`/`set` accessors
-  on an initialized `var` without complaint (verified directly — the
-  "variable with accessors can't have an initial value" error does NOT
-  fire for macro-added accessors on this toolchain, so "let the compiler
-  catch it" cannot work; note this contradicts the older verified claim
-  recorded for `@UnstructuredTask`'s written-default case, which predates
-  this toolchain). The accessor role throws, the peer role stays silent
+  non-single-stored-instance-var shape — now the family-wide policy (this
+  macro set it; `@TestState`/`@TestAction`/`@UnstructuredTask` follow the
+  same `validated` throw pattern), because a silent skip can COMPILE:
+  `@TestFocusState var focus = false` skipped is a plain, unmanaged
+  stored property that never logs, and the compiler accepts macro-added
+  `get`/`set` accessors on an initialized `var` without complaint
+  (verified directly — the "variable with accessors can't have an initial
+  value" error does NOT fire for macro-added accessors on this toolchain,
+  so "let the compiler catch it" cannot work; the same fact is why
+  `@UnstructuredTask` refuses a written default itself). The accessor
+  role throws, the peer role stays silent
   (`try?`) so the error reports once. `FocusState()` exists only for
   `Bool` and optional values, so any other annotation still fails in the
   compiler's own words on the generated peer, exactly like the live
@@ -771,10 +775,12 @@ own line, private required via `sourceOfTruthMustBePrivate`).
   every parity-surface stand-in changes either the declaration type, the
   construction label, or the body spelling. Owner-side only; a child
   needing focus gets `.focused` attached at the owner's use site.
-- **Unhosted, reads return the wrapper's reset value and writes log then
-  no-op** like the live wrapper's own — the log still records the intent,
-  so a directly-constructed `Core` can assert "logic tried to focus X"
-  with zero view machinery. Package tests stop at the lifecycle
+- **Unhosted, reads return the wrapper's reset value and writes no-op**
+  like the live wrapper's own — and the setter's sink call reaches only
+  `\.testLog`'s no-op default, since the one installer is the
+  `View.testLog(_:)` modifier: asserting focus intent through the log
+  requires a hosted scenario with the sink installed, like every other
+  logged event. Package tests stop at the lifecycle
   boundary — no unit test evaluates unhosted wrapper behavior; what's
   locked here is the expansion shape (`TestSupportSyntaxTests`) and the
   substitution + the non-private diagnostic (`ShellSyntaxTests`);

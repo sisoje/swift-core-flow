@@ -57,8 +57,9 @@ extension View {
 /// means someone wants to mutate the closure itself, and the binding is
 /// exactly that). The type comes from the annotation or a bare
 /// `Bool`/`Int`/`String` literal default. Anything else — `let`, computed,
-/// `static`, missing default — is skipped without diagnostics; the use site
-/// expecting `$name` fails in the compiler's own words.
+/// `static`, missing default or type — is a compile error at the attribute,
+/// thrown by the macro itself; never a silent skip (a skipped shape can
+/// compile as a plain, unmanaged stored property that never logs).
 ///
 /// `$name` and every other generated member is private — only the host's own
 /// `body` wires them. The property's own access picks its role: internal +
@@ -90,9 +91,9 @@ public macro TestState() =
 /// }
 /// ```
 ///
-/// Closures only, and `var` — the compiler refuses accessor expansion on
-/// `let`; anything else is skipped. No setter: an action is wired, not
-/// mutated.
+/// Closures only, `var` only, defaulted only — anything else is a compile
+/// error at the attribute, thrown by the macro itself; never a silent
+/// skip. No setter: an action is wired, not mutated.
 @attached(accessor, names: named(init), named(get))
 @attached(peer, names: prefixed(log_), suffixed(_storage))
 public macro TestAction() =

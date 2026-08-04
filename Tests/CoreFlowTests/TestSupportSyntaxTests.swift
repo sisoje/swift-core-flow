@@ -256,27 +256,4 @@ final class TestSupportSyntaxTests: XCTestCase {
         )
     }
 
-    // Shapes each macro can't spell generate nothing — the use site expecting
-    // the missing $name fails in the compiler's own words instead.
-    func testUnspellableShapesAreSkipped() {
-        assertMacroExpansion(
-            """
-            struct Host {
-                @TestState private let title: String = "t"
-                @TestState private var seed: CGFloat
-                @TestAction private let limit: Int = 1
-                @TestAction private var bare: () -> Void
-            }
-            """,
-            expandedSource: """
-                struct Host {
-                    private let title: String = "t"
-                    private var seed: CGFloat
-                    private let limit: Int = 1
-                    private var bare: () -> Void
-                }
-                """,
-            macros: macros
-        )
-    }
 }

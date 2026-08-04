@@ -4,8 +4,9 @@ import SwiftSyntaxMacros
 // Per-property mutation-logging macros for test hosts. Both generate
 // `private let log_x = TestLog()` (TestSupport.swift explains why not
 // `@Environment` sugar). Required shape: a stored `var` with an initial
-// value; anything else generates nothing, no diagnostics — the use site
-// fails in the compiler's own words.
+// value; anything else THROWS from expansion — a compile error at the
+// attribute, never a silent skip (the family policy; rationale in
+// CLAUDE.md's @TestFocusState section).
 
 /// `@TestState private var count: Int = 0` — a drop-in `@State` that logs.
 /// The property reads/writes a generated `State` storage, so it stays LIVE
@@ -21,7 +22,7 @@ public enum TestStateMacro: AccessorMacro, PeerMacro {
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [AccessorDeclSyntax] {
-        guard let (name, _, _) = stateProperty(declaration) else { return [] }
+        let (name, _) = try validated(declaration)
         return [
             """
             @storageRestrictions(initializes: \(raw: name)_storage)
@@ -48,7 +49,9 @@ public enum TestStateMacro: AccessorMacro, PeerMacro {
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        guard let (name, type, _) = stateProperty(declaration) else { return [] }
+        // The accessor role reports the error; throwing here too would
+        // duplicate it.
+        guard let (name, type) = try? validated(declaration) else { return [] }
         let typeText = type.trimmedDescription
         return [
             "private let \(raw: name)_storage: State<\(raw: typeText)>",
@@ -64,10 +67,11 @@ public enum TestStateMacro: AccessorMacro, PeerMacro {
         ]
     }
 
-    /// The `var`'s (name, type, default) — nil for any shape the macro skips.
-    private static func stateProperty(
+    /// The `var`'s (name, type) — any other shape throws, a compile error
+    /// at the attribute stating the required shape.
+    private static func validated(
         _ declaration: some DeclSyntaxProtocol
-    ) -> (name: String, type: TypeSyntax, defaultValue: ExprSyntax)? {
+    ) throws -> (name: String, type: TypeSyntax) {
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
             !isStatic(varDecl),
             varDecl.bindingSpecifier.tokenKind == .keyword(.var),
@@ -76,8 +80,12 @@ public enum TestStateMacro: AccessorMacro, PeerMacro {
             binding.accessorBlock == nil,
             let defaultValue = binding.initializer?.value,
             let type = binding.typeAnnotation?.type ?? inferredLiteralType(defaultValue)
-        else { return nil }
-        return (pattern.identifier.text, type, defaultValue)
+        else {
+            throw MacroExpansionErrorMessage(
+                "@TestState requires a stored instance 'var' with an inline default and an explicit type (or a bare Bool/Int/String literal default)."
+            )
+        }
+        return (pattern.identifier.text, type)
     }
 }
 
@@ -92,7 +100,7 @@ public enum TestActionMacro: AccessorMacro, PeerMacro {
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [AccessorDeclSyntax] {
-        guard let (name, type, function) = actionProperty(declaration) else { return [] }
+        let (name, type, function) = try validated(declaration)
         return [
             """
             @storageRestrictions(initializes: \(raw: name)_storage)
@@ -116,18 +124,20 @@ public enum TestActionMacro: AccessorMacro, PeerMacro {
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        guard let (name, type, _) = actionProperty(declaration) else { return [] }
+        // The accessor role reports the error; throwing here too would
+        // duplicate it.
+        guard let (name, type, _) = try? validated(declaration) else { return [] }
         return [
             "private let \(raw: name)_storage: \(raw: type.trimmedDescription)",
             "private let log_\(raw: name) = TestLog()",
         ]
     }
 
-    /// The `var` closure's (name, type, function type) — nil for any shape the
-    /// macro skips.
-    private static func actionProperty(
+    /// The `var` closure's (name, type, function type) — any other shape
+    /// throws, a compile error at the attribute stating the required shape.
+    private static func validated(
         _ declaration: some DeclSyntaxProtocol
-    ) -> (name: String, type: TypeSyntax, function: FunctionTypeSyntax)? {
+    ) throws -> (name: String, type: TypeSyntax, function: FunctionTypeSyntax) {
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
             !isStatic(varDecl),
             varDecl.bindingSpecifier.tokenKind == .keyword(.var),
@@ -137,7 +147,11 @@ public enum TestActionMacro: AccessorMacro, PeerMacro {
             binding.initializer != nil,
             let type = binding.typeAnnotation?.type,
             let function = functionType(of: type)
-        else { return nil }
+        else {
+            throw MacroExpansionErrorMessage(
+                "@TestAction requires a stored instance 'var' closure with an inert inline default (e.g. `= { _ in }`)."
+            )
+        }
         return (pattern.identifier.text, type, function)
     }
 }
@@ -184,8 +198,8 @@ private func functionType(of type: TypeSyntax) -> FunctionTypeSyntax? {
 }
 
 /// `{ a0, a1 in log("move", (a0, a1)); [return ][try ][await ]storage(a0, a1) }`
-/// — payload is `()` for zero arguments, the bare argument for one, a tuple
-/// beyond. `log` and `storage` are locals the getter extracts first, so the
+/// — payload is `""` for zero arguments, the described bare argument for
+/// one, a described tuple beyond. `log` and `storage` are locals the getter extracts first, so the
 /// wrapper captures two plain values, never `self` (the log value is
 /// `@Sendable`, and not dragging the whole view copy into the closure keeps it
 /// clean for `async`/`@Sendable` action types). Environment resolution happens

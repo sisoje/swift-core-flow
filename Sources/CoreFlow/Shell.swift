@@ -37,7 +37,11 @@
 ///   `@State` → `@TestState private`, the host's line with the wrapper
 ///   renamed — Core owns the state itself, sealed, starting at the host's
 ///   inline default (required — `stateNeedsInlineDefault`), logging every
-///   mutation. `@AppStorage`/`@SceneStorage` → `@Binding` — external
+///   mutation. `@FocusState` → `@TestFocusState private`, the same
+///   rename — a real `FocusState` peer underneath, so hosted behavior is
+///   live and every programmatic write logs (no default to carry; `$name`
+///   stays the real `FocusState<T>.Binding`).
+///   `@AppStorage`/`@SceneStorage` → `@Binding` — external
 ///   storage is a dependency the test supplies (keys dropped). `@Query` →
 ///   `@QueryCore` (`QueryCore.swift`) — the fetched value as a bare init
 ///   parameter. Conversely `@Binding`/`@ViewBuilder` must NOT be private —

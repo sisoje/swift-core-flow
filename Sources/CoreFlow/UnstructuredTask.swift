@@ -61,14 +61,14 @@ public final class TaskStorage<T: CancellableTask> {
 /// ```
 ///
 /// The task always starts `nil` — the property becomes computed over a
-/// self-initialized storage peer, so there is no inline default to write
-/// (one fails in the compiler's own words) and the property is never a
-/// memberwise-init parameter, whatever its access level. Required shape: a
-/// stored `var` with an optional-sugared type annotation
+/// self-initialized storage peer, and a written default is a compile error
+/// thrown by the macro itself; the property is never a memberwise-init
+/// parameter, whatever its access level. Required shape: a stored `var`
+/// with an optional-sugared type annotation and no initial value
 /// (`Task<Success, Failure>?` or a typealias of a task type; `T!` and
-/// long-form `Optional<T>` don't count). Anything else — `let`, computed,
-/// `static`, non-optional — is skipped without diagnostics; the use site
-/// fails in the compiler's own words. `$name` and every other generated
+/// long-form `Optional<T>` don't count). Anything else is a compile error
+/// at the attribute, thrown by the macro — never a silent skip. `$name`
+/// and every other generated
 /// member is private — only the host's own `body` wires it. Outside a live
 /// view, `\.testLog` reads its no-op default — the wrapper is
 /// production-safe; logging costs nothing until a sink is installed.

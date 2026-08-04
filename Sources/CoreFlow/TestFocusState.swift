@@ -32,10 +32,10 @@ import SwiftUI
 /// anything else is a compile error at the attribute, thrown by the macro
 /// itself — never a silent skip. `$name` and every other
 /// generated member is private — only the host's own `body` wires it.
-/// Unhosted, writes log but no-op like the live wrapper's (the log records
-/// the intent; reads keep returning the reset value) and `\.testLog` reads
-/// its no-op default — production-safe, logging costs nothing until a sink
-/// is installed.
+/// Unhosted, writes no-op like the live wrapper's, reads keep returning
+/// the reset value, and the setter's sink call reaches only `\.testLog`'s
+/// no-op default — production-safe, logging costs nothing until a sink is
+/// installed by a hosted `.testLog { }`.
 @attached(accessor, names: named(get), named(set))
 @attached(peer, names: prefixed(`$`), prefixed(log_), suffixed(_storage))
 public macro TestFocusState() =
