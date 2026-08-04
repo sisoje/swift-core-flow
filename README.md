@@ -30,7 +30,7 @@ is the per-macro reference.
 | [`@TestAction`](#teststate-and-testaction) | accessor + peer macro | an action closure that logs every call — reading the property IS the logged action; each call logs its payload to the injected sink, then forwards |
 | [`@TestFocusState`](#testfocusstate) | accessor + peer macro | a drop-in `@FocusState` that logs every programmatic write — a real `FocusState` underneath, so focus genuinely moves when hosted; `$name` is the real `FocusState<T>.Binding` |
 | [`@UnstructuredTask`](#unstructuredtask) | accessor + peer macro | a view-owned slot for a cancellable unstructured `Task` — assigning cancels the previous task, view teardown cancels the live one, and every mutation logs like `@TestState` |
-| [`@QueryCore`](#notes-on-the-rows) | property wrapper | `@Query`'s drop-in stand-in on `Core` — the fetched result as a bare init parameter (`Core(items: [item], …)`), same read surface as the live wrapper, no SwiftData stack |
+| [`@QueryCore`](#querycore) | property wrapper | `@Query`'s drop-in stand-in on `Core` — the fetched result as a bare init parameter (`Core(items: [item], …)`), same read surface as the live wrapper, no SwiftData stack |
 | [`@TestLog`](#the-testlog-seam) | property wrapper | reads the installed sink — `@TestLog private var log` self-initializes and `log(name, value)` is a direct call (verified); the macros generate the same thing as an explicit field, `private let log_x = TestLog()` |
 | [`View.testLog(_:)`](#the-testlog-seam) | View modifier | installs the one logging sink, once, on the root view; without it the log is a no-op, so hosts behave normally anywhere else |
 | [`@Capability`](#capability) | member macro | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
@@ -187,39 +187,41 @@ implicitly infers `@MainActor` isolation for the whole type, so a
 nonisolated test function crosses that boundary at runtime and traps under
 Swift 6 strict concurrency, even just reading a computed property.
 
-**Two things worth spelling out beyond the table:**
+### QueryCore
 
-- **`@QueryCore` is a real, one-to-one drop-in for the live `@Query`.**
-  Verified directly against the `_SwiftData_SwiftUI` interface: `Query`'s
-  instance surface is exactly `wrappedValue`, `fetchError`, and
-  `modelContext`, with **no `projectedValue`** — so `QueryCore` carries the
-  same three (its `modelContext` private) and nothing else. That read-surface match is what lets the
-  copied `body` compile on `Core`: the host's body text was written against
-  the live wrapper (`items.isEmpty`, `ForEach(items)`), and on `Core` the
-  same text still works because `core.items` reads the mock's array
-  directly — `_items.fetchError` spells the same on
-  both sides too. `modelContext` is environment-fed like the live
-  wrapper's (a private `@Environment` field — `QueryCore` is a
-  `DynamicProperty`, so it installs when `Core` is hosted, mocked via
-  `.modelContainer`/`.environment`, and is never read unhosted);
-  `fetchError` defaults to `nil`,
-  which makes `QueryCore`'s init callable with the wrapped value alone — so
-  `Core`'s synthesized memberwise init takes the *bare* fetched value, and a
-  test writes `Core(items: [item], title: "t")` with no `QueryCore` spelling
-  at all.
-- **The verbatim row is one uniform rule, not a bag of special cases.**
-  Whatever behavior lives in an unmapped wrapper's own attribute arguments —
-  a `@GestureState(reset:)` closure, an `@Environment` key path, a
-  `@ScaledMetric(relativeTo:)` — rides onto `Core` byte-for-byte with
-  nothing to reconstruct, proved live by a UI test (`TrickyDragCardUITests`
-  in `CoreFlowExample`: the custom reset closure fires on `Core`'s copy
-  exactly as on the host). A private copy is self-initializing (the host compiled
-  without an init assigning it), so it drops out of `Core`'s memberwise init
-  and produces its value live instead: an `@Environment` copy reads the *real* environment
-  reactively when `Core` is hosted (mock it there via `.environment(...)`,
-  the wrapper's own native story) and the default `EnvironmentValues`
-  outside a live view; a `@GestureState` copy starts a fresh gesture at its
-  declared default.
+A real, one-to-one drop-in for the live `@Query`.
+Verified directly against the `_SwiftData_SwiftUI` interface: `Query`'s
+instance surface is exactly `wrappedValue`, `fetchError`, and
+`modelContext`, with **no `projectedValue`** — so `QueryCore` carries the
+same three (its `modelContext` private) and nothing else. That read-surface match is what lets the
+copied `body` compile on `Core`: the host's body text was written against
+the live wrapper (`items.isEmpty`, `ForEach(items)`), and on `Core` the
+same text still works because `core.items` reads the mock's array
+directly — `_items.fetchError` spells the same on
+both sides too. `modelContext` is environment-fed like the live
+wrapper's (a private `@Environment` field — `QueryCore` is a
+`DynamicProperty`, so it installs when `Core` is hosted, mocked via
+`.modelContainer`/`.environment`, and is never read unhosted);
+`fetchError` defaults to `nil`,
+which makes `QueryCore`'s init callable with the wrapped value alone — so
+`Core`'s synthesized memberwise init takes the *bare* fetched value, and a
+test writes `Core(items: [item], title: "t")` with no `QueryCore` spelling
+at all.
+
+### One verbatim rule, no special cases
+
+Whatever behavior lives in an unmapped wrapper's own attribute arguments —
+a `@GestureState(reset:)` closure, an `@Environment` key path, a
+`@ScaledMetric(relativeTo:)` — rides onto `Core` byte-for-byte with
+nothing to reconstruct, proved live by a UI test (`TrickyDragCardUITests`
+in `CoreFlowExample`: the custom reset closure fires on `Core`'s copy
+exactly as on the host). A private copy is self-initializing (the host compiled
+without an init assigning it), so it drops out of `Core`'s memberwise init
+and produces its value live instead: an `@Environment` copy reads the *real* environment
+reactively when `Core` is hosted (mock it there via `.environment(...)`,
+the wrapper's own native story) and the default `EnvironmentValues`
+outside a live view; a `@GestureState` copy starts a fresh gesture at its
+declared default.
 
 ### Why a nominal struct, not a tuple
 
