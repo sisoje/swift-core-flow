@@ -111,11 +111,12 @@ production shell; **`Core`** is its generated twin; a **scenario**
 mocks — what a preview shows and a UI test launches. And driving one from
 the UI-testing bundle is not an end-to-end test wearing a costume:
 **a UI test driving a scenario is a test of an actual unit — the `Core` —
-testing by evidence, with no side effects.** Real taps, real focus, real
-gestures against one component; every boundary event lands in the log, and
-no effect ever executes — the mocks are inert, the log IS the behavior
-(the example app does exactly this: its `SCENARIO` launch variable selects
-the scenario, the XCUITest asserts the log).
+testing by evidence, with no side effects beyond the component's
+boundaries.** Inside them everything is real — taps, focus, gestures, its
+own state; at them, every event lands in the log instead of crossing — the
+mocks are inert, the log IS the behavior (the example app does exactly
+this: its `SCENARIO` launch variable selects the scenario, the XCUITest
+asserts the log).
 
 ### Wrapper mapping reference
 
