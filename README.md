@@ -94,7 +94,7 @@ struct Card: View {
 // #Preview can't name macro-generated code like Core — hence the wrapper;
 // its construction is also a unit test's entire setup:
 struct CardScenario: View {
-    @TestState private var isFavorite = false   // $isFavorite backs the Binding AND logs every write
+    @TestState private var isFavorite = false   // every write logs its value
     @TestAction private var action: (Item) -> Void = { _ in }   // every call logs its payload
 
     var body: some View {
