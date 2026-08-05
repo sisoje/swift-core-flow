@@ -87,8 +87,8 @@ struct Card: View {
     // }
 }
 
-// a SCENARIO — the hand-written stage previews and UI tests can name;
-// the construction inside is also a unit test's entire setup:
+// a SCENARIO — needed because #Preview can't name macro-generated code
+// like Core; the construction inside is also a unit test's entire setup:
 struct CardScenario: View {
     var body: some View {
         Card.Core(items: [item], title: "t")
