@@ -105,7 +105,13 @@ struct CardScenario: View {
 Three words, fixed meanings, used throughout: the **host** (`Card`) is the
 production shell; **`Core`** is its generated twin; a **scenario**
 (`CardScenario`) is the hand-written view that stages a `Core` with
-mocks — what a preview shows and a UI test launches.
+mocks — what a preview shows and a UI test launches. And driving one from
+the UI-testing bundle is not an end-to-end test wearing a costume:
+**a UI test driving a scenario is a test of an actual unit — the `Core`** —
+real taps, real focus, real gestures against one component whose every
+boundary event lands in the log (the example app does exactly this: its
+`SCENARIO` launch variable selects the scenario, the XCUITest asserts the
+log).
 
 ### Wrapper mapping reference
 
