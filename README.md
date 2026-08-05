@@ -76,6 +76,7 @@ struct Card: View {
     @State private var isExpanded = false
     @AppStorage("isFavorite") private var isFavorite = false
     let title: String
+    let action: (Item) -> Void
 
     var body: some View { ... }   // ordinary SwiftUI, written once
 
@@ -85,6 +86,7 @@ struct Card: View {
     //     @TestState private var isExpanded = false
     //     @Binding var isFavorite: Bool
     //     let title: String
+    //     let action: (Item) -> Void
     //     var body: some View { ... }   <- the same text, copied
     // }
 }
@@ -93,9 +95,10 @@ struct Card: View {
 // its construction is also a unit test's entire setup:
 struct CardScenario: View {
     @TestState private var isFavorite = false   // $isFavorite backs the Binding AND logs every write
+    @TestAction private var action: (Item) -> Void = { _ in }   // inert — reading it IS the logged action
 
     var body: some View {
-        Card.Core(items: [], isFavorite: $isFavorite, title: "t")
+        Card.Core(items: [], isFavorite: $isFavorite, title: "t", action: action)
     }
 }
 
