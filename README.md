@@ -95,7 +95,7 @@ struct CardScenario: View {
     }
 }
 
-#Preview { CardScenario() }   // the app root installs the log sink once, via .testLog { }
+#Preview { CardScenario() }
 ```
 
 Three words, fixed meanings, used throughout: the **host** (`Card`) is the
