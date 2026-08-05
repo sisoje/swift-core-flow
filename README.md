@@ -95,7 +95,7 @@ struct Card: View {
 // its construction is also a unit test's entire setup:
 struct CardScenario: View {
     @TestState private var isFavorite = false   // $isFavorite backs the Binding AND logs every write
-    @TestAction private var action: (Item) -> Void = { _ in }   // inert — reading it IS the logged action
+    @TestAction private var action: (Item) -> Void = { _ in }   // reading it IS the logged action
 
     var body: some View {
         Card.Core(items: [], isFavorite: $isFavorite, title: "t", action: action)
