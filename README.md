@@ -87,12 +87,8 @@ struct Card: View {
     // }
 }
 
-// a SCENARIO — the hand-written view that stages one concrete situation,
-// and the ordinary name previews and UI tests are allowed to say
-// (#Preview's own expansion can't name Core — see the Previews section).
-// The construction inside is also a unit test's entire setup: no live
-// view, no ModelContext — the fetched value passes bare, and the private
-// state field isn't a parameter at all (it's Core's own, sealed, logging):
+// a SCENARIO — the hand-written stage previews and UI tests can name;
+// the construction inside is also a unit test's entire setup:
 struct CardScenario: View {
     var body: some View {
         Card.Core(items: [item], title: "t")
