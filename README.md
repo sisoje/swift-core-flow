@@ -190,8 +190,7 @@ binding in plain code, no view needed:
 var writes: [Bool] = []
 let core = Toggler.Core(          // the host declares `@Binding var isOn: Bool`
     isOn: Binding(get: { false }, set: { writes.append($0) }))
-core.isOn = true                  // lands in `writes` — writes from the
-                                  // copied body land the same way
+core.isOn = true                  // the copied body's writes land the same way
 ```
 
 (Generating a binding-wiring model class was considered and rejected — the
@@ -288,7 +287,7 @@ something a caller supplies (`@Binding` is for that); declaring one
 non-private is a compile error, so every renderer downstream can assume the
 substituted set is always private, with no "what if it's also public" case
 to reason about. Unknown wrappers carry no privacy rule — private or not,
-their declaration is copied verbatim, and a non-private one simply stays a
+their declaration is copied verbatim, and a non-private one stays a
 memberwise-init parameter like any other non-private field.
 
 ### Notes on the rows
@@ -681,9 +680,9 @@ Works the same on a `class` or `actor`:
 struct Card<Content: View>: View {
     @Environment(\.colorScheme) private var scheme: ColorScheme   // excluded (private)
     @State private var expanded = false              // excluded (private)
-    @Binding var isOn: Bool                           // init param: Binding<Bool>
+    @Binding var isOn: Bool
     let title: String
-    @ViewBuilder let footer: Content                  // init param: @ViewBuilder () -> Content
+    @ViewBuilder let footer: Content
 
     var body: some View { /* ... */ }
 }
