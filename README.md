@@ -87,11 +87,27 @@ struct Card: View {
     // }
 }
 
-// tests construct the twin directly — no live view, no
+// a unit test constructs the twin directly — no live view, no
 // ModelContext; the fetched value passes bare, the private state field
-// isn't a parameter at all:
+// isn't a parameter at all (it's Core's own, sealed and logging):
 Card.Core(items: [item], title: "t")
+
+// a SCENARIO — the hand-written view that stages one concrete situation,
+// and the ordinary name previews and UI tests are allowed to say
+// (#Preview's own expansion can't name Core — see the Previews section):
+struct CardScenario: View {
+    var body: some View {
+        Card.Core(items: [item], title: "t")
+    }
+}
+
+#Preview { CardScenario() }   // the app root installs the log sink once, via .testLog { }
 ```
+
+Three words, fixed meanings, used throughout: the **host** (`Card`) is the
+production shell; **`Core`** is its generated twin; a **scenario**
+(`CardScenario`) is the hand-written view that stages a `Core` with
+mocks — what a preview shows and a UI test launches.
 
 ### Wrapper mapping reference
 
@@ -369,20 +385,11 @@ cannot reference names another expansion generated — a Swift-level rule
 file-scope TYPE position (`func f() -> Card.Core` at file scope); reference
 it in expressions or behind `some View`.
 
-The fix costs one ordinary type:
-
-```swift
-struct CardScenario: View {           // hand-written — an ordinary name
-    var body: some View {
-        Card.Core(items: [item], title: "t")   // expression position — fine
-    }
-}
-
-#Preview { CardScenario() }           // no macro-generated name in sight
-```
-
-The example app's scenarios double as exactly this — every one is a
-hand-written host a preview (and a UI test) can name.
+The fix costs one ordinary type — the scenario from the chapter intro:
+`Card.Core(…)` sits in expression position inside a hand-written view, and
+`#Preview { CardScenario() }` names only ordinary types. The example app's
+scenarios double as exactly this — every one is a hand-written stage that
+a preview (and a UI test) can name.
 
 ---
 
