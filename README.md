@@ -93,7 +93,7 @@ struct Card: View {
 // its construction is also a unit test's entire setup:
 struct CardScenario: View {
     var body: some View {
-        Card.Core(items: [item], isFavorite: .constant(false), title: "t")
+        Card.Core(items: [Item(name: "Tea")], isFavorite: .constant(false), title: "t")
     }
 }
 
