@@ -74,6 +74,7 @@ syntax).
 struct Card: View {
     @Query private var items: [Item]
     @State private var isExpanded = false
+    @AppStorage("isFavorite") private var isFavorite = false
     let title: String
 
     var body: some View { ... }   // ordinary SwiftUI, written once
@@ -82,6 +83,7 @@ struct Card: View {
     // struct Core: View {
     //     @QueryCore var items: [Item]
     //     @TestState private var isExpanded = false
+    //     @Binding var isFavorite: Bool
     //     let title: String
     //     var body: some View { ... }   <- the same text, copied
     // }
@@ -91,7 +93,7 @@ struct Card: View {
 // its construction is also a unit test's entire setup:
 struct CardScenario: View {
     var body: some View {
-        Card.Core(items: [item], title: "t")
+        Card.Core(items: [item], isFavorite: .constant(false), title: "t")
     }
 }
 
