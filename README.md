@@ -24,7 +24,7 @@ is the per-macro reference.
 
 | Concept | Form | Does |
 |---|---|---|
-| [`@Shell`](#shell) | member macro | generates a nested `Core` struct — the host's standalone twin: same body, every data boundary observable, directly constructible in tests and previews |
+| [`@Shell`](#shell) | member macro | generates a nested `Core` struct — the host's standalone twin: same body, every data boundary observable, directly constructible in tests (previews reach it through a hand-written wrapper view — `#Preview`'s own expansion can't name macro-generated code) |
 | [`@Flowable`](#flowable) | member macro | writes a memberwise `init` at the type's own access level, plus a `makeFlow(_:)` factory taking the same properties as one unlabeled tuple and an `InFlow` typealias naming their labeled shape |
 | [`@TestState`](#teststate-and-testaction) | accessor + peer macro | a drop-in `@State` that logs every mutation — each write reaches the injected sink the moment it happens, binding writes included |
 | [`@TestAction`](#teststate-and-testaction) | accessor + peer macro | an action closure that logs every call — reading the property IS the logged action; each call logs its payload to the injected sink, then forwards |
@@ -87,7 +87,7 @@ struct Card: View {
     // }
 }
 
-// tests/previews construct the twin directly — no live view, no
+// tests construct the twin directly — no live view, no
 // ModelContext; the fetched value passes bare, the private state field
 // isn't a parameter at all:
 Card.Core(items: [item], title: "t")
@@ -347,7 +347,7 @@ flowchart TD
     end
 
     CardBody -. "@Shell copies every<br/>non-stored member" .-> SNBody
-    Test(["unit test / preview"]) -. "construct Core directly —<br/>no live view, no environment, no ModelContext" .-> Fields
+    Test(["unit test / wrapper view"]) -. "construct Core directly —<br/>no live view, no environment, no ModelContext" .-> Fields
 ```
 
 - **`CardBody -.-> SNBody`** (dotted, generated) — the copy: one source
@@ -355,9 +355,34 @@ flowchart TD
   compiles the identical text against the substituted fields. Drift is
   impossible.
 - **`Test -.-> Fields`** (dotted) — the payoff: construct a `Core` directly
-  with mocks — in a unit test or a preview — and assert on its
-  fields, call its helpers, or render its body, no live rendering pipeline
-  required.
+  with mocks — in a unit test, or in a hand-written wrapper view that a
+  preview shows (see below) — and assert on its fields, call its helpers,
+  or render its body, no live rendering pipeline required.
+
+### Previews: one hand-written wrapper away
+
+`#Preview { Card() }` works — the host's body is ordinary hand-written
+source. `#Preview { Card.Core(…) }` does NOT compile, and no macro package
+can make it: `#Preview` is itself a macro expansion, and one expansion
+cannot reference names another expansion generated — a Swift-level rule
+(verified directly, five ways). A macro-generated name also fails in a
+file-scope TYPE position (`func f() -> Card.Core` at file scope); reference
+it in expressions or behind `some View`.
+
+The fix costs one ordinary type:
+
+```swift
+struct CardScenario: View {           // hand-written — an ordinary name
+    var body: some View {
+        Card.Core(items: [item], title: "t")   // expression position — fine
+    }
+}
+
+#Preview { CardScenario() }           // no macro-generated name in sight
+```
+
+The example app's scenarios double as exactly this — every one is a
+hand-written host a preview (and a UI test) can name.
 
 ---
 
