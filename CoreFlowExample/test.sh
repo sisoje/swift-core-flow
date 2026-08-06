@@ -8,8 +8,15 @@ cd "$(dirname "$0")"
 
 xcodegen generate
 
+rm -rf TestResults.xcresult
 xcodebuild test \
     -project CoreFlowExample.xcodeproj \
     -scheme CoreFlowTestApp \
     -destination "platform=iOS Simulator,name=iPhone 17 Pro" \
+    -enableCodeCoverage YES \
+    -resultBundlePath TestResults.xcresult \
     -collect-test-diagnostics never
+
+# Per-target coverage from the result bundle — the CoreFlowExampleUI line is
+# the one that matters: the UI tests component-test the package's Cores.
+xcrun xccov view --report --only-targets TestResults.xcresult

@@ -69,6 +69,10 @@ schemes:
       # CoreFlowTestApp, so Cmd-U here still drives the TestApp's scenarios —
       # the real app is what you RUN, the tests always run as per the TestApp.
       debugEnabled: false
+      gatherCoverageData: true
+      coverageTargets:
+        - CoreFlowTestApp
+        - package: CoreFlowExampleUI/CoreFlowExampleUI
       targets:
         - CoreFlowUITests
   CoreFlowTestApp:
@@ -84,5 +88,9 @@ schemes:
       # xcodebuild path (test.sh) never attaches anyway. Cost: no breakpoints
       # inside tests.
       debugEnabled: false
+      gatherCoverageData: true
+      coverageTargets:
+        - CoreFlowTestApp
+        - package: CoreFlowExampleUI/CoreFlowExampleUI
       targets:
         - CoreFlowUITests

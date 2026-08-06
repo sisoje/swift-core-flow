@@ -2,3 +2,4 @@
 # test.sh, generate.sh, and SPEC.md are source.
 *.swift
 Package.resolved
+*.xcresult
