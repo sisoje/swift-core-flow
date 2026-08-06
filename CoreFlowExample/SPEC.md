@@ -4,8 +4,10 @@ The Swift sources of this example are deliberately collapsed into this spec;
 regenerate them from the contracts below — `sh generate.sh` does it headlessly
 via the claude CLI (deleting every generated `.swift` first, so files an
 older spec created can't linger). `project.yml`, `test.sh`, `generate.sh`,
-`coverage.sh` (the adjusted-coverage report — host members are twin-tested
-and excluded; both test paths end in it, `test.sh` directly and Cmd-U via a
+`coverage.sh` (which components' scenarios ran — a checklist, not a
+percentage: host members execute as Core's macro-generated copies,
+invisible to coverage attribution; both test paths end in it, `test.sh`
+directly and Cmd-U via a
 scheme post-action writing `CoverageReport.txt`), and `.gitignore`
 (ignoring the generated sources) are kept
 verbatim next to this file and are part of the spec (targets, schemes, build

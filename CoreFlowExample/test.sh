@@ -17,7 +17,6 @@ xcodebuild test \
     -resultBundlePath TestResults.xcresult \
     -collect-test-diagnostics never
 
-# Raw per-target table plus the adjusted table (host members excluded —
-# they execute as Core's macro-generated copies, invisible to coverage
-# attribution; rationale in coverage.sh).
+# Which components' scenarios ran — a checklist, not a number (rationale
+# in coverage.sh).
 sh coverage.sh TestResults.xcresult
