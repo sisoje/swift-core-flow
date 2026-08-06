@@ -532,6 +532,16 @@ aren't seen (same syntax-only limitation as host-kind detection).
     never gets a type checker. A qualified `@SwiftUI.State` is the same
     story on the wrapper side: no bare identifier to report, so it rides
     rule 2 as an unknown wrapper, consistently unrecognized everywhere.
+- **Coverage cannot credit the copied body — verified directly, and
+  `#sourceLocation` can't fix it.** Swift emits NO coverage instrumentation
+  for functions in macro-expansion buffers on this toolchain: `Core.body`
+  has zero counters in the profile data, under any filename. Wrapping the
+  copied body in `#sourceLocation(file:line:)` back to the host was tried
+  both ways — around the member and inside the braces, with
+  `formatMode: .disabled` and dump-verified anchors — and the directive is
+  accepted, remaps correctly, and changes nothing: it remaps regions that
+  are never emitted. Don't retry from the macro side; the gate is the
+  compiler's emission, not the mapping.
 - **`@MainActor` is required on any test suite touching a
   `View`-conforming type's members** — `Core` included. Verified directly
   (a real crash, not a guess): `View` conformance implicitly infers
