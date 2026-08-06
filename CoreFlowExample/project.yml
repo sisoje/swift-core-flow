@@ -75,6 +75,10 @@ schemes:
         - package: CoreFlowExampleUI/CoreFlowExampleUI
       targets:
         - CoreFlowUITests
+      postActions:
+        - name: Adjusted coverage
+          settingsTarget: CoreFlowTestApp
+          script: sh "${PROJECT_DIR}/coverage.sh" > "${PROJECT_DIR}/CoverageReport.txt" 2>&1 || true
   CoreFlowTestApp:
     build:
       targets:
@@ -94,3 +98,7 @@ schemes:
         - package: CoreFlowExampleUI/CoreFlowExampleUI
       targets:
         - CoreFlowUITests
+      postActions:
+        - name: Adjusted coverage
+          settingsTarget: CoreFlowTestApp
+          script: sh "${PROJECT_DIR}/coverage.sh" > "${PROJECT_DIR}/CoverageReport.txt" 2>&1 || true
