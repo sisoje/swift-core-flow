@@ -63,6 +63,14 @@ schemes:
         CoreFlowRealApp: all
     run:
       config: Debug
+    test:
+      config: Debug
+      # Same UI tests as the test scheme: TEST_TARGET_NAME on the bundle is
+      # CoreFlowTestApp, so Cmd-U here still drives the TestApp's scenarios —
+      # the real app is what you RUN, the tests always run as per the TestApp.
+      debugEnabled: false
+      targets:
+        - CoreFlowUITests
   CoreFlowTestApp:
     build:
       targets:
