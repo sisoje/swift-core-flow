@@ -532,6 +532,29 @@ aren't seen (same syntax-only limitation as host-kind detection).
     never gets a type checker. A qualified `@SwiftUI.State` is the same
     story on the wrapper side: no bare identifier to report, so it rides
     rule 2 as an unknown wrapper, consistently unrecognized everywhere.
+- **The delegation redesign was built, run green, and abandoned — the
+  full map, so nobody re-walks it.** The idea: Core as the ONE
+  implementation (fields generated, logic hand-written in
+  `extension Host.Core`, host body generated as a memberwise delegation
+  `Core(items: items, isPinned: $isPinned, …)`), buying exact line
+  coverage since the executed logic is real source. Verified en route:
+  hand-written extensions DO resolve macro-generated nested types
+  (`extension Card.Core` compiles — the file-scope type-position failure
+  does not extend to extension positions), and a mirror macro is
+  impossible in every form — "macro expansion cannot introduce extension"
+  (exact compiler error) bars emitting `extension Host { }` from any
+  role, and no macro can see sibling source anyway: whoever can see the
+  extension's members can't emit the host extension, whoever could emit
+  can't see. Why abandoned: production Core carries @TestState (host
+  @State becomes a dead template — the declaration lies), the host has no
+  visible body, live channels that don't fit a memberwise init silently
+  drop (`fetchError`: the bare-value @QueryCore param can't carry the
+  live Query's error — production Core would read nil), and the "pure
+  Core" escape (hoist all truth to the shell, inject bindings) unravels
+  on the sealed `FocusState.Binding`, unhoistable `@GestureState`, and
+  the loss of Core-owned logging. The copy design stands; exact coverage
+  of the copied body waits on compiler-side instrumentation of expansion
+  buffers (bullet below).
 - **Coverage cannot credit the copied body — verified directly, and
   `#sourceLocation` can't fix it.** Swift emits NO coverage instrumentation
   for functions in macro-expansion buffers on this toolchain: `Core.body`
