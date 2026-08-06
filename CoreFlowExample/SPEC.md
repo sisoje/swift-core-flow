@@ -12,9 +12,13 @@ there). Verify a regeneration with `sh test.sh` in this directory.
 The spec assumes the `@Shell` mapping where `@State` substitutes to
 `@TestState private` on `Core` (Core owns and logs its own state; the field is
 sealed, out of the memberwise init, host's inline default required),
-`@AppStorage`/`@SceneStorage` → `@Binding` (external storage is an injected
+`@FocusState` → `@TestFocusState private` (a REAL `FocusState` peer
+underneath — hosted behavior stays live; programmatic writes log, while
+`$name` remains the real `FocusState<T>.Binding`, so SYSTEM focus moves
+through it don't), `@AppStorage`/`@SceneStorage` → `@Binding` (external
+storage is an injected
 dependency; keys dropped), `@Query` → `@QueryCore` (fetched array as a bare
-init parameter), and unknown wrappers (`@GestureState`, `@FocusState`,
+init parameter), and unknown wrappers (`@GestureState`,
 `@Environment`) copied verbatim with their attribute arguments — an
 `@Environment` copy reads whatever the scenario installs with
 `.environment(...)`, the environment's own mocking story.
@@ -23,9 +27,10 @@ init parameter), and unknown wrappers (`@GestureState`, `@FocusState`,
 
 The production shape: one SPM library holding ALL the components, consumed
 by two thin app targets. The reading-list set (the pair, their composed
-screen, and the store capability) and the five tricky-wrapper
+screen, and the store capability) and the six tricky-wrapper
 components (plain `@GestureState`, `@GestureState(reset:)`, `@FocusState`,
-a `ViewModifier` host, an async throwing action) live side by side in the
+a `ViewModifier` host, an async throwing action, an `@UnstructuredTask`
+slot) live side by side in the
 library, one file per component — host, scenario,
 `#Preview { TheScenario() }` (`BookStore.swift` being the one non-component
 file). Only what the
@@ -34,7 +39,7 @@ real app consumes is `public`: the composed `ReadingListScreen` (with
 `Book` model (hand-written init), and the `BookStore` capability with its
 public `\.bookStore` entry — the package defines the seam, the app supplies
 the live implementation. Everything else — `AddBookField` and `BookList`
-(composed only inside `ReadingListScreen`), the five tricky hosts, every
+(composed only inside `ReadingListScreen`), the six tricky hosts, every
 scenario, every `Core` — is internal, reached by the test app via
 `@testable import`. Scenario structs are named `<Component>Scenario`, except
 `AddBookField`'s (`AddBookScenario`) and `ReadingListScreen`'s
@@ -47,7 +52,7 @@ scenario, every `Core` — is internal, reached by the test app via
 - `TestApp` → `CoreFlowTestApp` scheme: one file — `@testable import
   CoreFlowExampleUI` reaches the internal scenarios, selected per launch via
   the `SCENARIO` env var; hosts the accessibility log element.
-- `UITests` — XCUITests against the test app, one suite per component (seven).
+- `UITests` — XCUITests against the test app, one suite per component (eight).
 
 ## Layout
 
@@ -63,7 +68,8 @@ CoreFlowExample/
                                AddBookField.swift, BookList.swift,
                                ReadingListScreen.swift, DragCard.swift,
                                TrickyDragCard.swift, FocusField.swift,
-                               DimmerDemo.swift, SaveButton.swift
+                               DimmerDemo.swift, SaveButton.swift,
+                               DownloadButton.swift
   RealApp/RealApp.swift
   TestApp/TestApp.swift
   UITests/                     LaunchHelper.swift, one file per suite
@@ -222,7 +228,8 @@ changes in the context, so rows stayed until relaunch.
 - `enum Scenario: String` — cases `bookList = "BookList"`, `addBook =
   "AddBook"`, `readingList = "ReadingList"`, `dragCard = "DragCard"`,
   `trickyDragCard = "TrickyDragCard"`, `focusField = "FocusField"`,
-  `dimmer = "Dimmer"`, `saveButton = "SaveButton"`; `static var
+  `dimmer = "Dimmer"`, `saveButton = "SaveButton"`, `downloadButton =
+  "DownloadButton"`; `static var
   defaultScenario` is `.bookList` (used when `SCENARIO` is unset, so Cmd-R
   just works).
 - `@main struct CoreFlowTestApp: App`: `init()` reads
@@ -296,14 +303,14 @@ Scenario: bare `TrickyDragCard.Core()`. The copied body's write logs exactly
 once per completed drag — deterministically `1` in a fresh process, so the
 snapshot is stable.
 
-## FocusField.swift — machinery vs external storage, one host
+## FocusField.swift — the property logs, the projection wires
 
-The two unsubstituted-vs-substituted halves in one host. `@FocusState` is
-UI-runtime machinery: unmapped, so `Core` carries its own verbatim copy —
-tapping the field moves the OS's real focus into Core's read, the toggle
-button writes back out. `@AppStorage` is EXTERNAL storage, a dependency:
-`Core` takes it as a `@Binding` the scenario backs and logs, so the same tap
-is asserted live on one side and by mutation log on the other.
+`@FocusState` → `@TestFocusState` on `Core`, demonstrated on both channels
+in one host: tapping the field moves the OS's REAL focus (the system writes
+through the real `FocusState.Binding` — status label changes, NO log line),
+while the toggle button's programmatic write goes through the substituted
+setter and logs. `@AppStorage` is EXTERNAL storage, a dependency: `Core`
+takes it as a `@Binding` the scenario backs and logs.
 
 ```swift
 @Shell
@@ -374,6 +381,35 @@ own logged state):
 
 body: `SaveButton.Core(onSave: onSave, getUserName: getUserName)`.
 
+## DownloadButton.swift — the @UnstructuredTask slot
+
+`@UnstructuredTask` under `@Shell` rides the verbatim rule and re-expands on
+`Core`: the twin cancels and logs identically. Assigning logs
+`("download","task")`, clearing logs `("download","nil")` and the box's
+`willSet` cancels the live task — observed, not assumed: the cancelled
+task's sleep returns early and its resumption writes Core's own logged
+state, strictly after the clearing write (cancellation happens inside the
+button action; the resumption is scheduled later on the main actor), so the
+log order is deterministic.
+
+```swift
+@Shell
+struct DownloadButton: View {
+    @UnstructuredTask private var download: Task<Void, Never>?
+    @State private var cancelsSeen = 0
+}
+```
+
+Body: `VStack(spacing: 16)` of `Text(download == nil ? "idle" :
+"downloading")` (`downloadStatusLabel` — the slot's storage is
+`@Observable`, so the body re-renders on task change), `Text("cancels
+\(cancelsSeen)")` (`cancelsLabel`), `Button("Start") { download = Task {
+try? await Task.sleep(for: .seconds(600)); if Task.isCancelled {
+cancelsSeen += 1 } } }` (`startDownloadButton`), and `Button("Cancel") {
+download = nil }` (`cancelDownloadButton`).
+
+Scenario: bare `DownloadButton.Core()` — nothing to wire.
+
 ## UITests
 
 `LaunchHelper.swift`: `@MainActor func launchApp(scenario: String) ->
@@ -438,8 +474,17 @@ this target — see project.yml).
   scenario `TrickyDragCard`: `trickyResetsLabel` starts `"resets 0"`; drag
   from `trickyDragBox`'s center by `(80, -40)` (same element lookup and
   press/drag call) → `"resets 1"`; names `["resetsSeen"]`, values `["1"]`.
+- `DownloadButtonUITests.testStartThenCancelLogsSlotAndObservedCancellation`
+  — scenario `DownloadButton`: `downloadStatusLabel` starts `"idle"`,
+  `cancelsLabel` `"cancels 0"`; tap `startDownloadButton` →
+  `"downloading"`; tap `cancelDownloadButton` → `"idle"` and `"cancels 1"`;
+  names `["download","download","cancelsSeen"]`, values
+  `["task","nil","1"]`.
 - `FocusFieldUITests.testTappingFieldFocusesAndToggleButtonUnfocuses` —
   scenario `FocusField`: `focusStatusLabel` starts `"unfocused"`; tap
-  `focusTextField` → `"focused"`; tap `toggleFocusButton` → `"unfocused"`;
-  names `["toggleCount"]`, values `["1"]` — one tap verified both ways, the
-  machinery live, the storage by log.
+  `focusTextField` → `"focused"` AND the log names are still the encoded
+  empty array (`"[]"` — the system moved focus through the real binding,
+  nothing logged); tap `toggleFocusButton` → `"unfocused"`; names
+  `["isFocused","toggleCount"]`, values `["false","1"]` — the programmatic
+  write logs, the system one didn't: the property logs, the projection
+  wires.
