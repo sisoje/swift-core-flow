@@ -4,12 +4,7 @@ The Swift sources of this example are deliberately collapsed into this spec;
 regenerate them from the contracts below — `sh generate.sh` does it headlessly
 via the claude CLI (deleting every generated `.swift` first, so files an
 older spec created can't linger). `project.yml`, `test.sh`, `generate.sh`,
-`coverage.sh` (which components' scenarios ran — a checklist, not a
-percentage: host members execute as Core's macro-generated copies,
-invisible to coverage attribution; both test paths end in it, `test.sh`
-directly and Cmd-U via a
-scheme post-action writing `CoverageReport.txt`), and `.gitignore`
-(ignoring the generated sources) are kept
+and `.gitignore` (ignoring the generated sources) are kept
 verbatim next to this file and are part of the spec (targets, schemes, build
 settings, the no-lldb-attach note, and the test/generate invocations live
 there). Verify a regeneration with `sh test.sh` in this directory.
@@ -66,7 +61,6 @@ CoreFlowExample/
   project.yml                  (kept)
   test.sh                      (kept)
   generate.sh                  (kept)
-  coverage.sh                  (kept)
   .gitignore                   (kept)
   CoreFlowExampleUI/
     Package.swift

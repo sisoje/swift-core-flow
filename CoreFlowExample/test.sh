@@ -8,15 +8,8 @@ cd "$(dirname "$0")"
 
 xcodegen generate
 
-rm -rf TestResults.xcresult
 xcodebuild test \
     -project CoreFlowExample.xcodeproj \
     -scheme CoreFlowTestApp \
     -destination "platform=iOS Simulator,name=iPhone 17 Pro" \
-    -enableCodeCoverage YES \
-    -resultBundlePath TestResults.xcresult \
     -collect-test-diagnostics never
-
-# Which components' scenarios ran — a checklist, not a number (rationale
-# in coverage.sh).
-sh coverage.sh TestResults.xcresult
