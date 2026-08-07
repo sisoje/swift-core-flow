@@ -1,3 +1,7 @@
+# CoreFlow
+
+> **Make any Apple demo testable. One line, one macro is all you need.**
+
 ## Why
 
 Ask the industry "how do I test my SwiftUI view" and the answer is "you don't,
