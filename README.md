@@ -1,4 +1,20 @@
-# CoreFlow
+## Why
+
+The industry's answer to "how do I test my SwiftUI view" is "don't — move your
+logic into a ViewModel." That forces an architecture on you to compensate for a
+tooling gap. Your logic isn't untestable because it's badly written; it's
+untestable because it lives in a view: `@State` needs a render host, `body`
+won't evaluate outside one, and property wrappers can't be abstracted behind a
+protocol. You can't run the real view, mock it, or share its body through a
+conformance.
+
+CoreFlow takes the opposite route: instead of making you restructure your code
+to fit the tests, it makes the tests reach the code where you actually wrote
+it. Everyone else's test tooling wraps the real code — SwiftUI won't let the
+real code run, so CoreFlow generates a runnable twin instead. Keep your view
+exactly as it is; get a seam.
+
+# What
 
 A small, growing collection of independent Swift macros, all shipped from one
 library — a single dependency gets you every macro below:
