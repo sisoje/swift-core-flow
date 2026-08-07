@@ -1,18 +1,37 @@
 ## Why
 
-The industry's answer to "how do I test my SwiftUI view" is "don't — move your
-logic into a ViewModel." That forces an architecture on you to compensate for a
-tooling gap. Your logic isn't untestable because it's badly written; it's
-untestable because it lives in a view: `@State` needs a render host, `body`
-won't evaluate outside one, and property wrappers can't be abstracted behind a
-protocol. You can't run the real view, mock it, or share its body through a
-conformance.
+Ask the industry "how do I test my SwiftUI view" and the answer is "you don't,
+you move your logic into a ViewModel instead". The premise is separating UI
+from logic. But a SwiftUI view is not UI. Its body never draws anything. It's
+a pure function computing a description from data, which is logic already. So
+the ViewModel doesn't separate logic from UI. It separates logic from logic,
+and forces an architecture on you to compensate for a tooling gap.
 
-CoreFlow takes the opposite route: instead of making you restructure your code
+Your view isn't untestable because it's badly written. It's untestable because
+of the runtime around it. @State needs a render host, body won't evaluate
+outside one, and property wrappers can't be abstracted behind a protocol. You
+can't run the real view, you can't mock it, and you can't share its body
+through a conformance.
+
+## The answer
+
+CoreFlow takes the opposite route. Instead of making you restructure your code
 to fit the tests, it makes the tests reach the code where you actually wrote
-it. Everyone else's test tooling wraps the real code — SwiftUI won't let the
-real code run, so CoreFlow generates a runnable twin instead. Keep your view
-exactly as it is; get a seam.
+it. SwiftUI won't let the real code run, so CoreFlow generates a runnable twin
+instead. Keep your view exactly as it is and get a seam.
+
+The model behind this: state lives in a source of truth, and a source of truth
+lives in a node of the view tree. A view, a view modifier, the App, the Scene.
+The tree of nodes is the dataflow graph. Each source of truth sits at exactly
+one node, and everything below derives it through bindings. CoreFlow's seams
+attach exactly there: @State, @AppStorage, @Query are all node-owned, and the
+twin observes them at the write site.
+
+This also decides who the package is for. If you wrote plain SwiftUI, every
+view is already in this shape and you can adopt gradually, one view at a
+time, no migration. If you moved your state into ObservableObject ViewModels,
+there is no seam to attach. The source of truth left the node graph, so there
+is no write site in the tree to observe and nothing to twin.
 
 # What
 
