@@ -1,6 +1,6 @@
 # CoreFlow
 
-> **Make any Apple demo testable. One line, one macro is all you need.**
+> **Make any SwiftUI project testable. One line, one macro is all you need.**
 
 ## Why
 
