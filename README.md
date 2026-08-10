@@ -271,18 +271,18 @@ accept the bare fetched value: a test writes
 
 ### Why a nominal struct, not a tuple
 
-Tuples can't conform to protocols — verified directly against the real compiler:
+`Core` must be nominal because tuples cannot conform to protocols — verified
+directly against the compiler:
 
 ```
 type '(x: Int, y: String)' cannot conform to 'Equatable'
 only concrete types such as structs, enums and classes can conform to protocols
 ```
 
-So a tuple snapshot can never be `Equatable`, `Codable`, or conform to a shared
-"any stateless snapshot" protocol for generic code to work with — and it can't
-carry copied members or host live. `Core` is a
-real nominal struct capturing the same data, so it can — for free, the moment it's
-declared as a real `struct`.
+A tuple could hold the same fields, but it could not conform to `View`,
+`Equatable`, `Codable`, or a shared snapshot protocol. Nor could it carry the
+copied `body` and helper members. A struct can do all three: preserve the data
+shape, carry the copied logic, and adopt the required conformances.
 
 ### Why `Core` is always internal, with no init of its own
 

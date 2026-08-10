@@ -32,7 +32,9 @@ soften a deliberate thesis merely to make the prose sound neutral.
 9. Record commit hashes only for commits that already exist. Refer to an
    uncommitted or in-progress checkpoint by description or intended message,
    never by an anticipated hash.
-10. Do not edit source code while performing this plan.
+10. A checkpoint committed with this plan must be labeled completed in that
+    commit; do not commit a self-expiring "current local checkpoint" status.
+11. Do not edit source code while performing this plan.
 
 ## Editing criteria
 
@@ -152,7 +154,8 @@ Current checkpoint:
   `37ea1e5 Clarify substituted wrapper mapping`, and
   `9e393f0 Consolidate copied wrapper rules`, and
   `8912770 Clarify unmapped object wrappers`, and
-  `07651f1 Clarify binding backing strategies`. Each pairs its README change
+  `07651f1 Clarify binding backing strategies`, and
+  `30e8807 Clarify QueryCore interface parity`. Each pairs its README change
   with the matching plan checkpoint.
 - Completed checkpoint: left the probe-verified
   `Card`/`CardScenario` sample unchanged; tightened the three-term glossary;
@@ -182,14 +185,18 @@ Current checkpoint:
   all three backing strategies, `Bindable(model).x` write-through fact, and
   probe-verified sample; added the verified file-scope reason and kept
   `@MainActor`; moved the no-backing `@State` contrast after the sample.
-- Current local checkpoint (uncommitted): split `QueryCore` into interface
+- Completed checkpoint: split `QueryCore` into interface
   parity, copied-body consequences, and memberwise-initializer ergonomics;
   preserved the verified exact-three-member surface and bold
   **no `projectedValue`** fact, stated that `modelContext` remains
   environment-fed like the live wrapper's, and retained bare-value construction
   with no `QueryCore` spelling.
-- Next checkpoint: review `Why a nominal struct, not a tuple`. Preserve the
-  verbatim compiler error proving that tuples cannot conform to protocols.
+- Completed checkpoint: made the nominal-type conclusion lead
+  the argument; replaced vague live-hosting language with the operative `View`
+  conformance; distinguished holding fields from carrying copied logic and
+  adopting protocols; preserved the verbatim compiler error as a fenced block.
+- Next checkpoint: reconcile `Previews: one hand-written wrapper away` with the
+  scenario material introduced earlier without removing its verified facts.
 - Expect the largest later merges around the wrapper mapping, `QueryCore`, and
   `Notes on the rows`, which repeat rules at different depths.
 - Reconcile `Previews: one hand-written wrapper away` with the scenario material
