@@ -4,18 +4,18 @@
 
 ## Why
 
-Ask the industry "how do I test my SwiftUI view" and the answer is "you don't,
-you move your logic into a ViewModel instead". The premise is separating UI
-from logic. But a SwiftUI view is not UI. Its body never draws anything. It's
-a pure function computing a description from data, which is logic already. So
-the ViewModel doesn't separate logic from UI. It separates logic from logic,
-and forces an architecture on you to compensate for a tooling gap.
+Ask how to test a SwiftUI view and the standard answer is: move its logic into
+a ViewModel. But a SwiftUI view is not UI. Its `body` never draws anything; it
+computes a description from data, including the actions attached to it. Moving
+this computation into a ViewModel does not separate logic from UI — it
+separates logic from logic, imposing an architecture to compensate for a
+tooling gap.
 
-Your view isn't untestable because it's badly written. It's untestable because
-of the runtime around it. @State needs a render host, body won't evaluate
-outside one, and property wrappers can't be abstracted behind a protocol. You
-can't run the real view, you can't mock it, and you can't share its body
-through a conformance.
+A SwiftUI view is difficult to test because of the runtime around it, not
+because of how it is written. `@State` needs a render host, `body`
+will not evaluate outside one, and property-wrapper behavior cannot be
+abstracted behind a protocol. Tests cannot run the view's logic directly,
+substitute the dependencies it reads, or reuse its `body` through a conformance.
 
 ## The answer
 
