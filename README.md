@@ -92,21 +92,15 @@ a wave mid-test. UI-runtime machinery with no suppliable data boundary —
 gestures and view identity — rides onto `Core` unchanged (see the
 [wrapper mapping reference](#wrapper-mapping-reference)).
 
-Concretely: a `member` macro generating a nested `Core` struct —
-always internal, regardless of the attached type's own access level —
-the host's standalone twin: every stored property
-the host declares, in exactly two kinds — *mapped* wrappers substituted with a
-mockable stand-in (the whitelist in the
-[wrapper mapping reference](#wrapper-mapping-reference), the only wrappers
-this package really knows), and everything else copied
-verbatim. Plus a
-verbatim copy of every non-stored member — `body`, helpers, methods, static
-members, nested types.
-Initializers are the one member kind not copied:
-`Core` is constructed through Swift's synthesized memberwise init, and a
-copied init would suppress it. Members declared in a separate extension of
-the host aren't seen (a macro only receives the attached declaration's own
-syntax).
+Concretely, `@Shell` is a `member` macro that generates a nested,
+always-internal `Core`, regardless of the host's access level. Stored properties
+follow two rules: wrappers on the mapping whitelist are substituted with test
+boundaries, while every other declaration is copied verbatim. The macro also
+copies every non-stored member written on the host — `body`, helpers, methods,
+static members, and nested types. Initializers are the sole exception: copying
+one would suppress the synthesized memberwise initializer that tests use to
+construct `Core`. Members in a separate extension remain invisible because the
+macro sees only the attached declaration's syntax.
 
 ```swift
 @Shell

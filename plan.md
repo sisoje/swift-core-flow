@@ -21,10 +21,15 @@ soften a deliberate thesis merely to make the prose sound neutral.
 3. Preserve every technical claim unless its removal is explicitly approved.
 4. Apply the approved edit and show its focused diff.
 5. Update this plan immediately after every approved checkpoint: record what
-   completed, the current phase status and commit, and the exact next step.
-6. Amend one local commit through the approved checkpoints within a phase, then
-   finish that phase as its own commit. Never amend a commit after it is pushed.
-7. Do not edit source code while performing this plan.
+   completed, the current phase status, and the exact next step before any
+   commit is created.
+6. Commit each README checkpoint together with its matching `plan.md` status
+   update. Never commit README prose and plan bookkeeping separately.
+7. Stage, commit, amend, reset, or push only when the user explicitly requests
+   that Git action. Approval of prose authorizes the file edit, not a commit.
+8. When explicitly requested, amend only while a checkpoint commit remains
+   local and unpushed. Never amend a pushed commit.
+9. Do not edit source code while performing this plan.
 
 ## Editing criteria
 
@@ -135,9 +140,15 @@ Current checkpoint:
   relationship, replaced the broad observability claim with the actual boundary
   mapping, preserved constructibility/assertability anywhere, and stated live
   event-channel removal in terms of waves.
-- Current unpushed phase commit: `Tighten Shell introduction`.
-- Next checkpoint: review only the second paragraph under `Shell`, beginning
-  `Concretely: a member macro generating a nested Core struct`.
+- Completed the second paragraph under `Shell`: stated the two stored-property
+  rules, replaced the inaccurate "mockable stand-in" umbrella with "test
+  boundaries," retained the complete copied-member list (including static
+  members), and preserved the initializer and separate-extension constraints.
+- Phase 3 commits so far: `ec9c2b2 Tighten Shell introduction` and
+  `aa72ec6 Clarify Shell generation rules`. Each pairs its README change with
+  the matching plan checkpoint; `aa72ec6` is currently local and unpushed.
+- Next checkpoint: review only the terminology paragraph after the opening
+  `Card`/`CardScenario` sample, beginning `Three words, fixed meanings`.
 - Expect the largest later merges around the wrapper mapping, `QueryCore`, and
   `Notes on the rows`, which repeat rules at different depths.
 - Reconcile `Previews: one hand-written wrapper away` with the scenario material
