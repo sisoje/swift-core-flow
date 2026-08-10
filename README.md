@@ -1319,6 +1319,18 @@ it's attached to.
 
 ---
 
+## The point
+
+`@Shell` does not move behavior into a ViewModel or a parallel test
+architecture. It keeps behavior in the view, then generates a twin whose
+runtime boundaries are observable or injectable.
+
+Adopt it one node at a time. Supply data, drive real interactions where they
+matter, and assert boundary evidence instead of executing effects. The view
+stays the source. SwiftUI's runtime stops being the only place it can run.
+
+---
+
 ## Package layout
 
 One target pair shared by all macros — not a pair per macro:

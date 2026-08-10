@@ -62,9 +62,11 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 2 — README structure and navigation:** completed.
 - **Phase 3 — README compression and continuity:** completed.
 - **Phase 4 — README code and prose:** completed.
-- **Phase 5 — README conclusion:** next.
-- **Next checkpoint:** propose the exact short conclusion before editing; make
-  the consequence sharp without summarizing the feature catalog.
+- **Phase 5 — README conclusion:** completed.
+- **Phase 6 — CLAUDE.md agent and maintainer pass:** next.
+- **Next checkpoint:** propose the new self-sufficient `CLAUDE.md` skeleton
+  before moving content, with the Reflector-safety and installation-identity
+  corrections built into its structure.
 
 ## Phase 1: README opening — completed
 
@@ -228,8 +230,10 @@ Audit every code sample after its surrounding prose is stable.
 
 Completed checkpoints:
 
-- Phase 4 commits so far: `b3cbfff Tighten README test-support samples` and
-  `52bd825 Fix Capability sample and record probes`.
+- Phase 4 commits: `b3cbfff Tighten README test-support samples`,
+  `52bd825 Fix Capability sample and record probes`,
+  `04613e6 Clarify pick samples and Reflector safety`, and
+  `d4a414f Fix installation identity and close sample audit`.
 - Audited the `Card`/`CardScenario`, binding write-through,
   `ButtonTestHost`, `DownloadButton`, and `LoginScenario` samples together.
 - Left the first two probe-verified samples and `DownloadButton` unchanged.
@@ -332,12 +336,32 @@ It should restate the consequence, not summarize every feature:
 
 Keep the conclusion short and provocative.
 
+Completed checkpoint:
+
+> `@Shell` does not move behavior into a ViewModel or a parallel test
+> architecture. It keeps behavior in the view, then generates a twin whose
+> runtime boundaries are observable or injectable.
+>
+> Adopt it one node at a time. Supply data, drive real interactions where they
+> matter, and assert boundary evidence instead of executing effects. The view
+> stays the source. SwiftUI's runtime stops being the only place it can run.
+
+Placed the conclusion before `Package layout` and `References`, so the argument
+ends on its consequence and the supporting appendices follow. It restates all
+four intended outcomes without summarizing the feature catalog. The final
+sentence names SwiftUI's runtime—not SwiftUI itself—as the execution constraint.
+
 ## Phase 6: CLAUDE.md agent and maintainer pass
 
 Treat `CLAUDE.md` as both agent context and a maintainer specification, not a
 second public article. It must remain self-sufficient: a session reading only
 `CLAUDE.md` must know every rule, verified fact, and rejected design needed to
 work safely in the repository.
+
+The skeleton must reserve explicit homes for the two verified README corrections
+already queued below: Reflector's implementation-dependent uninitialized
+reflection and SwiftPM's `swift-core-flow` package identity. They are structural
+inputs to the pass, not cleanup after the reorganization.
 
 1. Put package invariants and build commands first.
 2. Separate normative rules from implementation mechanisms.
