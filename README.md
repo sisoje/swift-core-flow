@@ -1002,17 +1002,21 @@ let store: Store = (expenses: [12, 40, 7], limit: 100, name: "Groceries")
 let actions: Actions = (alerts: ["low battery"], submit: {})
 
 let picked = #pick(from: store, \.name, \.limit => "total")
-// → (name: store.name, total: store.limit) — one source, renamed and reordered
+// Expansion builds (name: store.name, total: store.limit);
+// the static result is positional, so read picked.0 and picked.1.
 
 let merged = #pick(from: store, \.expenses, \.limit, from: actions, \.alerts)
-// → (expenses:, limit:, alerts:) — two sources, one tuple
+// Expansion builds (expenses:, limit:, alerts:);
+// the static result is positional.
 ```
 
-Single key path returns the bare value (Swift has no 1-tuples); several return a labeled
-tuple in exactly the order you wrote them. `=>` renames a field's output label without
-giving up KeyPath typing or implicit-root inference. Works on structs, classes, and bare
-tuple values — see below for why that last one wasn't a given. A second (or third) source
-is just another `from:` group in the same call.
+Single key path returns the bare value (Swift has no 1-tuples); several return a
+tuple in exactly the order you wrote them — the expansion builds it labeled, but
+the static type is positional (see the limitation below). `=>` renames a field's
+output label without giving up KeyPath typing or implicit-root inference. Works
+on structs, classes, and bare tuple values — see below for why that last one
+wasn't a given. A second (or third) source is just another `from:` group in the
+same call.
 
 Every source starts with a real `from:` label — there's exactly one shape for `#pick`,
 whether it's one source or three, dispatched to the right arity-generic overload by
@@ -1119,9 +1123,9 @@ structs bridging picks onto tuple values. No workaround is needed.
 Verified directly against a modern toolchain, with real execution:
 
 ```swift
-let t = (a: 1, b: "x")
-let kp = \(a: Int, b: String).a       // → WritableKeyPath<(a: Int, b: String), Int>
-t[keyPath: kp]                        // → 1, correct
+let tuple = (a: 1, b: "x")
+let keyPath = \(a: Int, b: String).a
+let value = tuple[keyPath: keyPath]   // 1
 ```
 
 Implicit root, explicit root, heterogeneous field types, positional tuples, and the `=>`
@@ -1154,7 +1158,12 @@ let outer = #pick(from: inner, \.0)
 it works** — verified directly, including at runtime, not just type-checked:
 
 ```swift
-let nested = #pick(from: #pick(from: store, \.expenses, \.limit), \.1 => "total", from: actions, \.alerts)
+let nested = #pick(
+    from: #pick(from: store, \.expenses, \.limit),
+    \.1 => "total",
+    from: actions,
+    \.alerts
+)
 ```
 
 Here the inner call resolves to the one-source overload (`pick(from:_:)`) and the outer to
@@ -1244,16 +1253,18 @@ static func fieldNames<T>(of: T.Type) -> [String] {
 }
 ```
 
-This is safe *specifically* because it only ever reads `.label`, never `.value`.
-`Mirror`'s labels come from `T`'s compile-time field-descriptor metadata; a child's
-actual value is only lazily materialized (and ARC-retained, for a class-typed field)
-if something accesses `.value` — which this function never does.
+This relies on current `Mirror` behavior: field labels come from type metadata,
+and `fieldNames` never requests a child's `.value`. It has been verified for
+value types containing class references, closures, and arrays, but it still
+reflects storage that was never initialized; treat that as an
+implementation-dependent runtime technique, not a general Swift memory-safety
+guarantee.
 
 ### Requires a value type — checked at runtime, not compile time
 
-Swift has no generic constraint for "not a class," and a marker-protocol workaround
-wouldn't help either, since tuples can't conform to a protocol to opt in — so this is
-a `precondition`, not something the type system can catch. Verified directly that
+Swift has no generic constraint for "not a class," and tuples cannot adopt a
+marker protocol, so the top-level value-type requirement is enforced with a
+`precondition`. Verified directly that
 SwiftUI has the identical gap: a `final class` conforms to `View` and compiles fine;
 "views are structs" is convention, not compiler-enforced.
 

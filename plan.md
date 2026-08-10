@@ -62,8 +62,9 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 2 — README structure and navigation:** completed.
 - **Phase 3 — README compression and continuity:** completed.
 - **Phase 4 — README code and prose:** in progress.
-- **Next checkpoint:** audit the `Flowable` and `Capability` samples as one
-  related batch; probe-compile every touched sample against real expansion.
+- **Next checkpoint:** audit diagrams, verbatim compiler-output blocks, and the
+  remaining isolated snippets; match quoted diagnostics exactly and
+  probe-compile every touched Swift sample.
 
 ## Phase 1: README opening — completed
 
@@ -225,9 +226,10 @@ mechanisms, and retained every verified fact.
 
 Audit every code sample after its surrounding prose is stable.
 
-Completed checkpoint:
+Completed checkpoints:
 
-- Phase 4 commit so far: `b3cbfff Tighten README test-support samples`.
+- Phase 4 commits so far: `b3cbfff Tighten README test-support samples` and
+  `52bd825 Fix Capability sample and record probes`.
 - Audited the `Card`/`CardScenario`, binding write-through,
   `ButtonTestHost`, `DownloadButton`, and `LoginScenario` samples together.
 - Left the first two probe-verified samples and `DownloadButton` unchanged.
@@ -254,6 +256,25 @@ Completed checkpoint:
   changes state. The runtime probe confirmed that computed-property fields are
   snapshots while captured method closures remain connected to the instance:
   cached `doubled` stayed `0`, and a fresh capability read `2` after increment.
+- Audited every `#pick` and `Reflector` sample together. Corrected the flagship
+  comments and adjacent prose to distinguish labeled expansion literals from
+  positional static result types; made the tuple-KeyPath result explicit; and
+  reformatted cross-arity nesting to expose its overload structure.
+- Compiled and ran every successful sample in that batch, including the `=>`
+  rename, one- and two-source picks, native tuple KeyPaths with the inferred
+  `WritableKeyPath<(a: Int, b: String), Int>` type, two-statement composition,
+  cross-arity nesting, repeated `from:` grouping, generated `InFlow`, and both
+  Reflector label shapes.
+- Compiled the intentional same-overload nesting failure and captured the exact
+  diagnostic: `recursive expansion of macro 'pick(from:_:)'`.
+- Re-ran all 16 `PickMacroTests`, the eight `#pick` `EndToEndTests` (plus the
+  separately selected test-support test), and all five `ReflectorTests`; all
+  passed, and the displayed `#pick` expansions remain locked by the macro tests.
+- Replaced the universal Reflector safety claim with its actual evidence and
+  limit: current `Mirror` behavior was verified for value types with reference,
+  closure, and array fields, but reflecting uninitialized storage remains an
+  implementation-dependent runtime technique. The implementation listing and
+  the rest of the verified value-type limitation section remain unchanged.
 
 - Give each sample one primary claim.
 - Remove fields and comments that do not prove that claim.
@@ -295,6 +316,10 @@ work safely in the repository.
 7. Compress duplication internally, but never delete required context into the
    README or make `CLAUDE.md` depend on another document for a rule, verified
    fact, or dead end.
+8. Mirror the README's Reflector safety correction: replace the claim that
+   reading only `.label` makes uninitialized reflection safe with the verified,
+   implementation-dependent framing, while preserving the top-level class trap
+   and value-type observations.
 
 Propose the new `CLAUDE.md` skeleton before moving any content.
 
