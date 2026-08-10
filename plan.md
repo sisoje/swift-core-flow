@@ -227,6 +227,7 @@ Audit every code sample after its surrounding prose is stable.
 
 Completed checkpoint:
 
+- Phase 4 commit so far: `b3cbfff Tighten README test-support samples`.
 - Audited the `Card`/`CardScenario`, binding write-through,
   `ButtonTestHost`, `DownloadButton`, and `LoginScenario` samples together.
 - Left the first two probe-verified samples and `DownloadButton` unchanged.
@@ -239,6 +240,20 @@ Completed checkpoint:
   Ran the payload probe and observed
   `Optional(CoreFlowTests.LoginScenario.Field.password)`, confirming the README's
   placeholder-module spelling `Optional(MyApp.LoginScenario.Field.password)`.
+- Audited every `Flowable` and `Capability` sample as one batch. Left the
+  `User`, `@Observable` one-field `Counter`, SwiftUI `Card`, `makeFlow(_:)`, and
+  `InFlow` samples unchanged because each line still proves an adjacent rule.
+- Compile-probed those samples together against the real package, including
+  stacked `@Flowable`/`@Observable`, labeled and differently labeled tuple
+  conversion, labeled `InFlow` forwarding, one-field collapse without `.0`,
+  and the stored-value `@ViewBuilder` initializer shape.
+- Re-ran all 20 `FlowableTests` and all nine `CapabilityTests`; every displayed
+  generated-code block in this batch matches its locked macro expansion.
+- Changed the flagship `Capability` example from a struct with a no-op
+  `increment` placeholder to a final class whose nonmutating method really
+  changes state. The runtime probe confirmed that computed-property fields are
+  snapshots while captured method closures remain connected to the instance:
+  cached `doubled` stayed `0`, and a fresh capability read `2` after increment.
 
 - Give each sample one primary claim.
 - Remove fields and comments that do not prove that claim.

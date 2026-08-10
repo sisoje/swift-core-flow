@@ -924,14 +924,14 @@ conform to), hand it exactly the functions it's entitled to call, as plain
 values.
 
 ```swift
-struct Counter {
+final class Counter {
     private var count = 0
 }
 
 @Capability
 extension Counter {
     var doubled: Int { count * 2 }
-    func increment() { /* ... */ }
+    func increment() { count += 1 }
     func fetch() async throws -> Int { count }
 }
 // generates:
@@ -940,6 +940,11 @@ extension Counter {
 //     (doubled, increment, fetch)
 // }
 ```
+
+`capability` evaluates computed properties when it builds the tuple, while its
+method closures stay connected to the instance. After a mutation, a cached
+capability still holds the old `doubled`; read `counter.capability` again for
+the current value.
 
 ### Works on an extension — unlike @Flowable, on purpose
 
