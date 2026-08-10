@@ -174,27 +174,34 @@ substitute and therefore follows the verbatim rule. The whitelist ends there —
 the only wrappers this package really knows: each substitution buys a log, an
 injectable boundary, or a bare value.
 
-**Copied verbatim** — everything else, wrapper or not: the host's own
-declaration as written. A plain field keeps its `let`/`var` and default (a
-defaulted `let` is a constant on `Core` too — no memberwise parameter,
-same as on the host; a *plain* private field is a compile error instead —
-pure data flow has no room for it). A wrapper — `@Binding`,
-`@Environment`, `@GestureState`, `@Namespace`, `@ScaledMetric`,
-`@Bindable`, `@StateObject`, your own custom one, even a qualified
-spelling (`@MyModule.Tracked`) no wrapper-name check recognizes — rides
-onto `Core` byte-for-byte, attribute arguments and default included. Both
-flavors keep `private` and erase `public`. Private
-verbatim copies are sealed — no init parameter, no reads — they just
-behave.
+**Copied verbatim.** Everything else, wrapper or not, keeps the host's
+declaration as written. A plain field retains its `let`/`var` and default; a
+defaulted `let` remains a constant on `Core` and stays out of the memberwise
+initializer. A plain private field is a compile error because pure data flow
+has no room for opaque state.
 
-The split is principled. Whitelisted wrappers hold *data* — a value, a
-fetched array — so they can be owned-and-logged, mocked, or handed in at
-the boundary. Most of the rest is Apple's
-UI-runtime machinery: `@GestureState` (gesture lifecycle), `@Namespace`
-(view identity), `@ScaledMetric` (display metrics),
-`@Environment` (the tree's value propagation). No caller can supply a live
-gesture, so no substitution is attempted: machinery stays verbatim on
-`Core` — live when hosted, inert defaults otherwise.
+An unmapped wrapper — `@Binding`, `@Environment`, `@GestureState`, `@Namespace`,
+`@ScaledMetric`, `@Bindable`, `@StateObject`, a custom wrapper, even an
+unrecognized qualified spelling such as `@MyModule.Tracked` — rides onto `Core`
+byte-for-byte, including attribute arguments and defaults. That verbatim copy
+is load-bearing: reconstructing `@GestureState(reset:)` could silently replace
+its custom reset closure, while the copy cannot. `TrickyDragCardUITests` proves
+this live — the custom reset fires on `Core` exactly as on the host.
+
+Access follows the source declaration: `public` is erased because `Core` is
+internal; `private` stays. A private copy self-initializes — guaranteed because
+the host compiled without an initializer assigning it — and remains sealed out
+of the synthesized memberwise initializer and caller access, but its behavior
+stays live when hosted. `@Environment` reads the real environment reactively —
+mock it when hosting via `.environment(...)`, the wrapper's own story — while
+`@GestureState` starts each gesture at its declared default. Outside a live
+host, they produce their native defaults.
+
+For UI-runtime machinery, no suppliable data boundary exists. A
+caller can pass stored data or a fetched result into `Core`, but a live gesture,
+namespace identity, display metric, or ambient environment read belongs to the
+runtime. That machinery therefore stays verbatim on `Core`: live when hosted,
+inert or defaulted otherwise.
 
 | Shell | Core |
 |---|---|
@@ -260,21 +267,6 @@ which makes `QueryCore`'s init callable with the wrapped value alone — so
 `Core`'s synthesized memberwise init takes the *bare* fetched value, and a
 test writes `Core(items: [item], title: "t")` with no `QueryCore` spelling
 at all.
-
-### One verbatim rule, no special cases
-
-Whatever behavior lives in an unmapped wrapper's own attribute arguments —
-a `@GestureState(reset:)` closure, an `@Environment` key path, a
-`@ScaledMetric(relativeTo:)` — rides onto `Core` byte-for-byte with
-nothing to reconstruct, proved live by a UI test (`TrickyDragCardUITests`
-in `CoreFlowExample`: the custom reset closure fires on `Core`'s copy
-exactly as on the host). A private copy is self-initializing (the host compiled
-without an init assigning it), so it drops out of `Core`'s memberwise init
-and produces its value live instead: an `@Environment` copy reads the *real* environment
-reactively when `Core` is hosted (mock it there via `.environment(...)`,
-the wrapper's own native story) and the default `EnvironmentValues`
-outside a live view; a `@GestureState` copy starts a fresh gesture at its
-declared default.
 
 ### Why a nominal struct, not a tuple
 

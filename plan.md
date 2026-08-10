@@ -147,23 +147,29 @@ Current checkpoint:
   rules, replaced the inaccurate "mockable stand-in" umbrella with "test
   boundaries," retained the complete copied-member list (including static
   members), and preserved the initializer and separate-extension constraints.
-- Phase 3 commits so far: `ec9c2b2 Tighten Shell introduction` and
-  `6482979 Clarify Shell generation rules`. Each pairs its README change with
-  the matching plan checkpoint.
+- Phase 3 commits so far: `ec9c2b2 Tighten Shell introduction`,
+  `6482979 Clarify Shell generation rules`, and
+  `37ea1e5 Clarify substituted wrapper mapping`. Each pairs its README change
+  with the matching plan checkpoint.
 - Completed checkpoint: left the probe-verified
   `Card`/`CardScenario` sample unchanged; tightened the three-term glossary;
   grounded **boundary event** as instrumented state writes and action calls;
   and replaced both occurrences of "the log IS the behavior" with the rigorous
   evidence claim.
-- Current local checkpoint (uncommitted): tightened the **Substituted** rule;
+- Completed checkpoint: tightened the **Substituted** rule;
   preserved every mapping's reason, privacy and memberwise-initializer
   constraints, anti-hoisting evidence doctrine, `@FocusState` impossibility
   proof, links, and semantic-whitelist boundary; left the probe-verified sample
   unchanged.
-- Next checkpoint: review only the **Copied verbatim** half of the wrapper
-  mapping. Preserve the `@GestureState(reset:)` byte-for-byte fact, the
-  `TrickyDragCardUITests` live verification, private-copy sealing rules, and
-  "static members" in the earlier copied-member list.
+- Current local checkpoint (uncommitted): consolidated the **Copied verbatim**
+  rule with its machinery rationale and removed the unlinked duplicate
+  subsection with zero information loss — Phase 3's first net heading deletion;
+  preserved the `@GestureState(reset:)` byte-for-byte fact,
+  `TrickyDragCardUITests` live verification, environment mocking story,
+  self-initialization proof, private-copy sealing rules, and "static members"
+  in the earlier copied-member list.
+- Next checkpoint: review the mapping table and the `@StateObject`/
+  `@ObservedObject` note together as the close of the wrapper mapping reference.
 - Expect the largest later merges around the wrapper mapping, `QueryCore`, and
   `Notes on the rows`, which repeat rules at different depths.
 - Reconcile `Previews: one hand-written wrapper away` with the scenario material
