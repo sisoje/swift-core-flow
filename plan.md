@@ -41,7 +41,8 @@ For every change:
 
 Established vocabulary includes **node**, **network**, **transformation**,
 **wave**, **source of truth**, **self-loop**, **boundary event**, **machinery**,
-**host**, **twin**, **shell**, **core**, **scenario**, and **execution log**.
+**host**, **twin**, **seam**, **shell**, **core**, **scenario**, and
+**execution log**.
 
 ## Phase 1: README opening
 

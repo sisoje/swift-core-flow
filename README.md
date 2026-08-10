@@ -19,23 +19,23 @@ substitute the dependencies it reads, or reuse its `body` through a conformance.
 
 ## The answer
 
-CoreFlow takes the opposite route: instead of restructuring your code to fit
-the tests, it makes the tests reach the code where you wrote it. SwiftUI cannot
-run that code in isolation, so CoreFlow generates a runnable twin. Keep the
-production view exactly as it is; the twin is the seam.
+CoreFlow takes the opposite route: instead of making you restructure your code
+to fit the tests, it makes the tests reach the code where you wrote it. SwiftUI
+cannot run that code in isolation, so CoreFlow generates a runnable twin. Keep
+the production view exactly as it is; the twin is the seam.
 
-The model behind this: state lives in a source of truth, and a source of truth
-lives in a node of the view tree. A view, a view modifier, the App, the Scene.
-The tree of nodes is the dataflow graph. Each source of truth sits at exactly
-one node, and everything below derives it through bindings. CoreFlow's seams
-attach exactly there: @State, @AppStorage, @Query are all node-owned, and the
-twin observes them at the write site.
+State reaches SwiftUI through a source-of-truth declaration on exactly one
+node: a view, view modifier, `App`, or `Scene`. Values and bindings carry it to
+descendants, forming the dataflow network. CoreFlow attaches its seams at those
+declarations: the twin logs writes to node-owned state and turns external
+storage and fetched data into test boundaries.
 
-This also decides who the package is for. If you wrote plain SwiftUI, every
-view is already in this shape and you can adopt gradually, one view at a
-time, no migration. If you moved your state into ObservableObject ViewModels,
-there is no seam to attach. The source of truth left the node graph, so there
-is no write site in the tree to observe and nothing to twin.
+This decides who the package is for. Plain SwiftUI is already in this shape, so
+you can adopt CoreFlow one view at a time, with no migration. Put a screen's
+state in an `ObservableObject` ViewModel, however, and there is no node boundary
+to substitute: the source of truth and its write sites live outside the
+network, so the twin inherits the same opaque reference instead of an
+observable boundary.
 
 # What
 
