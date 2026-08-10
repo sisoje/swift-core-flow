@@ -130,7 +130,14 @@ Proceed one feature section at a time, beginning with `Shell`.
 
 Current checkpoint:
 
-- Review only the first paragraph under `Shell`.
+- Completed the first paragraph under `Shell`: mapped both names in the pattern
+  (host to shell, `Core` to functional core), introduced the runnable-twin
+  relationship, replaced the broad observability claim with the actual boundary
+  mapping, preserved constructibility/assertability anywhere, and stated live
+  event-channel removal in terms of waves.
+- Current unpushed phase commit: `Tighten Shell introduction`.
+- Next checkpoint: review only the second paragraph under `Shell`, beginning
+  `Concretely: a member macro generating a nested Core struct`.
 - Expect the largest later merges around the wrapper mapping, `QueryCore`, and
   `Notes on the rows`, which repeat rules at different depths.
 - Reconcile `Previews: one hand-written wrapper away` with the scenario material

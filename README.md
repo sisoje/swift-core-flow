@@ -80,17 +80,17 @@ is the per-macro reference.
 
 ## Shell
 
-The names are the pattern: **functional core, imperative shell**
-(Bernhardt, Wlaschin, Seemann — see [References](#references)). The host is
-the shell — its wrappers are where the runtime does I/O. `Core` is the
-extracted core: identical logic with every data boundary made observable —
-its own state logged, external storage mocked through bindings, fetched
-data as plain values, effects as injected closures — constructible and
-assertable anywhere. Mocking the external sources as data also severs
-their event channels: no storage change or fetch notification can trigger
-a re-render mid-test. UI-runtime wrappers that aren't data (gestures,
-view identity) have no boundary form and ride along as-is
-(see the [wrapper mapping reference](#wrapper-mapping-reference)).
+The names are the pattern: **functional core, imperative shell** (Bernhardt,
+Wlaschin, Seemann — see [References](#references)). The host is the shell: its
+wrappers connect the node to runtime I/O. The generated `Core` is the functional
+core — a runnable twin: the same logic, with owned state logging writes,
+external storage supplied through bindings, fetched data supplied as values,
+and effects supplied as closures — directly constructible and assertable
+anywhere. Replacing external sources with test-supplied data removes their live
+event channels too: persistence changes and fetch notifications cannot trigger
+a wave mid-test. UI-runtime machinery with no suppliable data boundary —
+gestures and view identity — rides onto `Core` unchanged (see the
+[wrapper mapping reference](#wrapper-mapping-reference)).
 
 Concretely: a `member` macro generating a nested `Core` struct —
 always internal, regardless of the attached type's own access level —
