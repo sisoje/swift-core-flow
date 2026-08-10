@@ -155,8 +155,15 @@ Current checkpoint:
   grounded **boundary event** as instrumented state writes and action calls;
   and replaced both occurrences of "the log IS the behavior" with the rigorous
   evidence claim.
-- Next checkpoint: review the opening of `Wrapper mapping reference`, beginning
-  `Two rules. Substituted`.
+- Current local checkpoint (uncommitted): tightened the **Substituted** rule;
+  preserved every mapping's reason, privacy and memberwise-initializer
+  constraints, anti-hoisting evidence doctrine, `@FocusState` impossibility
+  proof, links, and semantic-whitelist boundary; left the probe-verified sample
+  unchanged.
+- Next checkpoint: review only the **Copied verbatim** half of the wrapper
+  mapping. Preserve the `@GestureState(reset:)` byte-for-byte fact, the
+  `TrickyDragCardUITests` live verification, private-copy sealing rules, and
+  "static members" in the earlier copied-member list.
 - Expect the largest later merges around the wrapper mapping, `QueryCore`, and
   `Notes on the rows`, which repeat rules at different depths.
 - Reconcile `Previews: one hand-written wrapper away` with the scenario material

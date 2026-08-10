@@ -151,31 +151,29 @@ variable selects the scenario, and XCUITest asserts the log.
 
 ### Wrapper mapping reference
 
-Two rules. **Substituted** — the mapping whitelist, the only wrapper kinds
-this package really knows, all required private on the host. `@State` is
-the view's **own** state → [`@TestState`](#teststate-and-testaction), the
-host's line with just the wrapper renamed: still private, sealed out of
-the memberwise init, starting at the host's inline default (required — a
-defaultless `@State` is a compile error; nothing to copy is diagnosed,
-never silently patched), logging every mutation. Ownership is unchanged
-on purpose: an internal source of truth is never a caller's, and moving
-it up to observe it would falsify the component's data flow — the write
-site emits evidence instead. `@AppStorage`/`@SceneStorage` are
-**external** storage, a dependency → `@Binding`, the mock vehicle: a
-test supplies the storage and captures every write (keys dropped — a test
-twin doesn't persist). `@Query` → `@QueryCore`: fetched data as a
-bare-value init parameter (reading a fetched array shouldn't require
-standing up an entire SwiftData stack).
-`@FocusState` is the view's own focus →
-[`@TestFocusState`](#testfocusstate), the same rename treatment as
-`@State` — not a mock (none is possible: `FocusState<T>.Binding` has no
-public initializer, and focus writes no-op outside a live view) but a live
-instrument: a real `FocusState` underneath, every programmatic write
-logged.
-Exactly the wrappers where the substitution buys something real — a log, a
-mock vehicle, a bare value — and nothing else qualifies
-(`@AccessibilityFocusState`, `@FocusState`'s interface-exact clone, has no
-substitute macro yet and rides the verbatim rule).
+Two rules govern the host's stored properties: wrappers on the mapping
+whitelist are substituted on `Core`; everything else is copied verbatim.
+
+**Substituted.** Every mapped wrapper is required to be private on the host.
+`@State` is node-owned state, so the twin carries it as
+[`@TestState`](#teststate-and-testaction) on the same declaration: it remains
+private and sealed out of the memberwise initializer, keeps its inline default,
+and logs every write. The default is required; a missing one is diagnosed
+rather than invented. Moving that state up merely to observe it would falsify
+the component's data flow, so the write site emits evidence instead.
+`@AppStorage` and `@SceneStorage` are external storage, so they become
+`@Binding`: persistence keys disappear because a twin does not persist, while
+the scenario supplies the backing and captures writes. `@Query` becomes
+`@QueryCore`, making the fetched result a bare input — reading an array should
+not require standing up an entire SwiftData stack. `@FocusState` becomes
+[`@TestFocusState`](#testfocusstate), a live instrument rather than a mock:
+`FocusState<T>.Binding` has no public initializer, and focus writes no-op
+outside a live view, so no mock is possible; the substitute retains a real
+`FocusState` and logs programmatic writes. `@AccessibilityFocusState` has no
+substitute and therefore follows the verbatim rule. The whitelist ends there —
+the only wrappers this package really knows: each substitution buys a log, an
+injectable boundary, or a bare value.
+
 **Copied verbatim** — everything else, wrapper or not: the host's own
 declaration as written. A plain field keeps its `let`/`var` and default (a
 defaulted `let` is a constant on `Core` too — no memberwise parameter,
