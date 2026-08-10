@@ -171,7 +171,72 @@ predicate-asserted.
 collection timed out once at exactly 600 seconds on the Xcode beta; disabling
 that post-test collection makes the run deterministic without changing the test.
 
-## @Flowable — tricky points
+## Package-wide invariants
+
+### Syntax, collection, and type inference
+
+Macros receive syntax, not a type checker. Stored-property macros share
+`validatedProperties`/`collectStoredProperties`; they do not independently infer
+semantic types. The only types inferred from expression syntax are bare `Bool`,
+`Int`, and `String` literals, through `inferredLiteralType` in
+`StoredProperty.swift`. Calls, identifiers, `nil`, collection literals, and other
+expressions require explicit annotations. Native wrappers that determine their
+own type, such as `@Namespace`, remain a separate case: a verbatim copy preserves
+the wrapper declaration and relies on the same native inference as the host.
+
+Each API keeps its local consequence of this rule: `@Flowable`'s inferred
+`let seed = 42` reaches Swift's `let`-reassignment error; `@Shell` needs a known
+type only for substituted rows; `@Capability` requires explicit computed-property
+result types; and `@TestState` accepts an annotation or the same three literals.
+
+### Ownership and access
+
+Non-private stored properties are caller-supplied data. Private wrapped
+properties are runtime-owned state or machinery. Plain private storage is
+refused with `plainPrivatePropertyNotAllowed`: opaque state that neither flows in
+nor belongs to a runtime wrapper has no role in this model.
+
+The source-of-truth wrappers `@State`, `@FocusState`, `@AppStorage`,
+`@SceneStorage`, and `@Query` must be private
+(`sourceOfTruthMustBePrivate`). Caller-supplied `@Binding` and `@ViewBuilder`
+must not be private (`callerSuppliedWrapperMustNotBePrivate`, through
+`property.isCallerSuppliedWrapper` in `StoredProperty.swift`). `private(set)` and
+`fileprivate(set)` deliberately follow the same diagnostics; setter-restricted
+stored data has no separate role. Unknown wrappers carry no package-wide privacy
+rule, because `@Shell` must preserve wrappers it does not understand.
+
+### Diagnostics before rendering
+
+Invalid user shapes diagnose during collection or throw from expansion. Never
+silently skip a malformed declaration that could compile as unmanaged stored
+state. Renderer assertions are developer tripwires only; the user-facing path
+must already have produced a diagnostic. Diagnostic locations anchor at the
+relevant property or attribute, not an arbitrary generated line. Each macro's
+section retains its exact diagnostic and the local reason the malformed shape is
+dangerous.
+
+### Parsed fields and verbatim syntax
+
+Parsed `StoredProperty` fields drive generated declarations and initializers;
+raw `varDecl`/`binding` nodes drive verbatim copies. Never reconstruct a
+verbatim declaration from parsed pieces. Everything lives in one macro module,
+so shared collectors and renderers need no cross-target `public` API and no
+extra target wiring—the reason reuse is frictionless rather than merely
+possible.
+
+### Generated-code verification
+
+`assertMacroExpansion` locks emitted syntax and whitespace only. Real
+compilation is required for overload resolution, synthesized initialization,
+macro stacking, isolation, SDK interface parity, and generated-member usability.
+Runtime tests own logging order, binding write-through, lifecycle, focus,
+scenarios, and UI behavior. On a formatting-only snapshot failure, compare with
+the actual expansion; never repair generated output by intuition. Diagnostic
+specs anchor `line`/`column` at the property's name, not the line start.
+
+## `@Flowable`
+
+### Contract
 
 `member` macro that writes a memberwise `init` at the type's own access
 level, for a struct, class, or actor — plus `makeFlow(_:)`, a static
@@ -186,41 +251,37 @@ it), and `InFlow`, the labeled tuple typealias naming the shape (readable,
 from inside the first, so one expansion always produces all three together
 (or just the bare init, with zero properties to alias/build from).
 
-The init:
-- **Syntax-only, no real type inference — except three unambiguous literal
-  kinds.** A property that becomes a parameter needs an explicit type — *unless*
-  its inline default is a bare `Bool`/`Int`/`String` literal (`var isOn = false`,
-  `var count = 0`, `var label = "x"`), inferred straight off the literal's own
-  syntax node kind (`inferredLiteralType`, `StoredProperty.swift`) with no type
-  checker involved — same spirit as `@Namespace`'s auto-inferred `Namespace.ID`
-  just below. Anything else uninferable (a call, an identifier, `nil`, a
-  collection literal, …) still needs an explicit annotation. Note an
-  inline-initialized instance `let` with one of these three literal defaults
-  (`let seed = 42`) gets *past* the missing-type check and fails on
-  Swift's own `let`-reassignment error instead — see "No stored `let`
-  constants" below; either way it won't compile, only where the failure
-  surfaces differs.
-- **`private` marks a source of truth — nothing else; enforced with
-  dedicated diagnostics, not silent exclusion.** Data flows in through
-  non-private properties; state lives in private wrapped ones. A private
-  property with no wrapper at all (`private var cache = 0`) is refused
-  (`plainPrivatePropertyNotAllowed`): opaque state that neither flows in
-  nor is runtime-managed sits outside the data flow entirely. And `@Binding`/
-  `@ViewBuilder` — the kinds a *caller* supplies through the generated
-  init — are the opposite of source-of-truth state, so declaring one private
-  makes it unreachable; that's `callerSuppliedWrapperMustNotBePrivate`
-  (`property.isCallerSuppliedWrapper`, `StoredProperty.swift`). Any *other*
-  private property just needs *some* wrapper: the mapped source-of-truth set
-  (`@State`/`@FocusState`/`@AppStorage`/`@SceneStorage`/`@Query`,
-  `sourceOfTruthMustBePrivate`'s
-  domain — those must be private) or any unmapped wrapper (`@Environment`,
-  `@GestureState`, `@StateObject`, a custom one, …), which
-  carries no privacy rule at all — `@Shell`'s verbatim-copy default means
-  unrecognized wrappers need no gatekeeping.
-  `private(set)`/`fileprivate(set)` fall into these same
-  diagnostics (the `isPrivate` check matches the keyword regardless of the
-  `(set)` detail) — deliberately not special-cased: setter-restricted
-  properties have no place in pure data flow either.
+### Stored-property eligibility
+
+The package-wide syntax and ownership invariants define collection. For
+`@Flowable`, non-private stored properties participate; computed and
+`static`/`class` members are skipped; stored properties with only
+`willSet`/`didSet` observers participate. A property needs an explicit type or
+one of the three bare literal defaults. The local edge case remains important:
+`let seed = 42` passes the missing-type check because `Int` is inferable, then
+fails with Swift's own `let`-reassignment error. Use `static let` for constants.
+
+Plain private storage, non-private source-of-truth wrappers, and private
+caller-supplied `@Binding`/`@ViewBuilder` declarations retain the shared
+diagnostics above. Other private wrappers are excluded from the initializer and
+remain runtime-owned.
+
+### Generated initializer
+
+The initializer mirrors the attached type's access and works uniformly for a
+struct, class, or actor—including an `@Observable final class` that Swift would
+not otherwise give a memberwise initializer.
+
+- **Function-typed properties get `@escaping`**, attributed types included
+  (`@MainActor () -> Void`, `@Sendable (Int) -> Void`). Optional closures
+  (`(() -> Void)?`) get no `@escaping`—they are already escaping, and adding the
+  attribute is a compile error.
+- **Optional `var` gets a `nil` parameter default** for both `T?` and `T!`,
+  mirroring Swift's synthesizer: the property is implicitly nil-initialized, so
+  no explicit `= nil` is required. The IUO case is deliberate and contrasts with
+  `@UnstructuredTask`, which rejects `T!`.
+
+### SwiftUI fields
 - **`@Binding` is the kept exception:** threaded as a projected `Binding<T>`, assigned
   `self._x = x`.
 - **`@ViewBuilder` has two forms, and must be a `let`.** Stored closure
@@ -230,20 +291,9 @@ The init:
   `@ViewBuilder var` is refused (`viewBuilderMustBeLet`, shared
   collection, so it fires under `@Shell` too): builder content is
   caller-supplied through the generated init and never reassigned.
-- **Function-typed properties get `@escaping`**, attributed types included
-  (`@MainActor () -> Void`, `@Sendable (Int) -> Void`). Optional closures
-  (`(() -> Void)?`) get no `@escaping` — already escaping; adding it is a compile error.
-- **Optional `var` → `= nil` parameter default** (`T?` and `T!`), mirroring Swift's
-  synthesizer — the property is implicitly nil-initialized, no explicit `= nil` needed.
-- **No stored `let` constants.** `let version = 1` as a property is *not* special-cased;
-  it yields a `let`-reassignment compile error. Use `static let`.
-- **Skipped:** computed properties and `static`/`class` members. **Kept:** stored
-  properties with only `willSet`/`didSet` observers.
-- **Tests are whitespace-sensitive** (`assertMacroExpansion`). On a formatting-only
-  failure, paste the "actual" block into `expandedSource`. Diagnostic specs anchor
-  `line`/`column` at the property's name, not the line start.
+### `makeFlow(_:)`
 
-The `makeFlow(_:)` factory — a `static func` (not a second `init`) building
+The factory is a `static func` (not a second `init`) building
 `Self` from the same property collection as the init above, bundled into one
 unlabeled tuple parameter spelled inline in the signature:
 - **A static func, not a delegating `init`, specifically to work uniformly across
@@ -297,7 +347,9 @@ unlabeled tuple parameter spelled inline in the signature:
   choice: the factory is spelled `makeFlow(_:)`, called as
   `Type.makeFlow(someFlow)`.
 
-The `InFlow` typealias — `makeFlow(_:)`'s parameter shape, labeled, same
+### `InFlow`
+
+The typealias is `makeFlow(_:)`'s parameter shape, labeled, same
 collapse/zero rules and same `wrapViewBuilder: false`:
 - **Exists for readable spelling and real `Mirror` support.** Verified
   directly: `Mirror(reflecting:)` reports each field's actual name over a
@@ -317,31 +369,64 @@ and any state-snapshot member wider than `InFlow`
 live; `@Shell`'s `Core` is the one snapshot story, over this same field
 set — see below).
 
-`QueryCore` (`Sources/CoreFlow/QueryCore.swift`, a plain non-macro
-`@propertyWrapper` the way `Reflector` is a plain non-macro utility) — the
-drop-in stand-in `@Shell` substitutes for `@Query` (`@QueryCore var name:
-T`). One-to-one with the real `Query<Element, Result>`'s instance surface —
-verified directly against the `_SwiftData_SwiftUI` interface: exactly
-`wrappedValue`, `fetchError`, and `modelContext`, and **no
-`projectedValue`**, so `QueryCore` carries the same three members (its
-`modelContext` private) and no
-`$x` projection either — a bare `(wrappedValue:, fetchError:)` tuple is
-deliberately not enough. The point is read-surface parity with the live
-wrapper: the host's `body` text (`items.isEmpty`, `ForEach(items)`) is
-copied onto `Core` verbatim, and it compiles there only because
-`core.items` still reads the array directly — a tuple field would force
-`.items.wrappedValue` on every copied read. `modelContext` is
-environment-fed like the live wrapper's — a private `@Environment`
-(`\.modelContext`) field, installed when `Core` is hosted (`QueryCore` is
-a `DynamicProperty`; mock via `.modelContainer`/`.environment`), never
-read unhosted, not an init parameter. `fetchError` defaults to `nil` — a
-test mocking a
-fetched result almost never cares: `QueryCore(wrappedValue:
-[item])` just works. An init callable with `wrappedValue` alone makes
-Swift's synthesized memberwise init for a `@QueryCore` field take the
-*bare* value (verified directly, locked in by `QueryCoreTests`) —
-deliberately so: tests write `Core(items: [item], title: "t")` with no
-`QueryCore` spelling at all.
+### Zero-, one-, and many-field shapes
+
+| Participating fields | Initializer | `makeFlow(_:)` | `InFlow` |
+|---|---|---|---|
+| zero | `init() {}` | absent | absent |
+| one | one parameter | bare field type | bare field type |
+| many | memberwise parameters | unlabeled tuple | labeled tuple |
+
+The table summarizes the shapes; the mechanism and edge cases above remain the
+source of truth.
+
+## `QueryCore`
+
+This placement is interim. `QueryCore` belongs to `@Shell`'s substitution
+surface, so checkpoint 3 moves this complete section after the rebuilt
+`@Shell` section without changing its substance.
+
+### Live-wrapper interface parity
+
+`Sources/CoreFlow/QueryCore.swift` defines a plain non-macro
+`@propertyWrapper`, the way `Reflector` is a non-macro utility. `@Shell`
+substitutes it for `@Query` as `@QueryCore var name: T`.
+
+Verified directly against `_SwiftData_SwiftUI`, the real
+`Query<Element, Result>` instance surface is exactly `wrappedValue`,
+`fetchError`, and `modelContext`, with **no `projectedValue`**. `QueryCore`
+carries those same three members and nothing else; `modelContext` is private and
+there is no `$x` projection.
+
+A bare `(wrappedValue:, fetchError:)` tuple was rejected. Copied body text needs
+read-surface parity with the live wrapper: `items.isEmpty` and `ForEach(items)`
+must still read the supplied array directly, while `_items.fetchError` keeps the
+same spelling. A tuple field would force `.items.wrappedValue` on every copied
+read.
+
+### Memberwise-initializer behavior
+
+`fetchError` defaults to `nil`, so `QueryCore(wrappedValue: [item])` works.
+Because the wrapper has an initializer callable with `wrappedValue` alone,
+Swift's synthesized memberwise initializer takes the *bare* fetched value for a
+`@QueryCore` field. Tests therefore write
+`Core(items: [item], title: "t")` with no `QueryCore` spelling. `QueryCoreTests`
+lock both bare-value memberwise construction and explicit-wrapper seeding.
+
+### Hosted environment behavior
+
+`modelContext` is environment-fed like the live wrapper through a private
+`@Environment(\.modelContext)` field. `QueryCore` is a `DynamicProperty`, so the
+field installs when `Core` is hosted and follows SwiftUI's native mocking paths:
+`.modelContainer` or `.environment`. It is never read unhosted and is not an
+initializer parameter.
+
+### Test access pattern
+
+Normal tests use the bare-value memberwise initializer. When raw backing access
+is genuinely required, a same-file extension can reach `_name`; see
+`QueryCoreTests`' `FakeCore`. The `@Shell` section retains only the local
+construction consequence and a short pointer here after checkpoint 3.
 
 ## Deliberately unmapped: `@StateObject` / `@ObservedObject`
 

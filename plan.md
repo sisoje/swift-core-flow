@@ -64,9 +64,9 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 4 — README code and prose:** completed.
 - **Phase 5 — README conclusion:** completed.
 - **Phase 6 — CLAUDE.md agent and maintainer pass:** in progress.
-- **Next checkpoint:** consolidate package-wide invariants, then restructure
-  `@Flowable` and move `QueryCore` into its own section without losing any
-  verified edge case or rejected generation decision.
+- **Next checkpoint:** rebuild `@Shell` around its normative transformation
+  table, then move the standalone `QueryCore` section directly after it without
+  changing its substance.
 
 ## Phase 1: README opening — completed
 
@@ -419,6 +419,45 @@ Completed checkpoint 1:
   `CoreFlowMacros`/`CoreFlow`/`CoreFlowTests`, Swift tools 6.3, Swift language 6,
   and swift-syntax `600.0.0..<700.0.0`. Verified every named source and test path
   with `rg --files`.
+
+Phase 6 commit so far:
+
+- `0cf7c8a Restructure CLAUDE.md session contract and repository map`
+
+Completed checkpoint 2:
+
+- Added package-wide invariants for syntax and type inference, ownership and
+  access, diagnostic timing, parsed-versus-verbatim syntax, and generated-code
+  verification. Restored why the single macro module makes shared renderers
+  frictionless: they need no cross-target `public` API or extra target wiring.
+- Kept each shared rule's per-macro consequence local instead of replacing
+  concrete behavior with abstract policy.
+- Rebuilt `@Flowable` around its contract, stored-property eligibility,
+  initializer, SwiftUI fields, `makeFlow(_:)`, `InFlow`, and the zero/one/many
+  shape table. Preserved the deliberate `T?`/`T!` rule and its contrast with
+  `@UnstructuredTask`, `viewBuilderMustBeLet` under `@Shell`, the
+  `baseTypeText(wrapViewBuilder:)` true/false implementation split, and the
+  generic-constraint reason a second tuple alias adds nothing.
+- Moved `QueryCore` out of the `@Flowable` sediment into a fact-complete
+  standalone section: exact three-member live-wrapper parity, no projection,
+  `_items.fetchError`, the `nil` default, bare-value memberwise construction,
+  environment-fed `modelContext`, the never-read-unhosted rule,
+  `QueryCoreTests`, and the same-file `FakeCore` access pattern all remain.
+- `QueryCore`'s current position after `@Flowable` is explicitly interim. In
+  checkpoint 3 it moves, unchanged in substance, after the rebuilt `@Shell`
+  section; this does not amend the approved skeleton.
+- Compared the pre-edit section from `HEAD` clause by clause before deleting its
+  old homes. `FlowableTests` passed 20/20 and `QueryCoreTests` passed 3/3.
+
+Next checkpoint:
+
+- Rebuild `@Shell` around its normative transformation table, then move the
+  complete standalone `QueryCore` section directly after it without changing
+  its substance. Preserve every mapped-wrapper reason, copied-verbatim rule,
+  limitation, exact diagnostic, rejected mapping, and test pointer. Restore the
+  `isPrivate` mechanism—the keyword match deliberately treats `private(set)` and
+  `fileprivate(set)` as private—and remove the plan-scoped interim-placement
+  disclaimer from `CLAUDE.md` when `QueryCore` reaches its final position.
 
 1. Put package invariants and build commands first.
 2. Separate normative rules from implementation mechanisms.
