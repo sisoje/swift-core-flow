@@ -138,18 +138,16 @@ struct CardScenario: View {
 #Preview { CardScenario() }
 ```
 
-Three words, fixed meanings, used throughout: the **host** (`Card`) is the
+Three terms keep fixed meanings throughout: the **host** (`Card`) is the
 production shell; **`Core`** is its generated twin; a **scenario**
-(`CardScenario`) is the hand-written view that stages a `Core` with
-mocks — what a preview shows and a UI test launches. And driving one from
-the UI-testing bundle is not an end-to-end test wearing a costume:
-**a UI test driving a scenario is a test of an actual unit — the `Core` —
-testing by evidence, with no side effects beyond the component's
-boundaries.** Inside them everything is real — taps, focus, gestures, its
-own state; at them, every event lands in the log instead of crossing — the
-mocks are inert, the log IS the behavior (the example app does exactly
-this: its `SCENARIO` launch variable selects the scenario, the XCUITest
-asserts the log).
+(`CardScenario`) is the hand-written stage presenting `Core` with mocks for a
+preview or UI test. **A UI test driving a scenario is not an end-to-end test
+wearing a costume: it tests the actual unit — `Core` — by evidence, with no side
+effects beyond the component's boundaries.** Inside those boundaries, taps,
+focus, gestures, and owned state are real; at them, every boundary event —
+instrumented state writes and action calls — enters the log instead of crossing
+into an effect. The example app follows this model: its `SCENARIO` launch
+variable selects the scenario, and XCUITest asserts the log.
 
 ### Wrapper mapping reference
 
@@ -473,8 +471,8 @@ fields already own and log their state, so a *scenario* like the host
 above adds only what the host takes from callers — `@TestAction` closures,
 data arguments, backings for genuine `@Binding`s. Everything
 logs to the injected sink **at the write site** — not via a view-layer
-observer replaying history. **No effect is ever executed; the log IS the
-behavior.**
+observer replaying history. **No effect is ever executed; the log is the
+evidence.**
 
 - **`@TestState var count: Int = 0` is a drop-in `@State` that logs every
   mutation.** The property stays LIVE (real `State` storage behind a

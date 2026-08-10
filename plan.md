@@ -29,7 +29,10 @@ soften a deliberate thesis merely to make the prose sound neutral.
    that Git action. Approval of prose authorizes the file edit, not a commit.
 8. When explicitly requested, amend only while a checkpoint commit remains
    local and unpushed. Never amend a pushed commit.
-9. Do not edit source code while performing this plan.
+9. Record commit hashes only for commits that already exist. Refer to an
+   uncommitted or in-progress checkpoint by description or intended message,
+   never by an anticipated hash.
+10. Do not edit source code while performing this plan.
 
 ## Editing criteria
 
@@ -145,10 +148,15 @@ Current checkpoint:
   boundaries," retained the complete copied-member list (including static
   members), and preserved the initializer and separate-extension constraints.
 - Phase 3 commits so far: `ec9c2b2 Tighten Shell introduction` and
-  `aa72ec6 Clarify Shell generation rules`. Each pairs its README change with
-  the matching plan checkpoint; `aa72ec6` is currently local and unpushed.
-- Next checkpoint: review only the terminology paragraph after the opening
-  `Card`/`CardScenario` sample, beginning `Three words, fixed meanings`.
+  `6482979 Clarify Shell generation rules`. Each pairs its README change with
+  the matching plan checkpoint.
+- Completed checkpoint: left the probe-verified
+  `Card`/`CardScenario` sample unchanged; tightened the three-term glossary;
+  grounded **boundary event** as instrumented state writes and action calls;
+  and replaced both occurrences of "the log IS the behavior" with the rigorous
+  evidence claim.
+- Next checkpoint: review the opening of `Wrapper mapping reference`, beginning
+  `Two rules. Substituted`.
 - Expect the largest later merges around the wrapper mapping, `QueryCore`, and
   `Notes on the rows`, which repeat rules at different depths.
 - Reconcile `Previews: one hand-written wrapper away` with the scenario material
