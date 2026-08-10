@@ -37,10 +37,10 @@ to substitute: the source of truth and its write sites live outside the
 network, so the twin inherits the same opaque reference instead of an
 observable boundary.
 
-# What
+CoreFlow is a small, growing collection of independent Swift macros, all
+shipped from one library. A single dependency gets you every macro below.
 
-A small, growing collection of independent Swift macros, all shipped from one
-library — a single dependency gets you every macro below:
+## Installation
 
 ```swift
 // Package.swift

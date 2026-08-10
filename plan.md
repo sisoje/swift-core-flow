@@ -20,9 +20,11 @@ soften a deliberate thesis merely to make the prose sound neutral.
 2. Propose the exact change before editing when it involves tone or argument.
 3. Preserve every technical claim unless its removal is explicitly approved.
 4. Apply the approved edit and show its focused diff.
-5. Amend one local commit through the approved checkpoints within a phase, then
+5. Update this plan immediately after every approved checkpoint: record what
+   completed, the current phase status and commit, and the exact next step.
+6. Amend one local commit through the approved checkpoints within a phase, then
    finish that phase as its own commit. Never amend a commit after it is pushed.
-6. Do not edit source code while performing this plan.
+7. Do not edit source code while performing this plan.
 
 ## Editing criteria
 
@@ -44,7 +46,15 @@ Established vocabulary includes **node**, **network**, **transformation**,
 **host**, **twin**, **seam**, **shell**, **core**, **scenario**, and
 **execution log**.
 
-## Phase 1: README opening
+## Current status
+
+- **Phase 1 — README opening:** completed.
+- **Phase 2 — README structure and navigation:** in progress.
+- **Next checkpoint:** verify internal anchors, then close Phase 2 if no
+  structural defect remains.
+- **After that:** begin Phase 3 with the first paragraph under `Shell`.
+
+## Phase 1: README opening — completed
 
 ### Completed: `Why`
 
@@ -58,29 +68,49 @@ Established vocabulary includes **node**, **network**, **transformation**,
   substitute dependencies, or reuse `body` through a conformance.
 - Removed the hedge "not necessarily."
 
-Current local commit: `74d2a38 Tighten README introduction`.
+Phase commits:
 
-### Next: `The answer`
+- `74d2a38 Tighten README introduction`
+- `46295d5 Refine README answer and vocabulary`
 
-Review its three paragraphs separately:
+### Completed: `The answer`
 
-1. Tighten the runnable-twin answer and connect it directly to the runtime
+Reviewed its three paragraphs separately:
+
+1. Tightened the runnable-twin answer and connected it directly to the runtime
    constraints established in `Why`.
-2. Preserve the node/source-of-truth model while removing repeated setup.
-3. State the adoption boundary and `ObservableObject` consequence with the
+2. Preserved the node/source-of-truth model while removing repeated setup and
+   correcting the `@AppStorage`/`@Query` ownership overclaim.
+3. Stated the adoption boundary and `ObservableObject` consequence with the
    same confidence and vocabulary as the articles.
 
-Stop for review after each paragraph. Phase 1 is complete only when the whole
-opening reads as one argument: misconception, runtime constraint, generated
-seam, data-flow model, adoption boundary.
+The opening now reads as one argument: misconception, runtime constraint,
+generated seam, data-flow model, adoption boundary.
 
-## Phase 2: README structure and navigation
+## Phase 2: README structure and navigation — in progress
 
 Review headings and section order without rewriting their contents first.
 
-- Check whether `What`, `What's inside`, and `Shell` form a clean progression.
-- Decide whether `# What` is a deliberate top-level part divider or should be
-  normalized to `## What` under the document's single `# CoreFlow` title.
+Completed:
+
+- Replaced the second top-level heading `# What` with `## Installation`, leaving
+  `# CoreFlow` as the document's single title.
+- Moved the package-identity sentence to the end of `The answer`, where it
+  widens from the `@Shell` mechanism to the whole package.
+- Made `Installation` open directly with the dependency snippet.
+- Preserved the masterclass paragraph as the bridge into the API index.
+
+Current unpushed phase commit: `Clarify README section hierarchy`. Record its
+final hash when Phase 2 closes; amendments change the hash while work continues.
+
+Next checkpoint:
+
+- Verify every internal README anchor after the heading change.
+- If the anchors are intact and no structural defect remains, close Phase 2.
+- Do not reorder the feature sections merely to mirror the API table; their
+  current conceptual order is defensible and moving them has no demonstrated
+  navigation benefit.
+
 - Keep the feature table as the quick API index.
 - Move material only when it clearly interrupts the main explanation.
 - Prefer links to repeated explanations.
