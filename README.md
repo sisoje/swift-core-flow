@@ -424,7 +424,7 @@ action that *logs*, tap it for real, check the log. Literally:
 
 ```swift
 struct ButtonTestHost: View {
-    @TestAction private var action: () -> Void = {}   // inert — reading it IS the logged action
+    @TestAction private var action: () -> Void = {}
 
     var body: some View {
         Button("Save", action: action)
@@ -433,10 +433,10 @@ struct ButtonTestHost: View {
 
 ButtonTestHost()
     .testLog { name, _ in
-        // append name to the history
+        // Record the boundary event.
     }
 
-// UI test: tap "Save", then inspect the history: ["action"]
+// UI test: tap "Save", then assert the recorded names equal ["action"].
 ```
 
 **The tap called the action — the contract is proven, and the effect was
@@ -577,16 +577,26 @@ rename treatment as `@State → @TestState`:
 
 ```swift
 struct LoginScenario: View {
+    enum Field: Hashable {
+        case email, password
+    }
+
+    @State private var email = ""
     @TestFocusState private var focus: Field?
 
     var body: some View {
         TextField("email", text: $email)
-            .focused($focus, equals: .email)   // $focus IS FocusState<Field?>.Binding
-        Button("next") { focus = .password }   // logs ("focus", "Optional(MyApp.Field.password)")
-                                               // — String(describing:) qualifies enum cases
+            .focused($focus, equals: .email)
+        Button("next") {
+            focus = .password
+        }
     }
 }
 ```
+
+Assigning `.password` logs
+`("focus", "Optional(MyApp.LoginScenario.Field.password)")`;
+`String(describing:)` preserves the qualified enum case.
 
 - **A real `FocusState` underneath.** The property becomes computed over a
   self-initialized `FocusState<T>` peer, so hosted behavior is the live

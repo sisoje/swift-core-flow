@@ -61,9 +61,9 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 1 — README opening:** completed.
 - **Phase 2 — README structure and navigation:** completed.
 - **Phase 3 — README compression and continuity:** completed.
-- **Phase 4 — README code and prose:** next.
-- **Next checkpoint:** audit the first `Shell` code sample against its surrounding
-  prose; probe-compile any proposed code change before it is approved.
+- **Phase 4 — README code and prose:** in progress.
+- **Next checkpoint:** audit the `Flowable` and `Capability` samples as one
+  related batch; probe-compile every touched sample against real expansion.
 
 ## Phase 1: README opening — completed
 
@@ -157,8 +157,9 @@ Current checkpoint:
   `8912770 Clarify unmapped object wrappers`, and
   `07651f1 Clarify binding backing strategies`, and
   `30e8807 Clarify QueryCore interface parity`, and
-  `976b02a Clarify why Core is nominal`. Each pairs its README change with the
-  matching plan checkpoint.
+  `976b02a Clarify why Core is nominal`, and
+  `23d7ee2 Close README compression phase`. Each pairs its README change with
+  the matching plan checkpoint.
 - Completed checkpoint: left the probe-verified
   `Card`/`CardScenario` sample unchanged; tightened the three-term glossary;
   grounded **boundary event** as instrumented state writes and action calls;
@@ -223,6 +224,21 @@ mechanisms, and retained every verified fact.
 ## Phase 4: README code and prose
 
 Audit every code sample after its surrounding prose is stable.
+
+Completed checkpoint:
+
+- Audited the `Card`/`CardScenario`, binding write-through,
+  `ButtonTestHost`, `DownloadButton`, and `LoginScenario` samples together.
+- Left the first two probe-verified samples and `DownloadButton` unchanged.
+- Removed a third copy of the `@TestAction` getter mechanism from the
+  `ButtonTestHost` comment and made the action-to-recorded-evidence sequence
+  explicit.
+- Made `LoginScenario` self-contained with its `Field` and `email` declarations;
+  kept the real projected-binding fact only in its existing explanatory bullet.
+- Compiled both touched samples against the real package and macro expansion.
+  Ran the payload probe and observed
+  `Optional(CoreFlowTests.LoginScenario.Field.password)`, confirming the README's
+  placeholder-module spelling `Optional(MyApp.LoginScenario.Field.password)`.
 
 - Give each sample one primary claim.
 - Remove fields and comments that do not prove that claim.
