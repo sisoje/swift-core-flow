@@ -594,13 +594,9 @@ real write-through binding (`handWrittenObservableModelBacksABinding` in
 `ShellTests.swift`; `@Observable` cannot attach to a local type). Raw backing
 access stays an explicit same-file escape hatch; see `QueryCoreTests.FakeCore`.
 
-Generated binding-wiring was rejected because these situational lines belong at
-the use site. If revisited, preserve three verified constraints: attached macros
-expand inside another macro's output; a generated class needs explicit
-`@MainActor` because nested types do not inherit enclosing View-conformance
-isolation; and an observable class must be a sibling of `Core`, because nesting
-it inside `Core` makes `@Observable`'s extension half fail at link with a missing
-conformance descriptor.
+Generated binding-wiring remains rejected: situational backing belongs at the
+use site. See `Rejected designs and dead ends` for the macro-stacking, isolation,
+and nested-Observable evidence.
 
 ### Preview and cross-expansion limits
 
@@ -633,64 +629,21 @@ model this package's plain-data flow avoids. They are copied verbatim and receiv
 no stand-in; model testable state with the mapped wrappers instead. See the
 `swiftui-mv-architecture` skill for the broader argument.
 
-### Verified rejected designs
+### Verification
 
-This placement is interim. Checkpoint 6 moves these complete dead ends to the
-approved top-level `Rejected designs and dead ends` section without changing
-their substance.
+The copy design stands. Copied-body source coverage is unavailable; tests that
+touch a View-conforming host or `Core` must be `@MainActor`. See `Verified
+limitations` and `Rejected designs and dead ends` for the compiler evidence and
+discarded alternatives.
 
-- **The delegation redesign was built, run green, and abandoned — the
-  full map, so nobody re-walks it.** The idea: Core as the ONE
-  implementation (fields generated, logic hand-written in
-  `extension Host.Core`, host body generated as a memberwise delegation
-  `Core(items: items, isPinned: $isPinned, …)`), buying exact line
-  coverage since the executed logic is real source. Verified en route:
-  hand-written extensions DO resolve macro-generated nested types
-  (`extension Card.Core` compiles — the file-scope type-position failure
-  does not extend to extension positions), and a mirror macro is
-  impossible in every form — "macro expansion cannot introduce extension"
-  (exact compiler error) bars emitting `extension Host { }` from any
-  role, and no macro can see sibling source anyway: whoever can see the
-  extension's members can't emit the host extension, whoever could emit
-  can't see. Why abandoned: production Core carries @TestState (host
-  @State becomes a dead template — the declaration lies), the host has no
-  visible body, live channels that don't fit a memberwise init silently
-  drop (`fetchError`: the bare-value @QueryCore param can't carry the
-  live Query's error — production Core would read nil), and the "pure
-  Core" escape (hoist all truth to the shell, inject bindings) unravels
-  on the sealed `FocusState.Binding`, unhoistable `@GestureState`, and
-  the loss of Core-owned logging. The copy design stands; exact coverage
-  of the copied body waits on compiler-side instrumentation of expansion
-  buffers (bullet below).
-- **Coverage cannot credit the copied body — verified directly, and
-  `#sourceLocation` can't fix it.** Swift emits NO coverage instrumentation
-  for functions in macro-expansion buffers on this toolchain: `Core.body`
-  has zero counters in the profile data, under any filename. Wrapping the
-  copied body in `#sourceLocation(file:line:)` back to the host was tried
-  both ways — around the member and inside the braces, with
-  `formatMode: .disabled` and dump-verified anchors — and the directive is
-  accepted, remaps correctly, and changes nothing: it remaps regions that
-  are never emitted. Don't retry from the macro side; the gate is the
-  compiler's emission, not the mapping.
-- **`@MainActor` is required on any test suite touching a
-  `View`-conforming type's members** — `Core` included. Verified directly
-  (a real crash, not a guess): `View` conformance implicitly infers
-  `@MainActor` isolation for the whole type, so a nonisolated swift-testing
-  `@Test` function crosses that boundary at runtime and traps (`SIGTRAP`)
-  under Swift 6 strict concurrency, even just reading a computed property.
-- See `Tests/CoreFlowTests/ShellTests.swift` for the model demonstrated
-  end-to-end — direct `Core` construction (`makeCore`), the
-  external-storage binding capturing writes, and the `@MainActor`
-  requirement above in force (body/heading stay unevaluated there: the
-  copied `@Environment` would be an uninstalled read, a SwiftUI runtime
-  issue) — and
-  `Tests/CoreFlowTests/ShellSyntaxTests.swift` for the expansion shape,
-  including the copy rules
-  (`testHelpersStaticMembersAndNestedTypesAreCopiedButInitsAreNot`), the
-  diagnostics, the host-kind-detection cases, and the negative case
-  (conformance in a separate extension isn't detected). Verified live by
-  the example app's scenarios/UITests, all written in this model
-  (regenerable from its `SPEC.md`).
+`Tests/CoreFlowTests/ShellTests.swift` owns direct Core construction and external-
+storage write-through. It leaves `Core.body` unevaluated because the copied
+`@Environment` would be an uninstalled SwiftUI runtime read.
+`Tests/CoreFlowTests/ShellSyntaxTests.swift` owns expansion shape, copy rules
+(`testHelpersStaticMembersAndNestedTypesAreCopiedButInitsAreNot`), diagnostics,
+host-kind detection, and its separate-extension negative case. The example
+app's scenarios and UI tests verify the model live and regenerate from
+`CoreFlowExample/SPEC.md`.
 
 ## `QueryCore`
 
@@ -786,6 +739,8 @@ nested `DynamicProperty` installation, verified by the UI tests.
 Outside hosting the environment entry returns its no-op default but SwiftUI
 reports an uninstalled read. Unit tests therefore stop at generated surfaces;
 the example app's hosted UI tests own logging and forwarding behavior.
+`TestSupportTests` runs `@MainActor` when it touches View-conforming generated
+surfaces; see `Verified limitations`.
 
 ## `@TestState`
 
@@ -835,19 +790,8 @@ they inherit host isolation. Only a `@Sendable async` wrapper cannot inherit it,
 so it awaits the log in order before forwarding. Never use a fire-and-forget
 `Task`, which could reorder action events against synchronous state writes.
 
-## Logged-property dead ends (interim)
-
-Checkpoint 6 moves these complete dead ends to the top-level rejected-designs
-section without changing their substance.
-
-- **Dead ends worth remembering if anyone revisits an in-place rewrite:**
-  the compiler hard-refuses accessor macros on `let` (`cannot expand
-  accessor macro on variable declared with 'let'` — verified directly, no
-  role gets around it); `@State` sugar on a generated storage peer breaks
-  `@storageRestrictions(initializes:)` subsumption (the wrapper's own `_x`
-  backing landed as an extra memberwise parameter — verified directly);
-  and an init-accessor property's inline default runs at the top of EVERY
-  init, so `let` storage peers double-initialize (verified directly).
+The explicit peers and `var` source requirements follow from verified failed
+alternatives; see `Rejected designs and dead ends`.
 
 ## `@UnstructuredTask`
 
@@ -951,14 +895,10 @@ own line, private required via `sourceOfTruthMustBePrivate`).
   no place in an all-or-nothing snapshot diff. (This is the one family
   member whose `$name` can NOT route through the property the way
   `@TestState`'s does — the projection must be the native type.)
-- **Receiving-side support (a host storing `FocusState<T>.Binding`) was
-  designed at length and deliberately dropped.** The blocking fact: a
-  stored native binding's writes are uninterceptable — `name.wrappedValue
-  = x` executes inside Apple's sealed type after the getter has returned
-  it, and no macro role can wrap a foreign type's member setter — while
-  every parity-surface stand-in changes either the declaration type, the
-  construction label, or the body spelling. Owner-side only; a child
-  needing focus gets `.focused` attached at the owner's use site.
+- **Receiving-side support remains rejected.** A child cannot receive an
+  interceptable stand-in without changing its declaration or body shape;
+  focus stays owner-side and `.focused` attaches at the owner's use site. See
+  `Rejected designs and dead ends` for the sealed-setter evidence.
 - **Unhosted, reads return the wrapper's reset value and writes no-op**
   like the live wrapper's own — and the setter's sink call reaches only
   `\.testLog`'s no-op default, since the one installer is the
@@ -1139,3 +1079,141 @@ extension).
 unlabeled tuples, and Flowable integration. Direct source inspection owns the
 public signature; the top-level class and reference-containing-field behavior
 come from the recorded direct probes.
+
+## Verified limitations
+
+### Main-actor isolation of SwiftUI types
+
+Any test suite touching a `View`-conforming type's members—including generated
+`Core`—must be `@MainActor`. Verified directly through a real crash: `View`
+conformance implicitly isolates the complete type to the main actor, so a
+nonisolated swift-testing `@Test` crossing that boundary traps with `SIGTRAP`
+under Swift 6 strict concurrency, even just reading a computed property.
+`ShellTests.swift` demonstrates the requirement; the logged-property family's
+generated-surface tests follow it too.
+
+### Macro-expansion name visibility
+
+One macro expansion cannot name a declaration introduced by another expansion;
+same-expansion copies are legal. The Shell preview section owns the five-way
+evidence and control case. A generated nested type fails in an ordinary file-
+scope type position, while the verified hand-written extension position
+`extension Card.Core` resolves it. Put generated names behind expressions or
+`some View`, and preview Core through an ordinary hand-written scenario.
+
+### Syntax-only host and wrapper detection
+
+Macros receive syntax, not semantic conformance information. Shell recognizes
+bare `View`/`ViewModifier` inheritance and bare known wrapper identifiers; it
+cannot see extension conformance, typealiases or protocol compositions, or
+qualified spellings such as `SwiftUI.View` and `@SwiftUI.State`. Qualified and
+unknown wrappers therefore follow the verbatim fallback. Package-wide
+invariants and Shell retain `detectHostKind`, the pinned swift-syntax `603.0.2`
+evidence, and local consequences.
+
+### Macro-generated code coverage
+
+Verified directly on this toolchain: Swift emits NO coverage instrumentation
+for functions in macro-expansion buffers. `Core.body` has zero counters in the
+profile data under every filename, so copied host logic cannot receive source-
+line coverage credit. The gate is compiler emission, not source mapping; see the
+rejected `#sourceLocation` recovery attempt below.
+
+### Reflector's runtime boundary
+
+Reflector obtains labels from uninitialized storage under current Mirror
+behavior. Its verified value-type cases are implementation-dependent
+observations, not a general Swift memory-safety guarantee, and a top-level class
+is rejected at runtime. The Reflector section owns the full evidence and
+overcorrection guard.
+
+## Rejected designs and dead ends
+
+### Delegating the host through `Core`
+
+The delegation redesign was built, run green, and abandoned. It made Core the
+single implementation: fields generated, logic hand-written in
+`extension Host.Core`, and the host body generated as memberwise delegation
+`Core(items: items, isPinned: $isPinned, …)`. The intended gain was exact line
+coverage because executed logic would be hand-written source.
+
+One important part worked: `extension Card.Core` compiles, so a hand-written
+extension resolves the generated nested type even though an ordinary file-scope
+type position does not. The complete design still failed:
+
+- production Core carries `@TestState`, making host `@State` a dead template and
+  the declaration a lie;
+- the host has no visible body;
+- live channels that do not fit memberwise construction silently disappear—for
+  example, a bare QueryCore input cannot carry Query's `fetchError`, so
+  production Core would read nil;
+- hoisting all truth to the shell unravels on sealed `FocusState.Binding`,
+  unhoistable `@GestureState`, and lost Core-owned logging.
+
+Ruling: production keeps its hand-written host logic; `@Shell` copies that logic
+onto the test twin. Exact copied-body coverage awaits compiler instrumentation
+of expansion buffers.
+
+### Generating an extension or mirror macro
+
+A mirror macro is impossible in every attempted form. The exact compiler error
+is `macro expansion cannot introduce extension`, barring any macro role from
+emitting the required `extension Host { ... }`. No expansion has both necessary
+powers: the one that sees extension members cannot emit the host extension, and
+one that could emit the relevant declaration cannot see sibling source.
+
+Ruling: do not retry a mirror or composite-extension design. The verified
+success of a hand-written `extension Card.Core` does not imply a macro can emit
+that extension.
+
+### Recovering copied-body coverage with `#sourceLocation`
+
+Wrapping copied logic in `#sourceLocation(file:line:)` was tried around the
+member and inside its braces, with `formatMode: .disabled` and dump-verified
+anchors. The directive was accepted and remapped locations correctly but did
+nothing to coverage: there were no emitted regions or counters to remap.
+
+Ruling: do not retry from macro code. Compiler-side coverage instrumentation for
+expansion buffers is the prerequisite.
+
+### Generating binding-wiring models
+
+Generating a binding model was rejected because the few situational lines belong
+at the test's use site. Verified constraints if revisited:
+
+- attached macros expand inside another macro's generated code;
+- a generated model class needs explicit `@MainActor` because a nested type does
+  not inherit the enclosing View-conformance isolation;
+- the observable class must be a sibling of Core, not nested inside it;
+- doubly nested `@Observable` type-checks but fails at link with a missing
+  Observable conformance descriptor—one level of macro-generated nesting is the
+  compiler's limit in this verified shape.
+
+Ruling: tests write `.constant`, `Binding(get:set:)`, or a file-scoped
+`@Observable @MainActor` model shaped by that test.
+
+### Intercepting receiving-side focus bindings
+
+Receiving-side support for a host storing `FocusState<T>.Binding` was designed
+and dropped. A native binding mutation (`name.wrappedValue = x`) executes inside
+Apple's sealed type after the getter returns it; no macro role can intercept a
+foreign member setter. Every parity-surface stand-in changes the declaration
+type, construction label, or body spelling.
+
+Ruling: focus instrumentation is owner-side only. A child needing focus receives
+`.focused` at the owner's use site.
+
+### Logged-property accessor and storage alternatives
+
+Three alternatives were verified and rejected:
+
+1. Accessor macros on `let` fail with `cannot expand accessor macro on variable
+   declared with 'let'`; no macro role bypasses it.
+2. Generated `@State` sugar on a storage peer breaks
+   `@storageRestrictions(initializes:)` subsumption: the wrapper's own backing
+   appears as an extra memberwise parameter.
+3. An init-accessor property's inline default runs at the start of EVERY
+   initializer, so a `let` storage peer double-initializes.
+
+Ruling: use a `var` source, explicit `State<T>` peer, and the current init-
+accessor design. All three observations were verified directly.

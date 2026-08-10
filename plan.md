@@ -64,8 +64,8 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 4 — README code and prose:** completed.
 - **Phase 5 — README conclusion:** completed.
 - **Phase 6 — CLAUDE.md agent and maintainer pass:** in progress.
-- **Next checkpoint:** create the final verified-limitations and rejected-designs
-  sections, moving every interim block without a fact gap.
+- **Next checkpoint:** add the verification map and maintenance checklists using
+  real commands, sources, and test owners.
 
 ## Phase 1: README opening — completed
 
@@ -425,6 +425,7 @@ Phase 6 commit so far:
 - `2381241 Consolidate invariants and restructure Flowable`
 - `45426ea Rebuild Shell contract and relocate QueryCore`
 - `e6eae64 Consolidate logged-property family`
+- `2f9d9a5 Restructure independent APIs and mirror Reflector safety`
 
 Completed checkpoint 2:
 
@@ -559,12 +560,40 @@ Completed checkpoint 5:
   had dropped. Accepted loss: Reflector's redundant no-paired-macro-file note —
   the repository map owns the one-file-per-macro pattern.
 
+Completed checkpoint 6:
+
+- Created final top-level `Verified limitations` and `Rejected designs and dead
+  ends` sections after the API contracts.
+- Moved Shell's `@MainActor`/`SIGTRAP` and missing-expansion-coverage facts into
+  Verified limitations. Kept Shell and the logged-property family pointing to
+  the `@MainActor` requirement.
+- Moved the complete delegation, macro-emitted-extension, and
+  `#sourceLocation` evidence into rejected designs. Preserved the unhedged
+  `extension Card.Core` success, every delegation failure, exact extension
+  diagnostic, both source-location placements, `formatMode: .disabled`, and the
+  zero-counter consequence.
+- Moved all three logged-property accessor/storage dead ends with their exact
+  diagnostic and verified mechanisms. API-local prose retains the current
+  `var`/explicit-peer ruling.
+- Resolved the structural choice inside this checkpoint: generated binding-model
+  and receiving-side focus evidence also moved to rejected designs. Shell and
+  TestFocusState retain their operational choices and pointers; checkpoint 8 has
+  no deferred structural work.
+- Preserved Shell verification residues: `Core.body` stays unevaluated because
+  copied `@Environment` would be an uninstalled runtime read; ShellTests and
+  ShellSyntaxTests ownership remains; example scenarios/UI tests are verified
+  live and regenerate from `CoreFlowExample/SPEC.md`.
+- Added compact limitation-map entries for expansion visibility, syntax-only
+  detection, and Reflector while leaving their full evidence in API sections.
+- The post-move audit found zero interim markers. Focused verification passed 26
+  XCTest cases (`ShellSyntaxTests`, `TestSupportSyntaxTests`) and 7 Swift Testing
+  cases (`ShellTests`, `TestSupportEndToEndTests`); `git diff --check` passed.
+
 Next checkpoint:
 
-- Create the top-level verified-limitations and rejected-designs sections. Move
-  every interim Shell and logged-family block in the same commit, preserve each
-  API-local consequence and pointer, and keep the logged-family `@MainActor`
-  suite requirement visible.
+- Add the verification map and maintenance checklists. Point each claim class and
+  change workflow to its real command, source, and test owner without repeating
+  API contracts or making `CLAUDE.md` depend on README.
 
 1. Put package invariants and build commands first.
 2. Separate normative rules from implementation mechanisms.
