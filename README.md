@@ -250,24 +250,24 @@ Swift 6 strict concurrency, even just reading a computed property.
 
 ### QueryCore
 
-A real, one-to-one drop-in for the live `@Query`.
-Verified directly against the `_SwiftData_SwiftUI` interface: `Query`'s
-instance surface is exactly `wrappedValue`, `fetchError`, and
-`modelContext`, with **no `projectedValue`** — so `QueryCore` carries the
-same three (its `modelContext` private) and nothing else. That read-surface match is what lets the
-copied `body` compile on `Core`: the host's body text was written against
-the live wrapper (`items.isEmpty`, `ForEach(items)`), and on `Core` the
-same text still works because `core.items` reads the mock's array
-directly — `_items.fetchError` spells the same on
-both sides too. `modelContext` is environment-fed like the live
-wrapper's (a private `@Environment` field — `QueryCore` is a
-`DynamicProperty`, so it installs when `Core` is hosted, mocked via
-`.modelContainer`/`.environment`, and is never read unhosted);
-`fetchError` defaults to `nil`,
-which makes `QueryCore`'s init callable with the wrapped value alone — so
-`Core`'s synthesized memberwise init takes the *bare* fetched value, and a
-test writes `Core(items: [item], title: "t")` with no `QueryCore` spelling
-at all.
+`@QueryCore` is a one-to-one stand-in for the live `@Query` read surface.
+Verified directly against the `_SwiftData_SwiftUI` interface, `Query`
+exposes exactly `wrappedValue`, `fetchError`, and `modelContext`, with
+**no `projectedValue`**. `QueryCore` carries the same three members and
+nothing else, with `modelContext` private.
+
+That parity lets the copied `body` compile unchanged: `items.isEmpty` and
+`ForEach(items)` still read the supplied array directly, while
+`_items.fetchError` has the same spelling on both types. `modelContext`
+remains environment-fed — like the live wrapper's — through a private
+`@Environment` field; because `QueryCore` is a `DynamicProperty`, it installs
+when `Core` is hosted and uses SwiftUI's native mocking path —
+`.modelContainer` or `.environment`. It is never read unhosted.
+
+`fetchError` defaults to `nil`, so `QueryCore` can be initialized with
+`wrappedValue` alone. That makes `Core`'s synthesized memberwise initializer
+accept the bare fetched value: a test writes
+`Core(items: [item], title: "t")`, with no `QueryCore` spelling.
 
 ### Why a nominal struct, not a tuple
 

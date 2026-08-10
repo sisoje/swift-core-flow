@@ -151,8 +151,9 @@ Current checkpoint:
   `6482979 Clarify Shell generation rules`, and
   `37ea1e5 Clarify substituted wrapper mapping`, and
   `9e393f0 Consolidate copied wrapper rules`, and
-  `8912770 Clarify unmapped object wrappers`. Each pairs its README change with
-  the matching plan checkpoint.
+  `8912770 Clarify unmapped object wrappers`, and
+  `07651f1 Clarify binding backing strategies`. Each pairs its README change
+  with the matching plan checkpoint.
 - Completed checkpoint: left the probe-verified
   `Card`/`CardScenario` sample unchanged; tightened the three-term glossary;
   grounded **boundary event** as instrumented state writes and action calls;
@@ -176,15 +177,19 @@ Current checkpoint:
   value-shaped boundary and aliasing mechanism; retained the explicit
   ViewModel-shaped-state link to `Why`. The wrapper mapping reference is now
   complete.
-- Current local checkpoint (uncommitted): folded the rejected generated-backing
+- Completed checkpoint: folded the rejected generated-backing
   model into the binding rule; preserved the use-site/test-shaped decision,
   all three backing strategies, `Bindable(model).x` write-through fact, and
   probe-verified sample; added the verified file-scope reason and kept
   `@MainActor`; moved the no-backing `@State` contrast after the sample.
-- Next checkpoint: review `QueryCore`. Preserve the verified
-  `_SwiftData_SwiftUI` interface parity — exactly `wrappedValue`, `fetchError`,
-  and `modelContext`, with no `projectedValue` — and the bare-value memberwise
-  construction `Core(items: [item], ...)` with no `QueryCore` spelling.
+- Current local checkpoint (uncommitted): split `QueryCore` into interface
+  parity, copied-body consequences, and memberwise-initializer ergonomics;
+  preserved the verified exact-three-member surface and bold
+  **no `projectedValue`** fact, stated that `modelContext` remains
+  environment-fed like the live wrapper's, and retained bare-value construction
+  with no `QueryCore` spelling.
+- Next checkpoint: review `Why a nominal struct, not a tuple`. Preserve the
+  verbatim compiler error proving that tuples cannot conform to protocols.
 - Expect the largest later merges around the wrapper mapping, `QueryCore`, and
   `Notes on the rows`, which repeat rules at different depths.
 - Reconcile `Previews: one hand-written wrapper away` with the scenario material
