@@ -736,28 +736,58 @@ is genuinely required, a same-file extension can reach `_name`; see
 `QueryCoreTests`' `FakeCore`. The `@Shell` section retains only the local
 construction consequence and this pointer.
 
-## @TestState / @TestAction — tricky points
+## Logged-property family
 
-Per-property mutation-logging macros with two jobs: hand-written test-host
-views (scenarios), and `@Shell`'s own `@State` substitution on `Core`
-(`TestSupportMacros.swift`; declarations plus `testLog`/`TestLog` in
-`Sources/CoreFlow/TestSupport.swift`). The model is how you'd test
-`Button`: the contract is "a tap calls the action", so mock the action
-with a logger and assert it fired on a real tap. A `Core`'s whole behavior
-is its boundary events — state writes and action calls — so scenarios
-inject logging mocks (actions inert, `= { _ in }`) and tests assert the
-ordered execution log, never an effect. No type-level macro — attach
-`@TestState` to a stored `var` (ANY type, function types included: a `var`
-closure means someone wants to mutate the closure itself, and its `$name`
-binding is exactly that) and `@TestAction` to a stored `var` closure. Both
-hardcode the seam — no key-path parameter. Bad shapes THROW from
-expansion — the family-wide policy, one error stating the macro's
-required shape (rationale in the `@TestFocusState` section below; `@Shell`
-still diagnoses the missing-default case at collection, before
-expansion — `stateNeedsInlineDefault`).
-Per-property attachment is deliberate — no type-level `@TestHost(\.keyPath)`
-macro deciding which properties participate; each property opts in where
-it's declared.
+### Shared contract
+
+`@TestState`, `@TestAction`, `@UnstructuredTask`, and `@TestFocusState` expose
+live properties whose component-owned boundary events enter one ordered log.
+They are per-property macros: each declaration opts in and hardcodes its own
+name, with no type-level key-path selector. Scenarios assert the ordered
+execution log, never an effect.
+
+Only deterministic writes and calls log. Getter reads and system-owned focus
+changes occur when SwiftUI's scheduler decides, so their counts vary by runtime
+and device. One nondeterministic line poisons the all-or-nothing log diff; a test
+that needs read evidence uses a predicate-based spy binding instead.
+
+Invalid shapes throw one compile error from accessor expansion. Peer expansion
+uses the validated shape or remains silent so the same error is not emitted
+twice. Never skip malformed input that could compile as unmanaged state.
+
+| Macro | Property shape | Storage | Init accessor | Payload | Projection |
+|---|---|---|---|---|---|
+| `@TestState` | stored `var`, any type | `State<T>` peer | yes | described new value | routed `Binding<T>` |
+| `@TestAction` | stored closure `var` | closure peer | yes | arguments by arity | none |
+| `@UnstructuredTask` | computed optional task slot | `State<TaskStorage<T>>` peer | no | `task` / `nil` | routed `Binding<T?>` |
+| `@TestFocusState` | computed focus slot | `FocusState<T>` peer | no | described programmatic write | native `FocusState<T>.Binding` |
+
+### Shared logging seam
+
+`testLog` is an internal `@Entry`; its `ComparableLog` value is an always-equal
+struct rather than a bare closure entry that would warn about invalidation.
+`TestLog` is a `DynamicProperty` wrapping the hand-written environment read, and
+its `wrappedValue` is the `@MainActor (String, String) -> Void` sink. Global-
+actor function values are implicitly Sendable, so all events serialize on the
+main actor.
+
+Payloads are `String`, not `Any`: an `Any` containing a class can fail region
+isolation inside a generated `@Sendable async` closure, where the caller cannot
+repair it. `String(describing:)` freezes ordinary values at the event site;
+macros use a stable symbolic payload when a description is nondeterministic.
+
+Generated code stores `private let log_name = TestLog()` explicitly, never
+`@Environment(\.testLog)` wrapper sugar. The sugar SILGen/IRGen-crashes swiftc
+6.4 with signal 11 while emitting its synthesized getter. Hand-written identical
+source compiles; generated `\.self` and `EnvironmentValues` variants also crash,
+so the closure-valued entry is not the cause. The explicit field preserves
+nested `DynamicProperty` installation, verified by the UI tests.
+
+Outside hosting the environment entry returns its no-op default but SwiftUI
+reports an uninstalled read. Unit tests therefore stop at generated surfaces;
+the example app's hosted UI tests own logging and forwarding behavior.
+
+## `@TestState`
 
 - **`@TestState var count: Int = 0` is a drop-in `@State` that logs —
   accessor + peer, the property stays LIVE.** The accessor role rewrites
@@ -771,6 +801,17 @@ it's declared.
   same setter. Everything generated is `private` — `$name` included; only
   the host's own `body` wires it. Type from the annotation or the shared
   three-literal inference (`inferredLiteralType`).
+
+Swift's synthesized memberwise initializer supplies both access roles. An
+internal defaulted property remains a defaulted parameter across files
+(`TestSupportTests`' probe hosts); a private defaulted property is excluded and
+becomes the sealed source of truth generated by `@Shell` and used by scenarios.
+The init accessor subsumes the storage peer, while `TestLog()` supplies its own
+default, so neither peer becomes a parameter. Macro-generated dollar names are
+legal through `names: prefixed($), prefixed(log_)[, suffixed(_storage)]`.
+
+## `@TestAction`
+
 - **`@TestAction var save: (Item) -> Void = { _ in }` — the property's own
   getter IS the logged action, no `$name`, no setter.** Accessor + peer:
   an init accessor funnels the inline default into a `save_storage` peer,
@@ -787,61 +828,18 @@ it's declared.
   read). `var`, not `let` — the compiler refuses accessor expansion on
   `let` (dead ends below); a `let` closure is a thrown compile error like
   any other unspellable shape.
-- **Every generated DynamicProperty is an EXPLICIT stored field, never
-  wrapper sugar — a compiler crash forces this.** A macro-generated
-  `@Environment(\.testLog) private var log_x` SILGen/IRGen-crashes swiftc
-  6.4 (signal 11 emitting the wrapper's synthesized getter — verified
-  directly; hand-written identical source compiles fine, and it crashes
-  with `\.self`/`EnvironmentValues` too, so it's not the closure-typed
-  entry). The explicit `private let log_x = TestLog()` field dodges it —
-  `TestLog` is a `DynamicProperty` wrapping the hand-written sugar, and
-  SwiftUI installs DynamicProperties by field type, not wrapper syntax, so
-  injection stays reactive (nested installation verified live by the UI
-  tests). Same pattern as `State<T>` for the value storage.
-- **The property's own access picks its role, and no init is ever
-  needed** — Swift's synthesized memberwise init constructs the host
-  bare, cross-file. Internal + defaulted → a defaulted memberwise-init
-  parameter (`TestSupportTests`' probe hosts); private + defaulted →
-  excluded from the memberwise init entirely, a sealed source of truth
-  that logs — what `@Shell` generates on `Core` and what scenarios
-  declare (verified directly: the init stays internal). The generated peers never become parameters either way: the
-  storage is subsumed by the init accessor and `log_x` carries a default.
-  Dollar names are legal from
-  macros: `names: prefixed($), prefixed(log_)[, suffixed(_storage)]`.
-- **The seam: `testLog` installs, `TestLog` reads.** The `\.testLog`
-  `@Entry` and its `ComparableLog` value are internal — a struct, not a bare
-  closure-typed entry (which warns that dependents may invalidate on every
-  update; always-equal is honest for a seam installed once). `TestLog` is a
-  `DynamicProperty` wrapping the `@Environment` read; the macros generate it
-  as an explicit stored field (`private let log_x = TestLog()`) and its
-  `wrappedValue` IS the sink closure, so generated call sites are direct
-  closure calls. The sink is `@MainActor (String, String) -> Void` —
-  globally-isolated function types are implicitly Sendable, every sink runs
-  serialized on the main actor. Payloads are `String`, not `Any`: an `Any`
-  holding a class would trip region-isolation at the `@Sendable async`
-  wrapper's `await log(...)` — an error INSIDE the expansion a user can't
-  fix — and `String(describing:)` at the call site freezes the value the
-  moment it happens, the snapshot contract. Sync wrappers/setters and plain
-  async wrappers call the sink directly (a non-Sendable closure inherits the
-  host's main-actor isolation; an `await` there draws the unnecessary-await
-  warning — verified directly). Only a `@Sendable async` wrapper — the one
-  shape that can't inherit the isolation — `await`s the log IN ORDER before
-  forwarding; deliberately no fire-and-forget `Task`, which could reorder
-  log lines against synchronous state writes. Outside a live view the entry
-  reads its no-op default — but SwiftUI flags the uninstalled read as a
-  runtime issue, so package unit tests stop at the generated surface and
-  seed reads (`TestSupportTests.swift`, `@MainActor` suite) while logging
-  and forwarding are verified live by the example
-  app's UI tests. Expansion shapes: `TestSupportSyntaxTests.swift`.
-- **Log effects, never getters — the criterion is who owns the invocation
-  timing.** Setters and action calls fire when the component's own logic
-  decides — deterministic, so snapshot-diffable. Getter reads (the state
-  `get`, a binding's `get`, an action property being wired into a child)
-  fire when SwiftUI's render scheduler decides — real events, but their
-  count varies by OS/device/render strategy, and one non-deterministic
-  line poisons the all-or-nothing snapshot diff. A test that needs "was
-  this read?" uses a use-site spy binding asserted with a predicate, not
-  a snapshot line.
+
+Synchronous wrappers and ordinary async wrappers call the sink directly; adding
+`await` to the latter produces the verified unnecessary-await warning because
+they inherit host isolation. Only a `@Sendable async` wrapper cannot inherit it,
+so it awaits the log in order before forwarding. Never use a fire-and-forget
+`Task`, which could reorder action events against synchronous state writes.
+
+## Logged-property dead ends (interim)
+
+Checkpoint 6 moves these complete dead ends to the top-level rejected-designs
+section without changing their substance.
+
 - **Dead ends worth remembering if anyone revisits an in-place rewrite:**
   the compiler hard-refuses accessor macros on `let` (`cannot expand
   accessor macro on variable declared with 'let'` — verified directly, no
@@ -851,7 +849,7 @@ it's declared.
   and an init-accessor property's inline default runs at the top of EVERY
   init, so `let` storage peers double-initialize (verified directly).
 
-## @UnstructuredTask — tricky points
+## `@UnstructuredTask`
 
 The third macro in the `@TestState` family (`UnstructuredTaskMacro.swift`;
 declaration plus the runtime `TaskStorage`/`CancellableTask` in
@@ -871,11 +869,13 @@ Production-safe, not test-only: the uninstalled sink is a no-op.
   self-initializes (`= State(wrappedValue: TaskStorage())`), so the
   property is never a memberwise-init parameter whatever its access level —
   `@TestState`'s internal-vs-private role split doesn't exist here. The
-  initial value isn't configurable by design, and the guard deliberately
-  does NOT check for an initializer: accessors on an initialized `var` are
-  the compiler's own "variable with accessors can't have an initial value"
-  error at the right line, where a skip would leave a plain, silently
-  unmanaged stored property behind.
+  initial value isn't configurable by design. `validated()` explicitly checks
+  `binding.initializer == nil`; the initializer check is real, not delegated to
+  the compiler, because a skipped declaration could remain plain, silently
+  unmanaged stored state.
+  The macro also generates a private `$name: Binding<T?>` whose getter and
+  setter route through the logged property, so binding writes share its
+  cancellation and logging behavior.
 - **Lifecycle lives in the `TaskStorage` box, one choke point.** A CLASS in
   `State`, not `State<Task?>`: `willSet` cancels the replaced task, `deinit`
   cancels the live one when SwiftUI releases the storage (a value in `State`
@@ -906,7 +906,7 @@ Production-safe, not test-only: the uninstalled sink is a no-op.
   of the memberwise init on both types, so the twin cancels and logs
   identically with nothing to substitute.
 
-## @TestFocusState — tricky points
+## `@TestFocusState`
 
 The fourth macro in the `@TestState` family (`TestFocusStateMacro.swift`;
 declaration in `TestFocusState.swift`) — a drop-in `@FocusState` that logs,

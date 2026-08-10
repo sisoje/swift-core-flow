@@ -64,8 +64,8 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 4 — README code and prose:** completed.
 - **Phase 5 — README conclusion:** completed.
 - **Phase 6 — CLAUDE.md agent and maintainer pass:** in progress.
-- **Next checkpoint:** consolidate the logged-property family while retaining
-  each macro's mechanisms, verified limitations, diagnostics, and tests.
+- **Next checkpoint:** restructure the independent APIs—`@Capability`, `#pick`,
+  and `Reflector`—without blurring their separate models or verified limits.
 
 ## Phase 1: README opening — completed
 
@@ -423,6 +423,7 @@ Phase 6 commit so far:
 
 - `0cf7c8a Restructure CLAUDE.md session contract and repository map`
 - `2381241 Consolidate invariants and restructure Flowable`
+- `45426ea Rebuild Shell contract and relocate QueryCore`
 
 Completed checkpoint 2:
 
@@ -483,13 +484,46 @@ Completed checkpoint 3:
   module-owned testing/preview seam whose substitution and copied-field access
   tiers remain explicit.
 
+Completed checkpoint 4:
+
+- Added one logged-property-family contract and difference table for
+  `@TestState`, `@TestAction`, `@UnstructuredTask`, and `@TestFocusState`.
+  Shared logging, validation, payload, isolation, and deterministic-event rules
+  now have one home; each macro retains its divergent mechanics.
+- Preserved the full swiftc 6.4 signal-11 workaround: generated
+  `@Environment` sugar crashes during SILGen/IRGen, including the verified
+  `\.self` and `EnvironmentValues` variants, while explicit `TestLog()` storage
+  keeps nested DynamicProperty installation.
+- Split `@TestState` and `@TestAction` into their own sections, retaining init-
+  accessor storage, binding routing, access-dependent synthesized initialization,
+  argument-arity payloads, conditional forwarding effects, capture avoidance,
+  and ordered `@Sendable async` logging.
+- Kept `@UnstructuredTask`'s lifecycle box, syntactic optional rule, stable
+  `task`/`nil` payload, public runtime support, and verbatim Shell behavior.
+  Added its source-verified private `$name: Binding<T?>` peer: binding writes
+  route through the logged property.
+- Corrected a stale, source-contradicted claim: the old text said validation
+  deliberately omitted the initializer check, but `validated()` explicitly
+  requires `binding.initializer == nil` and documents that the check is real,
+  not delegated to the compiler. The deletion is deliberate, not a lost clause.
+- Preserved `@TestFocusState`'s real storage and projection, explicit bad-shape
+  validation, SDK-interface proof, owner-side-only ruling, and hosted-test
+  boundary.
+- Kept the three accessor/storage dead ends beside the family temporarily.
+  Checkpoint 6 must move them unchanged in substance to the top-level rejected-
+  designs section in the same commit that removes their interim block. When it
+  moves the `@MainActor`/`SIGTRAP` limitation, keep a one-line family pointer to
+  the `@MainActor` test-suite requirement.
+- Focused selection passed 31 XCTest cases plus 1 Swift Testing case. The
+  `TestSupportTests` filter selects the current `TestSupportEndToEndTests` suite;
+  the combined filter also covered `TestSupportSyntaxTests`, `TaskStorageTests`,
+  `UnstructuredTaskTests`, and `ShellSyntaxTests`. `git diff --check` passed.
+
 Next checkpoint:
 
-- Consolidate the logged-property family: `@TestState`, `@TestAction`,
-  `@UnstructuredTask`, and `@TestFocusState`. Own shared logging, payload,
-  isolation, and diagnostic rules once while retaining every macro-specific
-  mechanism, crash workaround, lifecycle fact, exact diagnostic, and test
-  pointer locally.
+- Restructure the independent APIs: `@Capability`, `#pick`, and `Reflector`.
+  Preserve each API's separate model, compiler-verified limits, exact diagnostics,
+  expansion/runtime test pointers, and the queued Reflector safety correction.
 
 1. Put package invariants and build commands first.
 2. Separate normative rules from implementation mechanisms.
