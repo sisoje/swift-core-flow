@@ -49,10 +49,10 @@ Established vocabulary includes **node**, **network**, **transformation**,
 ## Current status
 
 - **Phase 1 — README opening:** completed.
-- **Phase 2 — README structure and navigation:** in progress.
-- **Next checkpoint:** verify internal anchors, then close Phase 2 if no
-  structural defect remains.
-- **After that:** begin Phase 3 with the first paragraph under `Shell`.
+- **Phase 2 — README structure and navigation:** completed.
+- **Phase 3 — README compression and continuity:** in progress.
+- **Next checkpoint:** review only the first paragraph under `Shell` and propose
+  its exact replacement before editing.
 
 ## Phase 1: README opening — completed
 
@@ -87,7 +87,7 @@ Reviewed its three paragraphs separately:
 The opening now reads as one argument: misconception, runtime constraint,
 generated seam, data-flow model, adoption boundary.
 
-## Phase 2: README structure and navigation — in progress
+## Phase 2: README structure and navigation — completed
 
 Review headings and section order without rewriting their contents first.
 
@@ -100,16 +100,21 @@ Completed:
 - Made `Installation` open directly with the dependency snippet.
 - Preserved the masterclass paragraph as the bridge into the API index.
 
-Current unpushed phase commit: `Clarify README section hierarchy`. Record its
-final hash when Phase 2 closes; amendments change the hash while work continues.
+Final phase commit: `dcef576 Clarify README section hierarchy`.
 
-Next checkpoint:
+Closure check:
 
-- Verify every internal README anchor after the heading change.
-- If the anchors are intact and no structural defect remains, close Phase 2.
-- Do not reorder the feature sections merely to mirror the API table; their
-  current conceptual order is defensible and moving them has no demonstrated
-  navigation benefit.
+- Verified the new `## Installation` boundary exists exactly once.
+- Re-verified that `#what` is absent and unreferenced in `README.md`,
+  `CLAUDE.md`, and `CoreFlowExample/SPEC.md`.
+- Verified the package-identity sentence remains immediately before
+  `Installation`, followed by the dependency snippet and then `What's inside`.
+- Kept the check scoped to the Phase 2 changes; the full three-document anchor
+  audit remains Phase 7 work.
+- Closed without reordering feature sections. Their order is conceptual and
+  dependency-led: `Shell`, the test-support family its mapping introduces, then
+  the independent macros and utility. Mirroring the API table would create
+  churn without a demonstrated navigation gain.
 
 - Keep the feature table as the quick API index.
 - Move material only when it clearly interrupts the main explanation.
@@ -122,6 +127,16 @@ Approve the revised skeleton before moving any section.
 ## Phase 3: README compression and continuity
 
 Proceed one feature section at a time, beginning with `Shell`.
+
+Current checkpoint:
+
+- Review only the first paragraph under `Shell`.
+- Expect the largest later merges around the wrapper mapping, `QueryCore`, and
+  `Notes on the rows`, which repeat rules at different depths.
+- Reconcile `Previews: one hand-written wrapper away` with the scenario material
+  now present earlier in the README.
+- Preserve load-bearing verification evidence while merging; a "verified
+  directly" clause is not filler merely because the rule appears elsewhere.
 
 - Merge paragraphs that defend the same design decision.
 - State a rule once, then link back to it.
