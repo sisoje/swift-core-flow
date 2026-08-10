@@ -380,200 +380,76 @@ set — see below).
 The table summarizes the shapes; the mechanism and edge cases above remain the
 source of truth.
 
-## `QueryCore`
+## `@Shell`
 
-This placement is interim. `QueryCore` belongs to `@Shell`'s substitution
-surface, so checkpoint 3 moves this complete section after the rebuilt
-`@Shell` section without changing its substance.
+### Contract
 
-### Live-wrapper interface parity
+`@Shell` is a separate `member` macro, not a mode of `@Flowable`; either or
+both may be attached. It collects through the shared `validatedProperties`
+path. `Sources/CoreFlowMacros/ShellMacro.swift` is the entry point;
+`renderShell` in `Sources/CoreFlowMacros/ShellRendering.swift` owns rendering.
 
-`Sources/CoreFlow/QueryCore.swift` defines a plain non-macro
-`@propertyWrapper`, the way `Reflector` is a non-macro utility. `@Shell`
-substitutes it for `@Query` as `@QueryCore var name: T`.
+The macro generates an always-internal nested `Core`, never annotated with
+`@Flowable`: the host's runnable twin, or functional core to its imperative
+shell (Bernhardt/Wlaschin/Seemann; links in the README References). The
+masterclass teaches the same split by hand. The host keeps its hand-written
+implementation; tests and scenarios construct `Core` directly. No generated
+`core` property captures a live host.
 
-Verified directly against `_SwiftData_SwiftUI`, the real
-`Query<Element, Result>` instance surface is exactly `wrappedValue`,
-`fetchError`, and `modelContext`, with **no `projectedValue`**. `QueryCore`
-carries those same three members and nothing else; `modelContext` is private and
-there is no `$x` projection.
+`Core` is a testing/preview seam, never part of the host's public API—even
+when the host itself is public. Consumers need only the host; the twin belongs
+to the defining module and its tests through same-module access or
+`@testable import`. Field access follows the transformation: the `@State`
+substitution remains private, `@Binding` and `@QueryCore` substitutions are
+internal, and verbatim copies retain their access with `public` erased.
 
-A bare `(wrappedValue:, fetchError:)` tuple was rejected. Copied body text needs
-read-surface parity with the live wrapper: `items.isEmpty` and `ForEach(items)`
-must still read the supplied array directly, while `_items.fetchError` keeps the
-same spelling. A tuple field would force `.items.wrappedValue` on every copied
-read.
+`Core` keeps the same logic while turning runtime boundaries into test
+boundaries: owned state logs writes, external sources become supplied data, and
+effects remain closures. Supplying external storage and fetched data also
+severs their event channels: no storage change or fetch notification can
+trigger a wave mid-test.
 
-### Memberwise-initializer behavior
+`Core` is nominal because a tuple cannot carry copied members, conform to
+`View`/`ViewModifier`, or later conform to `Equatable`, `Codable`, or a shared
+snapshot protocol. Verified directly: `type '(x: Int, y: String)' cannot
+conform to 'Equatable' — only concrete types such as structs, enums and classes
+can conform to protocols`. Zero eligible fields still produce `struct Core {}`
+with Swift's synthesized empty initializer.
 
-`fetchError` defaults to `nil`, so `QueryCore(wrappedValue: [item])` works.
-Because the wrapper has an initializer callable with `wrappedValue` alone,
-Swift's synthesized memberwise initializer takes the *bare* fetched value for a
-`@QueryCore` field. Tests therefore write
-`Core(items: [item], title: "t")` with no `QueryCore` spelling. `QueryCoreTests`
-lock both bare-value memberwise construction and explicit-wrapper seeding.
+Because `Core` is internal and unreachable from the release product, the
+optimized release binary pays zero bytes for its code, metadata, and conformance
+record.
 
-### Hosted environment behavior
+### Stored-property transformation
 
-`modelContext` is environment-fed like the live wrapper through a private
-`@Environment(\.modelContext)` field. `QueryCore` is a `DynamicProperty`, so the
-field installs when `Core` is hosted and follows SwiftUI's native mocking paths:
-`.modelContainer` or `.environment`. It is never read unhosted and is not an
-initializer parameter.
+`renderShell` applies two rules in order: substitute only the explicit
+`isSubstitutedOnCore` whitelist, then copy every other declaration from its raw
+syntax. Unknown wrappers are never guessed.
 
-### Test access pattern
+| Host declaration | `Core` declaration | Why |
+|---|---|---|
+| private `@State` | private `@TestState`, inline default retained | Node-owned state stays sealed; writes become evidence. |
+| private `@FocusState` | private `@TestFocusState` | No public focus-binding initializer exists; instrument the real hosted peer. |
+| private `@AppStorage` / `@SceneStorage` | `@Binding` | External storage becomes caller-supplied; persistence keys disappear because the twin does not persist. |
+| private `@Query` | `@QueryCore` | Fetched data becomes a bare supplied value without a SwiftData stack. |
+| every other declaration, wrapped or plain | verbatim copy, with `public` erased | Preserve caller data or runtime machinery where no designed substitution exists. |
 
-Normal tests use the bare-value memberwise initializer. When raw backing access
-is genuinely required, a same-file extension can reach `_name`; see
-`QueryCoreTests`' `FakeCore`. The `@Shell` section retains only the local
-construction consequence and a short pointer here after checkpoint 3.
+The whitelist is the only wrapper set this package knows. Each substitution
+buys a log, an injectable boundary, or a bare value. The shared `isPrivate`
+check matches the `private` keyword regardless of its `(set)` detail, so
+`private(set)` and `fileprivate(set)` deliberately follow the same diagnostics.
 
-## Deliberately unmapped: `@StateObject` / `@ObservedObject`
+### Substituted wrappers
 
-Neither wrapper is on the mapping whitelist, on purpose, not as a gap to
-fill in later. Both are Combine-era `ObservableObject` wrappers —
-MVVM/ViewModel-shaped state, exactly what this package's `@Flowable` (plain,
-`Equatable`-friendly data) and `@Shell` (mockable stand-ins for the mutating
-wrappers) exist to avoid — so they get no mocking stand-in and never will.
-Like any unknown wrapper, they're copied onto `Core` verbatim and left
-alone; want testable state, model it with the mapped wrappers instead. See
-the `swiftui-mv-architecture` skill for the broader argument against
-`ObservableObject`/ViewModel patterns in SwiftUI generally.
-
-## @Shell — tricky points
-
-A separate `member` macro from `@Flowable` — not a mode of it, can be
-attached with or without `@Flowable` also present
-(it collects the type's stored properties itself via the same shared
-`validatedProperties`). Entry point: `Sources/CoreFlowMacros/ShellMacro.swift`.
-Rendering: `renderShell`, in `Sources/CoreFlowMacros/ShellRendering.swift`.
-
-Generates a nested `Core` struct — always internal, carrying no
-`@Flowable` — the host's standalone twin: the functional core to the
-host's imperative shell (Bernhardt/Wlaschin/Seemann — links in README's
-References; the masterclass teaches the same split by hand). Same logic,
-every boundary observable — own state logged, external sources mocked as
-data (which also severs their event channels: no storage change or fetch
-notification can trigger a wave mid-test), effects as closures. Two
-transform rules, in `renderShell`'s order:
-**rule 1**, the substitution whitelist (`isSubstitutedOnCore`,
-`StoredProperty.swift` — the only wrappers this macro really knows, all
-required private): `@State`, the view's OWN state → `@TestState private`,
-the host's line with just the wrapper token renamed — still private,
-sealed out of the memberwise init, starting at the host's inline default,
-logging every mutation. The initial value is part of the component's
-definition, never a test parameter, so the default is required
-(`stateNeedsInlineDefault`, checked in `ShellMacro` against the carried
-`binding` node — `@Shell`'s own rule: `@Flowable` renders nothing from a
-private `@State` and has no stake, locked by a `FlowableTests` case).
-`@FocusState`, the view's own focus → `@TestFocusState private`, the same
-rename treatment — no default to carry (`@FocusState` has no
-`init(wrappedValue:)`, so a host line never has one; the substitute's
-storage peer self-initializes).
-`@AppStorage`/`@SceneStorage`, EXTERNAL storage → `@Binding var name: T` —
-a dependency the constructor supplies; keys dropped, a test twin doesn't
-persist. `@Query` → `@QueryCore var name: T` — the fetched result as an
-init parameter, no SwiftData stack (see the `QueryCore` notes above);
-**rule 2**, everything else, wrapper or not: the host's own declaration
-node re-rendered as written — attribute arguments, `let`/`var`, default,
-and any `willSet`/`didSet` observer block ride along byte-for-byte (the
-`binding` is spliced whole). `public` is erased — Core is internal;
-`private` stays — a private copy is
-self-initializing and sealed out of the memberwise init, and erasing it
-would resurface the field as a wrapper-typed init parameter. A plain
-private field can't reach rendering (collection refused it —
-`plainPrivatePropertyNotAllowed`), which rule 2 asserts; the `@State`
-rename likewise asserts `isPrivate` (backed by `sourceOfTruthMustBePrivate`).
-Asserts are internal tripwires for package developers only — the user-facing
-contract is always a diagnostic at collection, never a macro crash.
-Plus a verbatim copy
-of every non-stored member (`copiedMemberSources`, `ShellMacro.swift`) —
-`body`, helpers, methods, `static` members, nested types. Initializers are
-the one member kind *not* copied: `Core` is constructed through Swift's
-synthesized memberwise init, and a copied init would suppress it. No `core`
-capture property off the live host either — Core is for
-testing, tests construct it directly, and a unit test never has a live host
-to capture from. The host runs its own hand-written body. Plain fields keep
-the host's own `let`/`var` (a `let` with a default is a constant and drops
-out of Core's memberwise init, exactly like on the host); private fields —
-`@TestState` substitutions and verbatim copies alike — are sealed, they
-just behave (and the `@TestState` ones log). Mocking
-happens at construction — no post-construction instance swapping, no raw
-backing accessors; where raw backing access is genuinely needed, a
-same-file extension init/accessor
-reaches `_name` by hand (see `QueryCoreTests`' `FakeCore`). Backing genuine
-`@Binding` parameters and the external-storage substitutions is USE-SITE
-code, deliberately not generated: a
-test backs one with `.constant`, a `Binding(get:set:)` capturing writes
-into a local, or a hand-written `@Observable @MainActor` model class whose
-`Bindable(model).x` projection mints a real write-through binding in plain
-code, no view needed (`handWrittenObservableModelBacksABinding` in
-`ShellTests.swift` — note @Observable can't attach to a LOCAL type, so
-such a model must be file-scoped). A generated binding-wiring model class
-was considered and rejected — the few situational lines it would save
-belong at the use site, shaped by the test. If anyone generates one
-anyway, three verified facts:
-the compiler expands attached macros inside another macro's generated
-code just fine (`@TestState`/`@Binding`/`@QueryCore` today); `@MainActor`
-must be explicit on a generated class because a nested type does NOT
-inherit the enclosing View-conformance isolation (verified directly); and
-a generated observable class must be a SIBLING of `Core`, not nested
-inside it — nesting breaks `@Observable`'s extension-macro half, which
-type-checks but fails at link with a missing `Observable` conformance
-descriptor for the doubly-nested class (one level of macro-generated
-nesting is the compiler's limit; both verified directly).
-
-The copy is legal because it happens inside `@Shell`'s *own* expansion —
-only *cross*-expansion name references are forbidden, the same Swift-level
-rule that makes `#Preview` unable to see `Core` or any macro-generated name
-(verified directly, five ways). `#Preview { Card() }` works since the
-host's `body` is hand-written source, and a mocked `Core` previews through
-any hand-written wrapper — the example app's scenarios double as exactly
-that (`#Preview { DragCardScenario() }`): the scenario is an ordinary
-name, so the cross-expansion rule never triggers. A macro-generated name
-also fails in a file-scope TYPE position (`func f() -> DragCard.Core` →
-"has no member 'Core'", verified directly) — reference it in expressions
-or behind `some View`. It compiles on both types because every
-field has read-surface parity — designed in for the mapped ones (`name`
-reads the bare value on both sides; `$name` is `Binding<T>` on both, the
-`@TestState` substitution generating its own private `$name`), trivially
-true for a verbatim copy, because it *is* the same declaration. The
-copied text is dedented first (`dedented`, `ShellMacro.swift`) — the
-expansion machinery re-shifts every line by the splice position, so without
-it copies land double-indented. Members in a separate extension of the host
-aren't seen (same syntax-only limitation as host-kind detection).
-
-- **Why a nominal struct, not a tuple**:
-  tuples can't conform to protocols — verified directly, `type '(x: Int, y:
-  String)' cannot conform to 'Equatable' — only concrete types such as
-  structs, enums and classes can conform to protocols`. A tuple snapshot can
-  never support `Equatable`/`Codable`/a shared "any stateless snapshot"
-  protocol, carry copied members, or host live. A real nominal struct can,
-  for free, once declared.
-- **`Core` is always internal, regardless of the attached type's own access
-  level, and never `@Flowable`.** Field access follows the rule: the
-  `@State` substitution stays private (the view's own source of truth),
-  the `@Binding`/`@QueryCore` substitutions are internal, verbatim copies
-  keep their own access with `public` erased. It's a testing/preview
-  seam, not part of the attached type's public API even when that type
-  itself is `public` — consumers of a public host never need the twin,
-  only the module's own tests do (same module, or a `@testable import`).
-  No hand-rolled init is
-  needed either: Swift's own memberwise-init synthesis already reproduces
-  every field-specific behavior `@Flowable` would — verified directly: a
-  property-wrapper field with no `init(wrappedValue:)` (`@Binding`)
-  synthesizes a parameter of the *wrapper's* type, one that does
-  (`@QueryCore`, `@Bindable`) synthesizes a parameter of the *wrapped* type,
-  and `@ViewBuilder` directly on a stored `let` synthesizes a
-  builder-closure parameter for a value-typed field, exactly like
-  `@Flowable`'s own hand-written logic. Copied members keep their original
-  access modifiers verbatim (a `public var body` inside an internal `Core`
-  just caps at internal — legal).
 - **The mapped rows, and what each substitution buys.** `@State` →
   `@TestState private`: the drop-in that keeps the field live while
   logging every mutation — ownership unchanged (an internal source of
   truth is never a caller's; moving it up would falsify the component's
-  data flow just to observe it), the write site now emits evidence.
+  data flow just to observe it), the write site now emits evidence. The host's
+  inline default is required by `stateNeedsInlineDefault` in `ShellMacro.swift`:
+  the initial value is part of the component's definition, never a test
+  parameter. The check uses the carried `binding`; `@Flowable` renders nothing
+  from private `@State`, as locked by `FlowableTests`.
   Private + defaulted means excluded from the memberwise init entirely
   with the init staying internal (verified directly — `makeCore` in
   `ShellTests.swift` constructs without it). `@AppStorage`/`@SceneStorage`
@@ -612,6 +488,9 @@ aren't seen (same syntax-only limitation as host-kind detection).
   Unknown wrappers carry no privacy rule — copied verbatim either way; a
   non-private one stays a memberwise-init parameter like any other
   non-private field.
+
+### Copied verbatim
+
 - **Every property needs an explicit type or an inferable literal
   default**, enforced in `collectStoredProperties` (`StoredProperty.swift`):
   the substituted rows read `property.type` to declare their stand-in
@@ -653,10 +532,38 @@ aren't seen (same syntax-only limitation as host-kind detection).
   `@ViewBuilder var` never reaches rendering (`viewBuilderMustBeLet`).
   It's **not** a `@propertyWrapper` — a result-builder attribute, legal
   directly on stored properties (verified directly).
+
+The rule-2 renderer asserts that a plain private field never reached rendering;
+the `@State` rename asserts `isPrivate`. These are developer tripwires backed by
+`plainPrivatePropertyNotAllowed` and `sourceOfTruthMustBePrivate`; users receive
+collection diagnostics, never a macro crash. Privacy stays on verbatim copies:
+erasing it would resurface a wrapper-typed memberwise-initializer parameter.
+Plain fields retain the host's own `let` or `var`; a defaulted `let` remains a
+constant and drops out of `Core`'s memberwise initializer exactly as it does on
+the host.
+
+### Copied members and synthesized initialization
+
+Every non-stored member comes from `copiedMemberSources` in `ShellMacro.swift`:
+`body`, helpers, methods, `static` members, and nested types. Initializers alone
+are not copied because one would suppress Swift's synthesized memberwise
+initializer. `testHelpersStaticMembersAndNestedTypesAreCopiedButInitsAreNot`
+locks that boundary in the expansion suite.
+
+No hand-written initializer is needed. Verified directly, Swift's memberwise
+synthesis gives a wrapper-typed parameter when a wrapper lacks
+`init(wrappedValue:)` (`@Binding`), a wrapped-value parameter when it has one
+(`@QueryCore`, `@Bindable`), and a builder-closure parameter for a stored
+value-form `@ViewBuilder`. Copied members retain their access modifiers; a
+`public` member remains legal but is capped by internal `Core`.
+
 - **Zero eligible fields still generates a (near-empty) `Core`** —
   `struct Core {}` — no diagnostic, mirroring `@Flowable`'s own graceful
   zero-property `init()` rather than `@Capability`'s "zero is an error"
   stance (Swift synthesizes the empty `init()` here on its own).
+
+### Host-kind detection and read-surface parity
+
 - **Automatic `View`/`ViewModifier` detection, off the attached type's own
   inheritance clause** (`detectHostKind`, in `ShellMacro.swift`): `struct
   Card: View` or `struct VM: ViewModifier` additionally declares `Core:
@@ -677,6 +584,61 @@ aren't seen (same syntax-only limitation as host-kind detection).
     never gets a type checker. A qualified `@SwiftUI.State` is the same
     story on the wrapper side: no bare identifier to report, so it rides
     rule 2 as an unknown wrapper, consistently unrecognized everywhere.
+
+### Construction and binding strategies
+
+Mocking happens at construction, with no post-construction swapping. Tests back
+bindings with `.constant`, `Binding(get:set:)`, or a hand-written, file-scoped
+`@Observable @MainActor` model whose `Bindable(model).x` projection produces a
+real write-through binding (`handWrittenObservableModelBacksABinding` in
+`ShellTests.swift`; `@Observable` cannot attach to a local type). Raw backing
+access stays an explicit same-file escape hatch; see `QueryCoreTests.FakeCore`.
+
+Generated binding-wiring was rejected because these situational lines belong at
+the use site. If revisited, preserve three verified constraints: attached macros
+expand inside another macro's output; a generated class needs explicit
+`@MainActor` because nested types do not inherit enclosing View-conformance
+isolation; and an observable class must be a sibling of `Core`, because nesting
+it inside `Core` makes `@Observable`'s extension half fail at link with a missing
+conformance descriptor.
+
+### Preview and cross-expansion limits
+
+The copy is legal because it happens inside `@Shell`'s *own* expansion —
+only *cross*-expansion name references are forbidden, the same Swift-level
+rule that makes `#Preview` unable to see `Core` or any macro-generated name
+(verified directly, five ways). `#Preview { Card() }` works since the
+host's `body` is hand-written source, and a mocked `Core` previews through
+any hand-written wrapper — the example app's scenarios double as exactly
+that (`#Preview { DragCardScenario() }`): the scenario is an ordinary
+name, so the cross-expansion rule never triggers. A macro-generated name
+also fails in a file-scope TYPE position (`func f() -> DragCard.Core` →
+"has no member 'Core'", verified directly) — reference it in expressions
+or behind `some View`. It compiles on both types because every
+field has read-surface parity — designed in for the mapped ones (`name`
+reads the bare value on both sides; `$name` is `Binding<T>` on both, the
+`@TestState` substitution generating its own private `$name`), trivially
+true for a verbatim copy, because it *is* the same declaration. The
+copied text is dedented first (`dedented`, `ShellMacro.swift`) — the
+expansion machinery re-shifts every line by the splice position, so without
+it copies land double-indented. Members in a separate extension of the host
+aren't seen (same syntax-only limitation as host-kind detection).
+
+### Deliberately unmapped: `@StateObject` / `@ObservedObject`
+
+Neither wrapper is on the whitelist, deliberately—not as a gap to fill later.
+Both are Combine-era `ObservableObject` wrappers: ViewModel-shaped shared
+references whose aliases can mutate state around `Core`'s boundary, exactly the
+model this package's plain-data flow avoids. They are copied verbatim and receive
+no stand-in; model testable state with the mapped wrappers instead. See the
+`swiftui-mv-architecture` skill for the broader argument.
+
+### Verified rejected designs
+
+This placement is interim. Checkpoint 6 moves these complete dead ends to the
+approved top-level `Rejected designs and dead ends` section without changing
+their substance.
+
 - **The delegation redesign was built, run green, and abandoned — the
   full map, so nobody re-walks it.** The idea: Core as the ONE
   implementation (fields generated, logic hand-written in
@@ -729,6 +691,50 @@ aren't seen (same syntax-only limitation as host-kind detection).
   (conformance in a separate extension isn't detected). Verified live by
   the example app's scenarios/UITests, all written in this model
   (regenerable from its `SPEC.md`).
+
+## `QueryCore`
+
+### Live-wrapper interface parity
+
+`Sources/CoreFlow/QueryCore.swift` defines a plain non-macro
+`@propertyWrapper`, the way `Reflector` is a non-macro utility. `@Shell`
+substitutes it for `@Query` as `@QueryCore var name: T`.
+
+Verified directly against `_SwiftData_SwiftUI`, the real
+`Query<Element, Result>` instance surface is exactly `wrappedValue`,
+`fetchError`, and `modelContext`, with **no `projectedValue`**. `QueryCore`
+carries those same three members and nothing else; `modelContext` is private and
+there is no `$x` projection.
+
+A bare `(wrappedValue:, fetchError:)` tuple was rejected. Copied body text needs
+read-surface parity with the live wrapper: `items.isEmpty` and `ForEach(items)`
+must still read the supplied array directly, while `_items.fetchError` keeps the
+same spelling. A tuple field would force `.items.wrappedValue` on every copied
+read.
+
+### Memberwise-initializer behavior
+
+`fetchError` defaults to `nil`, so `QueryCore(wrappedValue: [item])` works.
+Because the wrapper has an initializer callable with `wrappedValue` alone,
+Swift's synthesized memberwise initializer takes the *bare* fetched value for a
+`@QueryCore` field. Tests therefore write
+`Core(items: [item], title: "t")` with no `QueryCore` spelling. `QueryCoreTests`
+lock both bare-value memberwise construction and explicit-wrapper seeding.
+
+### Hosted environment behavior
+
+`modelContext` is environment-fed like the live wrapper through a private
+`@Environment(\.modelContext)` field. `QueryCore` is a `DynamicProperty`, so the
+field installs when `Core` is hosted and follows SwiftUI's native mocking paths:
+`.modelContainer` or `.environment`. It is never read unhosted and is not an
+initializer parameter.
+
+### Test access pattern
+
+Normal tests use the bare-value memberwise initializer. When raw backing access
+is genuinely required, a same-file extension can reach `_name`; see
+`QueryCoreTests`' `FakeCore`. The `@Shell` section retains only the local
+construction consequence and this pointer.
 
 ## @TestState / @TestAction — tricky points
 

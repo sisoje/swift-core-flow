@@ -64,9 +64,8 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 4 — README code and prose:** completed.
 - **Phase 5 — README conclusion:** completed.
 - **Phase 6 — CLAUDE.md agent and maintainer pass:** in progress.
-- **Next checkpoint:** rebuild `@Shell` around its normative transformation
-  table, then move the standalone `QueryCore` section directly after it without
-  changing its substance.
+- **Next checkpoint:** consolidate the logged-property family while retaining
+  each macro's mechanisms, verified limitations, diagnostics, and tests.
 
 ## Phase 1: README opening — completed
 
@@ -423,6 +422,7 @@ Completed checkpoint 1:
 Phase 6 commit so far:
 
 - `0cf7c8a Restructure CLAUDE.md session contract and repository map`
+- `2381241 Consolidate invariants and restructure Flowable`
 
 Completed checkpoint 2:
 
@@ -449,15 +449,47 @@ Completed checkpoint 2:
 - Compared the pre-edit section from `HEAD` clause by clause before deleting its
   old homes. `FlowableTests` passed 20/20 and `QueryCoreTests` passed 3/3.
 
+Completed checkpoint 3:
+
+- Rebuilt `@Shell` around its contract and one authoritative transformation
+  table: the four designed substitutions plus the verbatim fallback for every
+  other wrapped or plain declaration.
+- Preserved the functional-core attribution, severed-event-channel guarantee,
+  complete per-wrapper reasons, `stateNeedsInlineDefault` rationale,
+  `@AccessibilityFocusState` refusal, `Namespace.ID` inference, private-copy
+  sealing reason, both renderer assertions, `copiedMemberSources`, and the named
+  copy-rules expansion test.
+- Separated construction, previews and cross-expansion limits, copied members,
+  substitutions, verbatim copying, host detection, the permanent
+  `@StateObject`/`@ObservedObject` refusal, and verified rejected designs.
+- Added the verified release-elimination fact: unreachable internal `Core`
+  contributes no optimized release code, metadata, or conformance record.
+- Restored the `isPrivate` mechanism: matching the `private` keyword regardless
+  of `(set)` makes `private(set)` and `fileprivate(set)` follow the same
+  diagnostics.
+- Moved the complete `QueryCore` section to its approved final position after
+  `@Shell` and removed the plan-scoped interim disclaimer.
+- Kept the delegation, mirror-macro, and coverage dead ends temporarily under
+  `@Shell` for diff hygiene. Checkpoint 6 must move them unchanged in substance
+  to the approved top-level `Rejected designs and dead ends` section. The
+  `@MainActor`/`SIGTRAP` fact likewise remains here until checkpoint 6 creates
+  its final `Verified limitations` home.
+- Captured the pre-edit `@Shell`, unmapped-wrapper, and `QueryCore` sections from
+  `HEAD` and audited the result clause by clause. `ShellTests` passed 6/6 and
+  `QueryCoreTests` passed 3/3; `git diff --check` passed.
+- The post-edit review audit caught and restored two dropped clauses before
+  commit: plain fields retain the host's `let`/`var` behavior, including a
+  defaulted `let` leaving the memberwise initializer; and internal `Core` is a
+  module-owned testing/preview seam whose substitution and copied-field access
+  tiers remain explicit.
+
 Next checkpoint:
 
-- Rebuild `@Shell` around its normative transformation table, then move the
-  complete standalone `QueryCore` section directly after it without changing
-  its substance. Preserve every mapped-wrapper reason, copied-verbatim rule,
-  limitation, exact diagnostic, rejected mapping, and test pointer. Restore the
-  `isPrivate` mechanism—the keyword match deliberately treats `private(set)` and
-  `fileprivate(set)` as private—and remove the plan-scoped interim-placement
-  disclaimer from `CLAUDE.md` when `QueryCore` reaches its final position.
+- Consolidate the logged-property family: `@TestState`, `@TestAction`,
+  `@UnstructuredTask`, and `@TestFocusState`. Own shared logging, payload,
+  isolation, and diagnostic rules once while retaining every macro-specific
+  mechanism, crash workaround, lifecycle fact, exact diagnostic, and test
+  pointer locally.
 
 1. Put package invariants and build commands first.
 2. Separate normative rules from implementation mechanisms.
