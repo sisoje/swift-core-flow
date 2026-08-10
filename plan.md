@@ -63,9 +63,8 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 3 — README compression and continuity:** completed.
 - **Phase 4 — README code and prose:** completed.
 - **Phase 5 — README conclusion:** completed.
-- **Phase 6 — CLAUDE.md agent and maintainer pass:** in progress.
-- **Next checkpoint:** run the full old-versus-new self-sufficiency audit and
-  close Phase 6 only after every clause, path, command, and test owner checks out.
+- **Phase 6 — CLAUDE.md agent and maintainer pass:** completed.
+- **Next checkpoint:** begin Phase 7's README/CLAUDE/SPEC consistency audit.
 
 ## Phase 1: README opening — completed
 
@@ -427,6 +426,7 @@ Phase 6 commit so far:
 - `e6eae64 Consolidate logged-property family`
 - `2f9d9a5 Restructure independent APIs and mirror Reflector safety`
 - `07a938c Create limitations and rejected-designs sections`
+- `aa913e5 Add verification map and maintenance checklists`
 
 Completed checkpoint 2:
 
@@ -617,11 +617,79 @@ Completed checkpoint 7:
   XCTest cases and 5 `ReflectorTests` Swift Testing cases; `git diff --check`
   passed.
 
+Completed checkpoint 8 — Phase 6 closure:
+
+- Audited `git show 0cf7c8a^:CLAUDE.md` against the completed document by
+  technical clause, not heading. Result: zero rule-level gaps and zero new
+  source-backed corrections. Every retained technical clause is present
+  directly, moved to a final owner, or consolidated with its API-local
+  consequence intact. The independent review's token sweep then restored three
+  example-level anchors whose rules had survived without them: the three
+  literal-inference examples (`var isOn = false`, `var count = 0`,
+  `var label = "x"`), the `private var cache = 0` shape behind
+  `plainPrivatePropertyNotAllowed`, and the `total:` rename example the
+  approved checkpoint-5 text had carried but the applied edit dropped.
+- Rechecked old-only identifiers, exact diagnostics, signals, toolchain versions,
+  source/test paths, test owners, generated identifiers, wrapper names, and
+  rejected variants. Line-wrapped phrases were inspected manually rather than
+  counted as misses.
+- Verified every backticked repository path, named suite, and implementation
+  symbol used by the verification map. All resolve. Durable `CLAUDE.md` contains
+  no checkpoint, phase, interim, proposal, or movement bookkeeping.
+- `swift package dump-package` confirms the CoreFlow product, the
+  CoreFlowMacros/CoreFlow/CoreFlowTests targets, tools 6.3, Swift 6, declared
+  platforms, and swift-syntax `600.0.0..<700.0.0`.
+- Full `swift test` passed: 62 XCTest cases and 39 Swift Testing cases, zero
+  failures. `git diff --check` passed.
+- Spot checks agree on SwiftPM identity, Reflector's implementation-dependent
+  safety boundary, Shell mapping vocabulary, and SPEC-owned scenario/live-test
+  workflow. The full three-document comparison remains Phase 7.
+- `CLAUDE.md` is self-sufficient: a session reading only it can identify the
+  package, change every API, choose the correct evidence owner, regenerate the
+  example, avoid every recorded dead end, and re-run release probes.
+
+Accepted-loss registry — complete Phase-6 record:
+
+1. **“Small, growing” package wording:** removed as transient marketing tone;
+   package identity and complete contents remain.
+2. **Emphatic `ONE` capitalization:** normalized to ordinary prose; the single-
+   implementation/single-product facts remain explicit.
+3. **“Headless claude” wording:** removed as invocation flavor; the checked-in
+   generator script and permanent source-of-truth workflow own the mechanism.
+4. **TestApp “one file” wording:** removed as generated-layout detail; target,
+   scenario routing, regeneration, and verification are documented completely.
+5. **Unmapped-wrapper example list:** removed from the package-wide invariant;
+   the general unknown-wrapper rule is authoritative and concrete examples live
+   in Shell's verbatim-copy contract.
+6. **Button testing analogy:** removed from maintainer context as public pedagogy;
+   ordered-boundary-event doctrine and hosted test ownership remain.
+7. **“Seed reads (`TestSupportTests.swift`, `@MainActor` suite)” parenthetical:**
+   compressed because the verification map names the actual
+   `TestSupportEndToEndTests` owner and the main-actor limitation is linked from
+   the family.
+8. **“Same pattern as `State<T>`” analogy:** removed because explicit TestLog and
+   State peer mechanisms are documented directly; the analogy added no rule.
+9. **Live-host-capture reason wording:** compressed; the durable contract states
+   that tests construct Core directly, the host keeps its body, and no generated
+   capture property exists.
+10. **Reflector “no paired macro file” sentence:** removed as redundant; the
+    repository map and Reflector contract already establish ordinary runtime
+    Swift with no macro implementation.
+11. **Concrete spellings whose rule and mechanism are stated directly:** the
+    `repeat each V1` pack spelling, the rejected `@TestHost(\.keyPath)` name,
+    the `expandedSource` test-fixture identifier, and the
+    `UnsafeMutablePointer<T>.allocate(capacity: 1)` allocation spelling. Each
+    rule survives in prose; the literal spelling lives in source and tests.
+
+Recorded corrections are not accepted losses: SwiftPM identity, Reflector's
+safety downgrade, and UnstructuredTask's real initializer validation each retain
+their evidence and replacement text.
+
 Next checkpoint:
 
-- Run the full clause-by-clause self-sufficiency audit against
-  `git show 0cf7c8a^:CLAUDE.md`, restore any gap, remove plan-scoped language,
-  verify every path/link/command, and run the full package before closing Phase 6.
+- Phase 7: audit README, CLAUDE, and `CoreFlowExample/SPEC.md` together for
+  terminology, mappings, scenarios, links, displayed code, verified-live claims,
+  and remaining duplication without reopening approved technical arguments.
 
 1. Put package invariants and build commands first.
 2. Separate normative rules from implementation mechanisms.

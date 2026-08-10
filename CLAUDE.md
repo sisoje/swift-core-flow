@@ -178,7 +178,8 @@ that post-test collection makes the run deterministic without changing the test.
 Macros receive syntax, not a type checker. Stored-property macros share
 `validatedProperties`/`collectStoredProperties`; they do not independently infer
 semantic types. The only types inferred from expression syntax are bare `Bool`,
-`Int`, and `String` literals, through `inferredLiteralType` in
+`Int`, and `String` literals (`var isOn = false`, `var count = 0`,
+`var label = "x"`), through `inferredLiteralType` in
 `StoredProperty.swift`. Calls, identifiers, `nil`, collection literals, and other
 expressions require explicit annotations. Native wrappers that determine their
 own type, such as `@Namespace`, remain a separate case: a verbatim copy preserves
@@ -192,9 +193,10 @@ result types; and `@TestState` accepts an annotation or the same three literals.
 ### Ownership and access
 
 Non-private stored properties are caller-supplied data. Private wrapped
-properties are runtime-owned state or machinery. Plain private storage is
-refused with `plainPrivatePropertyNotAllowed`: opaque state that neither flows in
-nor belongs to a runtime wrapper has no role in this model.
+properties are runtime-owned state or machinery. Plain private storage
+(`private var cache = 0`) is refused with `plainPrivatePropertyNotAllowed`:
+opaque state that neither flows in nor belongs to a runtime wrapper has no role
+in this model.
 
 The source-of-truth wrappers `@State`, `@FocusState`, `@AppStorage`,
 `@SceneStorage`, and `@Query` must be private
@@ -998,7 +1000,8 @@ pack return type cannot carry element labels. Callers therefore read a multi-
 pick result positionally (`.0`, `.1`), even though expansion output contains
 labels.
 
-An arbitrary argument label cannot rename one pack element: argument labels
+An arbitrary argument label such as `total:` cannot rename one pack element:
+argument labels
 match declared parameters, and a pack is one parameter. The `=>` operator
 instead creates a real expression of the same KeyPath type; the macro reads its
 rename syntax without evaluating it. `from:` is different because it is part of
