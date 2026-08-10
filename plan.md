@@ -150,7 +150,8 @@ Current checkpoint:
 - Phase 3 commits so far: `ec9c2b2 Tighten Shell introduction`,
   `6482979 Clarify Shell generation rules`, and
   `37ea1e5 Clarify substituted wrapper mapping`, and
-  `9e393f0 Consolidate copied wrapper rules`. Each pairs its README change with
+  `9e393f0 Consolidate copied wrapper rules`, and
+  `8912770 Clarify unmapped object wrappers`. Each pairs its README change with
   the matching plan checkpoint.
 - Completed checkpoint: left the probe-verified
   `Card`/`CardScenario` sample unchanged; tightened the three-term glossary;
@@ -169,13 +170,21 @@ Current checkpoint:
   `TrickyDragCardUITests` live verification, environment mocking story,
   self-initialization proof, private-copy sealing rules, and "static members"
   in the earlier copied-member list.
-- Current local checkpoint (uncommitted): renamed the mapping table's source
+- Completed checkpoint: renamed the mapping table's source
   column from architectural role **Shell** to source type **Host**; replaced the
   `ObservableObject` dependency-graph overclaim with the actual missing
   value-shaped boundary and aliasing mechanism; retained the explicit
   ViewModel-shaped-state link to `Why`. The wrapper mapping reference is now
   complete.
-- Next checkpoint: review `Mocking the bindings`.
+- Current local checkpoint (uncommitted): folded the rejected generated-backing
+  model into the binding rule; preserved the use-site/test-shaped decision,
+  all three backing strategies, `Bindable(model).x` write-through fact, and
+  probe-verified sample; added the verified file-scope reason and kept
+  `@MainActor`; moved the no-backing `@State` contrast after the sample.
+- Next checkpoint: review `QueryCore`. Preserve the verified
+  `_SwiftData_SwiftUI` interface parity — exactly `wrappedValue`, `fetchError`,
+  and `modelContext`, with no `projectedValue` — and the bare-value memberwise
+  construction `Core(items: [item], ...)` with no `QueryCore` spelling.
 - Expect the largest later merges around the wrapper mapping, `QueryCore`, and
   `Notes on the rows`, which repeat rules at different depths.
 - Reconcile `Previews: one hand-written wrapper away` with the scenario material

@@ -223,13 +223,14 @@ inert or defaulted otherwise.
 
 ### Mocking the bindings
 
-`Binding` parameters — genuine host `@Binding`s and the
-`@AppStorage`/`@SceneStorage` substitutions alike — are backed at the use
-site, deliberately not generated (`@State` substitutions need nothing:
-they own their storage and log every mutation): `.constant`, a
-`Binding(get:set:)` capturing writes into a local, or an `@Observable`
-model whose `Bindable(model).x` projection mints a real write-through
-binding in plain code, no view needed:
+`Core` treats genuine host `@Binding` properties and
+`@AppStorage`/`@SceneStorage` substitutions alike: the caller supplies a
+`Binding`. CoreFlow deliberately generates no backing model because that
+use-site code is situational and shaped by the test. Use `.constant` for a
+read-only value, `Binding(get:set:)` to capture writes in a local, or a
+hand-written, file-scoped `@Observable @MainActor` model (`@Observable` cannot
+attach to a local type); `Bindable(model).x` mints a real write-through binding
+in plain code, with no view required:
 
 ```swift
 var writes: [Bool] = []
@@ -238,8 +239,8 @@ let core = Toggler.Core(          // the host declares `@Binding var isOn: Bool`
 core.isOn = true                  // the copied body's writes land the same way
 ```
 
-(Generating a binding-wiring model class was considered and rejected — the
-few lines it would save belong at the use site, shaped by the test.)
+`@State` substitutions need no backing: `Core` owns their storage and logs every
+mutation.
 
 One testing gotcha: `@MainActor` is required on any test suite touching a
 `View`-conforming type's members — `Core` included. `View` conformance
