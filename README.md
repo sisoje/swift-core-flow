@@ -203,23 +203,23 @@ namespace identity, display metric, or ambient environment read belongs to the
 runtime. That machinery therefore stays verbatim on `Core`: live when hosted,
 inert or defaulted otherwise.
 
-| Shell | Core |
+| Host | Core |
 |---|---|
 | `@State` | `@TestState` |
 | `@FocusState` | `@TestFocusState` |
 | `@AppStorage` / `@SceneStorage` | `@Binding` |
 | `@Query` | `@QueryCore` |
 
-> **`@StateObject` and `@ObservedObject` are deliberately unmapped.** They're
-> Combine-era `ObservableObject` wrappers — MVVM-shaped state, exactly what
-> this package's plain-data model exists to avoid — so they get no mocking
-> stand-in and never will. Like any unknown wrapper they're copied onto
-> `Core` verbatim and left alone; if you want testable state, model it with
-> the mapped wrappers instead. These are classes: reference-type state
-> containers bolted onto a value-type dataflow, opaque to SwiftUI's
-> dependency graph and to any snapshot of plain data — they clog the data
-> flow. The full argument: the anti-MVVM entries in
-> [References](#references).
+> **`@StateObject` and `@ObservedObject` are deliberately unmapped.** They are
+> Combine-era `ObservableObject` wrappers — ViewModel-shaped state, the pattern
+> this package exists to avoid: when such an object owns screen state and
+> actions, the source of truth moves behind a shared mutable reference.
+> CoreFlow has no value-shaped boundary to substitute — no bare input, backing
+> binding, or write site it can instrument — and any alias can mutate the
+> object around `Core`'s boundary. The wrappers therefore ride onto `Core`
+> verbatim and will not receive a stand-in. If state must be observable on the
+> twin, model it with the mapped wrappers instead. See the anti-MVVM entries in
+> [References](#references) for the full argument.
 
 ### Mocking the bindings
 

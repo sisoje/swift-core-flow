@@ -149,8 +149,9 @@ Current checkpoint:
   members), and preserved the initializer and separate-extension constraints.
 - Phase 3 commits so far: `ec9c2b2 Tighten Shell introduction`,
   `6482979 Clarify Shell generation rules`, and
-  `37ea1e5 Clarify substituted wrapper mapping`. Each pairs its README change
-  with the matching plan checkpoint.
+  `37ea1e5 Clarify substituted wrapper mapping`, and
+  `9e393f0 Consolidate copied wrapper rules`. Each pairs its README change with
+  the matching plan checkpoint.
 - Completed checkpoint: left the probe-verified
   `Card`/`CardScenario` sample unchanged; tightened the three-term glossary;
   grounded **boundary event** as instrumented state writes and action calls;
@@ -161,15 +162,20 @@ Current checkpoint:
   constraints, anti-hoisting evidence doctrine, `@FocusState` impossibility
   proof, links, and semantic-whitelist boundary; left the probe-verified sample
   unchanged.
-- Current local checkpoint (uncommitted): consolidated the **Copied verbatim**
+- Completed checkpoint: consolidated the **Copied verbatim**
   rule with its machinery rationale and removed the unlinked duplicate
   subsection with zero information loss — Phase 3's first net heading deletion;
   preserved the `@GestureState(reset:)` byte-for-byte fact,
   `TrickyDragCardUITests` live verification, environment mocking story,
   self-initialization proof, private-copy sealing rules, and "static members"
   in the earlier copied-member list.
-- Next checkpoint: review the mapping table and the `@StateObject`/
-  `@ObservedObject` note together as the close of the wrapper mapping reference.
+- Current local checkpoint (uncommitted): renamed the mapping table's source
+  column from architectural role **Shell** to source type **Host**; replaced the
+  `ObservableObject` dependency-graph overclaim with the actual missing
+  value-shaped boundary and aliasing mechanism; retained the explicit
+  ViewModel-shaped-state link to `Why`. The wrapper mapping reference is now
+  complete.
+- Next checkpoint: review `Mocking the bindings`.
 - Expect the largest later merges around the wrapper mapping, `QueryCore`, and
   `Notes on the rows`, which repeat rules at different depths.
 - Reconcile `Previews: one hand-written wrapper away` with the scenario material
