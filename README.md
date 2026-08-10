@@ -68,7 +68,7 @@ is the per-macro reference.
 | [`@TestState`](#teststate-and-testaction) | accessor + peer macro | a drop-in `@State` that logs every mutation — each write reaches the injected sink the moment it happens, binding writes included |
 | [`@TestAction`](#teststate-and-testaction) | accessor + peer macro | an action closure that logs every call — reading the property IS the logged action; each call logs its payload to the injected sink, then forwards |
 | [`@TestFocusState`](#testfocusstate) | accessor + peer macro | a drop-in `@FocusState` that logs every programmatic write — a real `FocusState` underneath, so focus genuinely moves when hosted; `$name` is the real `FocusState<T>.Binding` |
-| [`@UnstructuredTask`](#unstructuredtask) | accessor + peer macro | a view-owned slot for a cancellable unstructured `Task` — assigning cancels the previous task, view teardown cancels the live one, and every mutation logs like `@TestState` |
+| [`@UnstructuredTask`](#unstructuredtask) | accessor + peer macro | a view-owned slot for a cancellable unstructured `Task` — replacing cancels the previous task, view teardown cancels the live one, and every mutation logs like `@TestState` |
 | [`@QueryCore`](#querycore) | property wrapper | `@Query`'s drop-in stand-in on `Core` — the fetched result as a bare init parameter (`Core(items: [item], …)`), same read surface as the live wrapper, no SwiftData stack |
 | [`@TestLog`](#the-testlog-seam) | property wrapper | reads the installed sink — `@TestLog private var log` self-initializes and `log(name, value)` is a direct call (verified); the macros generate the same thing as an explicit field, `private let log_x = TestLog()` |
 | [`View.testLog(_:)`](#the-testlog-seam) | View modifier | installs the one logging sink, once, on the root view; without it the log is a no-op, so hosts behave normally anywhere else |
@@ -537,7 +537,7 @@ struct DownloadButton: View {
 }
 ```
 
-- **Assigning cancels the previous task; teardown cancels the live one.**
+- **Replacing cancels the previous task; teardown cancels the live one.**
   The property reads/writes a `TaskStorage` box held in a generated `State`
   field — a *class* in `State`, not `State<Task?>`, because the lifecycle is
   the point: the box's `willSet` cancels on replacement, its `deinit` cancels
@@ -982,11 +982,12 @@ The generated closure fields are deliberately **not** marked `@Sendable`. Verifi
 directly, both ways: marking them unconditionally makes the generated code fail to
 compile for any type that captures something non-Sendable (a plain class reference,
 say) — `error: converting non-Sendable function value to '@Sendable () -> Void' may
-introduce data races`. Omitting it compiles cleanly regardless, and still permits
-genuine cross-`Task`/actor usage in practice: Swift 6's region-based Sendable
-checking runs at the point the tuple literal is actually built (inside the
-generated `capability` getter), independent of whether the field's declared type
-says `@Sendable`.
+introduce data races`. Omitting it lets the generated declaration accept those
+captures. Cross-`Task`/actor use still compiles when Swift 6's region-based
+Sendable checking proves the tuple construction safe; that check runs where the
+generated `capability` getter builds the value, independent of whether the
+field's declared type says `@Sendable`. This is not an unconditional Sendable
+guarantee.
 
 ---
 

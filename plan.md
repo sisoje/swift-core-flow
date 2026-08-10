@@ -64,7 +64,8 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 4 — README code and prose:** completed.
 - **Phase 5 — README conclusion:** completed.
 - **Phase 6 — CLAUDE.md agent and maintainer pass:** completed.
-- **Phase 7 — README/CLAUDE/SPEC consistency audit:** in progress.
+- **Phase 7 — README/CLAUDE/SPEC consistency audit:** completed locally,
+  pending final review and commit.
 
 ## Phase 1: README opening — completed
 
@@ -718,8 +719,9 @@ Baseline: Phase 6 closed in existing commit `3b7994f`.
 
 The first checkpoint closed in `13291b7`. It covered the initial mechanical
 audit and three related README vocabulary/precision fixes; it did not complete
-the original Phase 7 scope. The remaining identifier/format, full API-contract,
-SPEC-behavior, code/prose, duplication, and cumulative-loss audits remain open.
+the original Phase 7 scope. Closure was measured against the performed diff,
+not the phase's original specification. Commit `46c830c` reopened the phase and
+corrected this status before the final audit.
 
 Mechanical audit:
 
@@ -777,26 +779,17 @@ Verification:
 Completed checkpoint 1: README and plan were committed together in
 `13291b7`; `next-steps.md` stayed untracked and out of history.
 
-Remaining checkpoints:
+Final Phase-7 pass:
 
-2. **Mechanical three-document ledger:** compare every API contract, identifier,
-   scenario behavior, verified-live claim, path, heading, diagnostic, and
-   formatting convention across README, CLAUDE, and SPEC. Treat the earlier
-   anchor and Shell-mapping checks as inputs, not as substitutes for the full
-   ledger.
-3. **Prose, code pairing, and duplication:** read all three documents in order;
-   verify code/prose agreement, transitions, verification markers, normative
-   ownership, and genuine duplication. Preserve README's provocative voice and
-   CLAUDE's self-sufficiency. Probe every touched Swift sample; regenerate the
-   example only if SPEC changes.
-4. **Cumulative loss and completion audit:** compare README with its pre-Phase-1
-   baseline, CLAUDE with `0cf7c8a^`, and SPEC with its pre-plan version. Account
-   for every factual clause and rhetorical function, run proportionate owners
-   plus the full package, and apply the completion rule only after this audit
-   passes.
+- Corrected CLAUDE's tricky-component count and two stale test-suite names.
+- Corrected README's task-replacement and Capability Sendability overclaims.
+- Checked API contracts, anchors, code/prose pairing, and the cumulative diff;
+  no other tracked documentation change was justified.
+- `swift package dump-package`, all 62 XCTest cases, all 39 Swift Testing cases,
+  and `git diff --check` passed.
 
-Next checkpoint: build checkpoint 2's full API-contract and example ledgers,
-then propose grouped corrections before editing tracked documentation.
+The final README, CLAUDE, and plan changes are ready for review and one paired
+commit. Keep `next-steps.md` untracked.
 
 ## Completion rule
 
