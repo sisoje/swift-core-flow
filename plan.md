@@ -287,7 +287,9 @@ Completed checkpoints:
 - No Mermaid parser was available. Structurally audited all three diagrams
   instead: every node identifier resolves, the Shell edges match the wrapper
   mapping, and both Flowable diagrams remain consistent with their adjacent
-  prose. The two Flowable diagrams required no edit.
+  prose. The two Flowable diagrams required no edit. (Closed later in Phase 7:
+  all three diagrams in their final form render successfully under a real
+  `@mermaid-js/mermaid-cli`.)
 - A real scratch-package resolution found the displayed installation identity
   was wrong: SwiftPM reported `unknown package 'CoreFlow'` and named
   `swift-core-flow` as valid. Changed the product dependency to
