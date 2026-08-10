@@ -60,9 +60,10 @@ Established vocabulary includes **node**, **network**, **transformation**,
 
 - **Phase 1 — README opening:** completed.
 - **Phase 2 — README structure and navigation:** completed.
-- **Phase 3 — README compression and continuity:** in progress.
-- **Next checkpoint:** review only the first paragraph under `Shell` and propose
-  its exact replacement before editing.
+- **Phase 3 — README compression and continuity:** completed.
+- **Phase 4 — README code and prose:** next.
+- **Next checkpoint:** audit the first `Shell` code sample against its surrounding
+  prose; probe-compile any proposed code change before it is approved.
 
 ## Phase 1: README opening — completed
 
@@ -155,8 +156,9 @@ Current checkpoint:
   `9e393f0 Consolidate copied wrapper rules`, and
   `8912770 Clarify unmapped object wrappers`, and
   `07651f1 Clarify binding backing strategies`, and
-  `30e8807 Clarify QueryCore interface parity`. Each pairs its README change
-  with the matching plan checkpoint.
+  `30e8807 Clarify QueryCore interface parity`, and
+  `976b02a Clarify why Core is nominal`. Each pairs its README change with the
+  matching plan checkpoint.
 - Completed checkpoint: left the probe-verified
   `Card`/`CardScenario` sample unchanged; tightened the three-term glossary;
   grounded **boundary event** as instrumented state writes and action calls;
@@ -195,15 +197,17 @@ Current checkpoint:
   the argument; replaced vague live-hosting language with the operative `View`
   conformance; distinguished holding fields from carrying copied logic and
   adopting protocols; preserved the verbatim compiler error as a fenced block.
-- Next checkpoint: reconcile `Previews: one hand-written wrapper away` with the
-  scenario material introduced earlier without removing its verified facts.
-- Expect the largest later merges around the wrapper mapping, `QueryCore`, and
-  `Notes on the rows`, which repeat rules at different depths.
-- Reconcile `Previews: one hand-written wrapper away` with the scenario material
-  now present earlier in the README.
-- Preserve load-bearing verification evidence while merging; a "verified
-  directly" clause is not filler merely because the rule appears elsewhere.
-
+- Completed checkpoint: replaced `Notes on the rows` with `Two verbatim edge
+  cases`; preserved the binding write-through behavior, both `@ViewBuilder`
+  forms, exact diagnostic, and attribute distinction; removed no inbound anchor.
+- Completed checkpoint: tightened the preview limitation around its working-host
+  control case, preserved the five-way verification and file-scope type-position
+  failure, and connected the solution directly to the earlier scenario.
+- Completed Phase 3 audit: read the full `Shell` chapter for continuity and
+  checked relocated verification clauses. Removed the duplicated `@ViewBuilder`
+  initializer fact while retaining its verification marker below, and retained
+  the independently verified wrapper-type-versus-wrapped-type initializer rules
+  in the no-generated-init argument.
 - Merge paragraphs that defend the same design decision.
 - State a rule once, then link back to it.
 - Remove experimental chronology when only the resulting constraint matters to
@@ -213,7 +217,8 @@ Current checkpoint:
 - Target roughly a 10% reduction across the README, but never cut to meet a
   quota.
 
-Review and approve each feature section before continuing.
+Phase 3 is complete. It removed two headings, replaced four overclaims with
+mechanisms, and retained every verified fact.
 
 ## Phase 4: README code and prose
 
