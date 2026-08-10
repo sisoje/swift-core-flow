@@ -47,7 +47,7 @@ shipped from one library. A single dependency gets you every macro below.
 .package(url: "https://github.com/sisoje/swift-core-flow.git", from: "1.0.0"),
 
 // target dependency
-.product(name: "CoreFlow", package: "CoreFlow"),
+.product(name: "CoreFlow", package: "swift-core-flow"),
 ```
 
 Requires Swift 6.3+ (`swift-tools-version: 6.3`). Builds across the whole swift-syntax
@@ -272,7 +272,8 @@ accept the bare fetched value: a test writes
 ### Why a nominal struct, not a tuple
 
 `Core` must be nominal because tuples cannot conform to protocols — verified
-directly against the compiler:
+directly against the compiler. The block preserves the two message texts while
+omitting source locations, severity markers, and the diagnostic identifier:
 
 ```
 type '(x: Int, y: String)' cannot conform to 'Equatable'
@@ -364,37 +365,40 @@ flowchart TD
         Plain["plain fields<br/>e.g. title"]
     end
 
-    subgraph SOT["runtime-supplied"]
-        State["@State / @AppStorage"]
+    subgraph Runtime["runtime-supplied"]
+        State["@State / @FocusState / @AppStorage"]
         Query["@Query"]
-        Env["@Environment"]
+        Env["@Environment and other<br/>runtime machinery"]
     end
 
     Outside --> Card
-    SOT --> Card
+    Runtime --> Card
 
     subgraph Card["Card — stateful, live, ordinary SwiftUI"]
         CardBody["body + helpers<br/>hand-written, reads the real wrappers"]
     end
 
-    subgraph SN["Card.Core — its standalone twin"]
-        Fields["substituted fields<br/>@TestState/@TestFocusState (log) · @Binding (writes through) · @QueryCore (bare value)"]
-        SNBody["body + helpers<br/>the same text, compiler-copied"]
-        Fields --> SNBody
+    subgraph Twin["Card.Core — its standalone twin"]
+        Boundaries["test boundaries<br/>@TestState/@TestFocusState (log) · @Binding (writes through) · @QueryCore (bare value)"]
+        Machinery["verbatim runtime machinery<br/>@Environment / @GestureState / …"]
+        CoreBody["body + helpers<br/>the same text, compiler-copied"]
+        Boundaries --> CoreBody
+        Machinery --> CoreBody
     end
 
-    CardBody -. "@Shell copies every<br/>non-stored member" .-> SNBody
-    Test(["unit test / wrapper view"]) -. "construct Core directly —<br/>no live view, no environment, no ModelContext" .-> Fields
+    CardBody -. "@Shell copies every<br/>non-stored member" .-> CoreBody
+    Env -. "copied verbatim" .-> Machinery
+    Test(["unit test / wrapper view"]) -. "construct Core directly —<br/>no live view, external storage,<br/>or SwiftData stack" .-> Boundaries
 ```
 
-- **`CardBody -.-> SNBody`** (dotted, generated) — the copy: one source
+- **`CardBody -.-> CoreBody`** (dotted, generated) — the copy: one source
   text, two types. The live view runs it against the real wrappers; `Core`
   compiles the identical text against the substituted fields. Drift is
   impossible.
-- **`Test -.-> Fields`** (dotted) — the payoff: construct a `Core` directly
-  with mocks — in a unit test, or in a hand-written wrapper view that a
-  preview shows (see below) — and assert on its fields, call its helpers,
-  or render its body, no live rendering pipeline required.
+- **`Test -.-> Boundaries`** (dotted) — the payoff: construct a `Core` directly
+  with supplied test boundaries — in a unit test, or in a hand-written wrapper
+  view that a preview shows (see below) — and assert on its fields, call its
+  helpers, or render its body, no live rendering pipeline required.
 
 ### Previews: one hand-written wrapper away
 
@@ -1056,6 +1060,10 @@ error: extra argument 'total' in macro expansion
                                                         ^
 ```
 
+The compiler also emits the follow-on diagnostic `error: cannot infer key path
+type from context; consider explicitly specifying a root type`; the argument-label
+error above is the governing failure.
+
 Argument-label matching happens against the callee's *declared parameter list* — and a
 variadic/pack parameter is one parameter, however many arguments it expands to. There is
 no way to declare a parameter that accepts an arbitrary caller-chosen label attached to
@@ -1245,7 +1253,7 @@ constructing one.
 It allocates one **uninitialized** `T` and reads its field labels via `Mirror`:
 
 ```swift
-static func fieldNames<T>(of: T.Type) -> [String] {
+public static func fieldNames<T>(of: T.Type) -> [String] {
     precondition(!(T.self is AnyClass), "fieldNames requires a value type, got class \(T.self)")
     let p = UnsafeMutablePointer<T>.allocate(capacity: 1)
     defer { p.deallocate() }

@@ -61,10 +61,10 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 1 — README opening:** completed.
 - **Phase 2 — README structure and navigation:** completed.
 - **Phase 3 — README compression and continuity:** completed.
-- **Phase 4 — README code and prose:** in progress.
-- **Next checkpoint:** audit diagrams, verbatim compiler-output blocks, and the
-  remaining isolated snippets; match quoted diagnostics exactly and
-  probe-compile every touched Swift sample.
+- **Phase 4 — README code and prose:** completed.
+- **Phase 5 — README conclusion:** next.
+- **Next checkpoint:** propose the exact short conclusion before editing; make
+  the consequence sharp without summarizing the feature catalog.
 
 ## Phase 1: README opening — completed
 
@@ -275,6 +275,36 @@ Completed checkpoints:
   closure, and array fields, but reflecting uninitialized storage remains an
   implementation-dependent runtime technique. The implementation listing and
   the rest of the verified value-type limitation section remain unchanged.
+- Completed the final Phase 4 audit. Corrected the Shell diagram so copied
+  runtime machinery reaches `Core`, added the missing `@FocusState` source,
+  split test boundaries from verbatim machinery, and replaced the false “no
+  environment” arrow with the actual avoided requirements: no live view,
+  external storage, or SwiftData stack. Renamed both explanatory node references
+  and replaced the in-scope “with mocks” wording with “supplied test boundaries.”
+- No Mermaid parser was available. Structurally audited all three diagrams
+  instead: every node identifier resolves, the Shell edges match the wrapper
+  mapping, and both Flowable diagrams remain consistent with their adjacent
+  prose. The two Flowable diagrams required no edit.
+- A real scratch-package resolution found the displayed installation identity
+  was wrong: SwiftPM reported `unknown package 'CoreFlow'` and named
+  `swift-core-flow` as valid. Changed the product dependency to
+  `package: "swift-core-flow"`; the corrected manifest resolved release 1.0.2
+  and swift-syntax 603.0.2 successfully.
+- Re-probed the tuple-conformance diagnostic. The compiler emitted
+  `error: type '(x: Int, y: String)' cannot conform to 'Equatable'
+  [#ProtocolTypeNonConformance]` and the corresponding `note:` line. The README
+  deliberately retains the two message texts while explicitly documenting that
+  source locations, severity markers, and the diagnostic identifier are omitted.
+- Re-probed the arbitrary `total:` label against the real macro. Its primary
+  diagnostic matches `error: extra argument 'total' in macro expansion`; the
+  README now also records the emitted follow-on key-path-inference error. The
+  previously captured same-overload diagnostic remains unchanged.
+- Restored `public` on the displayed `Reflector.fieldNames` implementation so
+  the signature and body match `Sources/CoreFlow/Reflector.swift` exactly.
+  Left `DownloadButton` and all remaining isolated examples unchanged.
+- Ran the complete test suite after removing every probe source: all 62 XCTest
+  tests and all 39 Swift Testing tests passed. The macro-expansion suites lock
+  every displayed generated-code block.
 
 - Give each sample one primary claim.
 - Remove fields and comments that do not prove that claim.
@@ -285,6 +315,10 @@ Completed checkpoints:
 - Put the consequence immediately after the line that demonstrates it.
 - Reuse an existing example only when doing so reduces explanation; do not force
   one example through unrelated APIs.
+
+Phase 4 is complete: every touched Swift sample was compiled, displayed
+generated code is expansion-locked, quoted diagnostics were compared against
+captured output with normalization recorded, and no probe source remains.
 
 ## Phase 5: README conclusion
 
@@ -320,6 +354,9 @@ work safely in the repository.
    reading only `.label` makes uninitialized reflection safe with the verified,
    implementation-dependent framing, while preserving the top-level class trap
    and value-type observations.
+9. Correct the installation product dependency to
+   `.product(name: "CoreFlow", package: "swift-core-flow")`; a real scratch
+   resolution proved the existing `package: "CoreFlow"` spelling invalid.
 
 Propose the new `CLAUDE.md` skeleton before moving any content.
 
@@ -336,6 +373,8 @@ After both documents are stable, audit `README.md`, `CLAUDE.md`, and
   claims against `CoreFlowExample/SPEC.md`;
 - check code/prose agreement;
 - remove remaining duplicated conclusions and filler transitions;
+- review the two out-of-scope “with mocks” occurrences for established
+  test-boundary vocabulary without changing the diagrams already approved;
 - review the final diff for accidental tone changes or lost qualifications.
 
 ## Completion rule
