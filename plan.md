@@ -63,10 +63,10 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 3 — README compression and continuity:** completed.
 - **Phase 4 — README code and prose:** completed.
 - **Phase 5 — README conclusion:** completed.
-- **Phase 6 — CLAUDE.md agent and maintainer pass:** next.
-- **Next checkpoint:** propose the new self-sufficient `CLAUDE.md` skeleton
-  before moving content, with the Reflector-safety and installation-identity
-  corrections built into its structure.
+- **Phase 6 — CLAUDE.md agent and maintainer pass:** in progress.
+- **Next checkpoint:** consolidate package-wide invariants, then restructure
+  `@Flowable` and move `QueryCore` into its own section without losing any
+  verified edge case or rejected generation decision.
 
 ## Phase 1: README opening — completed
 
@@ -338,6 +338,8 @@ Keep the conclusion short and provocative.
 
 Completed checkpoint:
 
+Phase 5 commit: `f38c3d7 Add README conclusion and close Phase 5`.
+
 > `@Shell` does not move behavior into a ViewModel or a parallel test
 > architecture. It keeps behavior in the view, then generates a twin whose
 > runtime boundaries are observable or injectable.
@@ -362,6 +364,61 @@ The skeleton must reserve explicit homes for the two verified README corrections
 already queued below: Reflector's implementation-dependent uninitialized
 reflection and SwiftPM's `swift-core-flow` package identity. They are structural
 inputs to the pass, not cleanup after the reorganization.
+
+Approved skeleton:
+
+- Session contract and repository map first.
+- Package-wide invariants before per-API contracts.
+- Normative contracts before implementation mechanisms.
+- Standalone sections for `@Flowable`, `@Shell`, `QueryCore`, the logged-property
+  family, `@Capability`, `#pick`, and `Reflector`.
+- Separate verified compiler/runtime limitations, rejected designs/dead ends,
+  verification map, and maintenance checklists.
+- An explicit `@Shell` subsection permanently refusing
+  `@StateObject`/`@ObservedObject` mapping.
+- Add the verified release-elimination fact for internal unreachable `Core`.
+- Preserve explicitly: the `@AccessibilityFocusState` refusal, zero-field
+  `Core`, and copied-member dedenting mechanism.
+- The fallback transformation row covers both plain fields and unmapped wrappers:
+  verbatim copying preserves caller-supplied data and runtime machinery when no
+  designed substitution exists.
+- Every intermediate commit must leave `CLAUDE.md` fact-complete. Moves delete
+  and add in the same commit; temporary duplication is safer than a gap.
+- The permanent session contract does not inherit this plan's temporary
+  documentation-only restriction.
+
+Execution sequence:
+
+1. Session contract and repository map.
+2. Package-wide invariants, `@Flowable`, and standalone `QueryCore` placement.
+3. `@Shell` contract and transformation table.
+4. Logged-property family consolidation.
+5. Independent APIs: `@Capability`, `#pick`, and `Reflector`.
+6. Verified limitations and rejected designs/dead ends.
+7. Verification map and maintenance checklists.
+8. Full self-sufficiency audit against every old heading, fact, exact error,
+   test pointer, and rejected design.
+
+Completed checkpoint 1:
+
+- Replaced the opening with a fast session contract: corrected and resolution-
+  verified SwiftPM identity, supported toolchain, commands, document authority,
+  verification standard, and durable fact-completeness rule.
+- Restored the complete article relationship: the Medium masterclass teaches the
+  same shell/core split macro-free as a manual two-view split, and the macros
+  mechanize that conceptual story through different vehicles.
+- Reorganized the repository map around package targets, add-a-macro steps,
+  shared stored-property/rendering ownership, parsed-versus-verbatim channels,
+  and the two macro-boundary decisions.
+- Isolated the complete example-app workflow. Corrected “directory contains
+  exactly four files” to the verified checked-in source-of-truth set; `git
+  ls-files` reports those four plus `.gitignore`, while generated sources may be
+  present locally. Preserved the fixed-identifier/raw-string rationale for the
+  names assertion.
+- Verified the manifest with `swift package dump-package`: one `CoreFlow` product,
+  `CoreFlowMacros`/`CoreFlow`/`CoreFlowTests`, Swift tools 6.3, Swift language 6,
+  and swift-syntax `600.0.0..<700.0.0`. Verified every named source and test path
+  with `rg --files`.
 
 1. Put package invariants and build commands first.
 2. Separate normative rules from implementation mechanisms.

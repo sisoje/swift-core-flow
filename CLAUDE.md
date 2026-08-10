@@ -1,75 +1,69 @@
-# CLAUDE.md
+# CoreFlow maintainer context
 
-A small, growing collection of independent Swift macros (plus `Reflector`, a small
-non-macro addition that pairs with `@Flowable`), all in ONE package/target
-pair — not one target per macro. Consumers add a single dependency
-(`.product(name: "CoreFlow", package: "CoreFlow")`) and get every macro; adding a
-new macro is "add a file to each of two targets," not "add a product + three targets
-to Package.swift." (Per-macro target/product sets were considered and rejected:
-the ceremony-per-macro isn't worth dependency granularity nobody needs.)
+CoreFlow is one Swift package with one macro-plugin target and one library
+product. It ships independent Swift macros plus two small runtime utilities,
+`QueryCore` and `Reflector`; consumers add one dependency and receive the whole
+package.
 
-- Build/test: `swift build && swift test`
-- Format: `swift format --in-place --recursive Sources Tests`
-- Docs: `README.md` — per-macro reference. The conceptual article ("SwiftUI
-  Data Flow Masterclass": nodes, waves, boundary events, the shell/core
-  split, execution-log testing — taught macro-free as a manual two-view
-  split) is published on Medium, linked from the README's intro; the macros
-  mechanize the same split, one conceptual story with different vehicles.
-  House prose rules: facts
-  and decisions, never removal history; compressed, no information lost;
-  references at the bottom; nothing named before its chapter introduces it.
-- Example app (`CoreFlowExample`, xcodegen; the directory holds exactly
-  `project.yml`, `test.sh`, `generate.sh`, and `SPEC.md` — the Swift
-  sources are deliberately collapsed into the spec and regenerate from it
-  (`sh generate.sh`, headless claude);
-  `project.yml`/`test.sh`/`generate.sh` are kept verbatim as part of the
-  spec. Regenerate, then verify with `sh test.sh` in the directory — the
-  UI tests component-test the generated `Core`s live.
-  `-collect-test-diagnostics never` skips post-test simulator
-  diagnostics, which intermittently time out at exactly 600s on this
-  Xcode beta — observed once; the flag makes run time deterministic).
-  The production shape: `CoreFlowExampleUI` is a real SPM library holding
-  ALL the components, one file each (host, scenario, `#Preview`) — the
-  reading-list set (internal `@Shell` hosts with SwiftData
-  `@Query` + `@AppStorage`, their composed public `@Flowable @Shell`
-  `ReadingListScreen` — the app's one entry point — and a
-  `BookStore` capability: a struct of closures behind a public `@Entry`,
-  mocked by construction, always-equal `Equatable`) and five internal
-  tricky-wrapper components (plain `@GestureState`,
-  `@GestureState(reset:)`, `@FocusState`, a `ViewModifier` host, an
-  async throwing action). `RealApp` (scheme `CoreFlowRealApp`) consumes the
-  composed screen with a plain import and live wrappers, and owns the live
-  side of the capability — a `ViewModifier` injector reading the real
-  `modelContext`; `TestApp` (scheme
-  `CoreFlowTestApp`, one file) reaches the internal scenarios via
-  `@testable import`, selected via the `SCENARIO` env var
-  (`defaultScenario` when unset, so Cmd-R just works).
-  Every scenario hosts a CORE — often bare `Core()`, since the substituted
-  `@TestState` fields own and log their own state; the scenario adds only
-  what the host takes from callers (`@TestAction` closures, data
-  arguments, `@Binding` backings). The app installs the one sink on the
-  root view via `.testLog { … }`, appending `(name, value)` into
-  plain `@State` the moment it happens — at the write site, not via a
-  view-layer observer replaying history. That log is exposed on the
-  scenario `Group`'s own accessibility channels
-  (`.accessibilityElement(children: .contain)` + identifier `log`, names
-  JSON in `label`, values JSON in `value` — no phantom view, no opacity
-  tricks, and JSON survives any description content; XCUITest reads
-  `.label`/`.value`). Tests wait on their own UI finish signal —
-  `log.wait(for: \.label, toEqual:)` against the expected names JSON, which
-  doubles as the names assertion (names are fixed identifiers, raw-string
-  comparable) — then `XCTAssertEqual` on `app.logValues` decoded as
-  `[String]`. In-process assertion is deliberate — no recorded snapshot
-  file: the element carries the same data live, with no record/re-record
-  dance and no unstable-description poisoning of an all-or-nothing file
-  diff. Value-streaming scenarios (drag distances) stay
-  predicate-asserted.
+## Session contract
 
-Targets Swift 6.3 (`swift-tools-version: 6.3`); swift-syntax `600.0.0..<700.0.0`, whose
-APIs are stable across the whole Swift 6.x line. Swift 6 language mode (strict
-concurrency) throughout.
+### Package identity and supported toolchain
 
-## Package layout
+Consumer dependency:
+
+```swift
+.package(url: "https://github.com/sisoje/swift-core-flow.git", from: "1.0.0")
+.product(name: "CoreFlow", package: "swift-core-flow")
+```
+
+The `package:` argument is the URL-derived SwiftPM identity `swift-core-flow`,
+not the manifest's declared name `CoreFlow`. This exact pair was verified with a
+real scratch-package resolution; SwiftPM selected CoreFlow 1.0.2 and swift-syntax
+603.0.2. The old `package: "CoreFlow"` spelling fails with
+`unknown package 'CoreFlow'` and names `swift-core-flow` as valid.
+
+The package targets Swift 6.3 (`swift-tools-version: 6.3`) in Swift 6 language
+mode with strict concurrency. It supports swift-syntax
+`600.0.0..<700.0.0`; the APIs used here are stable across the Swift 6.x line.
+
+### Commands
+
+- Build and test: `swift build && swift test`
+- Format source and tests:
+  `swift format --in-place --recursive Sources Tests`
+- Regenerate the example app: `cd CoreFlowExample && sh generate.sh`
+- Verify the generated example and UI tests:
+  `cd CoreFlowExample && sh test.sh`
+
+### Documentation and verification rules
+
+- `CLAUDE.md` is self-sufficient agent context and maintainer specification. A
+  session reading only this file must know every rule, verified fact, and rejected
+  design required to change the package safely.
+- `README.md` is the public per-macro reference. Its introduction links the
+  SwiftUI Data Flow Masterclass published on Medium: nodes, waves, boundary
+  events, the shell/core split, and execution-log testing, taught macro-free as
+  a manual two-view split. The macros mechanize that same split—one conceptual
+  story with different vehicles.
+- `CoreFlowExample/SPEC.md` is the source specification for the example app; its
+  Swift sources regenerate from that document.
+- Documentation states facts and current decisions, not removal chronology.
+  Compress without losing qualifications; keep references at the bottom; do not
+  name an API before its chapter introduces it.
+- Macro-expansion snapshots prove emitted syntax only. Claims about type
+  checking, overload resolution, synthesized initialization, isolation, runtime
+  behavior, or SDK interfaces require real compilation or execution against the
+  package and pinned toolchain.
+- Expansion tests are whitespace-sensitive. When generated output changes,
+  compare the displayed code and `assertMacroExpansion` expectation with the
+  actual expansion rather than hand-correcting plausible syntax.
+- Every intermediate documentation commit must leave this file fact-complete.
+  Move a fact by deleting its old text and adding its new home in the same
+  commit. Duplication is temporarily acceptable; an information gap is not.
+
+## Repository map
+
+### Package targets
 
 | Target | Kind | Contents |
 |---|---|---|
@@ -77,39 +71,105 @@ concurrency) throughout.
 | `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction`, `testLog`, `TestLog` — `TestFocusState.swift`, and `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `TaskStorage`/`CancellableTask`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes) |
 | `CoreFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus real-compiled end-to-end suites (TuplePicker, Reflector, Shell's `Core`, `QueryCore`, the test-support macros) |
 
-Adding a new macro: one new file in `CoreFlowMacros` for the implementation
-(`Foo­Macro: MemberMacro`/`ExpressionMacro`), add it to `Plugin.swift`'s
-`providingMacros`, one new file in `CoreFlow` for the public
-`@attached`/`@freestanding` declaration pointing `#externalMacro(module:
-"CoreFlowMacros", type: "FooMacro")`, and a new `XCTestCase`/`@Suite` in
-`CoreFlowTests`. No new Package.swift targets or products. If the macro generates something from a type's
-stored properties (like `@Flowable` does), build it on `StoredProperty.swift`'s
-collection (`validatedProperties` in `MemberMacroEntry.swift`) and
-`FlowableRendering.swift`'s functions rather than re-deriving them —
-everything being one module is exactly what makes that free (no cross-target
-`public`, no extra target wiring).
+Per-macro target/product sets were considered and rejected. Their ceremony is
+not worth dependency granularity no consumer needs. Adding a macro means adding
+files and registrations inside the existing target pair, not adding products or
+targets.
 
-`StoredProperty` carries two separate channels, deliberately never mixed:
-the parsed fields (`name`, `type`, `defaultValue`, `wrapperName`, `isLet`,
-`isPrivate`) are `@Flowable`'s init/typealias channel and the substituted
-rows'; the raw nodes (`varDecl`, `binding`) are `@Shell`'s verbatim-copy
-channel — copies re-render the host's own syntax and never reassemble a
-declaration from parsed pieces.
+### Shared implementation and adding a macro
 
-Two macro-boundary decisions worth knowing if you're extending it further:
+To add `Foo`:
 
-- **Everything a `@Flowable` type gets comes from the one attribute** — there
-  is deliberately no separate macro for the flow members, and no init
-  taking the whole tuple as a single parameter (`makeFlow(_:)` is a static
-  factory, deliberately not an init overload). If a future macro wants a
-  tuple-parameter init, `renderMakeFlowFactory` in
-  `FlowableRendering.swift` already has the tuple-vs-bare-type collapse logic
-  to build on.
-- **A macro that combines what two existing macros generate should collect
-  stored properties ONCE and call each renderer directly** — not be spelled as
-  "stack the two existing attribute macros" on the same type. Stacking works
-  when the generated member sets don't collide, but it collects (and
-  diagnoses) the same properties once per stacked macro.
+1. Add `FooMacro.swift` to `CoreFlowMacros` with the appropriate macro role.
+2. Register the implementation in `Plugin.swift`'s `providingMacros`.
+3. Add `Foo.swift` to `CoreFlow` with the public `@attached` or `@freestanding`
+   declaration pointing to
+   `#externalMacro(module: "CoreFlowMacros", type: "FooMacro")`.
+4. Add expansion, diagnostic, and real-compiled tests as the feature requires.
+
+Macros derived from stored properties must use `validatedProperties` in
+`MemberMacroEntry.swift`, the `StoredProperty` model, and the shared renderers
+rather than re-deriving collection rules. `@Flowable` owns
+`FlowableRendering.swift`; `@Shell` reuses that collection through
+`ShellRendering.swift`.
+
+`StoredProperty` deliberately carries two channels:
+
+- parsed fields—`name`, `type`, `defaultValue`, `wrapperName`, `isLet`, and
+  `isPrivate`—for `@Flowable` initialization/typealias rendering and `@Shell`'s
+  substituted rows;
+- raw `varDecl` and `binding` syntax for `@Shell`'s verbatim-copy path.
+
+Never rebuild a verbatim declaration from parsed pieces. Copies re-render the
+host's syntax so attribute arguments, defaults, observers, and unknown wrapper
+spellings survive unchanged.
+
+Everything generated for a `@Flowable` type comes from its one attribute. There
+is deliberately no second macro for `makeFlow(_:)`/`InFlow`, and no initializer
+taking the whole tuple; `makeFlow(_:)` is a static factory. A future tuple-input
+feature should build on `renderMakeFlowFactory`, which already owns
+tuple-versus-bare-type collapse.
+
+A macro combining outputs from existing macros must collect stored properties
+once and call the shared renderers directly. Do not implement a composite macro
+by stacking existing attributes: stacking works only while generated member sets
+do not collide, and it repeats collection and diagnostics for the same fields.
+
+### Example app and generated-source workflow
+
+`CoreFlowExample` is an xcodegen project whose checked-in source-of-truth files
+are exactly `project.yml`, `test.sh`, `generate.sh`, and `SPEC.md` (plus repository
+metadata such as `.gitignore`). Generated Swift sources and the Xcode project may
+also be present in the working directory. Swift sources are collapsed into
+`SPEC.md` and regenerated with `sh generate.sh`; keep `project.yml`, `test.sh`,
+and `generate.sh` verbatim as part of the specification. Run `sh test.sh` after
+every regeneration.
+
+`CoreFlowExampleUI` is a real SPM library containing every component, one source
+file per host/scenario/`#Preview` after generation:
+
+- reading-list components use internal `@Shell` hosts with SwiftData `@Query`
+  and `@AppStorage`;
+- the public `@Flowable @Shell ReadingListScreen` composes them and is the app's
+  single entry point;
+- `BookStore` is a closure capability behind a public `@Entry`, mocked by
+  construction and wrapped in an always-equal `Equatable` value;
+- five internal components exercise plain `@GestureState`, custom
+  `@GestureState(reset:)`, `@FocusState`, a `ViewModifier` host, and an async
+  throwing action.
+
+`RealApp` (`CoreFlowRealApp`) imports the library normally, uses live wrappers,
+and injects the live `BookStore` through a `ViewModifier` that reads the real
+`modelContext`. `TestApp` (`CoreFlowTestApp`) uses `@testable import` to reach
+internal scenarios. The `SCENARIO` environment variable selects one;
+`defaultScenario` is used when it is absent so Cmd-R works.
+
+Every scenario hosts a `Core`, often bare `Core()`: substituted `@TestState`
+fields own and log their state. A scenario supplies only caller-owned boundaries:
+`@TestAction` closures, data arguments, and genuine `@Binding` backings. The app
+installs one sink on the root view with `.testLog { … }` and appends each
+`(name, value)` to plain `@State` at the write site.
+
+The scenario `Group` exposes the log through accessibility without a phantom
+view or opacity trick:
+
+- `.accessibilityElement(children: .contain)`;
+- identifier `log`;
+- names JSON in `label`;
+- values JSON in `value`.
+
+JSON preserves arbitrary description content. Each XCUITest waits for its own
+finish signal with `log.wait(for: \.label, toEqual:)`; because names are fixed
+identifiers and raw-string comparable, that equality is also the names
+assertion. It then decodes `app.logValues` as `[String]` and compares the values.
+This is intentionally an in-process live assertion, not a recorded snapshot
+file: there is no record/re-record cycle and one unstable description cannot
+poison a file-wide diff. Streaming values such as drag distances remain
+predicate-asserted.
+
+`test.sh` passes `-collect-test-diagnostics never`. Simulator diagnostic
+collection timed out once at exactly 600 seconds on the Xcode beta; disabling
+that post-test collection makes the run deterministic without changing the test.
 
 ## @Flowable — tricky points
 
