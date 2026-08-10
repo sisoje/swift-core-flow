@@ -19,10 +19,10 @@ substitute the dependencies it reads, or reuse its `body` through a conformance.
 
 ## The answer
 
-CoreFlow takes the opposite route. Instead of making you restructure your code
-to fit the tests, it makes the tests reach the code where you actually wrote
-it. SwiftUI won't let the real code run, so CoreFlow generates a runnable twin
-instead. Keep your view exactly as it is and get a seam.
+CoreFlow takes the opposite route: instead of restructuring your code to fit
+the tests, it makes the tests reach the code where you wrote it. SwiftUI cannot
+run that code in isolation, so CoreFlow generates a runnable twin. Keep the
+production view exactly as it is; the twin is the seam.
 
 The model behind this: state lives in a source of truth, and a source of truth
 lives in a node of the view tree. A view, a view modifier, the App, the Scene.

@@ -1,0 +1,174 @@
+# Documentation improvement plan
+
+## Objective
+
+Improve `README.md` and `CLAUDE.md` without replacing their argument, voice, or
+technical density. Edits should be surgical: clarify, compress, and connect the
+existing material rather than inventing a new narrative.
+
+The authorial and conceptual baseline is:
+
+- `../article-dataflow/DataFlowMasterclass.md`
+- `../article-dataflow/proposals/TheOtherTDD-draft.md`
+
+The intended voice is provocative first, mechanically rigorous second. Do not
+soften a deliberate thesis merely to make the prose sound neutral.
+
+## Working method
+
+1. Work on one paragraph, sample, or tightly related group at a time.
+2. Propose the exact change before editing when it involves tone or argument.
+3. Preserve every technical claim unless its removal is explicitly approved.
+4. Apply the approved edit and show its focused diff.
+5. Amend one local commit through the approved checkpoints within a phase, then
+   finish that phase as its own commit. Never amend a commit after it is pushed.
+6. Do not edit source code while performing this plan.
+
+## Editing criteria
+
+For every change:
+
+- preserve the provocative voice;
+- shorten without losing information;
+- remove repetition, filler, and unnecessary qualification;
+- prefer precise mechanisms over generic architectural language;
+- keep transitions causal so each section follows from the previous one;
+- make code and prose demonstrate the same claim;
+- use the established vocabulary consistently;
+- challenge a weak assumption by making it rigorous, not by quietly changing
+  the thesis;
+- avoid large structural rewrites until the local prose is settled.
+
+Established vocabulary includes **node**, **network**, **transformation**,
+**wave**, **source of truth**, **self-loop**, **boundary event**, **machinery**,
+**host**, **twin**, **shell**, **core**, **scenario**, and **execution log**.
+
+## Phase 1: README opening
+
+### Completed: `Why`
+
+- Restored the two-punch thesis: a SwiftUI view is not UI; its `body` never
+  draws anything.
+- Clarified that `body` computes the actions attached to the description too.
+- Compressed the ViewModel argument without softening it.
+- Replaced vague mocking language with the concrete inability to substitute
+  dependencies.
+- Kept the three runtime constraints: tests cannot run the logic directly,
+  substitute dependencies, or reuse `body` through a conformance.
+- Removed the hedge "not necessarily."
+
+Current local commit: `74d2a38 Tighten README introduction`.
+
+### Next: `The answer`
+
+Review its three paragraphs separately:
+
+1. Tighten the runnable-twin answer and connect it directly to the runtime
+   constraints established in `Why`.
+2. Preserve the node/source-of-truth model while removing repeated setup.
+3. State the adoption boundary and `ObservableObject` consequence with the
+   same confidence and vocabulary as the articles.
+
+Stop for review after each paragraph. Phase 1 is complete only when the whole
+opening reads as one argument: misconception, runtime constraint, generated
+seam, data-flow model, adoption boundary.
+
+## Phase 2: README structure and navigation
+
+Review headings and section order without rewriting their contents first.
+
+- Check whether `What`, `What's inside`, and `Shell` form a clean progression.
+- Decide whether `# What` is a deliberate top-level part divider or should be
+  normalized to `## What` under the document's single `# CoreFlow` title.
+- Keep the feature table as the quick API index.
+- Move material only when it clearly interrupts the main explanation.
+- Prefer links to repeated explanations.
+- Keep advanced compiler constraints available, but decide whether each belongs
+  in the main path or a limitations subsection.
+
+Approve the revised skeleton before moving any section.
+
+## Phase 3: README compression and continuity
+
+Proceed one feature section at a time, beginning with `Shell`.
+
+- Merge paragraphs that defend the same design decision.
+- State a rule once, then link back to it.
+- Remove experimental chronology when only the resulting constraint matters to
+  a user.
+- Retain honest limitations and exact compiler consequences.
+- Improve transitions so the reference still reads as one continuous argument.
+- Target roughly a 10% reduction across the README, but never cut to meet a
+  quota.
+
+Review and approve each feature section before continuing.
+
+## Phase 4: README code and prose
+
+Audit every code sample after its surrounding prose is stable.
+
+- Give each sample one primary claim.
+- Remove fields and comments that do not prove that claim.
+- Keep examples minimal and idiomatic.
+- Probe-compile every touched sample against the real package and macro
+  expansion; plausible syntax is not sufficient.
+- Ensure names match the terminology used in the paragraph.
+- Put the consequence immediately after the line that demonstrates it.
+- Reuse an existing example only when doing so reduces explanation; do not force
+  one example through unrelated APIs.
+
+## Phase 5: README conclusion
+
+Add or sharpen the closing takeaway only after the reference body is settled.
+It should restate the consequence, not summarize every feature:
+
+- behavior stays where it was written;
+- runtime boundaries become observable or injectable;
+- tests read boundary evidence rather than execute effects;
+- adoption can proceed one node at a time.
+
+Keep the conclusion short and provocative.
+
+## Phase 6: CLAUDE.md agent and maintainer pass
+
+Treat `CLAUDE.md` as both agent context and a maintainer specification, not a
+second public article. It must remain self-sufficient: a session reading only
+`CLAUDE.md` must know every rule, verified fact, and rejected design needed to
+work safely in the repository.
+
+1. Put package invariants and build commands first.
+2. Separate normative rules from implementation mechanisms.
+3. Separate both from verified compiler limitations and rejected designs.
+4. Consolidate rules shared by the logged-property macro family.
+5. Convert repeated wrapper behavior into a precise mapping table where that is
+   clearer than prose.
+6. Preserve experimental evidence that prevents maintainers from repeating dead
+   ends, but move it out of the operational path.
+7. Compress duplication internally, but never delete required context into the
+   README or make `CLAUDE.md` depend on another document for a rule, verified
+   fact, or dead end.
+
+Propose the new `CLAUDE.md` skeleton before moving any content.
+
+## Phase 7: consistency audit
+
+After both documents are stable, audit `README.md`, `CLAUDE.md`, and
+`CoreFlowExample/SPEC.md` together:
+
+- unify terminology, heading style, punctuation, and identifier formatting;
+- check every internal anchor and external link;
+- compare public claims in the README with maintainer invariants in
+  `CLAUDE.md`;
+- check scenario names, wrapper mappings, vocabulary, and "verified live"
+  claims against `CoreFlowExample/SPEC.md`;
+- check code/prose agreement;
+- remove remaining duplicated conclusions and filler transitions;
+- review the final diff for accidental tone changes or lost qualifications.
+
+## Completion rule
+
+The work is complete when the documents are easier to navigate, all retained
+technical claims are at least as precise as before, the README still sounds
+like the articles, `CLAUDE.md` remains self-sufficient and is faster for an
+agent or maintainer to consult, and `CoreFlowExample/SPEC.md` agrees with both.
+No phase proceeds through an unapproved change in thesis or voice.
