@@ -63,7 +63,7 @@ is the per-macro reference.
 
 | Concept | Form | Does |
 |---|---|---|
-| [`@Shell`](#shell) | member macro | generates a nested `Core` struct — the host's standalone twin: same body, every data boundary observable, directly constructible in tests (previews reach it through a hand-written wrapper view — `#Preview`'s own expansion can't name macro-generated code) |
+| [`@Shell`](#shell) | member macro | generates a nested `Core` struct — the host's standalone twin: same body, owned writes logged and external boundaries supplied, directly constructible in tests (previews reach it through a hand-written wrapper view — `#Preview`'s own expansion can't name macro-generated code) |
 | [`@Flowable`](#flowable) | member macro | writes a memberwise `init` at the type's own access level, plus a `makeFlow(_:)` factory taking the same properties as one unlabeled tuple and an `InFlow` typealias naming their labeled shape |
 | [`@TestState`](#teststate-and-testaction) | accessor + peer macro | a drop-in `@State` that logs every mutation — each write reaches the injected sink the moment it happens, binding writes included |
 | [`@TestAction`](#teststate-and-testaction) | accessor + peer macro | an action closure that logs every call — reading the property IS the logged action; each call logs its payload to the injected sink, then forwards |
@@ -140,10 +140,10 @@ struct CardScenario: View {
 
 Three terms keep fixed meanings throughout: the **host** (`Card`) is the
 production shell; **`Core`** is its generated twin; a **scenario**
-(`CardScenario`) is the hand-written stage presenting `Core` with mocks for a
-preview or UI test. **A UI test driving a scenario is not an end-to-end test
-wearing a costume: it tests the actual unit — `Core` — by evidence, with no side
-effects beyond the component's boundaries.** Inside those boundaries, taps,
+(`CardScenario`) is the hand-written stage supplying `Core`'s test boundaries
+for a preview or UI test. **A UI test driving a scenario is not an end-to-end
+test wearing a costume: it tests the actual unit — `Core` — by evidence, with
+no side effects beyond the component's boundaries.** Inside those boundaries, taps,
 focus, gestures, and owned state are real; at them, every boundary event —
 instrumented state writes and action calls — enters the log instead of crossing
 into an effect. The example app follows this model: its `SCENARIO` launch
@@ -894,7 +894,7 @@ flowchart TD
     props(["stored properties<br/>collected once"])
     props --> init["init<br/>the actual reason @Flowable exists —<br/>Swift won't synthesize a public one"]
     props --> flow["makeFlow(_:) / InFlow<br/>free once properties are collected —<br/>tuple construction and Mirror support,<br/>not proven demand yet"]
-    props --> node["Core (@Shell)<br/>earns its keep: construct directly<br/>with mocks, assert, host live —<br/>a real type: View / ViewModifier,<br/>Equatable, Codable, ..."]
+    props --> node["Core (@Shell)<br/>earns its keep: construct directly<br/>with supplied boundaries, assert, host live —<br/>a real type: View / ViewModifier,<br/>Equatable, Codable, ..."]
 ```
 
 - **`init`** — not optional, not speculative: it's the specific gap `@Flowable`

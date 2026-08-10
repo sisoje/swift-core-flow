@@ -64,7 +64,7 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 4 — README code and prose:** completed.
 - **Phase 5 — README conclusion:** completed.
 - **Phase 6 — CLAUDE.md agent and maintainer pass:** completed.
-- **Next checkpoint:** begin Phase 7's README/CLAUDE/SPEC consistency audit.
+- **Phase 7 — README/CLAUDE/SPEC consistency audit:** completed.
 
 ## Phase 1: README opening — completed
 
@@ -712,22 +712,65 @@ Next checkpoint:
 
 Propose the new `CLAUDE.md` skeleton before moving any content.
 
-## Phase 7: consistency audit
+## Phase 7: consistency audit — completed locally
 
-After both documents are stable, audit `README.md`, `CLAUDE.md`, and
-`CoreFlowExample/SPEC.md` together:
+Baseline: Phase 6 closed in existing commit `3b7994f`.
 
-- unify terminology, heading style, punctuation, and identifier formatting;
-- check every internal anchor and external link;
-- compare public claims in the README with maintainer invariants in
-  `CLAUDE.md`;
-- check scenario names, wrapper mappings, vocabulary, and "verified live"
-  claims against `CoreFlowExample/SPEC.md`;
-- check code/prose agreement;
-- remove remaining duplicated conclusions and filler transitions;
-- review the two out-of-scope “with mocks” occurrences for established
-  test-boundary vocabulary without changing the diagrams already approved;
-- review the final diff for accidental tone changes or lost qualifications.
+Mechanical audit:
+
+- Compared all scenario identifiers in the documents with the generated
+  example. The nine `SCENARIO` cases match the nine generated scenario types;
+  the inventory includes `DragCardScenario`, referenced by CLAUDE.md's Shell
+  preview rule as well as SPEC's DragCard section.
+- Compared the complete Shell transformation in README and CLAUDE.md: mapped
+  wrappers, the `@AccessibilityFocusState` refusal, deliberately unmapped
+  object wrappers, qualified-wrapper fallback, member access, zero-field Core,
+  and internal visibility agree.
+- Checked all 32 README internal links against generated heading anchors; none
+  are missing. CLAUDE.md and SPEC contain no internal-anchor links. External
+  reference URLs remain unchanged; the directly retrievable article/reference
+  pages resolve, while Medium's masterclass, YouTube, and the `.git` GitHub URL
+  could not be fetched by the link checker and were not rewritten on that
+  inconclusive result.
+- Compared package identity in all three contexts. README and CLAUDE.md
+  correctly use the remote URL-derived identity `swift-core-flow`; SPEC
+  deliberately uses the explicit local-path dependency name `CoreFlow`.
+- Compared verified-live modality. Hosted behavior remains owned by generated
+  example scenarios/UI tests; package tests and the two recorded one-off probes
+  are not promoted to live verification.
+- Inspected SPEC structure and generated scenario names without changing SPEC.
+  Regeneration was therefore not run: it is required when SPEC changes, not as
+  a substitute for structural inspection.
+
+Judgment audit and edits:
+
+- Replaced the API table's broad “every data boundary observable” claim with
+  the actual mechanism: owned writes are logged and external boundaries are
+  supplied.
+- Replaced the two remaining README “with mocks” shorthands with the established
+  **test boundary** vocabulary: a scenario supplies Core's test boundaries, and
+  the diagram constructs Core with supplied boundaries.
+- Left native SwiftUI mocking terminology intact for `@Environment`, bindings,
+  and the impossibility of mocking `FocusState<T>.Binding`; those occurrences
+  describe the wrapper's real mechanism rather than classifying every Core
+  input as a mock.
+- Touched no code sample, compiler-output block, diagnostic, or SPEC claim.
+  No probe-compile obligation was created.
+- Applied the Phase-1 voice bar to every README edit. The changes replace
+  overstatement with visible mechanism without weakening the polemic, hook, or
+  conclusion; no approved thesis was flattened for consistency.
+
+Verification:
+
+- `swift package dump-package` still reports the CoreFlow product, the three
+  expected targets, tools 6.3, Swift 6, declared platforms, and swift-syntax
+  `600.0.0..<700.0.0`.
+- Full `swift test` passed: 62 XCTest cases and 39 Swift Testing cases, zero
+  failures.
+- `git diff --check` and the internal-anchor audit passed.
+
+Phase 7 closed with README and plan committed together as one pair;
+`next-steps.md` stayed untracked and out of history.
 
 ## Completion rule
 
