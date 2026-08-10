@@ -64,8 +64,8 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 4 — README code and prose:** completed.
 - **Phase 5 — README conclusion:** completed.
 - **Phase 6 — CLAUDE.md agent and maintainer pass:** in progress.
-- **Next checkpoint:** restructure the independent APIs—`@Capability`, `#pick`,
-  and `Reflector`—without blurring their separate models or verified limits.
+- **Next checkpoint:** create the final verified-limitations and rejected-designs
+  sections, moving every interim block without a fact gap.
 
 ## Phase 1: README opening — completed
 
@@ -424,6 +424,7 @@ Phase 6 commit so far:
 - `0cf7c8a Restructure CLAUDE.md session contract and repository map`
 - `2381241 Consolidate invariants and restructure Flowable`
 - `45426ea Rebuild Shell contract and relocate QueryCore`
+- `e6eae64 Consolidate logged-property family`
 
 Completed checkpoint 2:
 
@@ -519,11 +520,51 @@ Completed checkpoint 4:
   the combined filter also covered `TestSupportSyntaxTests`, `TaskStorageTests`,
   `UnstructuredTaskTests`, and `ShellSyntaxTests`. `git diff --check` passed.
 
+Completed checkpoint 5:
+
+- Rebuilt the three independent APIs as separate contracts: Capability's
+  computed-member bundle, pick's expression/overload model, and Reflector's
+  runtime implementation remain explicitly unrelated mechanisms.
+- Restructured `@Capability` around collection, shapes, evaluation semantics,
+  Sendability, and generic limits. Direct source inspection confirmed declaration-
+  order construction: `collectCapabilityMembers` appends while walking
+  `decl.memberBlock.members`, and the renderer maps that array unchanged.
+- Added the Phase-4 runtime consequence without importing the README sample: a
+  cached capability's `doubled` stayed `0` after mutation, while a fresh
+  capability returned `2`; computed properties snapshot, method closures remain
+  connected.
+- Preserved the exact mutating-method and unconditional-`@Sendable` compiler
+  errors, one/zero shape rules, extension rationale, and generic-method boundary.
+  Source discovery confirmed one real `CapabilityTests` XCTest class owns both
+  expansion and compiled coverage; no `CapabilityMacroTests` suite exists.
+- Rebuilt `#pick` around overload identity, positional static results, rename
+  syntax, one-time source binding, written order, tuple KeyPaths, nesting, and
+  exact duplicate-label/Fix-It examples. Kept same-overload failure and
+  different-arity success distinct.
+- Mirrored the README's Reflector safety correction: current Mirror behavior and
+  direct probes support label-only reflection for tested value shapes, but the
+  function still reflects uninitialized storage and is an implementation-
+  dependent runtime technique—not a general Swift memory-safety guarantee.
+  Preserved the top-level class trap, exonerated-field observations, value-type
+  guard, Flowable relationship, and access-control consequence.
+- Focused selection passed 9 XCTest cases in `CapabilityTests` and 30 Swift
+  Testing cases. The regex also selected one unrelated
+  `TestSupportEndToEndTests` case through the `EndToEndTests` substring, leaving
+  29 relevant Swift Testing cases across `PickMacroTests`, `EndToEndTests`, and
+  `ReflectorTests`. All passed; `git diff --check` passed.
+- The review audit source-verified the two new claims (`collectCapabilityMembers`
+  walks `decl.memberBlock.members` in order; the duplicate-label diagnostic and
+  Fix-It text match `KeyPathPick.swift` and `PickMacroTests` exactly) and
+  restored the "verified directly, both ways" marker the Sendability paragraph
+  had dropped. Accepted loss: Reflector's redundant no-paired-macro-file note —
+  the repository map owns the one-file-per-macro pattern.
+
 Next checkpoint:
 
-- Restructure the independent APIs: `@Capability`, `#pick`, and `Reflector`.
-  Preserve each API's separate model, compiler-verified limits, exact diagnostics,
-  expansion/runtime test pointers, and the queued Reflector safety correction.
+- Create the top-level verified-limitations and rejected-designs sections. Move
+  every interim Shell and logged-family block in the same commit, preserve each
+  API-local consequence and pointer, and keep the logged-family `@MainActor`
+  suite requirement visible.
 
 1. Put package invariants and build commands first.
 2. Separate normative rules from implementation mechanisms.

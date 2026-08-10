@@ -973,125 +973,169 @@ own line, private required via `sourceOfTruthMustBePrivate`).
   `FocusState<T>.Binding` on both). Live focus movement and logging are
   the example app's story.
 
-## @Capability — tricky points
+## `@Capability`
 
-`member` macro that bundles every eligible *computed* property/method into a
-`Capability` typealias + `capability` computed property — Scott Wlaschin's
-capability-based design ("Designing with capabilities", fsharpforfunandprofit.com/cap):
-hand a consumer exactly the functions it may call, as plain values, not the
-whole object. Entry point + collection +
-rendering all live in `Sources/CoreFlowMacros/CapabilityMacro.swift` — doesn't
-share `StoredProperty.swift`'s model at all (that's for *stored* properties; this
-macro is deliberately about the opposite thing, and mixes properties with methods,
-which `StoredProperty` has no concept of).
+### Contract and generated surface
 
-- **Works on an extension, unlike `@Flowable` — and that's not an oversight on
-  its part.** `@Flowable` collects *stored* properties, and extensions can
-  never declare those, so there's nothing it could ever find there. `@Capability`
-  collects *computed* members, which extensions declare freely — so it's useful on
-  an extension specifically, and works identically attached directly to the
-  struct/class/actor itself.
-- **Collects:** computed properties (`var x: Int { ... }` — needs an explicit type,
-  same syntax-only reasoning as the other macros) and instance methods (their
-  closure type is built from parameter types with labels dropped, `async`/`throws`
-  effects, and return type, defaulting to `Void`).
-- **Skipped:** `private`/`fileprivate`, `static`/`class`, stored properties
-  (including willSet/didSet-only ones), initializers, subscripts, and `mutating`
-  methods — Swift can't form a plain closure reference to a mutating method on a
-  value type (`error: cannot reference 'mutating' method as function value`,
-  verified directly), so including one would generate code that doesn't compile.
-- **One eligible member collapses `Capability` to its bare type/value**, same
-  1-tuple collapse `@Flowable`'s `InFlow` typealias does. **Zero** is a
-  diagnostic, not an empty tuple — there's no sensible "empty capability."
-- **Deliberately no `@Sendable`** on the generated closure fields. Verified directly
-  both ways: marking them unconditionally makes the generated code fail to compile
-  for any type capturing something non-Sendable (`error: converting non-Sendable
-  function value to '@Sendable () -> Void' may introduce data races`), while
-  omitting it still compiles fine *and* still permits genuine cross-actor/`Task`
-  usage — Swift 6's region-based Sendable checking runs at the point the tuple
-  literal is built, independent of the field's declared type.
-- **Generic methods work** as long as the tuple field type doesn't leak the bare
-  generic parameter name (contextual inference specializes the reference) — not
-  specially handled, just documented; a method whose signature's own text would
-  require the placeholder to resolve outside its generic scope is a known,
-  unguarded limitation.
+This `member` macro generates a `Capability` typealias and a computed
+`capability` property containing exactly the operations a consumer may use, not
+the whole source object—Scott Wlaschin's capability-based design ("Designing
+with capabilities", fsharpforfunandprofit.com/cap). Entry, collection, and
+rendering all live in `Sources/CoreFlowMacros/CapabilityMacro.swift`.
 
-## #pick (TuplePicker) — tricky points
+Capability does not use `StoredProperty`: it collects computed properties and
+methods, while that shared model describes stored declarations. This difference
+also explains why Capability works on an extension as well as a struct, class,
+or actor; extensions may declare computed members but never stored properties,
+so the same attachment would give Flowable nothing to collect.
 
-`expression` macro: `#pick(from: value, \.a, \.b)`. One implementation (`PickMacro`)
-behind three arity-generic overloads (one/two/three `from:` sources), all reading the
-same flat, `from:`-labeled argument list. Impl:
-`Sources/CoreFlowMacros/PickMacro.swift`, `KeyPathPick.swift`.
+### Eligible members
 
-- **Labels are cosmetic, not static.** The declared return type is a parameter pack
-  (`repeat each V1`, concatenated per source), which can't carry per-element labels —
-  so a multi-pick result is accessed by index (`.0`, `.1`), not by field name, even
-  though the expansion body builds a labeled tuple internally.
-- **Renaming a single field needs a real expression, not an argument label.**
-  `#pick(from: store, total: \.limit)` cannot work — argument-label matching happens
-  against the *declared* parameter list, and a pack parameter is one parameter however
-  many arguments it expands to. The `=>` operator (`\.limit => "total"`) is a real
-  expression of the same `KeyPath` type, so it type-checks normally; `#pick` reads its
-  syntax at expansion time and never evaluates it.
-- **`from:` is different from `total:` above** — it's a real, predeclared parameter
-  label repeated once per source in the signature, marking the boundary *between* two
-  separate pack parameters. That's a legal, verified pattern; an arbitrary caller-chosen
-  label on one pack element is not.
-- **A value repeated across `from:` groups is bound once**, in order of first
-  appearance (`__v0`, `__v1`, …), not re-evaluated per group.
-- **Works on bare tuple values**, not just structs/classes — tuple `KeyPath`s are live
-  on this toolchain. If targeting an older Swift toolchain, verify this holds there
-  first (see the TuplePicker section of the README).
-- **Can't nest two `#pick` calls that resolve to the *same* declared overload** as one
-  expression (`error: recursive expansion of macro 'pick(from:_:)'`) — split into two
-  statements instead. Nesting across *different* arities (one-source result feeding a
-  two-source call) does work; the recursion guard keys on the resolved overload, not
-  the shared implementation type or the spelled macro name.
-- **Duplicate output labels are a compile error** with a Fix-It suggesting a rename.
+| Declaration | Result |
+|---|---|
+| computed property with explicit result type | value of that type |
+| instance method | closure with labels removed, effects retained, omitted return becoming `Void` |
+| `private`/`fileprivate`, `static`/`class` | skipped |
+| stored property, including observer-only storage | skipped |
+| initializer or subscript | skipped |
+| `mutating` method | skipped |
 
-## Reflector — tricky points
+Computed properties need explicit types because the macro sees syntax, not type
+information. Mutating methods are excluded because Swift cannot form the needed
+closure reference: `error: cannot reference 'mutating' method as function
+value` (verified directly).
 
-`Sources/CoreFlow/Reflector.swift`. Not a macro — a plain runtime `enum` with one
-static generic function, `fieldNames<T>(of: T.Type) -> [String]`, kept in this
-package because it's a small, natural companion to `@Flowable`'s generated members
-rather than because it needs code generation of its own. No paired
-`CoreFlowMacros` file, no `@attached`/`@freestanding` declaration — it's ordinary
-Swift, so it doesn't follow the "one file per macro, two targets" pattern the rest of
-this doc describes.
+### Shape and evaluation rules
 
-- **Needs only a type, no instance**: `Reflector.fieldNames(of: Point.self)` works
-  off `Point.self` alone. It allocates one *uninitialized* `T` via
-  `UnsafeMutablePointer<T>.allocate(capacity: 1)` and reads `Mirror(reflecting:
-  p.pointee).children.compactMap(\.label)` — safe here specifically because it only
-  ever touches `.label`, never `.value`. `Mirror`'s labels come from `T`'s
-  compile-time field-descriptor metadata; a child's *value* is only lazily
-  materialized (and ARC-retained, for a class-typed field) if you actually access
-  `.value`, which this function never does.
-- **Requires a value type — enforced at runtime, not compile time**, via
-  `precondition(!(T.self is AnyClass), ...)`. Swift has no generic constraint for
-  "not a class" to enforce this statically, and a marker-protocol workaround
-  wouldn't help either since tuples can't conform to protocols at all — verified
-  directly that `View` has exactly the same gap (a `final class` conforms to `View`
-  and compiles fine; SwiftUI's "views are structs" is convention, not
-  compiler-enforced).
-- **The crash this guards against is about `T`'s own top-level kind, not its
-  fields** — verified directly, both ways. A bare class as `T`
-  (`Reflector.fieldNames(of: SomeClass.self)`) crashes with a null-pointer trap:
-  `Mirror` has to cast the top-level reflected value to `CustomReflectable` before
-  looking at any field, and that cast needs a valid reference, which uninitialized
-  memory read as a class reference isn't. A **struct** containing a class-typed (or
-  closure, or array) field is fine — same uninitialized-memory read, but `Mirror`
-  never needs to validate/retain that child to report its label.
-- **Pairs with `@Flowable`** by pointing it at `InFlow`:
-  `Reflector.fieldNames(of: Point.InFlow.self)` reports real field names
-  (`["x", "y"]`) because `InFlow` is labeled; the same call against an
-  unlabeled tuple type would report positional labels (`[".0", ".1"]`)
-  instead — `Mirror` has no real labels to find there (see `@Flowable`
-  above), so `InFlow` is the right shape for this use.
-- **A top-level `private`/`fileprivate` type still restricts its own generated
-  members' access to itself** — a `private struct Point` inside a test file means
-  `@Flowable`'s generated `InFlow` is `private` too, which is scoped to
-  `Point`'s own body/extensions, *not* file-wide like a top-level `private`
-  declaration is. Reaching `Point.InFlow` from elsewhere in the same file
-  needs `Point` to not be `private` (or the reference to live inside `Point`
-  itself/an extension of it).
+Multiple members form a labeled tuple; one collapses to its bare type/value
+because Swift has no one-tuples. Zero emits the package diagnostic—there is no
+useful empty capability. `collectCapabilityMembers` walks
+`decl.memberBlock.members`, appending eligible bindings and methods as visited;
+the renderer maps that array unchanged, so tuple fields and values follow source
+order.
+
+The getter evaluates computed properties when building the capability, while
+method closures remain connected to the source instance. Verified at runtime:
+after incrementing the source, a cached capability's `doubled` stayed `0`; a
+fresh `counter.capability.doubled` returned `2`. Re-read the property when current
+computed values matter.
+
+### Sendability
+
+Generated closure fields deliberately omit `@Sendable` — verified directly,
+both ways. Adding it unconditionally rejects non-Sendable captures: `error:
+converting non-Sendable function value to '@Sendable () -> Void' may introduce
+data races`. Omitting it
+still permits cross-task/actor use when Swift 6 region checking proves the tuple
+construction safe; that check happens where the capability value is built,
+independent of the field's declared closure type. This is not an unconditional
+Sendable guarantee.
+
+### Generic-method limit and verification
+
+Generic methods work when contextual inference specializes the reference
+without exposing a placeholder in the tuple field type. A signature whose
+emitted type text needs that placeholder outside its scope is an unguarded
+limitation, not specially diagnosed.
+
+`CapabilityTests` owns both expansion and compiled coverage, including
+extension attachment, effects, one/many/zero shapes, access, and diagnostics.
+
+## `#pick`
+
+### Contract and overload model
+
+`#pick(from: value, \.a, \.b)` is an expression macro. One `PickMacro`
+implementation backs arity-generic overloads for one, two, and three sources;
+each reads a flat argument list whose repeated, predeclared `from:` labels mark
+source-pack boundaries. Implementation lives in `PickMacro.swift` and
+`KeyPathPick.swift`.
+
+### Labels, renaming, and order
+
+The expansion constructs a labeled tuple in written order, but the parameter-
+pack return type cannot carry element labels. Callers therefore read a multi-
+pick result positionally (`.0`, `.1`), even though expansion output contains
+labels.
+
+An arbitrary argument label cannot rename one pack element: argument labels
+match declared parameters, and a pack is one parameter. The `=>` operator
+instead creates a real expression of the same KeyPath type; the macro reads its
+rename syntax without evaluating it. `from:` is different because it is part of
+the declared overload and separates source packs.
+
+Each distinct source expression is bound once as `__v0`, `__v1`, … in order of
+first appearance, even when reused across groups. Output fields follow the
+written pick order, not the source type's declaration order.
+
+### Toolchain and nesting limits
+
+Bare tuple sources work because tuple KeyPaths are live on the pinned toolchain;
+older Swift versions require verification. Tests also lock heterogeneous tuple
+paths, including the ordinary
+`WritableKeyPath<(a: Int, b: String), Int>` shape.
+
+Two nested calls resolving to the same declared overload fail with `error:
+recursive expansion of macro 'pick(from:_:)'`; split them into statements.
+Different-arity nesting works. The recursion guard keys on resolved-overload
+identity, not macro spelling or shared implementation type.
+
+### Diagnostics and verification
+
+Duplicate labels diagnose as `#pick: duplicate field label 'limit' — rename
+this pick` with Fix-It `rename to "limit2"` (the concrete label varies). Parser
+diagnostics also reject non-KeyPath picks and non-literal rename operands; keep
+their exact source-tested spelling in `PickMacroTests`.
+
+`PickMacroTests` owns expansion, ordering, renames, tuple sources, diagnostics,
+and Fix-Its. `EndToEndTests` owns compiled overload resolution, positional
+results, tuple KeyPaths, and nesting behavior.
+
+## `Reflector`
+
+### Contract and implementation
+
+`Reflector` is ordinary runtime Swift, not a macro. The enum in
+`Sources/CoreFlow/Reflector.swift` exposes one function,
+`public static func fieldNames<T>(of: T.Type) -> [String]`, because field-name
+reflection naturally complements Flowable's generated `InFlow`.
+
+The caller supplies only `T.self`. The function allocates one uninitialized
+`T`, reflects `p.pointee`, collects `children.compactMap(\.label)`, and
+deallocates the pointer without initializing or deinitializing its pointee.
+
+### Safety boundary
+
+Current Mirror behavior obtains field labels from metadata, and Reflector never
+requests a child's `.value`. This has been verified for value types containing
+class references, closures, and arrays. The function still reflects storage
+that was never initialized: treat it as an implementation-dependent runtime
+technique, not a general Swift memory-safety guarantee.
+
+The top-level value-type requirement is enforced at runtime with
+`precondition(!(T.self is AnyClass), ...)`. Swift has no generic “not a class”
+constraint, and a marker protocol cannot include tuples. The same language gap
+allows a final class to conform to `View`; “views are structs” is convention,
+not compiler enforcement.
+
+A top-level class traps because Mirror attempts a `CustomReflectable` cast using
+an invalid uninitialized reference. The guard concerns `T` itself, not its
+fields: structs containing class, closure, or array fields succeeded in direct
+verification under the implementation-dependent caveat above.
+
+### Flowable relationship and access
+
+`Reflector.fieldNames(of: Point.InFlow.self)` reports real names because
+`InFlow` is labeled. An unlabeled tuple reports positional labels (`.0`, `.1`)
+rather than failing; `InFlow` is the intended field-name target.
+
+A top-level private or fileprivate Flowable type restricts its generated
+members. In particular, `InFlow` on a private `Point` is accessible only inside
+Point or its extensions, not generally from elsewhere in the file. Same-file
+external access requires a non-private Point (or a reference inside Point/an
+extension).
+
+`ReflectorTests` owns runtime labels for structs, one-field values, labeled and
+unlabeled tuples, and Flowable integration. Direct source inspection owns the
+public signature; the top-level class and reference-containing-field behavior
+come from the recorded direct probes.
