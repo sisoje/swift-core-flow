@@ -1217,3 +1217,183 @@ Three alternatives were verified and rejected:
 
 Ruling: use a `var` source, explicit `State<T>` peer, and the current init-
 accessor design. All three observations were verified directly.
+
+## Verification map
+
+### Evidence levels
+
+Use the lowest layer that can prove a claim, but never substitute a lower layer
+for a higher one:
+
+1. Source inspection proves implementation shape only.
+2. Macro-expansion snapshots prove emitted syntax, whitespace, package
+   diagnostics, and Fix-Its.
+3. Real compilation proves type checking, overload resolution, synthesized
+   initialization, isolation, macro stacking, and generated-member usability.
+4. Runtime tests prove mutation, forwarding, cancellation, reflection, and
+   ordering outside SwiftUI installation.
+5. Hosted scenarios/UI tests prove DynamicProperty installation, environment
+   injection, focus, gestures, lifecycle, and real interaction.
+6. Binary, SDK, consumer-package, and compiler probes prove optimizer
+   elimination, interface parity, dependency identity, and toolchain limits.
+
+Plausible expansion is not compilation; compilation is not hosted SwiftUI
+behavior.
+
+### Claim-to-owner map
+
+| Claim | Required evidence | Current owner |
+|---|---|---|
+| emitted syntax/formatting | expansion snapshot | the macro's syntax/expansion suite |
+| diagnostic text, anchor, Fix-It | exact expansion diagnostic | the macro's syntax suite |
+| generated declarations compile | real compiled test | the API's end-to-end suite |
+| synthesized memberwise initialization | compiled probe/test | `FlowableTests`, `ShellTests`, `QueryCoreTests`, `TestSupportEndToEndTests` |
+| overload resolution and tuple KeyPaths | compiled end-to-end test | `EndToEndTests` |
+| wrapper SDK parity | pinned swiftinterface inspection plus compiled use | Shell/QueryCore evidence |
+| logging order, focus, environment installation | hosted scenario/UI test | generated example app |
+| binding write-through | compiled/runtime test | `ShellTests`, example UI tests |
+| task replacement and teardown | runtime test | `TaskStorageTests` |
+| reflection labels | runtime test | `ReflectorTests` |
+| package identity | scratch consumer resolution | recorded SwiftPM resolve probe—not a test suite |
+| release elimination | optimized binary inspection | recorded release probe—not a test suite |
+| compiler limitation/dead end | minimal direct probe and exact output | `Verified limitations` / `Rejected designs and dead ends` |
+| generated example correctness | regeneration plus UI test script | `CoreFlowExample/SPEC.md`, `generate.sh`, `test.sh` |
+
+Exact API owners:
+
+- `FlowableTests` owns Flowable expansion and compilation.
+- `ShellSyntaxTests` owns Shell expansion/diagnostics; `ShellTests` owns compiled
+  Core behavior; `QueryCoreTests` owns query parity and initialization.
+- `TestSupportSyntaxTests` owns TestState/TestAction/TestFocus expansion;
+  `TestSupportEndToEndTests` owns compiled seed/binding behavior;
+  `UnstructuredTaskTests` owns task-macro and Shell re-expansion;
+  `TaskStorageTests` owns cancellation lifecycle.
+- The single XCTest class `CapabilityTests` owns Capability expansion and
+  compilation; there is no `CapabilityMacroTests`.
+- `PickMacroTests` owns pick expansion, diagnostics, and Fix-Its;
+  `EndToEndTests` owns compiled overloads, nesting, and tuple KeyPaths.
+- `ReflectorTests` owns reflection runtime behavior.
+
+XCTest and Swift Testing coexist in `CoreFlowTests`. Filters match substrings;
+report raw and relevant counts when a filter selects extra suites.
+
+### Expansion and diagnostic comparison
+
+1. Run the focused expansion test.
+2. Copy actual expansion output; never reconstruct it by intuition.
+3. Compare whitespace, access modifiers, and generated member order exactly.
+4. Compare complete normalized diagnostics, including `error:` when the recorded
+   form includes it.
+5. Record deliberate normalization such as location, severity, or identifier
+   omission.
+6. Verify diagnostic line/column anchors at the relevant property or attribute.
+7. Apply a Fix-It in a compiled probe when claiming that the fix compiles.
+8. Run the real compiled owner whenever expansion changes affect callable shape.
+
+Displayed generated-code blocks match locked expansions except for explicit
+normalization. Compiler-output fences are quoted evidence, not prose to tighten.
+
+### Example-app verification
+
+`CoreFlowExample/SPEC.md` is the source of truth. Preserve `project.yml`,
+`generate.sh`, and `test.sh` verbatim in it; never hand-edit generated Swift.
+
+1. Run `cd CoreFlowExample && sh generate.sh`.
+2. Inspect generated-source drift.
+3. Run `cd CoreFlowExample && sh test.sh`.
+4. Confirm RealApp uses live boundaries and TestApp uses `SCENARIO`-selected
+   scenarios with a working default.
+5. Confirm accessibility-log JSON and each scenario's finish signal.
+6. Preserve `-collect-test-diagnostics never` unless the verified 600-second
+   simulator collection failure is re-tested and resolved.
+
+Package unit tests alone do not justify “verified live.” If generation or UI
+tests cannot run, state that limitation.
+
+## Maintenance checklists
+
+### Change a stored-property macro
+
+Start with `Repository map` → `Shared implementation and adding a macro`; that
+section owns file, registration, and shared-renderer steps. Additional checks:
+
+1. Put the rule in shared collection, parsed rendering, or verbatim rendering at
+   the correct level.
+2. Use `validatedProperties`/`collectStoredProperties`; do not fork collection.
+3. Preserve raw `varDecl`/`binding` for verbatim paths.
+4. Diagnose before rendering; assertions remain developer tripwires.
+5. Update exact expansion/diagnostic tests and add real compilation for type or
+   initializer behavior.
+6. Run both Flowable and Shell owners when shared collection changes.
+7. Regenerate/test the example for wrapper or generated-View changes.
+
+### Change `@Shell`
+
+1. Classify the declaration with the five-row transformation table.
+2. Add a substitution only when it buys a log, injectable boundary, or bare
+   value while preserving copied-body read surface.
+3. Verify the live wrapper's SDK interface, ownership, initializer behavior,
+   projection parity, hosted behavior, and event-channel consequence.
+4. Preserve privacy diagnostics and `isPrivate` `(set)` behavior; unknown
+   wrappers stay verbatim.
+5. Test expansion, direct Core construction, synthesized initialization,
+   write-through, zero-field Core, and copied members including static members.
+6. Run hosted scenarios for focus, gestures, environment, or lifecycle changes.
+7. Read the limitations and rejected designs before reviving an old approach.
+
+### Change the logged-property family
+
+1. Specify stored/computed shape, init accessor, storage peer, log peer,
+   projection, access, and memberwise-init role.
+2. Use explicit `TestLog()` storage; never generated Environment wrapper sugar.
+3. Validate in accessor expansion and suppress duplicate peer errors.
+4. Define deterministic payload text and exact logging point; never snapshot-log
+   scheduler-owned getters or system focus movement.
+5. Preserve action capture avoidance, effects, and ordered await behavior.
+6. For tasks, verify replacement, self-assignment, and deinit cancellation.
+7. For focus, preserve native projection and owner-side instrumentation.
+8. Run syntax, compiled, lifecycle, Shell substitution, and hosted UI owners as
+   required; keep View-touching suites `@MainActor`.
+
+### Change an independent API
+
+- **Capability:** keep collection separate from `StoredProperty`; verify source
+  order, one/zero/many shape, effects, diagnostics, cached-versus-fresh values,
+  and both sides before adding Sendable constraints.
+- **Pick:** verify all source arities, expansion labels versus positional static
+  results, rename non-evaluation, one-time source binding, written order, tuple
+  KeyPaths, both nesting cases, diagnostics, and Fix-Its.
+- **Reflector:** preserve the value-type precondition; run struct, tuple, and
+  InFlow labels; any safety claim needs a direct probe and the implementation-
+  dependent non-guarantee.
+
+### Change a displayed expansion or diagnostic
+
+Follow `Expansion and diagnostic comparison` above. Probe-compile every touched
+Swift sample against the package; generated listings must match real expansion,
+and diagnostic fences must match recorded output with normalization stated.
+
+### Update the toolchain or dependencies
+
+1. Update manifest ranges intentionally; run `swift package dump-package` and
+   resolve the actual swift-syntax version.
+2. Recheck pinned swift-syntax APIs and SwiftUI/SwiftData swiftinterfaces.
+3. Re-run recorded limitations: generated-Environment crash, cross-expansion
+   visibility, tuple KeyPaths, coverage counters, `#sourceLocation`, Observable
+   nesting, and strict-concurrency isolation.
+4. Run full package and example-app tests.
+5. Change a limitation only when new evidence supersedes it; record both
+   toolchains.
+
+### Prepare a release
+
+1. Run `swift build` and full `swift test`.
+2. Regenerate and test `CoreFlowExample`.
+3. Re-run the recorded scratch-consumer resolution with
+   `.product(name: "CoreFlow", package: "swift-core-flow")`.
+4. Verify supported tools, tags/version instructions, and displayed dependency
+   snippets.
+5. Re-run optimized-binary inspection for unreachable internal Core: zero code,
+   metadata, and conformance record.
+6. Run README/CLAUDE/SPEC consistency checks.
+7. Confirm no temporary probes, generated drift, or review artifacts are tracked.

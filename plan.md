@@ -64,8 +64,8 @@ Established vocabulary includes **node**, **network**, **transformation**,
 - **Phase 4 — README code and prose:** completed.
 - **Phase 5 — README conclusion:** completed.
 - **Phase 6 — CLAUDE.md agent and maintainer pass:** in progress.
-- **Next checkpoint:** add the verification map and maintenance checklists using
-  real commands, sources, and test owners.
+- **Next checkpoint:** run the full old-versus-new self-sufficiency audit and
+  close Phase 6 only after every clause, path, command, and test owner checks out.
 
 ## Phase 1: README opening — completed
 
@@ -426,6 +426,7 @@ Phase 6 commit so far:
 - `45426ea Rebuild Shell contract and relocate QueryCore`
 - `e6eae64 Consolidate logged-property family`
 - `2f9d9a5 Restructure independent APIs and mirror Reflector safety`
+- `07a938c Create limitations and rejected-designs sections`
 
 Completed checkpoint 2:
 
@@ -589,11 +590,38 @@ Completed checkpoint 6:
   XCTest cases (`ShellSyntaxTests`, `TestSupportSyntaxTests`) and 7 Swift Testing
   cases (`ShellTests`, `TestSupportEndToEndTests`); `git diff --check` passed.
 
+Completed checkpoint 7:
+
+- Added an evidence hierarchy from source inspection through binary/toolchain
+  probes, with the governing rule that a lower evidence layer never substitutes
+  for the layer required by the claim.
+- Added a claim-to-owner map and exact API test-owner map. Discovery verified
+  every named suite and file; the map records the two known naming/filter traps:
+  one `CapabilityTests` XCTest class owns both expansion and compilation, and
+  `TestSupportEndToEndTests` can be selected by an `EndToEndTests` substring.
+- Distinguished runnable test owners from recorded one-off evidence. SwiftPM
+  scratch-consumer resolution and optimized release-elimination inspection are
+  procedures to re-run, not nonexistent package test suites.
+- Added exact expansion/diagnostic comparison rules, including normalization,
+  anchors, Fix-It compilation, and displayed-code ownership.
+- Added the SPEC-first example workflow and preserved the SCENARIO/default,
+  accessibility-log, live-verification, and diagnostics-collection constraints.
+- Added maintenance checklists for stored-property macros, Shell, logged
+  properties, independent APIs, displayed evidence, toolchain changes, and
+  releases. The stored-property checklist links to the repository map's add-a-
+  macro steps instead of restating them.
+- Verified every named suite/path with repository search. `swift package
+  dump-package` still reports one CoreFlow product, the three expected targets,
+  tools 6.3, Swift 6, and swift-syntax `600.0.0..<700.0.0`.
+- Representative mixed-framework verification passed 9 `CapabilityTests`
+  XCTest cases and 5 `ReflectorTests` Swift Testing cases; `git diff --check`
+  passed.
+
 Next checkpoint:
 
-- Add the verification map and maintenance checklists. Point each claim class and
-  change workflow to its real command, source, and test owner without repeating
-  API contracts or making `CLAUDE.md` depend on README.
+- Run the full clause-by-clause self-sufficiency audit against
+  `git show 0cf7c8a^:CLAUDE.md`, restore any gap, remove plan-scoped language,
+  verify every path/link/command, and run the full package before closing Phase 6.
 
 1. Put package invariants and build commands first.
 2. Separate normative rules from implementation mechanisms.
