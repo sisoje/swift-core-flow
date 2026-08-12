@@ -67,9 +67,9 @@ mode with strict concurrency. It supports swift-syntax
 
 | Target | Kind | Contents |
 |---|---|---|
-| `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift`, and `UnstructuredTaskMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction`, `testLog`, `TestLog` — `TestFocusState.swift`, and `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `TaskStorage`/`CancellableTask`), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes) |
-| `CoreFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus real-compiled end-to-end suites (TuplePicker, Reflector, Shell's `Core`, `QueryCore`, the test-support macros) |
+| `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift`, `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction`, `testLog`, `TestLog` — `TestFocusState.swift`, `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `TaskStorage`/`CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `FlowUpClosure`/`FlowUpID` and the `on`/`accumulate` View extensions), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes) |
+| `CoreFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus real-compiled end-to-end suites (TuplePicker, Reflector, Shell's `Core`, `QueryCore`, the test-support macros, FlowUp) |
 
 Per-macro target/product sets were considered and rejected. Their ceremony is
 not worth dependency granularity no consumer needs. Adding a macro means adding
@@ -917,6 +917,110 @@ own line, private required via `sourceOfTruthMustBePrivate`).
   `FocusState<T>.Binding` on both). Live focus movement and logging are
   the example app's story.
 
+## `@FlowUp`
+
+### Contract
+
+`@FlowUp var handleUrl: (URL) async throws -> Void`, attached inside a
+user-written `extension EnvironmentValues` (the `@Entry` idiom — a macro
+cannot introduce an extension, so the user writes it), declares an upward
+closure flow: `.on(\.handleUrl) { url in … }` registers a listener up a
+preference channel, an ancestor's `.accumulate(\.handleUrl)` collects every
+listener below it into the environment, and `@Environment(\.handleUrl)`
+reads one combined closure calling them all in order. Implementation:
+`FlowUpMacro.swift` (accessor + peer roles, `validated`-throw family
+policy); declaration plus the runtime in `Sources/CoreFlow/FlowUp.swift`.
+
+### Runtime and generated surface
+
+Runtime (stable, generic): `FlowUpClosure<Closure>` — the listener box,
+`===`/ObjectIdentifier equality, `internal(set)` payload array,
+`@unchecked Sendable`; `FlowUpID<Tag, Closure>` — public init, internal
+keypath; internal `FlowUpPreferenceKey<Tag, Closure>` (bare wrapper-array
+value, append reduce), internal `FlowUpRegistration` and
+`FlowUpAccumulator` modifiers; public `View.on(_:_:)` / `accumulate(_:)`
+generic over a metatype-rooted keypath
+(`KeyPath<EnvironmentValues.Type, FlowUpID<Tag, Closure>>`, SE-0438).
+
+Generated per flow, all in the anchor's expansion: the anchor's accessor —
+the consumer surface, a genuine closure looping every listener with
+`try`/`await` mirrored from the declared type (the forwarding loop's only
+home; arity from the function-type syntax as `a0, a1, …`); a key enum that
+is BOTH the `EnvironmentKey` and the per-name preference tag (one
+`defaultValue` witnesses only `EnvironmentKey` — the preference key is the
+runtime generic — and must be a *computed* static: a stored `static let`
+of the non-Sendable array is a strict-concurrency error, verified); the
+fileprivate settable entry over that key; and a same-named `static`
+returning `FlowUpID` — legal because static and instance members may share
+a name, resolved without ambiguity in both keypath positions (verified
+directly). The anchor's access level is copied onto the key enum and the
+static (the static's return type names the key), so a public anchor
+exports the flow; the entry stays fileprivate — keypaths carry the access
+rights of where they were formed. A public key makes
+`self[key.self]` writable by consumers; accepted — the accumulator
+clobbers manual writes on the next preference change.
+
+### Semantics
+
+- Registration is identity-stable: `.on`'s modifier holds ONE
+  `FlowUpClosure` in `@State` (class-box-in-`State`, the `TaskStorage`
+  pattern) and refreshes its payload each body — a render-phase write to a
+  plain object. The preference value compares equal across waves; only a
+  registration appearing/disappearing (including a structural identity
+  reset — a genuine re-registration) fires the accumulator. Publishing is
+  `transformPreference` append, so chained same-flow `.on` on one view
+  keeps both registrations under either nested-preference semantics.
+- The combined closure captures boxes and reads payloads at call time —
+  never stale. Zero listeners, or no accumulator installed, is the no-op.
+- Non-`Void` returns are diagnosed (no single combined result); first
+  thrown error aborts remaining listeners; `async` runs sequentially in
+  registration order; sibling order is preference-traversal order,
+  documented as unspecified.
+- Main-actor contract: register and invoke on the main actor.
+  `FlowUpClosure` is `@unchecked Sendable` backed by that contract, and
+  the claim is REQUIRED: a `@MainActor`-typed flow makes the accessor's
+  returned closure isolated, and sending the array into it is a
+  region-isolation error without Sendable (compiled evidence in
+  `FlowUpTests`). Per-flow enforcement is free:
+  `@MainActor (URL) -> Void` rides the full type text verbatim through
+  every generic position (compiled).
+- Required shape (thrown, family policy; peer role stays silent): stored
+  instance `var`, function-type annotation (found under type attributes),
+  `Void` return, no initializer, no accessors. A lexical-context check
+  refuses attachment inside an extension of anything but
+  `EnvironmentValues`; empty lexical context (top level) falls through to
+  the compiler's own errors on the generated `static`.
+
+### Rejected shapes and dead ends (all compiler-verified)
+
+- Anchoring in `extension View` (named per-flow funcs) is impossible: a
+  generated peer *type* there fails — `type 'X' cannot be nested in
+  protocol extension of 'View'` — and the environment entry cannot be
+  generated from any anchor (`macro expansion cannot introduce
+  extension`), while a second invocation could not name the first's
+  generated declarations (cross-expansion rule).
+- Delegating storage to native `@Entry` fails at compile time: `'@Entry'
+  macro can only attach to var declarations inside extensions of
+  EnvironmentValues, …` — an expansion buffer's lexical context lacks the
+  original enclosing extension, so any inner macro that inspects its
+  surroundings refuses. Hand-rolled key + entry is the design.
+- A `FlowUpClosures` protocol and a per-name container struct were built
+  and removed: once the container is pure data, `FlowUpID`'s generic
+  parameters carry identity + closure type with zero contract surface, and
+  the tag merged into the environment key enum.
+
+### Verification
+
+`FlowUpSyntaxTests` owns expansion snapshots (effects, zero-arg, public
+access copy, attributed type) and the five diagnostics. `FlowUpTests` owns
+compiled behavior: combined-call order, same-signature flow isolation,
+payload-read-at-call-time, first-throw-aborts, async-sequential, empty
+default, the `@MainActor` flow, and `.on`/`.accumulate` typechecking in a
+body. Direct `EnvironmentValues()` construction needs no hosting. NOT yet
+verified live: accumulator not re-firing on leaf re-renders and hosted
+end-to-end flow — those need an example-app scenario; do not claim them.
+`FLOWUP-PLAN.md` holds the full design record and probe log.
+
 ## `@Capability`
 
 ### Contract and generated surface
@@ -1186,7 +1290,7 @@ expansion buffers is the prerequisite.
 Generating a binding model was rejected because the few situational lines belong
 at the test's use site. Verified constraints if revisited:
 
-- attached macros expand inside another macro's generated code;
+- attached macros expand inside another macro's generated code — UNLESS the inner macro inspects its lexical context: an expansion buffer's lexical context does not contain the original file's enclosing declarations, which is why native `@Entry` refuses to expand from generated code (see `@FlowUp`);
 - a generated model class needs explicit `@MainActor` because a nested type does
   not inherit the enclosing View-conformance isolation;
 - the observable class must be a sibling of Core, not nested inside it;
@@ -1272,6 +1376,8 @@ Exact API owners:
 - `TestSupportSyntaxTests` owns TestState/TestAction/TestFocus expansion;
   `TestSupportEndToEndTests` owns compiled seed/binding behavior;
   `UnstructuredTaskTests` owns task-macro and Shell re-expansion;
+  `FlowUpSyntaxTests` owns FlowUp expansion and diagnostics; `FlowUpTests`
+  owns compiled FlowUp behavior (combined calls, isolation, effects);
   `TaskStorageTests` owns cancellation lifecycle.
 - The single XCTest class `CapabilityTests` owns Capability expansion and
   compilation; there is no `CapabilityMacroTests`.
@@ -1365,6 +1471,12 @@ section owns file, registration, and shared-renderer steps. Additional checks:
 - **Capability:** keep collection separate from `StoredProperty`; verify source
   order, one/zero/many shape, effects, diagnostics, cached-versus-fresh values,
   and both sides before adding Sendable constraints.
+- **FlowUp:** keep the anchor in `extension EnvironmentValues` and every
+  per-name reference inside the one expansion; preserve the stable-wrapper
+  registration, append-publishing, `@unchecked Sendable`, and computed
+  `defaultValue`; any change to the ID/keypath surface re-verifies metatype
+  keypath inference and same-name static/instance resolution; hosted
+  accumulator behavior needs an example-app scenario before being claimed.
 - **Pick:** verify all source arities, expansion labels versus positional static
   results, rename non-evaluation, one-time source binding, written order, tuple
   KeyPaths, both nesting cases, diagnostics, and Fix-Its.

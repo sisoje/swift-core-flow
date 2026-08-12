@@ -27,12 +27,16 @@ extension EnvironmentValues {
 Name from the property name, closure type from the annotation. The anchor
 becomes the consumer entry `handleUrl`; the peers are a same-named `static`
 flow identifier (legal — static and instance members may share a name), plus
-fully hidden machinery: `handleUrl_Tag` (empty enum) and the fileprivate
-native-`@Entry` storage `handleUrl_closures`. The anchor's declared access
-level (e.g. `public var handleUrl`) is copied onto the accessor, the static,
-AND the `handleUrl_Tag` enum — the static's return type names the Tag, so a
-public static requires a public Tag; a library can then export a flow. The
-storage stays fileprivate regardless: keypaths carry the access rights of
+hidden machinery: `handleUrl_Key` — one enum that is both the
+`EnvironmentKey` and the per-name tag keying the preference channel — and
+the fileprivate entry `handleUrl_closures`. The anchor's declared access
+level (e.g. `public var handleUrl`) is copied onto the accessor, the
+static, AND `handleUrl_Key` — the static's return type names the
+key-as-tag, so a public static requires a public key; a library can then
+export a flow (accepting that a public key makes
+`self[handleUrl_Key.self]` writable by consumers — harmless: the
+accumulator clobbers manual writes on the next preference change). The
+entry stays fileprivate regardless: keypaths carry the access rights of
 where they were formed, so cross-module use needs only the named types
 visible.
 
@@ -67,7 +71,7 @@ access rights of where it was formed.
 ## Runtime (`Sources/CoreFlow/FlowUp.swift`, stable, not generated)
 
 ```swift
-public final class FlowUpClosure<Closure>: Equatable {
+public final class FlowUpClosure<Closure>: Equatable, @unchecked Sendable {
     public internal(set) var closures: [Closure] = []
 
     public init() {}
@@ -75,10 +79,6 @@ public final class FlowUpClosure<Closure>: Equatable {
     public static func == (lhs: FlowUpClosure, rhs: FlowUpClosure) -> Bool {
         lhs === rhs
     }
-}
-
-extension FlowUpClosure: CustomStringConvertible {
-    public var description: String { "closure" }
 }
 
 public struct FlowUpID<Tag, Closure> {
@@ -117,7 +117,7 @@ struct FlowUpRegistration<Tag, Closure>: ViewModifier {
 struct FlowUpAccumulator<Tag, Closure>: ViewModifier {
     let keyPath: WritableKeyPath<EnvironmentValues, [FlowUpClosure<Closure>]>
 
-    @TestState private var listeners: [FlowUpClosure<Closure>] = []
+    @State private var listeners: [FlowUpClosure<Closure>] = []
 
     func body(content: Content) -> some View {
         content
@@ -156,10 +156,7 @@ extension View {
   class a no-arg init, which is what lets the registration modifier's
   `@State` take an inline default. No `@escaping` anywhere: `Closure` is a
   generic parameter, closures bound to it are automatically escaping and the
-  attribute is ill-formed there (probe-compiled both ways, Swift 6.4). The
-  fixed `description` keeps logged payloads deterministic — the default
-  class description would print an address and poison the all-or-nothing log
-  diff.
+  attribute is ill-formed there (probe-compiled both ways, Swift 6.4).
 - **`FlowUpRegistration`** — the identity-churn fix: holds ONE wrapper in
   `@State` (same object across re-renders — the class-box-in-`State` pattern
   `@UnstructuredTask`'s `TaskStorage` already ships and locks in this
@@ -189,9 +186,6 @@ extension View {
 - **`FlowUpAccumulator`** — the whole injector: owns the state, catches the
   preference, and shoves the array straight into the environment for the
   same subtree — no conversion anywhere. No caller-side state, no binding.
-  The state is `@TestState` — CoreFlow dogfooding its own drop-in: every
-  accumulation logs as an ordered event for scenarios, and the uninstalled
-  sink is a no-op in production.
 - **`on(_:_:)` / `accumulate(_:)`** — hand-written generic View
   extensions in ordinary CoreFlow source, so the "macro expansion cannot
   introduce extension" wall never applies. `Tag` and `Closure` both infer
@@ -222,11 +216,18 @@ The peer role generates the machinery, all inside the same user-written
 probe-verified, unlike the protocol-extension refusal):
 
 ```swift
-enum handleUrl_Tag {}
+enum handleUrl_Key: EnvironmentKey {
+    static var defaultValue: [FlowUpClosure<(URL) async throws -> Void>] {
+        []
+    }
+}
 
-@Entry fileprivate var handleUrl_closures: [FlowUpClosure<(URL) async throws -> Void>] = []
+fileprivate var handleUrl_closures: [FlowUpClosure<(URL) async throws -> Void>] {
+    get { self[handleUrl_Key.self] }
+    set { self[handleUrl_Key.self] = newValue }
+}
 
-static var handleUrl: FlowUpID<handleUrl_Tag, (URL) async throws -> Void> {
+static var handleUrl: FlowUpID<handleUrl_Key, (URL) async throws -> Void> {
     FlowUpID(keyPath: \.handleUrl_closures)
 }
 ```
@@ -240,13 +241,17 @@ Generated pieces:
 - **`static handleUrl`** — the flow's identity for `on` / `accumulate`:
   same name, different namespace (metatype), a `FlowUpID` carrying the
   keypath to the hidden entry.
-- **`handleUrl_Tag`** — an empty enum, the per-name identity that keys the
-  preference channel; the floor of per-name generation.
-- **`handleUrl_closures`** — the storage, delegated to Apple's own `@Entry`
-  (macro-in-macro; attached macros expanding inside generated code is
-  recorded verified in CLAUDE.md), fileprivate, holding the bare wrapper
-  array. Default `[]`, so everything works with no accumulator installed
-  (listeners just never fire).
+- **`handleUrl_Key`** — one enum, two jobs: the `EnvironmentKey` for the
+  hand-rolled entry AND the per-name tag keying the preference channel (as
+  the `Tag` argument of `FlowUpID`/`FlowUpPreferenceKey`); the floor of
+  per-name generation. `defaultValue` is a *computed* static (a stored
+  `static let` of the non-Sendable array is a strict-concurrency error).
+  Delegating to native `@Entry` was tried and refused at compile time:
+  `@Entry`'s own container check cannot see the extension from inside
+  another macro's expansion buffer.
+- **`handleUrl_closures`** — the fileprivate settable entry holding the
+  bare wrapper array. Default `[]`, so everything works with no
+  accumulator installed (listeners just never fire).
 
 ## Notes
 
@@ -263,20 +268,21 @@ Generated pieces:
   silent so the error reports once): annotation missing or not a function
   type, non-Void return, `let`, an inline default (the entry's `[]` default
   is generated, never user-supplied), and any non-single-stored-var shape.
-- Main-actor contract, documented not enforced by the runtime: register and
-  invoke on the main actor. `FlowUpClosure` is deliberately not Sendable and
-  deliberately not `@MainActor` — isolating the class would break sync flows
-  (their returned closure couldn't read `wrapper.closure` without an actor
-  hop); the probes compiled clean under strict concurrency without
-  `@unchecked` claims either way. Per-flow enforcement is free at the
-  declaration: `@FlowUp var handleUrl: @MainActor (URL) -> Void` — the
-  attributed type rides verbatim through the wrapper, entry, ID, and
-  accessor, so registered and combined closures are compiler-isolated.
+- Main-actor contract: register and invoke on the main actor.
+  `FlowUpClosure` is `@unchecked Sendable`, backed by that contract —
+  mutation happens in registration bodies and reads at invocation, both
+  main-actor in this design. The claim is REQUIRED, not optional: a
+  `@MainActor`-typed flow makes the accessor's returned closure isolated,
+  and sending the wrapper array into it is a region-isolation error
+  (`sending 'wrappers' risks causing data races`) unless the array is
+  Sendable — found by the compiled `@MainActor (Int) -> Void` flow in
+  `FlowUpTests`. Not `@MainActor` on the class itself — that would break
+  sync flows (their returned closure couldn't read `wrapper.closures`
+  without an actor hop). Per-flow enforcement stays free at the
+  declaration: `@FlowUp var handleUrl: @MainActor (URL) -> Void` rides
+  verbatim through wrapper, entry, ID, and accessor (compiled test).
 - Listener order is preference-traversal order; relative order across
   sibling branches is unspecified — documented as "don't depend on it".
-- Known limitation: the accumulator's logged property is named `listeners`
-  for every flow (runtime-generic, so the name can't vary per flow). Two
-  accumulators in one scenario produce indistinguishable log keys.
 - Verified by probes (Swift 6.4, 2026-08-12):
   - PASS (probe macro in this package): accessor + peer macro on a var
     inside user-written `extension EnvironmentValues` generating a nested
@@ -310,18 +316,27 @@ Generated pieces:
     `extension EnvironmentValues { … }` (`macro expansion cannot introduce
     extension`) — the rulings that killed the View-anchor shapes and forced
     this one.
-- To verify during implementation: fileprivate visibility from
-  macro-expansion buffers, `@TestState` used inside CoreFlow's own module,
-  and `@Entry` expanding inside our expansion specifically (the general
-  attached-in-generated fact is recorded; this exact pairing gets confirmed
-  by the compiled end-to-end test). Also probe an attributed closure type
-  (`@MainActor (URL) -> Void`) riding through the whole pipeline.
+- Resolved during implementation (compiled owners: `FlowUpSyntaxTests`
+  expansion/diagnostics, `FlowUpTests` end-to-end):
+  - PASS: fileprivate entry visibility from expansion buffers — the
+    accessor, static, and tests all reach it.
+  - PASS: trailing-closure inference of `Closure` at `.on(\.flow) { }`,
+    plus combined-call order, same-signature isolation, throws-aborts,
+    async-sequential, empty default, `.on`/`.accumulate` typechecking.
+  - PASS: attributed `@MainActor (Int) -> Void` flow rides the whole
+    pipeline and calls (after the `@unchecked Sendable` fix above).
+  - FAIL: native `@Entry` inside our expansion — `'@Entry' macro can only
+    attach to var declarations inside extensions of EnvironmentValues, …` —
+    its container check cannot see the extension from another macro's
+    expansion buffer. The hand-rolled entry is the shipped design; the
+    CLAUDE.md attached-in-generated fact holds in general, but not for
+    macros that inspect their lexical context.
 - DECIDED — registration identity churn is fixed by `FlowUpRegistration`
   (stable wrapper in `@State`, payload refreshed each body; see Runtime).
   Two hosted checks own its remaining claims, in the example-app scenario:
-  1. re-rendering a registering leaf N times produces ZERO `listeners` log
-     lines (verifies the render-phase payload write is invisible to the
-     dataflow);
+  1. re-rendering a registering leaf N times never re-fires the accumulator
+     or rewrites the environment (verifies the render-phase payload write is
+     invisible to the dataflow);
   2. two chained `.on(\.same)` registrations on one view both survive. The
      registration modifier publishes via `transformPreference` (append)
      rather than `.preference` precisely so this holds under either nesting

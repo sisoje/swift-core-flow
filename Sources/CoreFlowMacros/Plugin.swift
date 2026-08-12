@@ -12,5 +12,6 @@ struct CoreFlowPlugin: CompilerPlugin {
         TestActionMacro.self,
         TestFocusStateMacro.self,
         UnstructuredTaskMacro.self,
+        FlowUpMacro.self,
     ]
 }

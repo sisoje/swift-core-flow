@@ -69,6 +69,7 @@ is the per-macro reference.
 | [`@TestAction`](#teststate-and-testaction) | accessor + peer macro | an action closure that logs every call — reading the property IS the logged action; each call logs its payload to the injected sink, then forwards |
 | [`@TestFocusState`](#testfocusstate) | accessor + peer macro | a drop-in `@FocusState` that logs every programmatic write — a real `FocusState` underneath, so focus genuinely moves when hosted; `$name` is the real `FocusState<T>.Binding` |
 | [`@UnstructuredTask`](#unstructuredtask) | accessor + peer macro | a view-owned slot for a cancellable unstructured `Task` — replacing cancels the previous task, view teardown cancels the live one, and every mutation logs like `@TestState` |
+| [`@FlowUp`](#flowup) | accessor + peer macro | declares an upward closure flow on `EnvironmentValues` — `.on(\.name)` registers listeners up a preference channel, `.accumulate(\.name)` spools them back down the environment as one combined closure, `@Environment(\.name)` calls them all |
 | [`@QueryCore`](#querycore) | property wrapper | `@Query`'s drop-in stand-in on `Core` — the fetched result as a bare init parameter (`Core(items: [item], …)`), same read surface as the live wrapper, no SwiftData stack |
 | [`@TestLog`](#the-testlog-seam) | property wrapper | reads the installed sink — `@TestLog private var log` self-initializes and `log(name, value)` is a direct call (verified); the macros generate the same thing as an explicit field, `private let log_x = TestLog()` |
 | [`View.testLog(_:)`](#the-testlog-seam) | View modifier | installs the one logging sink, once, on the root view; without it the log is a no-op, so hosts behave normally anywhere else |
@@ -630,6 +631,113 @@ Assigning `.password` logs
   logs. (A well-shaped property with a non-`Bool`, non-optional annotation
   passes the macro and fails on the generated `FocusState` peer instead,
   in the compiler's own words — same as the live wrapper.)
+
+## FlowUp
+
+`@Entry` drops a value straight down. `@FlowUp` is the yoyo: closures
+registered below are thrown *up* a preference channel, an ancestor catches
+them, and one combined closure spools back *down* the environment —
+callable by anyone under it. One line declares a flow, in the same
+`extension EnvironmentValues` where `@Entry` lives:
+
+```swift
+extension EnvironmentValues {
+    @FlowUp var deeplink: (URL) -> Void
+}
+```
+
+One name then spells all three call sites — top of the subtree first:
+
+```swift
+// the accumulator sits on top: everything below both feeds it and reads it
+ContentStack()
+    .accumulate(\.deeplink)
+
+// listeners: any view/modifier below the accumulator, registering in its own body
+CardContent()
+    .on(\.deeplink) { url in
+        router.navigate(url)
+    }
+
+// emitter: any view below the accumulator — reads a real closure and calls it
+@Environment(\.deeplink) private var deeplink
+…
+deeplink(url)
+```
+
+- **One name, two namespaces, zero ambiguity.** `on`/`accumulate` resolve
+  a generated `static` member through a metatype-rooted keypath;
+  `@Environment` resolves the anchor itself. Static and instance members
+  may legally share a name (verified in both keypath positions). The
+  static's type carries the flow's identity and closure type, so two flows
+  with the *same* signature keep separate channels, and a registration
+  with the wrong closure shape doesn't compile.
+- **The consumer gets a genuine closure** — the anchor's generated
+  accessor calls every registered listener in order, and passes anywhere a
+  plain closure is expected. Zero listeners, or no accumulator installed:
+  the no-op.
+- **Registrations are identity-stable.** `.on` holds one listener box in
+  `@State` (a class in `State`, the
+  [`@UnstructuredTask`](#unstructuredtask) `TaskStorage` pattern) and
+  refreshes its payload each body: an unrelated re-render never re-fires
+  the accumulator or touches the environment — only a listener genuinely
+  appearing or disappearing does — while the combined closure reads
+  payloads *at call time*, so it never runs a stale closure. Publishing
+  appends, so two chained `.on` for one flow on one view both survive.
+- **Effects mirror the declared type** — `try`/`await` appear in the
+  combined closure iff the annotation says so. The first thrown error
+  aborts the remaining listeners; `async` listeners run sequentially in
+  registration order. Order across sibling branches is tree-traversal
+  order — don't depend on it.
+- **Main-actor contract**: register and invoke on the main actor. For
+  per-flow compiler enforcement, isolate the declared type —
+  `@MainActor (URL) -> Void` rides verbatim through the whole pipeline.
+- **Required shape:** a stored instance `var` with a function-type
+  annotation returning `Void` — N listeners have no single combined
+  result — and no initial value (the storage defaults to no listeners).
+  Anything else is a compile error at the attribute, thrown by the macro
+  itself — same policy as the whole family.
+- **Access rides the anchor.** `@FlowUp public var` exports the flow: the
+  generated static and its key type copy the anchor's access; the storage
+  entry stays fileprivate regardless.
+
+### Naming a flow
+
+The name is the API — it must read at the registration, the injector, and
+the call. Two kinds of flow, two shapes of name:
+
+- **A verb declares a command** — legitimate only when the registered
+  listeners ARE the implementation, with no service behind it. `deeplink`
+  above is the honest case: the view nodes that know how to navigate are
+  all there is, so `deeplink(url)` has nobody else to mean. Command words
+  noun/verb freely (`deeplink`, `save`, `refresh`); the call-site position
+  supplies the imperative, so no `perform`/`handle` prefix.
+- **A past-tense clause declares a notification** — a service owns the
+  verb, the flow announces the aftermath:
+
+  ```swift
+  try await auth.logout()   // the service performs
+  logoutHappened()          // the flow announces
+
+  .on(\.logoutHappened) { cleanupCache() }   // reactions, elsewhere
+  ```
+
+  Naming that flow `logout` too would collide with the capability in
+  `EnvironmentValues` — conceptually and literally.
+
+Never name a flow after the reaction (`logoutCleanup`) — the reaction is
+the closure's job. And either way, calling a flow with zero listeners
+silently does nothing: a command flow's implementor is a component you
+must actually mount.
+
+### An event bus — the safe corner of that space
+
+Scoped to the subtree under its accumulator (nesting shadows, nearest
+wins); subscription is view identity itself, so unmounting unregisters and
+nothing leaks; one typed channel per declared flow; delivery is a plain
+call on the main actor. The scoping is the feature: an `.accumulate` for
+everything at the app root is the global bus you were supposed to be
+avoiding.
 
 ---
 
