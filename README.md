@@ -653,10 +653,12 @@ One name then spells all three call sites — top of the subtree first:
 ContentStack()
     .accumulate(\.deeplink)
 
-// listeners: any view/modifier below the accumulator, registering in its own body
+// listeners: any view/modifier below the accumulator, registering in its
+// own body — each handles its own case and ignores the rest
 CardContent()
     .on(\.deeplink) { url in
-        router.navigate(url)
+        guard url.host == "details" else { return }
+        detailsID = url.lastPathComponent
     }
 
 // emitter: any view below the accumulator — reads a real closure and calls it
@@ -708,10 +710,13 @@ the call. Two kinds of flow, two shapes of name:
 
 - **A verb declares a command** — legitimate only when the registered
   listeners ARE the implementation, with no service behind it. `deeplink`
-  above is the honest case: the view nodes that know how to navigate are
-  all there is, so `deeplink(url)` has nobody else to mean. Command words
-  noun/verb freely (`deeplink`, `save`, `refresh`); the call-site position
-  supplies the imperative, so no `perform`/`handle` prefix.
+  above is the honest case: each mounted node knows how to show its own
+  destination, guards on its own case, and together they are all the
+  deeplink handling there is — `deeplink(url)` has nobody else to mean.
+  (Filtering is two-layered: a node only listens while mounted, and its
+  guard selects the payloads it owns.) Command words noun/verb freely
+  (`deeplink`, `save`, `refresh`); the call-site position supplies the
+  imperative, so no `perform`/`handle` prefix.
 - **A past-tense clause declares a notification** — a service owns the
   verb, the flow announces the aftermath:
 
