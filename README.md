@@ -1,6 +1,8 @@
 # CoreFlow
 
 > **Make any SwiftUI project testable. One line, one macro is all you need.**
+>
+> **Need a deeplinking system? Also one line, one macro — done.**
 
 ## Why
 
@@ -63,13 +65,13 @@ is the per-macro reference.
 
 | Concept | Form | Does |
 |---|---|---|
+| [`@FlowUp`](#flowup) | accessor + peer macro | declares an upward closure flow on `EnvironmentValues` — `.onFlow(\.name)` registers listeners up a preference channel, `.collectFlow(\.name)` spools them back down the environment as one combined closure, `@Environment(\.name)` calls them all |
 | [`@Shell`](#shell) | member macro | generates a nested `Core` struct — the host's standalone twin: same body, owned writes logged and external boundaries supplied, directly constructible in tests (previews reach it through a hand-written wrapper view — `#Preview`'s own expansion can't name macro-generated code) |
 | [`@Flowable`](#flowable) | member macro | writes a memberwise `init` at the type's own access level, plus a `makeFlow(_:)` factory taking the same properties as one unlabeled tuple and an `InFlow` typealias naming their labeled shape |
 | [`@TestState`](#teststate-and-testaction) | accessor + peer macro | a drop-in `@State` that logs every mutation — each write reaches the injected sink the moment it happens, binding writes included |
 | [`@TestAction`](#teststate-and-testaction) | accessor + peer macro | an action closure that logs every call — reading the property IS the logged action; each call logs its payload to the injected sink, then forwards |
 | [`@TestFocusState`](#testfocusstate) | accessor + peer macro | a drop-in `@FocusState` that logs every programmatic write — a real `FocusState` underneath, so focus genuinely moves when hosted; `$name` is the real `FocusState<T>.Binding` |
 | [`@UnstructuredTask`](#unstructuredtask) | accessor + peer macro | a view-owned slot for a cancellable unstructured `Task` — replacing cancels the previous task, view teardown cancels the live one, and every mutation logs like `@TestState` |
-| [`@FlowUp`](#flowup) | accessor + peer macro | declares an upward closure flow on `EnvironmentValues` — `.onFlow(\.name)` registers listeners up a preference channel, `.collectFlow(\.name)` spools them back down the environment as one combined closure, `@Environment(\.name)` calls them all |
 | [`@QueryCore`](#querycore) | property wrapper | `@Query`'s drop-in stand-in on `Core` — the fetched result as a bare init parameter (`Core(items: [item], …)`), same read surface as the live wrapper, no SwiftData stack |
 | [`@TestLog`](#the-testlog-seam) | property wrapper | reads the installed sink — `@TestLog private var log` self-initializes and `log(name, value)` is a direct call (verified); the macros generate the same thing as an explicit field, `private let log_x = TestLog()` |
 | [`View.testLog(_:)`](#the-testlog-seam) | View modifier | installs the one logging sink, once, on the root view; without it the log is a no-op, so hosts behave normally anywhere else |
