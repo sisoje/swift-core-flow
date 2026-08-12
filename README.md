@@ -646,7 +646,9 @@ extension EnvironmentValues {
 }
 ```
 
-One name then spells all three call sites — top of the subtree first:
+That line is a complete deeplinking system: the rest of the app just says
+what it handles and what it wants. One name then spells all three call
+sites — top of the subtree first:
 
 ```swift
 // the accumulator sits on top: everything below both feeds it and reads it
@@ -661,10 +663,17 @@ CardContent()
         detailsID = url.lastPathComponent
     }
 
-// emitter: any view below the accumulator — reads a real closure and calls it
-@Environment(\.deeplink) private var deeplink
-…
-deeplink(url)
+// emitter: any view below the accumulator — a real closure, called
+// imperatively from any action
+struct PromoBanner: View {
+    @Environment(\.deeplink) private var deeplink
+
+    var body: some View {
+        Button("See details") {
+            deeplink(URL(string: "coreflow://details/42")!)
+        }
+    }
+}
 ```
 
 - **One name, two namespaces, zero ambiguity.** `onFlow`/`collectFlow` resolve
