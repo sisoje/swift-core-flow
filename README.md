@@ -69,7 +69,7 @@ is the per-macro reference.
 | [`@TestAction`](#teststate-and-testaction) | accessor + peer macro | an action closure that logs every call — reading the property IS the logged action; each call logs its payload to the injected sink, then forwards |
 | [`@TestFocusState`](#testfocusstate) | accessor + peer macro | a drop-in `@FocusState` that logs every programmatic write — a real `FocusState` underneath, so focus genuinely moves when hosted; `$name` is the real `FocusState<T>.Binding` |
 | [`@UnstructuredTask`](#unstructuredtask) | accessor + peer macro | a view-owned slot for a cancellable unstructured `Task` — replacing cancels the previous task, view teardown cancels the live one, and every mutation logs like `@TestState` |
-| [`@FlowUp`](#flowup) | accessor + peer macro | declares an upward closure flow on `EnvironmentValues` — `.on(\.name)` registers listeners up a preference channel, `.accumulate(\.name)` spools them back down the environment as one combined closure, `@Environment(\.name)` calls them all |
+| [`@FlowUp`](#flowup) | accessor + peer macro | declares an upward closure flow on `EnvironmentValues` — `.onFlow(\.name)` registers listeners up a preference channel, `.collectFlow(\.name)` spools them back down the environment as one combined closure, `@Environment(\.name)` calls them all |
 | [`@QueryCore`](#querycore) | property wrapper | `@Query`'s drop-in stand-in on `Core` — the fetched result as a bare init parameter (`Core(items: [item], …)`), same read surface as the live wrapper, no SwiftData stack |
 | [`@TestLog`](#the-testlog-seam) | property wrapper | reads the installed sink — `@TestLog private var log` self-initializes and `log(name, value)` is a direct call (verified); the macros generate the same thing as an explicit field, `private let log_x = TestLog()` |
 | [`View.testLog(_:)`](#the-testlog-seam) | View modifier | installs the one logging sink, once, on the root view; without it the log is a no-op, so hosts behave normally anywhere else |
@@ -651,12 +651,12 @@ One name then spells all three call sites — top of the subtree first:
 ```swift
 // the accumulator sits on top: everything below both feeds it and reads it
 ContentStack()
-    .accumulate(\.deeplink)
+    .collectFlow(\.deeplink)
 
 // listeners: any view/modifier below the accumulator, registering in its
 // own body — each handles its own case and ignores the rest
 CardContent()
-    .on(\.deeplink) { url in
+    .onFlow(\.deeplink) { url in
         guard url.host == "details" else { return }
         detailsID = url.lastPathComponent
     }
@@ -667,7 +667,7 @@ CardContent()
 deeplink(url)
 ```
 
-- **One name, two namespaces, zero ambiguity.** `on`/`accumulate` resolve
+- **One name, two namespaces, zero ambiguity.** `onFlow`/`collectFlow` resolve
   a generated `static` member through a metatype-rooted keypath;
   `@Environment` resolves the anchor itself. Static and instance members
   may legally share a name (verified in both keypath positions). The
@@ -724,7 +724,7 @@ the call. Two kinds of flow, two shapes of name:
   try await auth.logout()   // the service performs
   logoutHappened()          // the flow announces
 
-  .on(\.logoutHappened) { cleanupCache() }   // reactions, elsewhere
+  .onFlow(\.logoutHappened) { cleanupCache() }   // reactions, elsewhere
   ```
 
   Naming that flow `logout` too would collide with the capability in
@@ -740,7 +740,7 @@ must actually mount.
 Scoped to the subtree under its accumulator (nesting shadows, nearest
 wins); subscription is view identity itself, so unmounting unregisters and
 nothing leaks; one typed channel per declared flow; delivery is a plain
-call on the main actor. The scoping is the feature: an `.accumulate` for
+call on the main actor. The scoping is the feature: a `.collectFlow` for
 everything at the app root is the global bus you were supposed to be
 avoiding.
 

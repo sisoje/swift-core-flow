@@ -94,10 +94,10 @@ struct FlowUpTests {
         struct Probe: View {
             var body: some View {
                 Text(verbatim: "probe")
-                    .on(\.flowPing) { _ in }
-                    .on(\.flowRefresh) {}
-                    .accumulate(\.flowPing)
-                    .accumulate(\.flowRefresh)
+                    .onFlow(\.flowPing) { _ in }
+                    .onFlow(\.flowRefresh) {}
+                    .collectFlow(\.flowPing)
+                    .collectFlow(\.flowRefresh)
             }
         }
         _ = Probe()

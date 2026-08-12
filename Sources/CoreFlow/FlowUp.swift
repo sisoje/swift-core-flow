@@ -2,8 +2,8 @@ import SwiftUI
 
 /// `@FlowUp var handleUrl: (URL) async throws -> Void` — one line inside
 /// your own `extension EnvironmentValues` declares an upward closure flow:
-/// `.on(\.handleUrl) { url in … }` registers a listener, an ancestor's
-/// `.accumulate(\.handleUrl)` collects every listener below it into the
+/// `.onFlow(\.handleUrl) { url in … }` registers a listener, an ancestor's
+/// `.collectFlow(\.handleUrl)` collects every listener below it into the
 /// environment, and `@Environment(\.handleUrl)` reads one combined closure
 /// calling them all in order.
 @attached(accessor)
@@ -70,14 +70,14 @@ struct FlowUpAccumulator<Tag, Closure>: ViewModifier {
 }
 
 extension View {
-    public func on<Tag, Closure>(
+    public func onFlow<Tag, Closure>(
         _ id: KeyPath<EnvironmentValues.Type, FlowUpID<Tag, Closure>>,
         _ closure: Closure
     ) -> some View {
         modifier(FlowUpRegistration<Tag, Closure>(closure: closure))
     }
 
-    public func accumulate<Tag, Closure>(
+    public func collectFlow<Tag, Closure>(
         _ id: KeyPath<EnvironmentValues.Type, FlowUpID<Tag, Closure>>
     ) -> some View {
         modifier(

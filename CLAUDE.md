@@ -68,7 +68,7 @@ mode with strict concurrency. It supports swift-syntax
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift`, `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction`, `testLog`, `TestLog` — `TestFocusState.swift`, `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `TaskStorage`/`CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `FlowUpClosure`/`FlowUpID` and the `on`/`accumulate` View extensions), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes) |
+| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction`, `testLog`, `TestLog` — `TestFocusState.swift`, `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `TaskStorage`/`CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `FlowUpClosure`/`FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus two small non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below) and `QueryCore.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes) |
 | `CoreFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus real-compiled end-to-end suites (TuplePicker, Reflector, Shell's `Core`, `QueryCore`, the test-support macros, FlowUp) |
 
 Per-macro target/product sets were considered and rejected. Their ceremony is
@@ -924,8 +924,8 @@ own line, private required via `sourceOfTruthMustBePrivate`).
 `@FlowUp var handleUrl: (URL) async throws -> Void`, attached inside a
 user-written `extension EnvironmentValues` (the `@Entry` idiom — a macro
 cannot introduce an extension, so the user writes it), declares an upward
-closure flow: `.on(\.handleUrl) { url in … }` registers a listener up a
-preference channel, an ancestor's `.accumulate(\.handleUrl)` collects every
+closure flow: `.onFlow(\.handleUrl) { url in … }` registers a listener up a
+preference channel, an ancestor's `.collectFlow(\.handleUrl)` collects every
 listener below it into the environment, and `@Environment(\.handleUrl)`
 reads one combined closure calling them all in order. Implementation:
 `FlowUpMacro.swift` (accessor + peer roles, `validated`-throw family
@@ -938,7 +938,7 @@ Runtime (stable, generic): `FlowUpClosure<Closure>` — the listener box,
 `@unchecked Sendable`; `FlowUpID<Tag, Closure>` — public init, internal
 keypath; internal `FlowUpPreferenceKey<Tag, Closure>` (bare wrapper-array
 value, append reduce), internal `FlowUpRegistration` and
-`FlowUpAccumulator` modifiers; public `View.on(_:_:)` / `accumulate(_:)`
+`FlowUpAccumulator` modifiers; public `View.onFlow(_:_:)` / `collectFlow(_:)`
 generic over a metatype-rooted keypath
 (`KeyPath<EnvironmentValues.Type, FlowUpID<Tag, Closure>>`, SE-0438).
 
@@ -1015,7 +1015,7 @@ clobbers manual writes on the next preference change.
 access copy, attributed type) and the five diagnostics. `FlowUpTests` owns
 compiled behavior: combined-call order, same-signature flow isolation,
 payload-read-at-call-time, first-throw-aborts, async-sequential, empty
-default, the `@MainActor` flow, and `.on`/`.accumulate` typechecking in a
+default, the `@MainActor` flow, and `.onFlow`/`.collectFlow` typechecking in a
 body. Direct `EnvironmentValues()` construction needs no hosting. NOT yet
 verified live: accumulator not re-firing on leaf re-renders and hosted
 end-to-end flow — those need an example-app scenario; do not claim them.

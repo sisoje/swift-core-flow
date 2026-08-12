@@ -45,13 +45,13 @@ visible.
 ```swift
 // leaf: our view/modifier registers its callback, inside its own body
 CardContent()
-    .on(\.handleUrl) { url in
+    .onFlow(\.handleUrl) { url in
         // this card's reaction
     }
 
 // injector: an ancestor accumulates every listener below it
 ContentStack()
-    .accumulate(\.handleUrl)
+    .collectFlow(\.handleUrl)
 
 // consumer: anywhere under the injector — a REAL closure
 @Environment(\.handleUrl) private var handleUrl
@@ -59,7 +59,7 @@ ContentStack()
 try await handleUrl(myUrl)
 ```
 
-The trick: `on`/`accumulate` take a **metatype-rooted** keypath
+The trick: `onFlow`/`collectFlow` take a **metatype-rooted** keypath
 (`KeyPath<EnvironmentValues.Type, FlowUpID<Tag, Closure>>`, SE-0438), so
 their `\.handleUrl` resolves to the generated *static* member, while
 `@Environment`'s instance-rooted `\.handleUrl` resolves to the anchor. Same
@@ -129,14 +129,14 @@ struct FlowUpAccumulator<Tag, Closure>: ViewModifier {
 }
 
 extension View {
-    public func on<Tag, Closure>(
+    public func onFlow<Tag, Closure>(
         _ id: KeyPath<EnvironmentValues.Type, FlowUpID<Tag, Closure>>,
         _ closure: Closure
     ) -> some View {
         modifier(FlowUpRegistration<Tag, Closure>(closure: closure))
     }
 
-    public func accumulate<Tag, Closure>(
+    public func collectFlow<Tag, Closure>(
         _ id: KeyPath<EnvironmentValues.Type, FlowUpID<Tag, Closure>>
     ) -> some View {
         modifier(
@@ -173,12 +173,12 @@ extension View {
   same-signature flows distinct; the pairing makes a registration with the
   wrong closure shape fail to typecheck. Access split: `init` is public
   (generated code in the consumer's module constructs it), `keyPath` is
-  internal — only `accumulate` reads it, and hiding it means no consumer can
+  internal — only `collectFlow` reads it, and hiding it means no consumer can
   write the entry behind the accumulator's back.
 - **`FlowUpPreferenceKey`** / **`FlowUpAccumulator`** — internal, not
   public: generated code never names them (only `FlowUpClosure` and
   `FlowUpID` appear in expansions), and consumers reach them solely through
-  `on`/`accumulate` — a public generic func instantiates internal types
+  `onFlow`/`collectFlow` — a public generic func instantiates internal types
   fine. Smallest possible public surface: two types, two funcs.
 - **`FlowUpPreferenceKey`** — the listener list travels as the bare wrapper
   array (already Equatable, reduce = old + new append), keyed uniquely per
@@ -186,7 +186,7 @@ extension View {
 - **`FlowUpAccumulator`** — the whole injector: owns the state, catches the
   preference, and shoves the array straight into the environment for the
   same subtree — no conversion anywhere. No caller-side state, no binding.
-- **`on(_:_:)` / `accumulate(_:)`** — hand-written generic View
+- **`onFlow(_:_:)` / `collectFlow(_:)`** — hand-written generic View
   extensions in ordinary CoreFlow source, so the "macro expansion cannot
   introduce extension" wall never applies. `Tag` and `Closure` both infer
   from the ID keypath; registration never even resolves it (only the types
@@ -238,7 +238,7 @@ Generated pieces:
   `(URL) async throws -> Void`, calling every registered listener in order;
   passes anywhere a plain closure is expected. Read-only by construction.
   Empty entry → the loop is a no-op; the monoid empty.
-- **`static handleUrl`** — the flow's identity for `on` / `accumulate`:
+- **`static handleUrl`** — the flow's identity for `onFlow` / `collectFlow`:
   same name, different namespace (metatype), a `FlowUpID` carrying the
   keypath to the hidden entry.
 - **`handleUrl_Key`** — one enum, two jobs: the `EnvironmentKey` for the
@@ -299,7 +299,7 @@ Generated pieces:
     types`).
   - PASS (scratch compile, full planned runtime + two hand-expanded flows
     with the SAME closure signature): distinct preference-key types per tag;
-    `.on(\.handleUrl) { url in … }` trailing-closure inference; both flows
+    `.onFlow(\.handleUrl) { url in … }` trailing-closure inference; both flows
     on one view; no collision with SwiftUI's `on*` family (`.onAppear`
     beside our `.on`); static ID keypath writing one flow's entry without
     touching the other. One requirement discovered: the generated key's
@@ -320,9 +320,9 @@ Generated pieces:
   expansion/diagnostics, `FlowUpTests` end-to-end):
   - PASS: fileprivate entry visibility from expansion buffers — the
     accessor, static, and tests all reach it.
-  - PASS: trailing-closure inference of `Closure` at `.on(\.flow) { }`,
+  - PASS: trailing-closure inference of `Closure` at `.onFlow(\.flow) { }`,
     plus combined-call order, same-signature isolation, throws-aborts,
-    async-sequential, empty default, `.on`/`.accumulate` typechecking.
+    async-sequential, empty default, `.onFlow`/`.collectFlow` typechecking.
   - PASS: attributed `@MainActor (Int) -> Void` flow rides the whole
     pipeline and calls (after the `@unchecked Sendable` fix above).
   - FAIL: native `@Entry` inside our expansion — `'@Entry' macro can only
@@ -337,7 +337,7 @@ Generated pieces:
   1. re-rendering a registering leaf N times never re-fires the accumulator
      or rewrites the environment (verifies the render-phase payload write is
      invisible to the dataflow);
-  2. two chained `.on(\.same)` registrations on one view both survive. The
+  2. two chained `.onFlow(\.same)` registrations on one view both survive. The
      registration modifier publishes via `transformPreference` (append)
      rather than `.preference` precisely so this holds under either nesting
      semantics — `.preference` SETS its node's value and may clobber an
