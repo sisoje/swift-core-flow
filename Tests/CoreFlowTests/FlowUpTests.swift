@@ -42,6 +42,17 @@ struct FlowUpTests {
         #expect(received == [7, 107])
     }
 
+    @Test func zeroParameterListenersAllRunInOrder() {
+        var received: [String] = []
+        var env = EnvironmentValues()
+        env[keyPath: EnvironmentValues.flowRefresh.keyPath] = [
+            listener { received.append("first") },
+            listener { received.append("second") },
+        ]
+        env.flowRefresh()
+        #expect(received == ["first", "second"])
+    }
+
     @Test func combinedClosureReadsPayloadAtCallTime() {
         var received: [Int] = []
         let wrapper = listener { received.append($0) }
