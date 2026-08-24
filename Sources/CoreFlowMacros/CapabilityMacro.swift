@@ -19,7 +19,7 @@ public enum CapabilityMacro: MemberMacro {
     ) throws -> [DeclSyntax] {
         guard
             declaration.is(StructDeclSyntax.self) || declaration.is(ClassDeclSyntax.self)
-                || declaration.is(ActorDeclSyntax.self) || declaration.is(ExtensionDeclSyntax.self)
+            || declaration.is(ActorDeclSyntax.self) || declaration.is(ExtensionDeclSyntax.self)
         else {
             context.diagnose(
                 Diagnostic(node: node, message: CapabilityDiagnostic.notAnEligibleDeclaration)
@@ -82,7 +82,8 @@ func collectCapabilityMembers(
 
                 members.append(
                     CapabilityMember(
-                        name: pattern.identifier.text, typeText: type.trimmedDescription)
+                        name: pattern.identifier.text, typeText: type.trimmedDescription
+                    )
                 )
             }
         } else if let funcDecl = member.decl.as(FunctionDeclSyntax.self) {
@@ -97,11 +98,15 @@ func collectCapabilityMembers(
 
             let params =
                 funcDecl.signature.parameterClause.parameters
-                .map { $0.type.trimmedDescription }
-                .joined(separator: ", ")
+                    .map { $0.type.trimmedDescription }
+                    .joined(separator: ", ")
             var effects = ""
-            if funcDecl.signature.effectSpecifiers?.asyncSpecifier != nil { effects += " async" }
-            if funcDecl.signature.effectSpecifiers?.throwsClause != nil { effects += " throws" }
+            if funcDecl.signature.effectSpecifiers?.asyncSpecifier != nil {
+                effects += " async"
+            }
+            if funcDecl.signature.effectSpecifiers?.throwsClause != nil {
+                effects += " throws"
+            }
             let returnType = funcDecl.signature.returnClause?.type.trimmedDescription ?? "Void"
 
             members.append(
@@ -116,7 +121,8 @@ func collectCapabilityMembers(
     guard !hadError else { return nil }
     guard !members.isEmpty else {
         context.diagnose(
-            Diagnostic(node: Syntax(decl), message: CapabilityDiagnostic.noEligibleMembers))
+            Diagnostic(node: Syntax(decl), message: CapabilityDiagnostic.noEligibleMembers)
+        )
         return nil
     }
     return members
@@ -142,22 +148,22 @@ func renderCapabilityMembers(members: [CapabilityMember], access: String) -> [De
 
     let rhs =
         isTuple
-        ? "(" + members.map { "\($0.name): \($0.typeText)" }.joined(separator: ", ") + ")"
-        : members[0].typeText
+            ? "(" + members.map { "\($0.name): \($0.typeText)" }.joined(separator: ", ") + ")"
+            : members[0].typeText
 
     let body =
         isTuple
-        ? "    (" + members.map(\.name).joined(separator: ", ") + ")"
-        : "    \(members[0].name)"
+            ? "    (" + members.map(\.name).joined(separator: ", ") + ")"
+            : "    \(members[0].name)"
 
     return [
         DeclSyntax(stringLiteral: "\(access)typealias Capability = \(rhs)"),
         DeclSyntax(
             stringLiteral: """
-                \(access)var capability: Capability {
-                \(body)
-                }
-                """
+            \(access)var capability: Capability {
+            \(body)
+            }
+            """
         ),
     ]
 }
@@ -167,7 +173,9 @@ func renderCapabilityMembers(members: [CapabilityMember], access: String) -> [De
 struct CapabilityDiagnostic: DiagnosticMessage {
     let message: String
     let id: String
-    var severity: DiagnosticSeverity { .error }
+    var severity: DiagnosticSeverity {
+        .error
+    }
 
     var diagnosticID: MessageID {
         MessageID(domain: "CoreFlow", id: id)
@@ -175,21 +183,21 @@ struct CapabilityDiagnostic: DiagnosticMessage {
 
     static let notAnEligibleDeclaration = CapabilityDiagnostic(
         message:
-            "@Capability can only be attached to a struct, class, actor, or an extension of one.",
+        "@Capability can only be attached to a struct, class, actor, or an extension of one.",
         id: "notAnEligibleDeclaration"
     )
 
     static func missingType(_ name: String) -> CapabilityDiagnostic {
         CapabilityDiagnostic(
             message:
-                "Computed property '\(name)' needs an explicit type annotation so @Capability can include it.",
+            "Computed property '\(name)' needs an explicit type annotation so @Capability can include it.",
             id: "missingType"
         )
     }
 
     static let noEligibleMembers = CapabilityDiagnostic(
         message:
-            "@Capability found no eligible computed properties or methods — nothing to bundle into a Capability.",
+        "@Capability found no eligible computed properties or methods — nothing to bundle into a Capability.",
         id: "noEligibleMembers"
     )
 }

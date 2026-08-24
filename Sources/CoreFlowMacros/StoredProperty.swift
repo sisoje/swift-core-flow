@@ -50,7 +50,7 @@ public struct StoredProperty {
         isOwnState || isFocusState || isExternalStorage || isQuery
     }
 
-    /// `@Query` → `@QueryCore` on `Core` (`QueryCore.swift` documents the
+    /// `@Query` → `@QueryResult` on `Core` (`QueryResult.swift` documents the
     /// one-to-one surface).
     public var isQuery: Bool {
         wrapperName == "Query"
@@ -99,7 +99,9 @@ public func collectStoredProperties(
         let isStatic = varDecl.modifiers.contains {
             $0.name.tokenKind == .keyword(.static) || $0.name.tokenKind == .keyword(.class)
         }
-        if isStatic { continue }
+        if isStatic {
+            continue
+        }
 
         // `private(set)`/`fileprivate(set)` land here too — deliberately not
         // special-cased: setter-restricted properties have no place in pure data
@@ -114,7 +116,9 @@ public func collectStoredProperties(
             guard let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else { continue }
 
             // Stored properties with only willSet/didSet observers are kept.
-            if let accessorBlock = binding.accessorBlock, isComputed(accessorBlock) { continue }
+            if let accessorBlock = binding.accessorBlock, isComputed(accessorBlock) {
+                continue
+            }
 
             let wrapperName = propertyWrapperName(varDecl.attributes)
             let explicitType = binding.typeAnnotation?.type
@@ -251,7 +255,7 @@ public func accessLevel(of decl: some DeclGroupSyntax) -> String {
 /// The name of the first attribute on a property (its property-wrapper type, e.g.
 /// `Binding` for `@Binding`), or nil if the property carries no attributes.
 public func propertyWrapperName(_ attributes: AttributeListSyntax) -> String? {
-    for case .attribute(let attr) in attributes {
+    for case let .attribute(attr) in attributes {
         if let name = attr.attributeName.as(IdentifierTypeSyntax.self)?.name.text {
             return name
         }
@@ -263,14 +267,16 @@ public func propertyWrapperName(_ attributes: AttributeListSyntax) -> String? {
 /// function types (`(() -> Void)?`) are deliberately *not* matched: an optional closure
 /// is already escaping, and `@escaping` on it is a compile error.
 public func isFunctionType(_ type: TypeSyntax) -> Bool {
-    if type.is(FunctionTypeSyntax.self) { return true }
+    if type.is(FunctionTypeSyntax.self) {
+        return true
+    }
     // Attributed function types, e.g. `@MainActor () -> Void` or `@Sendable () -> Void`.
     if let attributed = type.as(AttributedTypeSyntax.self) {
         return isFunctionType(attributed.baseType)
     }
     if let tuple = type.as(TupleTypeSyntax.self),
-        tuple.elements.count == 1,
-        let inner = tuple.elements.first?.type
+       tuple.elements.count == 1,
+       let inner = tuple.elements.first?.type
     {
         return isFunctionType(inner)
     }
@@ -289,9 +295,15 @@ public func isOptionalType(_ type: TypeSyntax) -> Bool {
 /// resolution). Returns nil for anything else — a call, an identifier, `nil`, a
 /// collection literal, … — leaving those to the missing-type diagnostic.
 public func inferredLiteralType(_ expr: ExprSyntax) -> TypeSyntax? {
-    if expr.is(BooleanLiteralExprSyntax.self) { return "Bool" }
-    if expr.is(IntegerLiteralExprSyntax.self) { return "Int" }
-    if expr.is(StringLiteralExprSyntax.self) { return "String" }
+    if expr.is(BooleanLiteralExprSyntax.self) {
+        return "Bool"
+    }
+    if expr.is(IntegerLiteralExprSyntax.self) {
+        return "Int"
+    }
+    if expr.is(StringLiteralExprSyntax.self) {
+        return "String"
+    }
     return nil
 }
 
@@ -301,7 +313,7 @@ public func isComputed(_ accessorBlock: AccessorBlockSyntax) -> Bool {
     switch accessorBlock.accessors {
     case .getter:
         return true
-    case .accessors(let list):
+    case let .accessors(list):
         return list.contains { $0.accessorSpecifier.tokenKind == .keyword(.get) }
     }
 }
@@ -314,7 +326,9 @@ public func isComputed(_ accessorBlock: AccessorBlockSyntax) -> Bool {
 public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     public let message: String
     public let id: String
-    public var severity: DiagnosticSeverity { .error }
+    public var severity: DiagnosticSeverity {
+        .error
+    }
 
     public var diagnosticID: MessageID {
         MessageID(domain: "CoreFlow", id: id)
@@ -332,17 +346,17 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-                "Stored property '\(propertyName)' needs an explicit type annotation so @\(macroName) can generate the initializer/stateless snapshot.",
+            "Stored property '\(propertyName)' needs an explicit type annotation so @\(macroName) can generate the initializer/stateless snapshot.",
             id: "missingType"
         )
     }
 
-    public static func sourceOfTruthMustBePrivate(macroName: String, propertyName: String)
+    public static func sourceOfTruthMustBePrivate(macroName _: String, propertyName: String)
         -> DataTypeMacroDiagnostic
     {
         DataTypeMacroDiagnostic(
             message:
-                "'\(propertyName)' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+            "'\(propertyName)' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
             id: "sourceOfTruthMustBePrivate"
         )
     }
@@ -352,7 +366,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-                "'\(propertyName)' is private with no property wrapper — @\(macroName) has no room for opaque private state in pure data flow. Make it non-private, or give it a property wrapper (mapped ones are substituted with mockable stand-ins; any other is copied onto Core verbatim).",
+            "'\(propertyName)' is private with no property wrapper — @\(macroName) has no room for opaque private state in pure data flow. Make it non-private, or give it a property wrapper (mapped ones are substituted with mockable stand-ins; any other is copied onto Core verbatim).",
             id: "plainPrivatePropertyNotAllowed"
         )
     }
@@ -364,7 +378,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-                "'\(propertyName)' uses @\(wrapperName), which a caller supplies through @\(macroName)'s generated init — declaring it private makes it unreachable. Remove `private`/`fileprivate` from '\(propertyName)'.",
+            "'\(propertyName)' uses @\(wrapperName), which a caller supplies through @\(macroName)'s generated init — declaring it private makes it unreachable. Remove `private`/`fileprivate` from '\(propertyName)'.",
             id: "callerSuppliedWrapperMustNotBePrivate"
         )
     }
@@ -374,7 +388,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-                "'\(propertyName)' must be a `let` — @ViewBuilder content is caller-supplied through @\(macroName)'s generated init and never reassigned.",
+            "'\(propertyName)' must be a `let` — @ViewBuilder content is caller-supplied through @\(macroName)'s generated init and never reassigned.",
             id: "viewBuilderMustBeLet"
         )
     }
@@ -387,9 +401,8 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-                "'\(propertyName)' needs an inline default — @Shell re-declares @State as @TestState on Core and copies the default.",
+            "'\(propertyName)' needs an inline default — @Shell re-declares @State as @TestState on Core and copies the default.",
             id: "stateNeedsInlineDefault"
         )
     }
-
 }

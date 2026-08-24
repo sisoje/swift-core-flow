@@ -12,11 +12,12 @@ func validatedProperties(
 ) -> (properties: [StoredProperty], access: String)? {
     guard
         declaration.is(StructDeclSyntax.self) || declaration.is(ClassDeclSyntax.self)
-            || declaration.is(ActorDeclSyntax.self)
+        || declaration.is(ActorDeclSyntax.self)
     else {
         context.diagnose(
             Diagnostic(
-                node: node, message: DataTypeMacroDiagnostic.notADataType(macroName: macroName))
+                node: node, message: DataTypeMacroDiagnostic.notADataType(macroName: macroName)
+            )
         )
         return nil
     }

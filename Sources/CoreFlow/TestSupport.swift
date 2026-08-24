@@ -9,7 +9,9 @@ import SwiftUI
 struct ComparableLog: Equatable {
     var sink: @MainActor (_ name: String, _ value: String) -> Void = { _, _ in }
 
-    static func == (lhs: Self, rhs: Self) -> Bool { true }
+    static func == (_: Self, _: Self) -> Bool {
+        true
+    }
 }
 
 extension EnvironmentValues {
@@ -31,8 +33,8 @@ public struct TestLog: DynamicProperty {
     }
 }
 
-extension View {
-    public func testLog(
+public extension View {
+    func testLog(
         _ sink: @escaping @MainActor (_ name: String, _ value: String) -> Void
     ) -> some View {
         environment(\.testLog, ComparableLog(sink: sink))

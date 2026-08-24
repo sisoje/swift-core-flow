@@ -30,7 +30,9 @@ public struct FlowUpID<Tag, Closure> {
 }
 
 struct FlowUpPreferenceKey<Tag, Closure>: PreferenceKey {
-    static var defaultValue: [FlowUpClosure<Closure>] { [] }
+    static var defaultValue: [FlowUpClosure<Closure>] {
+        []
+    }
 
     static func reduce(
         value: inout [FlowUpClosure<Closure>],
@@ -49,9 +51,9 @@ struct FlowUpRegistration<Tag, Closure>: ViewModifier {
         wrapper.closures = [closure]
         return
             content
-            .transformPreference(FlowUpPreferenceKey<Tag, Closure>.self) { value in
-                value.append(wrapper)
-            }
+                .transformPreference(FlowUpPreferenceKey<Tag, Closure>.self) { value in
+                    value.append(wrapper)
+                }
     }
 }
 
@@ -69,15 +71,15 @@ struct FlowUpAccumulator<Tag, Closure>: ViewModifier {
     }
 }
 
-extension View {
-    public func onFlow<Tag, Closure>(
-        _ id: KeyPath<EnvironmentValues.Type, FlowUpID<Tag, Closure>>,
+public extension View {
+    func onFlow<Tag, Closure>(
+        _: KeyPath<EnvironmentValues.Type, FlowUpID<Tag, Closure>>,
         _ closure: Closure
     ) -> some View {
         modifier(FlowUpRegistration<Tag, Closure>(closure: closure))
     }
 
-    public func collectFlow<Tag, Closure>(
+    func collectFlow<Tag, Closure>(
         _ id: KeyPath<EnvironmentValues.Type, FlowUpID<Tag, Closure>>
     ) -> some View {
         modifier(

@@ -8,7 +8,9 @@ import SwiftSyntax
 /// `Equatable`/storable/diffable, defeating the tuple's purpose.
 func baseTypeText(_ p: StoredProperty, wrapViewBuilder: Bool = true) -> String {
     let typeStr = p.type?.trimmedDescription ?? ""
-    if p.isBinding { return "Binding<\(typeStr)>" }
+    if p.isBinding {
+        return "Binding<\(typeStr)>"
+    }
     if wrapViewBuilder, p.isViewBuilder, !(p.type.map(isFunctionType) ?? false) {
         return "() -> \(typeStr)"
     }
@@ -20,7 +22,9 @@ func baseTypeText(_ p: StoredProperty, wrapViewBuilder: Bool = true) -> String {
 /// A `@ViewBuilder`-stored value calls the builder the init parameter wrapped
 /// it in.
 func fieldAssignment(_ p: StoredProperty, source: String) -> String {
-    if p.isBinding { return "    self._\(p.name) = \(source)" }
+    if p.isBinding {
+        return "    self._\(p.name) = \(source)"
+    }
     if p.isViewBuilder, !(p.type.map(isFunctionType) ?? false) {
         return "    self.\(p.name) = \(source)()"
     }

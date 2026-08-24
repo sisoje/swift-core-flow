@@ -98,5 +98,7 @@ public macro pick<T1, each V1, T2, each V2, T3, each V3>(
 /// in scope everywhere), which collides: "ambiguous operator declarations
 /// found for operator." `=>` was checked against the SDK's declared
 /// operators before shipping and is collision-free.
-infix operator => : AdditionPrecedence
-public func => <Root, Value>(lhs: KeyPath<Root, Value>, rhs: String) -> KeyPath<Root, Value> { lhs }
+infix operator =>: AdditionPrecedence
+public func => <Root, Value>(lhs: KeyPath<Root, Value>, _: String) -> KeyPath<Root, Value> {
+    lhs
+}

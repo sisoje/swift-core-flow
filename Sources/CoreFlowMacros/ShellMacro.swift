@@ -18,8 +18,12 @@ func detectHostKind(of declaration: some DeclGroupSyntax) -> ShellHostKind {
         declaration.inheritanceClause?.inheritedTypes.compactMap {
             $0.type.as(IdentifierTypeSyntax.self)?.name.text
         } ?? []
-    if inherited.contains("ViewModifier") { return .viewModifier }
-    if inherited.contains("View") { return .view }
+    if inherited.contains("ViewModifier") {
+        return .viewModifier
+    }
+    if inherited.contains("View") {
+        return .view
+    }
     return .none
 }
 
@@ -36,7 +40,9 @@ func detectHostKind(of declaration: some DeclGroupSyntax) -> ShellHostKind {
 /// aren't seen (syntax-only, like `detectHostKind`).
 func copiedMemberSources(of declaration: some DeclGroupSyntax) -> [String] {
     declaration.memberBlock.members.compactMap { member in
-        if member.decl.is(InitializerDeclSyntax.self) { return nil }
+        if member.decl.is(InitializerDeclSyntax.self) {
+            return nil
+        }
         if let varDecl = member.decl.as(VariableDeclSyntax.self) {
             let isStatic = varDecl.modifiers.contains {
                 $0.name.tokenKind == .keyword(.static) || $0.name.tokenKind == .keyword(.class)
@@ -48,7 +54,9 @@ func copiedMemberSources(of declaration: some DeclGroupSyntax) -> [String] {
             let isStored = varDecl.bindings.allSatisfy { binding in
                 binding.accessorBlock.map { !isComputed($0) } ?? true
             }
-            if !isStatic && isStored { return nil }
+            if !isStatic, isStored {
+                return nil
+            }
         }
         return dedented(member.decl.trimmedDescription)
     }
@@ -66,9 +74,9 @@ private func dedented(_ source: String) -> String {
     guard let minIndent = indents.min(), minIndent > 0 else { return source }
     return
         ([lines[0]]
-        + lines.dropFirst().map { line in
-            String(line.dropFirst(min(minIndent, line.prefix(while: { $0 == " " }).count)))
-        })
+            + lines.dropFirst().map { line in
+                String(line.dropFirst(min(minIndent, line.prefix(while: { $0 == " " }).count)))
+            })
         .joined(separator: "\n")
 }
 
@@ -104,9 +112,12 @@ public enum ShellMacro: MemberMacro {
             )
             hadError = true
         }
-        if hadError { return [] }
+        if hadError {
+            return []
+        }
         return renderShell(
             properties: properties, hostKind: detectHostKind(of: declaration),
-            copiedMembers: copiedMemberSources(of: declaration))
+            copiedMembers: copiedMemberSources(of: declaration)
+        )
     }
 }

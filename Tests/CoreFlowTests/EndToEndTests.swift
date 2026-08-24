@@ -11,8 +11,7 @@ import Testing
 private typealias Store = (expenses: [Int], limit: Int, name: String)
 private typealias Actions = (alerts: [String], submit: () -> Void)
 
-@Suite struct EndToEndTests {
-
+struct EndToEndTests {
     @Test func pickProjectsMultipleFields() {
         let store: Store = (expenses: [1, 2, 3], limit: 10, name: "Groceries")
         let picked = #pick(from: store, \.expenses, \.limit)
@@ -74,7 +73,8 @@ private typealias Actions = (alerts: [String], submit: () -> Void)
         let store: Store = (expenses: [1, 2], limit: 5, name: "Rent")
         let actions: Actions = (alerts: ["low"], submit: {})
         let merged = #pick(
-            from: store, \.expenses, \.limit, from: actions, \.alerts, from: store, \.name)
+            from: store, \.expenses, \.limit, from: actions, \.alerts, from: store, \.name
+        )
         #expect(merged.0 == [1, 2])
         #expect(merged.1 == 5)
         #expect(merged.2 == ["low"])
@@ -85,7 +85,8 @@ private typealias Actions = (alerts: [String], submit: () -> Void)
         let store: Store = (expenses: [1], limit: 2, name: "Rent")
         let actions: Actions = (alerts: ["a"], submit: {})
         let merged = #pick(
-            from: store, \.expenses, from: actions, \.alerts, from: store, \.limit => "total")
+            from: store, \.expenses, from: actions, \.alerts, from: store, \.limit => "total"
+        )
         #expect(merged.0 == [1])
         #expect(merged.1 == ["a"])
         #expect(merged.2 == 2)

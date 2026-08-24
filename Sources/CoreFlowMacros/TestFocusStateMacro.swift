@@ -23,9 +23,9 @@ import SwiftSyntaxMacros
 /// directly — so only the macro itself can refuse it).
 public enum TestFocusStateMacro: AccessorMacro, PeerMacro {
     public static func expansion(
-        of node: AttributeSyntax,
+        of _: AttributeSyntax,
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
-        in context: some MacroExpansionContext
+        in _: some MacroExpansionContext
     ) throws -> [AccessorDeclSyntax] {
         let (name, _) = try validated(declaration)
         return [
@@ -44,9 +44,9 @@ public enum TestFocusStateMacro: AccessorMacro, PeerMacro {
     }
 
     public static func expansion(
-        of node: AttributeSyntax,
+        of _: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
-        in context: some MacroExpansionContext
+        in _: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         // The accessor role reports the error; throwing here too would
         // duplicate it.
@@ -73,13 +73,13 @@ public enum TestFocusStateMacro: AccessorMacro, PeerMacro {
         _ declaration: some DeclSyntaxProtocol
     ) throws -> (name: String, type: TypeSyntax) {
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
-            !isStatic(varDecl),
-            varDecl.bindingSpecifier.tokenKind == .keyword(.var),
-            varDecl.bindings.count == 1, let binding = varDecl.bindings.first,
-            let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
-            binding.accessorBlock == nil,
-            binding.initializer == nil,
-            let type = binding.typeAnnotation?.type
+              !isStatic(varDecl),
+              varDecl.bindingSpecifier.tokenKind == .keyword(.var),
+              varDecl.bindings.count == 1, let binding = varDecl.bindings.first,
+              let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+              binding.accessorBlock == nil,
+              binding.initializer == nil,
+              let type = binding.typeAnnotation?.type
         else {
             throw MacroExpansionErrorMessage(
                 "@TestFocusState requires a stored instance 'var' with a type annotation (`Bool` or an optional) and no initial value."

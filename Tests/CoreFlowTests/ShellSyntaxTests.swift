@@ -1,8 +1,7 @@
+@testable import CoreFlowMacros
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
-
-@testable import CoreFlowMacros
 
 final class ShellSyntaxTests: XCTestCase {
     let macros: [String: Macro.Type] = ["Shell": ShellMacro.self]
@@ -12,8 +11,8 @@ final class ShellSyntaxTests: XCTestCase {
         // renamed to @TestState. @Environment: verbatim copy,
         // self-initialized by its key-path argument, so it drops out of
         // Core's memberwise init — live environment when hosted, default
-        // EnvironmentValues otherwise. Bare-value @QueryCore init:
-        // QueryCore.swift.
+        // EnvironmentValues otherwise. Bare-value @QueryResult init:
+        // QueryResult.swift.
         assertMacroExpansion(
             """
             @Shell
@@ -26,22 +25,22 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Card {
-                    @Query private var items: [Item]
+            struct Card {
+                @Query private var items: [Item]
+                @Environment(\\.colorScheme) private var colorScheme: ColorScheme
+                @State private var isExpanded: Bool = false
+                @Binding var isOn: Bool
+                let title: String
+
+                struct Core {
+                    @QueryResult var items: [Item]
                     @Environment(\\.colorScheme) private var colorScheme: ColorScheme
-                    @State private var isExpanded: Bool = false
+                    @TestState private var isExpanded: Bool = false
                     @Binding var isOn: Bool
                     let title: String
-
-                    struct Core {
-                        @QueryCore var items: [Item]
-                        @Environment(\\.colorScheme) private var colorScheme: ColorScheme
-                        @TestState private var isExpanded: Bool = false
-                        @Binding var isOn: Bool
-                        let title: String
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -62,16 +61,16 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct SearchField {
-                    @FocusState private var isFocused: Bool
-                    let title: String
+            struct SearchField {
+                @FocusState private var isFocused: Bool
+                let title: String
 
-                    struct Core {
-                        @TestFocusState private var isFocused: Bool
-                        let title: String
-                    }
+                struct Core {
+                    @TestFocusState private var isFocused: Bool
+                    let title: String
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -87,15 +86,16 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct SearchField {
-                    @FocusState var isFocused: Bool
-                }
-                """,
+            struct SearchField {
+                @FocusState var isFocused: Bool
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'isFocused' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
-                    line: 3, column: 21)
+                    "'isFocused' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                    line: 3, column: 21
+                ),
             ],
             macros: macros
         )
@@ -116,18 +116,18 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Draggable {
-                    @GestureState(reset: { _, transaction in transaction = Transaction() }) private var dragOffset: CGSize = .zero
-                    let title: String
+            struct Draggable {
+                @GestureState(reset: { _, transaction in transaction = Transaction() }) private var dragOffset: CGSize = .zero
+                let title: String
 
-                    struct Core {
-                        @GestureState(reset: { _, transaction in
-                            transaction = Transaction()
-                        }) private var dragOffset: CGSize = .zero
-                        let title: String
-                    }
+                struct Core {
+                    @GestureState(reset: { _, transaction in
+                        transaction = Transaction()
+                    }) private var dragOffset: CGSize = .zero
+                    let title: String
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -150,20 +150,20 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Exotic {
+            struct Exotic {
+                @StateObject private var vm: VM = VM()
+                @Whatever(flavor: .spicy) var knob: Int = 7
+                var flavor = "mild"
+                let title: String
+
+                struct Core {
                     @StateObject private var vm: VM = VM()
                     @Whatever(flavor: .spicy) var knob: Int = 7
                     var flavor = "mild"
                     let title: String
-
-                    struct Core {
-                        @StateObject private var vm: VM = VM()
-                        @Whatever(flavor: .spicy) var knob: Int = 7
-                        var flavor = "mild"
-                        let title: String
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -182,16 +182,16 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct SearchField {
+            struct SearchField {
+                @AccessibilityFocusState private var a11yFocused: Bool
+                let title: String
+
+                struct Core {
                     @AccessibilityFocusState private var a11yFocused: Bool
                     let title: String
-
-                    struct Core {
-                        @AccessibilityFocusState private var a11yFocused: Bool
-                        let title: String
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -209,16 +209,16 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct IconRow {
+            struct IconRow {
+                @ScaledMetric private var iconSize: CGFloat = 24
+                let title: String
+
+                struct Core {
                     @ScaledMetric private var iconSize: CGFloat = 24
                     let title: String
-
-                    struct Core {
-                        @ScaledMetric private var iconSize: CGFloat = 24
-                        let title: String
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -237,16 +237,16 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct SearchField {
-                    @SceneStorage("isPinned") private var isPinned: Bool = false
-                    let title: String
+            struct SearchField {
+                @SceneStorage("isPinned") private var isPinned: Bool = false
+                let title: String
 
-                    struct Core {
-                        @Binding var isPinned: Bool
-                        let title: String
-                    }
+                struct Core {
+                    @Binding var isPinned: Bool
+                    let title: String
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -265,16 +265,16 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct HeroCard {
+            struct HeroCard {
+                @Namespace private var ns
+                let title: String
+
+                struct Core {
                     @Namespace private var ns
                     let title: String
-
-                    struct Core {
-                        @Namespace private var ns
-                        let title: String
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -293,16 +293,16 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Card {
+            struct Card {
+                @MyModule.Tracked var count = 0
+                let title: String
+
+                struct Core {
                     @MyModule.Tracked var count = 0
                     let title: String
-
-                    struct Core {
-                        @MyModule.Tracked var count = 0
-                        let title: String
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -320,16 +320,16 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Card {
+            struct Card {
+                @MyModule.Tracked private var count = 0
+                let title: String
+
+                struct Core {
                     @MyModule.Tracked private var count = 0
                     let title: String
-
-                    struct Core {
-                        @MyModule.Tracked private var count = 0
-                        let title: String
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -348,16 +348,16 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Card {
-                    public let title: String = "x"
-                    public var subtitle: String
+            public struct Card {
+                public let title: String = "x"
+                public var subtitle: String
 
-                    struct Core {
-                        let title: String = "x"
-                        var subtitle: String
-                    }
+                struct Core {
+                    let title: String = "x"
+                    var subtitle: String
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -372,13 +372,13 @@ final class ShellSyntaxTests: XCTestCase {
             struct Empty {}
             """,
             expandedSource: """
-                struct Empty {
+            struct Empty {
 
-                    struct Core {
+                struct Core {
 
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -401,20 +401,20 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct ProfileCard<Content: View> {
+            struct ProfileCard<Content: View> {
+                var subtitle: String?
+                @Bindable var model: Settings
+                @ViewBuilder let content: () -> Content
+                @ViewBuilder let footer: Content
+
+                struct Core {
                     var subtitle: String?
                     @Bindable var model: Settings
                     @ViewBuilder let content: () -> Content
                     @ViewBuilder let footer: Content
-
-                    struct Core {
-                        var subtitle: String?
-                        @Bindable var model: Settings
-                        @ViewBuilder let content: () -> Content
-                        @ViewBuilder let footer: Content
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -430,15 +430,16 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Card {
-                    @State var isOn: Bool = false
-                }
-                """,
+            struct Card {
+                @State var isOn: Bool = false
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'isOn' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
-                    line: 3, column: 16)
+                    "'isOn' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                    line: 3, column: 16
+                ),
             ],
             macros: macros
         )
@@ -455,15 +456,16 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Card {
-                    @State private var selection: Int?
-                }
-                """,
+            struct Card {
+                @State private var selection: Int?
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'selection' needs an inline default — @Shell re-declares @State as @TestState on Core and copies the default.",
-                    line: 3, column: 24)
+                    "'selection' needs an inline default — @Shell re-declares @State as @TestState on Core and copies the default.",
+                    line: 3, column: 24
+                ),
             ],
             macros: macros
         )
@@ -480,15 +482,16 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct ProfileCard<Content: View> {
-                    @ViewBuilder var footer: Content
-                }
-                """,
+            struct ProfileCard<Content: View> {
+                @ViewBuilder var footer: Content
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'footer' must be a `let` — @ViewBuilder content is caller-supplied through @Shell's generated init and never reassigned.",
-                    line: 3, column: 22)
+                    "'footer' must be a `let` — @ViewBuilder content is caller-supplied through @Shell's generated init and never reassigned.",
+                    line: 3, column: 22
+                ),
             ],
             macros: macros
         )
@@ -509,21 +512,21 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Card: View {
-                    @State private var count: Int = 0
+            struct Card: View {
+                @State private var count: Int = 0
+                var body: some View {
+                    Text("\\(count)")
+                }
+
+                struct Core: View {
+                    @TestState private var count: Int = 0
+
                     var body: some View {
                         Text("\\(count)")
                     }
-
-                    struct Core: View {
-                        @TestState private var count: Int = 0
-
-                        var body: some View {
-                            Text("\\(count)")
-                        }
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -544,21 +547,21 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Dimmed: ViewModifier {
-                    @State private var level: Double = 0.5
+            struct Dimmed: ViewModifier {
+                @State private var level: Double = 0.5
+                func body(content: Content) -> some View {
+                    content.opacity(level)
+                }
+
+                struct Core: ViewModifier {
+                    @TestState private var level: Double = 0.5
+
                     func body(content: Content) -> some View {
                         content.opacity(level)
                     }
-
-                    struct Core: ViewModifier {
-                        @TestState private var level: Double = 0.5
-
-                        func body(content: Content) -> some View {
-                            content.opacity(level)
-                        }
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -591,48 +594,48 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Card: View {
-                    @State private var count: Int = 0
+            struct Card: View {
+                @State private var count: Int = 0
+                static let spacing: CGFloat = 8
+                enum Kind {
+                    case a
+                }
+                init(seed: Int) {
+                    count = seed
+                }
+                var doubled: Int {
+                    count * 2
+                }
+                func label() -> String {
+                    "\\(doubled)"
+                }
+                var body: some View {
+                    Text(label())
+                }
+
+                struct Core: View {
+                    @TestState private var count: Int = 0
+
                     static let spacing: CGFloat = 8
+
                     enum Kind {
                         case a
                     }
-                    init(seed: Int) {
-                        count = seed
-                    }
+
                     var doubled: Int {
                         count * 2
                     }
+
                     func label() -> String {
                         "\\(doubled)"
                     }
+
                     var body: some View {
                         Text(label())
                     }
-
-                    struct Core: View {
-                        @TestState private var count: Int = 0
-
-                        static let spacing: CGFloat = 8
-
-                        enum Kind {
-                            case a
-                        }
-
-                        var doubled: Int {
-                            count * 2
-                        }
-
-                        func label() -> String {
-                            "\\(doubled)"
-                        }
-
-                        var body: some View {
-                            Text(label())
-                        }
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -648,14 +651,14 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Card {
-                    let title: String
+            struct Card {
+                let title: String
 
-                    struct Core {
-                        let title: String
-                    }
+                struct Core {
+                    let title: String
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -670,16 +673,16 @@ final class ShellSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Point {
+            public struct Point {
+                var x: Int
+                var y: Int
+
+                struct Core {
                     var x: Int
                     var y: Int
-
-                    struct Core {
-                        var x: Int
-                        var y: Int
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }

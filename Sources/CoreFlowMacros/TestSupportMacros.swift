@@ -18,9 +18,9 @@ import SwiftSyntaxMacros
 /// the annotation or the shared three-literal inference.
 public enum TestStateMacro: AccessorMacro, PeerMacro {
     public static func expansion(
-        of node: AttributeSyntax,
+        of _: AttributeSyntax,
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
-        in context: some MacroExpansionContext
+        in _: some MacroExpansionContext
     ) throws -> [AccessorDeclSyntax] {
         let (name, _) = try validated(declaration)
         return [
@@ -45,9 +45,9 @@ public enum TestStateMacro: AccessorMacro, PeerMacro {
     }
 
     public static func expansion(
-        of node: AttributeSyntax,
+        of _: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
-        in context: some MacroExpansionContext
+        in _: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         // The accessor role reports the error; throwing here too would
         // duplicate it.
@@ -73,13 +73,13 @@ public enum TestStateMacro: AccessorMacro, PeerMacro {
         _ declaration: some DeclSyntaxProtocol
     ) throws -> (name: String, type: TypeSyntax) {
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
-            !isStatic(varDecl),
-            varDecl.bindingSpecifier.tokenKind == .keyword(.var),
-            varDecl.bindings.count == 1, let binding = varDecl.bindings.first,
-            let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
-            binding.accessorBlock == nil,
-            let defaultValue = binding.initializer?.value,
-            let type = binding.typeAnnotation?.type ?? inferredLiteralType(defaultValue)
+              !isStatic(varDecl),
+              varDecl.bindingSpecifier.tokenKind == .keyword(.var),
+              varDecl.bindings.count == 1, let binding = varDecl.bindings.first,
+              let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+              binding.accessorBlock == nil,
+              let defaultValue = binding.initializer?.value,
+              let type = binding.typeAnnotation?.type ?? inferredLiteralType(defaultValue)
         else {
             throw MacroExpansionErrorMessage(
                 "@TestState requires a stored instance 'var' with an inline default and an explicit type (or a bare Bool/Int/String literal default)."
@@ -96,9 +96,9 @@ public enum TestStateMacro: AccessorMacro, PeerMacro {
 /// accessor expansion on `let`. No setter: an action is wired, not mutated.
 public enum TestActionMacro: AccessorMacro, PeerMacro {
     public static func expansion(
-        of node: AttributeSyntax,
+        of _: AttributeSyntax,
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
-        in context: some MacroExpansionContext
+        in _: some MacroExpansionContext
     ) throws -> [AccessorDeclSyntax] {
         let (name, type, function) = try validated(declaration)
         return [
@@ -113,16 +113,17 @@ public enum TestActionMacro: AccessorMacro, PeerMacro {
                 let log = log_\(raw: name).wrappedValue
                 let storage = \(raw: name)_storage
                 return \(raw: wrapperClosure(
-                    name: name, function: function, isSendable: isSendableType(type)))
+                    name: name, function: function, isSendable: isSendableType(type)
+                ))
             }
             """,
         ]
     }
 
     public static func expansion(
-        of node: AttributeSyntax,
+        of _: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
-        in context: some MacroExpansionContext
+        in _: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         // The accessor role reports the error; throwing here too would
         // duplicate it.
@@ -139,14 +140,14 @@ public enum TestActionMacro: AccessorMacro, PeerMacro {
         _ declaration: some DeclSyntaxProtocol
     ) throws -> (name: String, type: TypeSyntax, function: FunctionTypeSyntax) {
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
-            !isStatic(varDecl),
-            varDecl.bindingSpecifier.tokenKind == .keyword(.var),
-            varDecl.bindings.count == 1, let binding = varDecl.bindings.first,
-            let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
-            binding.accessorBlock == nil,
-            binding.initializer != nil,
-            let type = binding.typeAnnotation?.type,
-            let function = functionType(of: type)
+              !isStatic(varDecl),
+              varDecl.bindingSpecifier.tokenKind == .keyword(.var),
+              varDecl.bindings.count == 1, let binding = varDecl.bindings.first,
+              let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+              binding.accessorBlock == nil,
+              binding.initializer != nil,
+              let type = binding.typeAnnotation?.type,
+              let function = functionType(of: type)
         else {
             throw MacroExpansionErrorMessage(
                 "@TestAction requires a stored instance 'var' closure with an inert inline default (e.g. `= { _ in }`)."
@@ -169,14 +170,14 @@ func isStatic(_ varDecl: VariableDeclSyntax) -> Bool {
 private func isSendableType(_ type: TypeSyntax) -> Bool {
     guard let attributed = type.as(AttributedTypeSyntax.self) else {
         if let tuple = type.as(TupleTypeSyntax.self), tuple.elements.count == 1,
-            let inner = tuple.elements.first?.type
+           let inner = tuple.elements.first?.type
         {
             return isSendableType(inner)
         }
         return false
     }
     let spelled = attributed.attributes.contains { item in
-        guard case .attribute(let attr) = item else { return false }
+        guard case let .attribute(attr) = item else { return false }
         return attr.attributeName.trimmedDescription == "Sendable"
     }
     return spelled || isSendableType(attributed.baseType)
@@ -185,12 +186,14 @@ private func isSendableType(_ type: TypeSyntax) -> Bool {
 /// The function type inside a possibly attributed/parenthesized annotation
 /// (`@Sendable () -> Void`, `((Int) -> Void)`), or nil for a non-function type.
 private func functionType(of type: TypeSyntax) -> FunctionTypeSyntax? {
-    if let fn = type.as(FunctionTypeSyntax.self) { return fn }
+    if let fn = type.as(FunctionTypeSyntax.self) {
+        return fn
+    }
     if let attributed = type.as(AttributedTypeSyntax.self) {
         return functionType(of: attributed.baseType)
     }
     if let tuple = type.as(TupleTypeSyntax.self), tuple.elements.count == 1,
-        let inner = tuple.elements.first?.type
+       let inner = tuple.elements.first?.type
     {
         return functionType(of: inner)
     }
@@ -207,7 +210,7 @@ private func functionType(of type: TypeSyntax) -> FunctionTypeSyntax? {
 private func wrapperClosure(name: String, function: FunctionTypeSyntax, isSendable: Bool)
     -> String
 {
-    let parameters = (0..<function.parameters.count).map { "a\($0)" }
+    let parameters = (0 ..< function.parameters.count).map { "a\($0)" }
     let list = parameters.joined(separator: ", ")
     // Zero arguments → empty-string value, not a described `()`.
     let payload =
@@ -217,10 +220,16 @@ private func wrapperClosure(name: String, function: FunctionTypeSyntax, isSendab
         default: "String(describing: (\(list)))"
         }
     var call = "storage(\(list))"
-    if function.effectSpecifiers?.asyncSpecifier != nil { call = "await " + call }
-    if function.effectSpecifiers?.throwsClause != nil { call = "try " + call }
+    if function.effectSpecifiers?.asyncSpecifier != nil {
+        call = "await " + call
+    }
+    if function.effectSpecifiers?.throwsClause != nil {
+        call = "try " + call
+    }
     let returnType = function.returnClause.type.trimmedDescription
-    if returnType != "Void" && returnType != "()" { call = "return " + call }
+    if returnType != "Void" && returnType != "()" {
+        call = "return " + call
+    }
     let signature = parameters.isEmpty ? "" : " \(list) in"
     // The seam is @MainActor. Only a @Sendable async wrapper needs `await` —
     // it's the one shape that can't inherit the host's main-actor isolation,
@@ -231,11 +240,11 @@ private func wrapperClosure(name: String, function: FunctionTypeSyntax, isSendab
     // compiler's unnecessary-await warning (verified directly).
     let logCall =
         (isSendable && function.effectSpecifiers?.asyncSpecifier != nil ? "await " : "")
-        + "log(\"\(name)\", \(payload))"
+            + "log(\"\(name)\", \(payload))"
     return """
-        {\(signature)
-                \(logCall)
-                \(call)
-            }
-        """
+    {\(signature)
+            \(logCall)
+            \(call)
+        }
+    """
 }

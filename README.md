@@ -3,6 +3,8 @@
 > **Make any SwiftUI project testable. One line, one macro is all you need.**
 >
 > **Need a deeplinking system? Also one line, one macro — done.**
+>
+> **Dynamic SwiftData queries? One view — and mocking them is one line too.**
 
 ## Why
 
@@ -72,7 +74,10 @@ is the per-macro reference.
 | [`@TestAction`](#teststate-and-testaction) | accessor + peer macro | an action closure that logs every call — reading the property IS the logged action; each call logs its payload to the injected sink, then forwards |
 | [`@TestFocusState`](#testfocusstate) | accessor + peer macro | a drop-in `@FocusState` that logs every programmatic write — a real `FocusState` underneath, so focus genuinely moves when hosted; `$name` is the real `FocusState<T>.Binding` |
 | [`@UnstructuredTask`](#unstructuredtask) | accessor + peer macro | a view-owned slot for a cancellable unstructured `Task` — replacing cancels the previous task, view teardown cancels the live one, and every mutation logs like `@TestState` |
-| [`@QueryCore`](#querycore) | property wrapper | `@Query`'s drop-in stand-in on `Core` — the fetched result as a bare init parameter (`Core(items: [item], …)`), same read surface as the live wrapper, no SwiftData stack |
+| [`@QueryResult`](#queryresult) | property wrapper | `@Query`'s drop-in stand-in on `Core` — the fetched result as a bare init parameter (`Core(items: [item], …)`), same read surface as the live wrapper, no SwiftData stack |
+| [`View.mockQuery(_:)`](#queryview) | View modifier | cans a subtree's queries in one line — typed `QueryResult` values per result type; anything unregistered traps loudly, no logic in the mock |
+| [`QueryView`](#queryview) | View | the live SwiftData shell — builds a real `Query` dynamically, rebuilt only when its `index` changes, and hands content a `QueryResult` (`{ $books in … }`), so components read plain data in production and tests alike |
+| [`SectionedResults.mock`](#sectionedresultsmock--because-apple-sealed-plain-data) | runtime utility | fabricates iOS 27's init-less sectioned results for tests/previews — Apple sealed plain data (filed as FB24480699); genuine inner fetch collection, caller's order, loud failure if the private layout ever changes |
 | [`@TestLog`](#the-testlog-seam) | property wrapper | reads the installed sink — `@TestLog private var log` self-initializes and `log(name, value)` is a direct call (verified); the macros generate the same thing as an explicit field, `private let log_x = TestLog()` |
 | [`View.testLog(_:)`](#the-testlog-seam) | View modifier | installs the one logging sink, once, on the root view; without it the log is a no-op, so hosts behave normally anywhere else |
 | [`@Capability`](#capability) | member macro | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
@@ -118,7 +123,7 @@ struct Card: View {
 
     // generates:
     // struct Core: View {
-    //     @QueryCore var items: [Item]
+    //     @QueryResult var items: [Item]
     //     @TestState private var isExpanded = false
     //     @Binding var isFavorite: Bool
     //     let title: String
@@ -167,7 +172,7 @@ the component's data flow, so the write site emits evidence instead.
 `@AppStorage` and `@SceneStorage` are external storage, so they become
 `@Binding`: persistence keys disappear because a twin does not persist, while
 the scenario supplies the backing and captures writes. `@Query` becomes
-`@QueryCore`, making the fetched result a bare input — reading an array should
+`@QueryResult`, making the fetched result a bare input — reading an array should
 not require standing up an entire SwiftData stack. `@FocusState` becomes
 [`@TestFocusState`](#testfocusstate), a live instrument rather than a mock:
 `FocusState<T>.Binding` has no public initializer, and focus writes no-op
@@ -211,7 +216,7 @@ inert or defaulted otherwise.
 | `@State` | `@TestState` |
 | `@FocusState` | `@TestFocusState` |
 | `@AppStorage` / `@SceneStorage` | `@Binding` |
-| `@Query` | `@QueryCore` |
+| `@Query` | `@QueryResult` |
 
 > **`@StateObject` and `@ObservedObject` are deliberately unmapped.** They are
 > Combine-era `ObservableObject` wrappers — ViewModel-shaped state, the pattern
@@ -251,26 +256,28 @@ implicitly infers `@MainActor` isolation for the whole type, so a
 nonisolated test function crosses that boundary at runtime and traps under
 Swift 6 strict concurrency, even just reading a computed property.
 
-### QueryCore
+### QueryResult
 
-`@QueryCore` is a one-to-one stand-in for the live `@Query` read surface.
+`@QueryResult` is a one-to-one stand-in for the live `@Query` read surface.
 Verified directly against the `_SwiftData_SwiftUI` interface, `Query`
 exposes exactly `wrappedValue`, `fetchError`, and `modelContext`, with
-**no `projectedValue`**. `QueryCore` carries the same three members and
-nothing else, with `modelContext` private.
+**no `projectedValue`**. `QueryResult` carries the same three public members,
+plus one deliberate superset the live wrapper lacks: a projection of `self`,
+so an SE-0293 `$` closure parameter can re-propertify a passed-in value —
+`{ $books in ForEach(books) … }` — with `@Query` ergonomics.
 
 That parity lets the copied `body` compile unchanged: `items.isEmpty` and
 `ForEach(items)` still read the supplied array directly, while
 `_items.fetchError` has the same spelling on both types. `modelContext`
 remains environment-fed — like the live wrapper's — through a private
-`@Environment` field; because `QueryCore` is a `DynamicProperty`, it installs
+`@Environment` field; because `QueryResult` is a `DynamicProperty`, it installs
 when `Core` is hosted and uses SwiftUI's native mocking path —
 `.modelContainer` or `.environment`. It is never read unhosted.
 
-`fetchError` defaults to `nil`, so `QueryCore` can be initialized with
+`fetchError` defaults to `nil`, so `QueryResult` can be initialized with
 `wrappedValue` alone. That makes `Core`'s synthesized memberwise initializer
 accept the bare fetched value: a test writes
-`Core(items: [item], title: "t")`, with no `QueryCore` spelling.
+`Core(items: [item], title: "t")`, with no `QueryResult` spelling.
 
 ### Why a nominal struct, not a tuple
 
@@ -311,7 +318,7 @@ is needed anywhere: release pays zero bytes for `Core`.
 No init is generated or copied either. Swift's memberwise-init synthesis
 already handles each field — verified directly: a wrapper without
 `init(wrappedValue:)`, such as `@Binding`, produces a parameter of the wrapper
-type; one with it, such as `@QueryCore` or `@Bindable`, produces a parameter of
+type; one with it, such as `@QueryResult` or `@Bindable`, produces a parameter of
 the wrapped type. The `@ViewBuilder` case is covered below.
 
 **The mapped source-of-truth wrappers must be private — enforced with a
@@ -382,7 +389,7 @@ flowchart TD
     end
 
     subgraph Twin["Card.Core — its standalone twin"]
-        Boundaries["test boundaries<br/>@TestState/@TestFocusState (log) · @Binding (writes through) · @QueryCore (bare value)"]
+        Boundaries["test boundaries<br/>@TestState/@TestFocusState (log) · @Binding (writes through) · @QueryResult (bare value)"]
         Machinery["verbatim runtime machinery<br/>@Environment / @GestureState / …"]
         CoreBody["body + helpers<br/>the same text, compiler-copied"]
         Boundaries --> CoreBody
@@ -415,6 +422,109 @@ Use the scenario introduced above. Its hand-written `body` constructs
 `Card.Core(…)` in expression position, while `#Preview { CardScenario() }`
 names only ordinary types. The example app uses every scenario this way: as a
 preview stage that the UI tests can name too.
+
+---
+
+## SwiftData
+
+The SwiftData story in one sentence: components read query results as
+plain data (`QueryResult`), one shell view owns the live `@Query`
+(`QueryView`), and mocking is a seeded in-memory `ModelContainer` — the
+real query runs against your test data. `@QueryResult` itself — the read-surface
+stand-in `@Shell` substitutes on `Core` — is documented in the
+[Shell chapter](#queryresult).
+
+### QueryView
+
+**Why this exists.** `@Query` is a source of truth whose configuration —
+filter, sort, section — is itself sourced from OTHER truth (your state),
+yet it's locked in at construction: SwiftData gives you no way to adjust a
+live query's predicate or sort in place. A source of truth with
+construction parameters means the *data flow* has to do the adjusting —
+own the parameters as state, build the query from them, and rebuild it
+exactly when they change. Building it in a child's `init` off parent state
+(the common workaround) couples query creation to however often the parent
+happens to recompute — and `Query` construction is not a free struct
+assignment; it wires a real fetch pipeline. Dependency-keyed recreation
+isn't a style preference, it's the only correct flow for this API —
+[the full argument, and the pattern QueryView packages, is in the Data
+Flow series](https://medium.com/@redhotbits/swiftui-data-flow-pattern-the-only-proper-way-to-use-swiftdata-query-2569727a573d).
+
+The live SwiftData shell: build a real `Query` dynamically, and hand content
+its result as plain data.
+
+```swift
+struct BookList: View {
+    @AppStorage("sortDescending") private var sortDescending = false
+
+    var body: some View {
+        QueryView(
+            index: sortDescending,
+            query: Query(sort: \Book.title, order: sortDescending ? .reverse : .forward)
+        ) { $books in
+            List(books) { book in
+                Text(book.title)
+            }
+        }
+    }
+}
+```
+
+- **The `query:` expression is deferred (an autoclosure), evaluated only
+  when `index` changes** — toggling the flag makes a new query; unrelated
+  parent re-renders don't reach it. `index` must cover every input of both
+  `query` and `content`: a value left out is a state change the gated body
+  will not see — aggregate multiple inputs into one `Equatable` key struct.
+  The init without `index:` is the ungated fallback,
+  re-evaluating the query every render.
+- **Content receives a `QueryResult`, re-propertified by the `$` parameter**:
+  `books` reads the fetched array directly (`ForEach(books)`,
+  `books.isEmpty` — `@Query` ergonomics), `$books` reaches
+  `fetchError`/`modelContext`.
+- **Two mock paths.** Can the results in one line — `.mockQuery` registers
+  typed `QueryResult` values per result type (an unregistered shape traps
+  loudly) — or seed an in-memory container and let the REAL query run
+  against your test data, so sorting, filtering, and sectioning are
+  genuinely the query's own:
+
+```swift
+BookListScenario()
+    .mockQuery(QueryResult(wrappedValue: [Book(title: "Dune")]))
+
+BookListScenario()
+    .modelContainer(for: Book.self, inMemory: true) { result in
+        try! result.get().mainContext.insert(Book(title: "Dune"))
+    }
+```
+
+- **Sectioned queries (iOS 27) pass through verbatim** — content receives
+  `QueryResult<SectionedResults<…>>` and reads Apple's own surface; a seeded
+  container mocks them live, and `SectionedResults.mock` below fabricates
+  one as plain data for direct unit construction.
+
+### SectionedResults.mock — because Apple sealed plain data
+
+iOS 27's sectioned queries (`Query(sort:sectionBy:)`) return
+`SectionedResults` — conceptually just section titles plus arrays of models,
+yet shipped with **no public initializer** on it or `ResultsSection`. A
+sectioned result can only come from a live fetch, so sectioned UI cannot be
+mocked in any test or preview by ordinary means. Reported to Apple as
+**FB24480699** (public initializers requested); until granted, CoreFlow
+fabricates the value:
+
+```swift
+let sectioned = SectionedResults<Book, String>.mock([
+    (title: "Sci-Fi", elements: [dune, anathem]),
+    (title: "Horror", elements: [it]),
+])
+```
+
+The inner fetch collection is genuine (a throwaway in-memory container per
+section), element order is exactly the caller's, and instances come back
+identical. Only the two init-less shells are built by memberwise-initializing
+their stored fields at runtime-reported offsets, matched by field name — so
+an OS that changes the private layout fails loudly instead of corrupting.
+Test/preview-only, and deletable the day Apple grants the initializers.
 
 ---
 
@@ -1463,8 +1573,8 @@ One target pair shared by all macros — not a pair per macro:
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift` (`@TestFocusState`), and `UnstructuredTaskMacro.swift` (`@UnstructuredTask`) — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `makeFlow(_:)`, and `InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` (`@TestState`/`@TestAction`, `View.testLog(_:)`, and the `TestLog` dynamic property), `TestFocusState.swift` (`@TestFocusState`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime `TaskStorage` box and `CancellableTask` protocol) — plus two small non-macro additions: `Reflector.swift` and `QueryCore.swift` |
-| `CoreFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus real-compiled end-to-end suites (TuplePicker, Reflector, Shell's `Core`, `QueryCore`, the test-support macros) — both test frameworks coexist fine in one target |
+| `CoreFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` (`@TestState`/`@TestAction`, `View.testLog(_:)`, and the `TestLog` dynamic property), `TestFocusState.swift` (`@TestFocusState`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime `TaskStorage` box and `CancellableTask` protocol) — plus two small non-macro additions: `Reflector.swift` and `QueryResult.swift` |
+| `CoreFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus real-compiled end-to-end suites (TuplePicker, Reflector, Shell's `Core`, `QueryResult`, the test-support macros) — both test frameworks coexist fine in one target |
 
 Swift tools version 6.3, Swift 6 language mode (strict concurrency), swift-syntax `600.0.0..<700.0.0`.
 
@@ -1475,6 +1585,7 @@ Swift tools version 6.3, Swift 6 language mode (strict concurrency), swift-synta
 The conceptual model, taught macro-free — the split these macros mechanize:
 
 - Lazar Otasevic — [SwiftUI Data Flow Masterclass](https://medium.com/@redhotbits/swiftui-data-flow-masterclass-099f0768f776) — nodes, waves, boundary events, the shell/core split, execution-log testing
+- Lazar Otasevic — [The (only) proper way to use SwiftData Query](https://medium.com/@redhotbits/swiftui-data-flow-pattern-the-only-proper-way-to-use-swiftdata-query-2569727a573d) — a SOT with construction parameters demands dependency-keyed recreation; the pattern `QueryView` packages
 
 Data-flow programming and data coupling — the model behind the package as a
 whole: a SwiftUI app as nodes (views, view modifiers) coupled only by the

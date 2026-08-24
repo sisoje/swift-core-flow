@@ -1,7 +1,6 @@
+@testable import CoreFlow
 import SwiftUI
 import Testing
-
-@testable import CoreFlow
 
 extension EnvironmentValues {
     @FlowUp var flowPing: (Int) -> Void
@@ -20,7 +19,7 @@ struct FlowUpTests {
         var received: [Int] = []
         var env = EnvironmentValues()
         env[keyPath: EnvironmentValues.flowMain.keyPath] = [
-            listener { @MainActor in received.append($0) }
+            listener { @MainActor in received.append($0) },
         ]
         env.flowMain(3)
         #expect(received == [3])

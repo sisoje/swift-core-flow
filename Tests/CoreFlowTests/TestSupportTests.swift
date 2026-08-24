@@ -12,19 +12,25 @@ private struct CounterHost: View {
     @TestState var count: Int = 0
     @TestState var isOn = false
 
-    var body: some View { Color.clear }
+    var body: some View {
+        Color.clear
+    }
 
-    // Everything generated is private — a real host wires it all inside its
-    // own body, so these drivers stand in for the body's wiring.
-    func readCount() -> Int { $count.wrappedValue }
-    func readIsOn() -> Bool { $isOn.wrappedValue }
+    /// Everything generated is private — a real host wires it all inside its
+    /// own body, so these drivers stand in for the body's wiring.
+    func readCount() -> Int {
+        $count.wrappedValue
+    }
+
+    func readIsOn() -> Bool {
+        $isOn.wrappedValue
+    }
 }
 
-// View conformance implies @MainActor isolation for the whole type, so the
-// suite must match — same rule as ShellTests.
+/// View conformance implies @MainActor isolation for the whole type, so the
+/// suite must match — same rule as ShellTests.
 @MainActor
-@Suite struct TestSupportEndToEndTests {
-
+struct TestSupportEndToEndTests {
     @Test func stateBindingsReadTheirSeeds() {
         let host = CounterHost()
 

@@ -1,7 +1,6 @@
+@testable import CoreFlow
 import SwiftUI
 import XCTest
-
-@testable import CoreFlow
 
 /// The lifecycle lives in `TaskStorage`, so it's tested there directly —
 /// no view, no macro. Ported from the standalone TaskState package.
@@ -26,21 +25,21 @@ final class TaskStorageTests: XCTestCase {
                 await Task.yield()
             }
         }
-        storage.task = second  // replacing must cancel the previous — willSet
+        storage.task = second // replacing must cancel the previous — willSet
         await first.value
         XCTAssertTrue(first.isCancelled)
 
         await fulfillment(of: [secondStarted], timeout: 1)
         XCTAssertFalse(second.isCancelled, "the replacement must survive its own arrival")
 
-        storage.task = nil  // nil is a genuine replacement — cancels
+        storage.task = nil // nil is a genuine replacement — cancels
         await second.value
         XCTAssertTrue(second.isCancelled)
     }
 
-    // The willSet is equality-guarded (Task's Equatable is identity):
-    // writing the task the box already holds back into it — a binding
-    // round-trip, a defensive `x = x` — must not cancel it.
+    /// The willSet is equality-guarded (Task's Equatable is identity):
+    /// writing the task the box already holds back into it — a binding
+    /// round-trip, a defensive `x = x` — must not cancel it.
     func testReassigningTheSameTaskDoesNotCancelIt() async {
         let storage = TaskStorage<Task<Void, Never>>()
 
@@ -54,8 +53,8 @@ final class TaskStorageTests: XCTestCase {
         storage.task = task
         await fulfillment(of: [started], timeout: 1)
 
-        storage.task = storage.task  // self-reassignment — not a replacement
-        XCTAssertFalse(task.isCancelled)  // cancellation is synchronous in willSet
+        storage.task = storage.task // self-reassignment — not a replacement
+        XCTAssertFalse(task.isCancelled) // cancellation is synchronous in willSet
 
         storage.task = nil
         await task.value
@@ -75,7 +74,7 @@ final class TaskStorageTests: XCTestCase {
         storage?.task = task
         await fulfillment(of: [started], timeout: 1)
 
-        storage = nil  // deinit → cancellation (State teardown, in a view)
+        storage = nil // deinit → cancellation (State teardown, in a view)
         _ = storage
 
         await task.value
@@ -90,9 +89,9 @@ private struct DemoView: View {
 
     var body: some View {
         Button("Go") {
-            download = Task {}  // set — cancels previous, logs ("download", "task")
-            let _: Task<Void, Never>? = download  // get
-            let _: Binding<Task<Void, Never>?> = $download  // projection
+            download = Task {} // set — cancels previous, logs ("download", "task")
+            let _: Task<Void, Never>? = download // get
+            let _: Binding<Task<Void, Never>?> = $download // projection
         }
     }
 }
@@ -104,7 +103,9 @@ private struct DemoView: View {
 private struct ShellHost: View {
     @UnstructuredTask private var work: Task<Void, Never>?
 
-    var body: some View { Color.clear }
+    var body: some View {
+        Color.clear
+    }
 }
 
 /// Same boundary as `TestSupportTests`: seed reads on the generated surface;
@@ -118,6 +119,6 @@ final class UnstructuredTaskTests: XCTestCase {
 
     func testShellCoreReExpandsTheMacroAndConstructsBare() {
         _ = ShellHost.Core()
-        _ = ShellHost()  // the host takes no parameters either — never a memberwise param
+        _ = ShellHost() // the host takes no parameters either — never a memberwise param
     }
 }

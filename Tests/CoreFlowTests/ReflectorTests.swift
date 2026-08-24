@@ -20,8 +20,7 @@ struct Point {
     var y: Int
 }
 
-@Suite struct ReflectorTests {
-
+struct ReflectorTests {
     @Test func fieldNamesListsAStructsStoredPropertiesInDeclarationOrder() {
         #expect(Reflector.fieldNames(of: Coordinates.self) == ["x", "y", "label"])
     }

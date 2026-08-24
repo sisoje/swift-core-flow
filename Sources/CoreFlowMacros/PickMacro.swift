@@ -13,7 +13,6 @@ import SwiftSyntaxMacros
 /// is bound once (`__v0`, …), in order of first appearance, not re-evaluated
 /// per group.
 public struct PickMacro: ExpressionMacro {
-
     private static let diagnosticDomain = "TuplePicker.pick"
 
     private struct Group {
@@ -51,8 +50,9 @@ public struct PickMacro: ExpressionMacro {
                 valueText = arg.expression.trimmedDescription
             } else {
                 let context = "#pick group 'from: \(valueText)'"
-                picks.append(
-                    (arg.expression, try parseKeyPathPick(arg.expression, context: context)))
+                try picks.append(
+                    (arg.expression, parseKeyPathPick(arg.expression, context: context))
+                )
             }
         }
         try flushGroup()
@@ -105,8 +105,8 @@ public struct PickMacro: ExpressionMacro {
         }
         let tupleBody =
             fields
-            .map { "\($0.pick.label): \($0.varName).\($0.pick.path)" }
-            .joined(separator: ", ")
+                .map { "\($0.pick.label): \($0.varName).\($0.pick.path)" }
+                .joined(separator: ", ")
         return "{ \(raw: prelude); return (\(raw: tupleBody)) }()"
     }
 }

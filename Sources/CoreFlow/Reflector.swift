@@ -22,7 +22,7 @@ public enum Reflector {
     /// reference before any field is inspected); this `precondition` turns that into
     /// a clear message instead. A struct or tuple containing a class-typed field is
     /// fine either way — the crash is about `T`'s own top-level kind, not its fields.
-    public static func fieldNames<T>(of: T.Type) -> [String] {
+    public static func fieldNames<T>(of _: T.Type) -> [String] {
         precondition(!(T.self is AnyClass), "fieldNames requires a value type, got class \(T.self)")
         let p = UnsafeMutablePointer<T>.allocate(capacity: 1)
         defer { p.deallocate() }

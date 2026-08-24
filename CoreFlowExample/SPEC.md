@@ -17,8 +17,7 @@ underneath — hosted behavior stays live; programmatic writes log, while
 `$name` remains the real `FocusState<T>.Binding`, so SYSTEM focus moves
 through it don't), `@AppStorage`/`@SceneStorage` → `@Binding` (external
 storage is an injected
-dependency; keys dropped), `@Query` → `@QueryCore` (fetched array as a bare
-init parameter), and unknown wrappers (`@GestureState`,
+dependency; keys dropped), and unknown wrappers (`@GestureState`,
 `@Environment`) copied verbatim with their attribute arguments — an
 `@Environment` copy reads whatever the scenario installs with
 `.environment(...)`, the environment's own mocking story.
@@ -153,15 +152,16 @@ snapshot, not vanish into an inert stub), installed on `Core`, whose copied
 
 ## BookList.swift — the SwiftData screen
 
-`@Query` → `@QueryCore` on `Core`, so a scenario hands the fetched array in
-directly — no `ModelContainer` anywhere in the tests — and `@AppStorage` →
-`@Binding`, external storage injected. Deleting goes through the
-`\.bookStore` capability.
+`@AppStorage` → `@Binding` on `Core`, external storage injected. The books
+come through `QueryView`: the body builds a real `Query` dynamically —
+sorting is the QUERY's job, and toggling the flag makes a new query — and
+the content consumes a `QueryResult`. Mocking is a seeded in-memory
+`ModelContainer`: the REAL query runs, so the sort assertions exercise the
+query's own `order:`. Deleting goes through the `\.bookStore` capability.
 
 ```swift
 @Shell
 struct BookList: View {
-    @Query private var books: [Book]
     @AppStorage("sortDescending") private var sortDescending = false
     @Environment(\.bookStore) private var bookStore: BookStore
     var body: some View { ... }
@@ -169,20 +169,26 @@ struct BookList: View {
 ```
 
 Body: `VStack` of `Toggle("Sort Z–A", isOn: $sortDescending)`
-(`.padding(.horizontal)`, identifier `sortToggle`) and a `List` whose local
-`shown` is `books` sorted by `title` descending when `sortDescending` else
-ascending; `ForEach(shown)` rows an `HStack` of `Text(book.title)`
-(identifier `bookTitle`), `Spacer()`, and `Button("Delete") {
+(`.padding(.horizontal)`, identifier `sortToggle`) and
+`QueryView(index: sortDescending, query: Query(sort: \Book.title, order:
+sortDescending ? .reverse : .forward)) { $books in ... }` whose content is
+a `List` of `ForEach(books)`, rows an `HStack` of
+`Text(book.title)` (identifier `bookTitle`), `Spacer()`, and `Button("Delete") {
 bookStore.delete(book) }` with identifier `delete-\(book.title)` — the model
 object itself, not its title: titles aren't unique, deletion is by identity.
 
 Scenario: `@TestState private var sortDescending = false`, `@TestAction private var insert:
 (Book) -> Void = { _ in }`, `@TestAction private var delete:
-(Book) -> Void = { _ in }`, body constructing `BookList.Core` with `books:`
-of exactly `Book(title: "Dune")` then `Book(title: "Anathem")` and
-`sortDescending: $sortDescending`, plus `.environment(\.bookStore,
-BookStore(insert: insert, delete: delete))` on the `Core` — the whole store
-logging mocks, same rationale as `AddBookScenario`'s.
+(Book) -> Void = { _ in }`. Body constructs
+`BookList.Core(sortDescending: $sortDescending)` with
+`.environment(\.bookStore, BookStore(insert: insert, delete: delete))` —
+the whole store logging mocks, same rationale as `AddBookScenario`'s — and
+`.modelContainer(for: Book.self, inMemory: true)` whose `onSetup` inserts
+`Book(title: "Dune")` then `Book(title: "Anathem")` into the container's
+`mainContext` (under `MainActor.assumeIsolated`; `try!` the result — a mock
+failing has no recovery). The real query fetches and sorts them, so
+toggling the flag exercises the query's own `order:` — the store mock only
+logs deletes, it does not remove rows.
 
 ## ReadingListScreen.swift — the composed screen
 
@@ -193,9 +199,10 @@ twin; the `\.bookStore` capability comes from whoever hosts it. Body:
 children are, no suite. Scenario: bare `ReadingListScreen.Core()`, exactly
 like `DragCardScenario` — the host takes nothing from callers, so the
 scenario adds nothing; the children's `\.bookStore` reads fall back to the
-entry's no-op default, and the composed `Core` hosts with NO
-`ModelContainer` (verified live: `BookList`'s uninstalled `@Query` renders
-empty, no crash). `#Preview { ReadingListScenario() }`. A preview must
+entry's no-op default, `BookList`'s `QueryView` hosts its containerless
+real `Query` (renders empty, no crash),
+and the composed `Core` hosts with NO `ModelContainer`.
+`#Preview { ReadingListScenario() }`. A preview must
 never construct `ReadingListScreen()` directly: `#Preview` is itself a
 macro expansion and can't reference the `@Flowable`-generated init (the
 cross-expansion rule; the generated init also suppresses the compiler's

@@ -1,8 +1,7 @@
+@testable import CoreFlowMacros
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
-
-@testable import CoreFlowMacros
 
 final class CapabilityTests: XCTestCase {
     let macros: [String: Macro.Type] = ["Capability": CapabilityMacro.self]
@@ -29,26 +28,26 @@ final class CapabilityTests: XCTestCase {
             }
             """,
             expandedSource: """
-                extension MySomething {
-                    var x: Int {
-                        zola * me
-                    }
-
-                    func doSomething() {
-                        print(zola)
-                    }
-
-                    func meme() async throws {
-                        try await Task.sleep(nanoseconds: 1)
-                    }
-
-                    typealias Capability = (x: Int, doSomething: () -> Void, meme: () async throws -> Void)
-
-                    var capability: Capability {
-                        (x, doSomething, meme)
-                    }
+            extension MySomething {
+                var x: Int {
+                    zola * me
                 }
-                """,
+
+                func doSomething() {
+                    print(zola)
+                }
+
+                func meme() async throws {
+                    try await Task.sleep(nanoseconds: 1)
+                }
+
+                typealias Capability = (x: Int, doSomething: () -> Void, meme: () async throws -> Void)
+
+                var capability: Capability {
+                    (x, doSomething, meme)
+                }
+            }
+            """,
             macros: macros
         )
     }
@@ -64,18 +63,18 @@ final class CapabilityTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Counter {
-                    private var count = 0
-                    var doubled: Int { count * 2 }
-                    func increment() { count += 1 }
+            public struct Counter {
+                private var count = 0
+                var doubled: Int { count * 2 }
+                func increment() { count += 1 }
 
-                    public typealias Capability = (doubled: Int, increment: () -> Void)
+                public typealias Capability = (doubled: Int, increment: () -> Void)
 
-                    public var capability: Capability {
-                        (doubled, increment)
-                    }
+                public var capability: Capability {
+                    (doubled, increment)
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -91,16 +90,16 @@ final class CapabilityTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Box {
-                    public var x: Int { 1 }
+            public struct Box {
+                public var x: Int { 1 }
 
-                    public typealias Capability = Int
+                public typealias Capability = Int
 
-                    public var capability: Capability {
-                        x
-                    }
+                public var capability: Capability {
+                    x
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -115,17 +114,17 @@ final class CapabilityTests: XCTestCase {
             }
             """,
             expandedSource: """
-                extension Adder {
-                    func add(_ x: Int, to y: Int) -> Int { x + y }
-                    var zero: Int { 0 }
+            extension Adder {
+                func add(_ x: Int, to y: Int) -> Int { x + y }
+                var zero: Int { 0 }
 
-                    typealias Capability = (add: (Int, Int) -> Int, zero: Int)
+                typealias Capability = (add: (Int, Int) -> Int, zero: Int)
 
-                    var capability: Capability {
-                        (add, zero)
-                    }
+                var capability: Capability {
+                    (add, zero)
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -144,18 +143,18 @@ final class CapabilityTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Counter {
-                    public var storedCount: Int = 0
-                    public var doubled: Int { storedCount * 2 }
-                    public mutating func increment() { storedCount += 1 }
+            public struct Counter {
+                public var storedCount: Int = 0
+                public var doubled: Int { storedCount * 2 }
+                public mutating func increment() { storedCount += 1 }
 
-                    public typealias Capability = Int
+                public typealias Capability = Int
 
-                    public var capability: Capability {
-                        doubled
-                    }
+                public var capability: Capability {
+                    doubled
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -173,20 +172,20 @@ final class CapabilityTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct V {
-                    public var title: String { "t" }
-                    private var cache: Int { 0 }
-                    fileprivate func helper() {}
-                    static var shared: V { V() }
-                    public func run() {}
+            public struct V {
+                public var title: String { "t" }
+                private var cache: Int { 0 }
+                fileprivate func helper() {}
+                static var shared: V { V() }
+                public func run() {}
 
-                    public typealias Capability = (title: String, run: () -> Void)
+                public typealias Capability = (title: String, run: () -> Void)
 
-                    public var capability: Capability {
-                        (title, run)
-                    }
+                public var capability: Capability {
+                    (title, run)
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -200,17 +199,17 @@ final class CapabilityTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Empty {
-                    public let x: Int
-                }
-                """,
+            public struct Empty {
+                public let x: Int
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "@Capability found no eligible computed properties or methods — nothing to bundle into a Capability.",
+                    "@Capability found no eligible computed properties or methods — nothing to bundle into a Capability.",
                     line: 1,
                     column: 1
-                )
+                ),
             ],
             macros: macros
         )
@@ -230,17 +229,17 @@ final class CapabilityTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Thing {
-                    public var value { 0 }
-                }
-                """,
+            public struct Thing {
+                public var value { 0 }
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "Computed property 'value' needs an explicit type annotation so @Capability can include it.",
+                    "Computed property 'value' needs an explicit type annotation so @Capability can include it.",
                     line: 3,
                     column: 16
-                )
+                ),
             ],
             macros: macros
         )
@@ -255,17 +254,17 @@ final class CapabilityTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public enum E {
-                    case a
-                }
-                """,
+            public enum E {
+                case a
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "@Capability can only be attached to a struct, class, actor, or an extension of one.",
+                    "@Capability can only be attached to a struct, class, actor, or an extension of one.",
                     line: 1,
                     column: 1
-                )
+                ),
             ],
             macros: macros
         )

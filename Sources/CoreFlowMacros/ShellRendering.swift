@@ -16,7 +16,7 @@ import SwiftSyntax
 /// the only way tests construct a `Core`, and synthesis already reproduces
 /// every field-specific behavior (verified directly: a wrapper without
 /// `init(wrappedValue:)` (`@Binding`) synthesizes a parameter of the
-/// *wrapper's* type, one with it (`@QueryCore`, `@Bindable`) of the
+/// *wrapper's* type, one with it (`@QueryResult`, `@Bindable`) of the
 /// *wrapped* type, `@ViewBuilder` on a stored `let` a real builder
 /// parameter). Deliberately no `core` capture property off the live host —
 /// a unit test never has one — and no generated binding mocks: that small,
@@ -33,7 +33,7 @@ func renderShell(
         // external storage, injected as @Binding — each one's projectedValue
         // genuinely IS Binding<T> (verified directly), so a test-supplied
         // Binding(get:set:) captures every write the copied body makes.
-        // @Query → @QueryCore, whose extra fields default so the memberwise
+        // @Query → @QueryResult, whose extra fields default so the memberwise
         // init takes the bare fetched value: `Core(items: [item], …)`.
         // @FocusState — like @State, the view's own — is a renamed verbatim
         // copy (rule 2 below): @TestFocusState holds a REAL FocusState peer
@@ -45,7 +45,7 @@ func renderShell(
             return "@Binding var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         if p.isQuery {
-            return "@QueryCore var \(p.name): \(p.type?.trimmedDescription ?? "")"
+            return "@QueryResult var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
         // Rule 2 — everything else, wrapper or not, @ViewBuilder included:
         // the host's own declaration re-rendered as written, `public` erased
@@ -69,13 +69,14 @@ func renderShell(
                 p.isOwnState ? ("State", "TestState") : ("FocusState", "TestFocusState")
             copy.attributes = AttributeListSyntax(
                 copy.attributes.map { element in
-                    guard case .attribute(var a) = element,
-                        a.attributeName.trimmedDescription == from
+                    guard case var .attribute(a) = element,
+                          a.attributeName.trimmedDescription == from
                     else { return element }
                     a.attributeName = TypeSyntax(stringLiteral: to)
                         .with(\.trailingTrivia, a.attributeName.trailingTrivia)
                     return .attribute(a)
-                })
+                }
+            )
         }
         copy.modifiers = copy.modifiers.filter {
             $0.name.tokenKind != .keyword(.public)
@@ -94,10 +95,10 @@ func renderShell(
     let copies = copiedMembers.map { "\n\n\($0)" }.joined()
     let statelessStruct = DeclSyntax(
         stringLiteral: """
-            struct Core\(conformance) {
-            \(fieldDecls)\(copies)
-            }
-            """
+        struct Core\(conformance) {
+        \(fieldDecls)\(copies)
+        }
+        """
     )
 
     return [statelessStruct]

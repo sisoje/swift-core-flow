@@ -1,12 +1,11 @@
+@testable import CoreFlowMacros
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 
-@testable import CoreFlowMacros
-
 final class FlowUpSyntaxTests: XCTestCase {
     let macros: [String: Macro.Type] = [
-        "FlowUp": FlowUpMacro.self
+        "FlowUp": FlowUpMacro.self,
     ]
 
     func testExpansion() {
@@ -23,40 +22,40 @@ final class FlowUpSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                extension EnvironmentValues {
-                    var handleUrl: (URL) async throws -> Void {
-                        get {
-                            let wrappers = self.handleUrl_closures
-                            return { a0 in
-                                for wrapper in wrappers {
-                                    for closure in wrapper.closures {
-                                        try await closure(a0)
-                                    }
+            extension EnvironmentValues {
+                var handleUrl: (URL) async throws -> Void {
+                    get {
+                        let wrappers = self.handleUrl_closures
+                        return { a0 in
+                            for wrapper in wrappers {
+                                for closure in wrapper.closures {
+                                    try await closure(a0)
                                 }
                             }
                         }
                     }
+                }
 
-                    enum handleUrl_Key: EnvironmentKey {
-                        static var defaultValue: [FlowUpClosure<(URL) async throws -> Void>] {
-                            []
-                        }
-                    }
-
-                    fileprivate var handleUrl_closures: [FlowUpClosure<(URL) async throws -> Void>] {
-                        get {
-                            self[handleUrl_Key.self]
-                        }
-                        set {
-                            self[handleUrl_Key.self] = newValue
-                        }
-                    }
-
-                    static var handleUrl: FlowUpID<handleUrl_Key, (URL) async throws -> Void> {
-                        FlowUpID(keyPath: \\.handleUrl_closures)
+                enum handleUrl_Key: EnvironmentKey {
+                    static var defaultValue: [FlowUpClosure<(URL) async throws -> Void>] {
+                        []
                     }
                 }
-                """,
+
+                fileprivate var handleUrl_closures: [FlowUpClosure<(URL) async throws -> Void>] {
+                    get {
+                        self[handleUrl_Key.self]
+                    }
+                    set {
+                        self[handleUrl_Key.self] = newValue
+                    }
+                }
+
+                static var handleUrl: FlowUpID<handleUrl_Key, (URL) async throws -> Void> {
+                    FlowUpID(keyPath: \\.handleUrl_closures)
+                }
+            }
+            """,
             macros: macros
         )
     }
@@ -70,40 +69,40 @@ final class FlowUpSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                extension EnvironmentValues {
-                    var refresh: () -> Void {
-                        get {
-                            let wrappers = self.refresh_closures
-                            return {
-                                for wrapper in wrappers {
-                                    for closure in wrapper.closures {
-                                        closure()
-                                    }
+            extension EnvironmentValues {
+                var refresh: () -> Void {
+                    get {
+                        let wrappers = self.refresh_closures
+                        return {
+                            for wrapper in wrappers {
+                                for closure in wrapper.closures {
+                                    closure()
                                 }
                             }
                         }
                     }
+                }
 
-                    enum refresh_Key: EnvironmentKey {
-                        static var defaultValue: [FlowUpClosure<() -> Void>] {
-                            []
-                        }
-                    }
-
-                    fileprivate var refresh_closures: [FlowUpClosure<() -> Void>] {
-                        get {
-                            self[refresh_Key.self]
-                        }
-                        set {
-                            self[refresh_Key.self] = newValue
-                        }
-                    }
-
-                    static var refresh: FlowUpID<refresh_Key, () -> Void> {
-                        FlowUpID(keyPath: \\.refresh_closures)
+                enum refresh_Key: EnvironmentKey {
+                    static var defaultValue: [FlowUpClosure<() -> Void>] {
+                        []
                     }
                 }
-                """,
+
+                fileprivate var refresh_closures: [FlowUpClosure<() -> Void>] {
+                    get {
+                        self[refresh_Key.self]
+                    }
+                    set {
+                        self[refresh_Key.self] = newValue
+                    }
+                }
+
+                static var refresh: FlowUpID<refresh_Key, () -> Void> {
+                    FlowUpID(keyPath: \\.refresh_closures)
+                }
+            }
+            """,
             macros: macros
         )
     }
@@ -118,40 +117,40 @@ final class FlowUpSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                extension EnvironmentValues {
-                    public var shared: (Int, String) -> Void {
-                        get {
-                            let wrappers = self.shared_closures
-                            return { a0, a1 in
-                                for wrapper in wrappers {
-                                    for closure in wrapper.closures {
-                                        closure(a0, a1)
-                                    }
+            extension EnvironmentValues {
+                public var shared: (Int, String) -> Void {
+                    get {
+                        let wrappers = self.shared_closures
+                        return { a0, a1 in
+                            for wrapper in wrappers {
+                                for closure in wrapper.closures {
+                                    closure(a0, a1)
                                 }
                             }
                         }
                     }
+                }
 
-                    public enum shared_Key: EnvironmentKey {
-                        public static var defaultValue: [FlowUpClosure<(Int, String) -> Void>] {
-                            []
-                        }
-                    }
-
-                    fileprivate var shared_closures: [FlowUpClosure<(Int, String) -> Void>] {
-                        get {
-                            self[shared_Key.self]
-                        }
-                        set {
-                            self[shared_Key.self] = newValue
-                        }
-                    }
-
-                    public static var shared: FlowUpID<shared_Key, (Int, String) -> Void> {
-                        FlowUpID(keyPath: \\.shared_closures)
+                public enum shared_Key: EnvironmentKey {
+                    public static var defaultValue: [FlowUpClosure<(Int, String) -> Void>] {
+                        []
                     }
                 }
-                """,
+
+                fileprivate var shared_closures: [FlowUpClosure<(Int, String) -> Void>] {
+                    get {
+                        self[shared_Key.self]
+                    }
+                    set {
+                        self[shared_Key.self] = newValue
+                    }
+                }
+
+                public static var shared: FlowUpID<shared_Key, (Int, String) -> Void> {
+                    FlowUpID(keyPath: \\.shared_closures)
+                }
+            }
+            """,
             macros: macros
         )
     }
@@ -165,40 +164,40 @@ final class FlowUpSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                extension EnvironmentValues {
-                    var ping: @MainActor (Int) -> Void {
-                        get {
-                            let wrappers = self.ping_closures
-                            return { a0 in
-                                for wrapper in wrappers {
-                                    for closure in wrapper.closures {
-                                        closure(a0)
-                                    }
+            extension EnvironmentValues {
+                var ping: @MainActor (Int) -> Void {
+                    get {
+                        let wrappers = self.ping_closures
+                        return { a0 in
+                            for wrapper in wrappers {
+                                for closure in wrapper.closures {
+                                    closure(a0)
                                 }
                             }
                         }
                     }
+                }
 
-                    enum ping_Key: EnvironmentKey {
-                        static var defaultValue: [FlowUpClosure<@MainActor (Int) -> Void>] {
-                            []
-                        }
-                    }
-
-                    fileprivate var ping_closures: [FlowUpClosure<@MainActor (Int) -> Void>] {
-                        get {
-                            self[ping_Key.self]
-                        }
-                        set {
-                            self[ping_Key.self] = newValue
-                        }
-                    }
-
-                    static var ping: FlowUpID<ping_Key, @MainActor (Int) -> Void> {
-                        FlowUpID(keyPath: \\.ping_closures)
+                enum ping_Key: EnvironmentKey {
+                    static var defaultValue: [FlowUpClosure<@MainActor (Int) -> Void>] {
+                        []
                     }
                 }
-                """,
+
+                fileprivate var ping_closures: [FlowUpClosure<@MainActor (Int) -> Void>] {
+                    get {
+                        self[ping_Key.self]
+                    }
+                    set {
+                        self[ping_Key.self] = newValue
+                    }
+                }
+
+                static var ping: FlowUpID<ping_Key, @MainActor (Int) -> Void> {
+                    FlowUpID(keyPath: \\.ping_closures)
+                }
+            }
+            """,
             macros: macros
         )
     }
@@ -211,17 +210,17 @@ final class FlowUpSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                extension EnvironmentValues {
-                    var handleUrl: Int
-                }
-                """,
+            extension EnvironmentValues {
+                var handleUrl: Int
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "@FlowUp requires a stored instance 'var' with a function-type annotation and no initial value.",
+                    "@FlowUp requires a stored instance 'var' with a function-type annotation and no initial value.",
                     line: 2,
                     column: 5
-                )
+                ),
             ],
             macros: macros
         )
@@ -235,17 +234,17 @@ final class FlowUpSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                extension EnvironmentValues {
-                    var handleUrl: (URL) -> Void = { _ in }
-                }
-                """,
+            extension EnvironmentValues {
+                var handleUrl: (URL) -> Void = { _ in }
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "@FlowUp requires a stored instance 'var' with a function-type annotation and no initial value.",
+                    "@FlowUp requires a stored instance 'var' with a function-type annotation and no initial value.",
                     line: 2,
                     column: 5
-                )
+                ),
             ],
             macros: macros
         )
@@ -259,17 +258,17 @@ final class FlowUpSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                extension EnvironmentValues {
-                    let handleUrl: (URL) -> Void
-                }
-                """,
+            extension EnvironmentValues {
+                let handleUrl: (URL) -> Void
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "@FlowUp requires a stored instance 'var' with a function-type annotation and no initial value.",
+                    "@FlowUp requires a stored instance 'var' with a function-type annotation and no initial value.",
                     line: 2,
                     column: 5
-                )
+                ),
             ],
             macros: macros
         )
@@ -283,17 +282,17 @@ final class FlowUpSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                extension EnvironmentValues {
-                    var validate: (String) -> Bool
-                }
-                """,
+            extension EnvironmentValues {
+                var validate: (String) -> Bool
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "@FlowUp requires a 'Void'-returning closure type: N listeners have no single combined result.",
+                    "@FlowUp requires a 'Void'-returning closure type: N listeners have no single combined result.",
                     line: 2,
                     column: 5
-                )
+                ),
             ],
             macros: macros
         )
@@ -307,20 +306,19 @@ final class FlowUpSyntaxTests: XCTestCase {
             }
             """,
             expandedSource: """
-                extension Card {
-                    var handleUrl: (URL) -> Void
-                }
-                """,
+            extension Card {
+                var handleUrl: (URL) -> Void
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "@FlowUp must be attached inside 'extension EnvironmentValues'.",
+                    "@FlowUp must be attached inside 'extension EnvironmentValues'.",
                     line: 2,
                     column: 5
-                )
+                ),
             ],
             macros: macros
         )
     }
-
 }

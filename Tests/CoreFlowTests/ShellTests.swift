@@ -23,10 +23,10 @@ struct StatefulCard: View {
     let title: String
     var subtitle: String?
 
-    // Written once, as ordinary SwiftUI — @Shell copies it verbatim into
-    // Core, where the same identifiers resolve against the substituted
-    // fields. `heading` below rides along the same way (every non-stored
-    // member is copied).
+    /// Written once, as ordinary SwiftUI — @Shell copies it verbatim into
+    /// Core, where the same identifiers resolve against the substituted
+    /// fields. `heading` below rides along the same way (every non-stored
+    /// member is copied).
     var body: some View {
         Text(heading)
     }
@@ -66,12 +66,11 @@ private final class CardModel {
 }
 
 @MainActor
-@Suite struct ShellTests {
-
+struct ShellTests {
     @Test func coreConstructsDirectlyAndReadsBareValues() {
         let snap = makeCore(title: "Settings")
-        #expect(snap.isOn == true)  // bare Bool — @Binding unwraps on read
-        #expect(snap.isPinned == false)  // @SceneStorage → @Binding, mocked with .constant
+        #expect(snap.isOn == true) // bare Bool — @Binding unwraps on read
+        #expect(snap.isPinned == false) // @SceneStorage → @Binding, mocked with .constant
         #expect(snap.title == "Settings")
         #expect(snap.subtitle == nil)
         // isExpanded (@State → @TestState) stays private: Core's own sealed

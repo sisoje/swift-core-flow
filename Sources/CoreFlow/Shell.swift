@@ -17,7 +17,7 @@
 ///
 ///     // generates:
 ///     // struct Core: View {
-///     //     @QueryCore var items: [Item]
+///     //     @QueryResult var items: [Item]
 ///     //     @Binding var sortByAuthor: Bool
 ///     //     @TestState private var isExpanded: Bool = false
 ///     //     let title: String
@@ -25,7 +25,7 @@
 ///     // }
 /// }
 ///
-/// // constructed directly, no live view — the @QueryCore parameter is the
+/// // constructed directly, no live view — the @QueryResult parameter is the
 /// // bare fetched value; the private state field isn't a parameter at all:
 /// // Card.Core(items: [item], sortByAuthor: .constant(false), title: "t")
 /// ```
@@ -43,7 +43,7 @@
 ///   stays the real `FocusState<T>.Binding`).
 ///   `@AppStorage`/`@SceneStorage` → `@Binding` — external
 ///   storage is a dependency the test supplies (keys dropped). `@Query` →
-///   `@QueryCore` (`QueryCore.swift`) — the fetched value as a bare init
+///   `@QueryResult` (`QueryResult.swift`) — the fetched value as a bare init
 ///   parameter. Conversely `@Binding`/`@ViewBuilder` must NOT be private —
 ///   callers supply them through the init.
 /// - **Everything else copies verbatim**, wrapper or not — attribute

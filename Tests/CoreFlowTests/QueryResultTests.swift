@@ -4,16 +4,16 @@
     import SwiftUI
     import Testing
 
-    // Real, compiled usage of QueryCore's own surface — no live view and no
+    // Real, compiled usage of QueryResult's own surface — no live view and no
     // ModelContainer anywhere in this file.
 
     /// A hand-written stand-in for what `@Shell` generates: because
-    /// `QueryCore.init` is callable with the wrapped value alone (`fetchError`
+    /// `QueryResult.init` is callable with the wrapped value alone (`fetchError`
     /// defaults), Swift's synthesized memberwise init here takes the
     /// *bare* fetched value — `FakeCore(items: [1], title: "t")`, no
-    /// `QueryCore` spelling — which is the ergonomic point of that default.
+    /// `QueryResult` spelling — which is the ergonomic point of that default.
     private struct FakeCore {
-        @QueryCore var items: [Int]
+        @QueryResult var items: [Int]
         var title: String
     }
 
@@ -22,27 +22,28 @@
     /// the private `_items` backing (same file, same type — no macro needed;
     /// SE-0258 hardcodes that storage private, and this is the escape hatch).
     extension FakeCore {
-        fileprivate init(items: QueryCore<[Int]>, title: String) {
-            self._items = items
+        init(items: QueryResult<[Int]>, title: String) {
+            _items = items
             self.title = title
         }
 
-        fileprivate var itemsFetchError: (any Error)? { _items.fetchError }
+        var itemsFetchError: (any Error)? {
+            _items.fetchError
+        }
     }
 
-    @Suite struct QueryCoreTests {
-
+    struct QueryResultTests {
         @Test func fetchErrorDefaultsSoOneArgConstructionWorks() {
             // `fetchError` defaults to nil, so the wrapper constructs from the
             // value alone; `modelContext` is environment-fed and installs only
             // hosted — nothing to read here.
-            let snap = QueryCore(wrappedValue: [1, 2, 3])
+            let snap = QueryResult(wrappedValue: [1, 2, 3])
             #expect(snap.wrappedValue == [1, 2, 3])
             #expect(snap.fetchError == nil)
         }
 
         @Test func memberwiseInitTakesTheBareFetchedValue() {
-            // The flip those defaults buy: a @QueryCore field's synthesized
+            // The flip those defaults buy: a @QueryResult field's synthesized
             // memberwise init parameter is the wrapped type itself.
             let core = FakeCore(items: [4, 5], title: "t")
             #expect(core.items == [4, 5])
@@ -55,7 +56,8 @@
             // on a live value.
             struct FetchBoom: Error {}
             let core = FakeCore(
-                items: QueryCore(wrappedValue: [9], fetchError: FetchBoom()), title: "t")
+                items: QueryResult(wrappedValue: [9], fetchError: FetchBoom()), title: "t"
+            )
             #expect(core.items == [9])
             #expect(core.itemsFetchError is FetchBoom)
         }

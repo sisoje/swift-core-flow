@@ -33,16 +33,16 @@ public func renderFlowable(properties: [StoredProperty], access: String) -> [Dec
 
     let assignments =
         initParams
-        .map { fieldAssignment($0, source: $0.name) }
-        .joined(separator: "\n")
+            .map { fieldAssignment($0, source: $0.name) }
+            .joined(separator: "\n")
 
     // One relative indentation level: the `init` header/brace at column 0, the body
     // at 4 spaces. The member macro's output is re-indented into the type body.
     let initDecl = """
-        \(access)init(\(params.joined(separator: ", "))) {
-        \(assignments)
-        }
-        """
+    \(access)init(\(params.joined(separator: ", "))) {
+    \(assignments)
+    }
+    """
 
     var decls = [DeclSyntax(stringLiteral: initDecl)]
     if let factory = renderMakeFlowFactory(properties: properties, access: access) {
@@ -85,9 +85,9 @@ func renderMakeFlowFactory(properties: [StoredProperty], access: String) -> Decl
     let isTuple = initParams.count > 1
     let flowType =
         isTuple
-        ? "(" + initParams.map { baseTypeText($0, wrapViewBuilder: false) }.joined(separator: ", ")
+            ? "(" + initParams.map { baseTypeText($0, wrapViewBuilder: false) }.joined(separator: ", ")
             + ")"
-        : baseTypeText(initParams[0], wrapViewBuilder: false)
+            : baseTypeText(initParams[0], wrapViewBuilder: false)
 
     let args = initParams.enumerated().map { index, p -> String in
         let source = isTuple ? "flow.\(index)" : "flow"
@@ -107,10 +107,10 @@ func renderMakeFlowFactory(properties: [StoredProperty], access: String) -> Decl
 
     return DeclSyntax(
         stringLiteral: """
-            \(access)static func makeFlow(_ flow: \(escaping)\(flowType)) -> Self {
-                Self(\(args))
-            }
-            """
+        \(access)static func makeFlow(_ flow: \(escaping)\(flowType)) -> Self {
+            Self(\(args))
+        }
+        """
     )
 }
 
@@ -127,10 +127,10 @@ func renderInFlowTypealias(properties: [StoredProperty], access: String) -> Decl
 
     let rhs =
         initParams.count > 1
-        ? "("
+            ? "("
             + initParams.map { "\($0.name): \(baseTypeText($0, wrapViewBuilder: false))" }
             .joined(separator: ", ") + ")"
-        : baseTypeText(initParams[0], wrapViewBuilder: false)
+            : baseTypeText(initParams[0], wrapViewBuilder: false)
 
     return DeclSyntax(stringLiteral: "\(access)typealias InFlow = \(rhs)")
 }

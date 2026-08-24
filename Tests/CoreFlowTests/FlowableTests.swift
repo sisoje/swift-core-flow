@@ -1,8 +1,7 @@
+@testable import CoreFlowMacros
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
-
-@testable import CoreFlowMacros
 
 final class FlowableTests: XCTestCase {
     let macros: [String: Macro.Type] = ["Flowable": FlowableMacro.self]
@@ -17,22 +16,22 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct User {
-                    public let id: UUID
-                    public var isActive: Bool = false
+            public struct User {
+                public let id: UUID
+                public var isActive: Bool = false
 
-                    public init(id: UUID, isActive: Bool = false) {
-                        self.id = id
-                        self.isActive = isActive
-                    }
-
-                    public static func makeFlow(_ flow: (UUID, Bool)) -> Self {
-                        Self(id: flow.0, isActive: flow.1)
-                    }
-
-                    public typealias InFlow = (id: UUID, isActive: Bool)
+                public init(id: UUID, isActive: Bool = false) {
+                    self.id = id
+                    self.isActive = isActive
                 }
-                """,
+
+                public static func makeFlow(_ flow: (UUID, Bool)) -> Self {
+                    Self(id: flow.0, isActive: flow.1)
+                }
+
+                public typealias InFlow = (id: UUID, isActive: Bool)
+            }
+            """,
             macros: macros
         )
     }
@@ -48,22 +47,22 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Point {
-                    let x: Int
-                    let y: Int
+            struct Point {
+                let x: Int
+                let y: Int
 
-                    init(x: Int, y: Int) {
-                        self.x = x
-                        self.y = y
-                    }
-
-                    static func makeFlow(_ flow: (Int, Int)) -> Self {
-                        Self(x: flow.0, y: flow.1)
-                    }
-
-                    typealias InFlow = (x: Int, y: Int)
+                init(x: Int, y: Int) {
+                    self.x = x
+                    self.y = y
                 }
-                """,
+
+                static func makeFlow(_ flow: (Int, Int)) -> Self {
+                    Self(x: flow.0, y: flow.1)
+                }
+
+                typealias InFlow = (x: Int, y: Int)
+            }
+            """,
             macros: macros
         )
     }
@@ -80,20 +79,20 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Deleter {
-                    let onDelete: (String) -> Void
+            struct Deleter {
+                let onDelete: (String) -> Void
 
-                    init(onDelete: @escaping (String) -> Void) {
-                        self.onDelete = onDelete
-                    }
-
-                    static func makeFlow(_ flow: @escaping (String) -> Void) -> Self {
-                        Self(onDelete: flow)
-                    }
-
-                    typealias InFlow = (String) -> Void
+                init(onDelete: @escaping (String) -> Void) {
+                    self.onDelete = onDelete
                 }
-                """,
+
+                static func makeFlow(_ flow: @escaping (String) -> Void) -> Self {
+                    Self(onDelete: flow)
+                }
+
+                typealias InFlow = (String) -> Void
+            }
+            """,
             macros: macros
         )
     }
@@ -110,20 +109,20 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                @Observable final class Zola {
-                    var ii: Int = 0
+            @Observable final class Zola {
+                var ii: Int = 0
 
-                    init(ii: Int = 0) {
-                        self.ii = ii
-                    }
-
-                    static func makeFlow(_ flow: Int) -> Self {
-                        Self(ii: flow)
-                    }
-
-                    typealias InFlow = Int
+                init(ii: Int = 0) {
+                    self.ii = ii
                 }
-                """,
+
+                static func makeFlow(_ flow: Int) -> Self {
+                    Self(ii: flow)
+                }
+
+                typealias InFlow = Int
+            }
+            """,
             macros: macros
         )
     }
@@ -139,20 +138,20 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public actor Counter {
-                    public var count: Int = 0
+            public actor Counter {
+                public var count: Int = 0
 
-                    public init(count: Int = 0) {
-                        self.count = count
-                    }
-
-                    public static func makeFlow(_ flow: Int) -> Self {
-                        Self(count: flow)
-                    }
-
-                    public typealias InFlow = Int
+                public init(count: Int = 0) {
+                    self.count = count
                 }
-                """,
+
+                public static func makeFlow(_ flow: Int) -> Self {
+                    Self(count: flow)
+                }
+
+                public typealias InFlow = Int
+            }
+            """,
             macros: macros
         )
     }
@@ -171,24 +170,24 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Handler {
-                    public var onChange: () -> Void
-                    public var onMain: @MainActor () -> Void
-                    public var onSend: @Sendable (Int) -> Void
+            public struct Handler {
+                public var onChange: () -> Void
+                public var onMain: @MainActor () -> Void
+                public var onSend: @Sendable (Int) -> Void
 
-                    public init(onChange: @escaping () -> Void, onMain: @escaping @MainActor () -> Void, onSend: @escaping @Sendable (Int) -> Void) {
-                        self.onChange = onChange
-                        self.onMain = onMain
-                        self.onSend = onSend
-                    }
-
-                    public static func makeFlow(_ flow: (() -> Void, @MainActor () -> Void, @Sendable (Int) -> Void)) -> Self {
-                        Self(onChange: flow.0, onMain: flow.1, onSend: flow.2)
-                    }
-
-                    public typealias InFlow = (onChange: () -> Void, onMain: @MainActor () -> Void, onSend: @Sendable (Int) -> Void)
+                public init(onChange: @escaping () -> Void, onMain: @escaping @MainActor () -> Void, onSend: @escaping @Sendable (Int) -> Void) {
+                    self.onChange = onChange
+                    self.onMain = onMain
+                    self.onSend = onSend
                 }
-                """,
+
+                public static func makeFlow(_ flow: (() -> Void, @MainActor () -> Void, @Sendable (Int) -> Void)) -> Self {
+                    Self(onChange: flow.0, onMain: flow.1, onSend: flow.2)
+                }
+
+                public typealias InFlow = (onChange: () -> Void, onMain: @MainActor () -> Void, onSend: @Sendable (Int) -> Void)
+            }
+            """,
             macros: macros
         )
     }
@@ -208,24 +207,24 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Handler {
-                    public var nickname: String?
-                    public var onChange: (() -> Void)?
-                    public var onSend: (@Sendable (Int) -> Void)!
+            public struct Handler {
+                public var nickname: String?
+                public var onChange: (() -> Void)?
+                public var onSend: (@Sendable (Int) -> Void)!
 
-                    public init(nickname: String? = nil, onChange: (() -> Void)? = nil, onSend: (@Sendable (Int) -> Void)! = nil) {
-                        self.nickname = nickname
-                        self.onChange = onChange
-                        self.onSend = onSend
-                    }
-
-                    public static func makeFlow(_ flow: (String?, (() -> Void)?, (@Sendable (Int) -> Void)!)) -> Self {
-                        Self(nickname: flow.0, onChange: flow.1, onSend: flow.2)
-                    }
-
-                    public typealias InFlow = (nickname: String?, onChange: (() -> Void)?, onSend: (@Sendable (Int) -> Void)!)
+                public init(nickname: String? = nil, onChange: (() -> Void)? = nil, onSend: (@Sendable (Int) -> Void)! = nil) {
+                    self.nickname = nickname
+                    self.onChange = onChange
+                    self.onSend = onSend
                 }
-                """,
+
+                public static func makeFlow(_ flow: (String?, (() -> Void)?, (@Sendable (Int) -> Void)!)) -> Self {
+                    Self(nickname: flow.0, onChange: flow.1, onSend: flow.2)
+                }
+
+                public typealias InFlow = (nickname: String?, onChange: (() -> Void)?, onSend: (@Sendable (Int) -> Void)!)
+            }
+            """,
             macros: macros
         )
     }
@@ -245,24 +244,24 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct ProfileCard: View {
-                    @Environment(\\.colorScheme) private var colorScheme: ColorScheme
-                    @Binding public var isOn: Bool
-                    @State private var isExpanded: Bool = false
-                    public let title: String
+            public struct ProfileCard: View {
+                @Environment(\\.colorScheme) private var colorScheme: ColorScheme
+                @Binding public var isOn: Bool
+                @State private var isExpanded: Bool = false
+                public let title: String
 
-                    public init(isOn: Binding<Bool>, title: String) {
-                        self._isOn = isOn
-                        self.title = title
-                    }
-
-                    public static func makeFlow(_ flow: (Binding<Bool>, String)) -> Self {
-                        Self(isOn: flow.0, title: flow.1)
-                    }
-
-                    public typealias InFlow = (isOn: Binding<Bool>, title: String)
+                public init(isOn: Binding<Bool>, title: String) {
+                    self._isOn = isOn
+                    self.title = title
                 }
-                """,
+
+                public static func makeFlow(_ flow: (Binding<Bool>, String)) -> Self {
+                    Self(isOn: flow.0, title: flow.1)
+                }
+
+                public typealias InFlow = (isOn: Binding<Bool>, title: String)
+            }
+            """,
             macros: macros
         )
     }
@@ -280,21 +279,21 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Card: View {
-                    @State private var selection: Int?
-                    var title: String
+            struct Card: View {
+                @State private var selection: Int?
+                var title: String
 
-                    init(title: String) {
-                        self.title = title
-                    }
-
-                    static func makeFlow(_ flow: String) -> Self {
-                        Self(title: flow)
-                    }
-
-                    typealias InFlow = String
+                init(title: String) {
+                    self.title = title
                 }
-                """,
+
+                static func makeFlow(_ flow: String) -> Self {
+                    Self(title: flow)
+                }
+
+                typealias InFlow = String
+            }
+            """,
             macros: macros
         )
     }
@@ -315,29 +314,29 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct V {
-                    public var title: String
-                    private var cache: Int = 0
-                    fileprivate var scratch = ""
-                    private let seed = 42
-                }
-                """,
+            public struct V {
+                public var title: String
+                private var cache: Int = 0
+                fileprivate var scratch = ""
+                private let seed = 42
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'cache' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a property wrapper (mapped ones are substituted with mockable stand-ins; any other is copied onto Core verbatim).",
+                    "'cache' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a property wrapper (mapped ones are substituted with mockable stand-ins; any other is copied onto Core verbatim).",
                     line: 4,
                     column: 17
                 ),
                 DiagnosticSpec(
                     message:
-                        "'scratch' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a property wrapper (mapped ones are substituted with mockable stand-ins; any other is copied onto Core verbatim).",
+                    "'scratch' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a property wrapper (mapped ones are substituted with mockable stand-ins; any other is copied onto Core verbatim).",
                     line: 5,
                     column: 21
                 ),
                 DiagnosticSpec(
                     message:
-                        "'seed' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a property wrapper (mapped ones are substituted with mockable stand-ins; any other is copied onto Core verbatim).",
+                    "'seed' is private with no property wrapper — @Flowable has no room for opaque private state in pure data flow. Make it non-private, or give it a property wrapper (mapped ones are substituted with mockable stand-ins; any other is copied onto Core verbatim).",
                     line: 6,
                     column: 17
                 ),
@@ -358,17 +357,17 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct V {
-                    @Binding private var isOn: Bool
-                }
-                """,
+            struct V {
+                @Binding private var isOn: Bool
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'isOn' uses @Binding, which a caller supplies through @Flowable's generated init — declaring it private makes it unreachable. Remove `private`/`fileprivate` from 'isOn'.",
+                    "'isOn' uses @Binding, which a caller supplies through @Flowable's generated init — declaring it private makes it unreachable. Remove `private`/`fileprivate` from 'isOn'.",
                     line: 3,
                     column: 26
-                )
+                ),
             ],
             macros: macros
         )
@@ -389,26 +388,26 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct ProfileCard<Content: View>: View {
-                    public let title: String
-                    @ViewBuilder let content: () -> Content
-                    @ViewBuilder let footer: Content
+            public struct ProfileCard<Content: View>: View {
+                public let title: String
+                @ViewBuilder let content: () -> Content
+                @ViewBuilder let footer: Content
 
-                    public init(title: String, @ViewBuilder content: @escaping () -> Content, @ViewBuilder footer: () -> Content) {
-                        self.title = title
-                        self.content = content
-                        self.footer = footer()
-                    }
-
-                    public static func makeFlow(_ flow: (String, () -> Content, Content)) -> Self {
-                        Self(title: flow.0, content: flow.1, footer: {
-                                flow.2
-                            })
-                    }
-
-                    public typealias InFlow = (title: String, content: () -> Content, footer: Content)
+                public init(title: String, @ViewBuilder content: @escaping () -> Content, @ViewBuilder footer: () -> Content) {
+                    self.title = title
+                    self.content = content
+                    self.footer = footer()
                 }
-                """,
+
+                public static func makeFlow(_ flow: (String, () -> Content, Content)) -> Self {
+                    Self(title: flow.0, content: flow.1, footer: {
+                            flow.2
+                        })
+                }
+
+                public typealias InFlow = (title: String, content: () -> Content, footer: Content)
+            }
+            """,
             macros: macros
         )
     }
@@ -425,24 +424,24 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Point {
-                    public let x: Double
-                    public let y: Double
-                    public static let origin = Point(x: 0, y: 0)
-                    public var magnitude: Double { (x * x + y * y).squareRoot() }
+            public struct Point {
+                public let x: Double
+                public let y: Double
+                public static let origin = Point(x: 0, y: 0)
+                public var magnitude: Double { (x * x + y * y).squareRoot() }
 
-                    public init(x: Double, y: Double) {
-                        self.x = x
-                        self.y = y
-                    }
-
-                    public static func makeFlow(_ flow: (Double, Double)) -> Self {
-                        Self(x: flow.0, y: flow.1)
-                    }
-
-                    public typealias InFlow = (x: Double, y: Double)
+                public init(x: Double, y: Double) {
+                    self.x = x
+                    self.y = y
                 }
-                """,
+
+                public static func makeFlow(_ flow: (Double, Double)) -> Self {
+                    Self(x: flow.0, y: flow.1)
+                }
+
+                public typealias InFlow = (x: Double, y: Double)
+            }
+            """,
             macros: macros
         )
     }
@@ -459,20 +458,20 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Box {
-                    public let value: Int
+            public struct Box {
+                public let value: Int
 
-                    public init(value: Int) {
-                        self.value = value
-                    }
-
-                    public static func makeFlow(_ flow: Int) -> Self {
-                        Self(value: flow)
-                    }
-
-                    public typealias InFlow = Int
+                public init(value: Int) {
+                    self.value = value
                 }
-                """,
+
+                public static func makeFlow(_ flow: Int) -> Self {
+                    Self(value: flow)
+                }
+
+                public typealias InFlow = Int
+            }
+            """,
             macros: macros
         )
     }
@@ -487,22 +486,22 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Point {
-                    public let x: Int
-                    public let y: Int
+            public struct Point {
+                public let x: Int
+                public let y: Int
 
-                    public init(x: Int, y: Int) {
-                        self.x = x
-                        self.y = y
-                    }
-
-                    public static func makeFlow(_ flow: (Int, Int)) -> Self {
-                        Self(x: flow.0, y: flow.1)
-                    }
-
-                    public typealias InFlow = (x: Int, y: Int)
+                public init(x: Int, y: Int) {
+                    self.x = x
+                    self.y = y
                 }
-                """,
+
+                public static func makeFlow(_ flow: (Int, Int)) -> Self {
+                    Self(x: flow.0, y: flow.1)
+                }
+
+                public typealias InFlow = (x: Int, y: Int)
+            }
+            """,
             macros: macros
         )
     }
@@ -518,13 +517,13 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Empty {
+            public struct Empty {
 
-                    public init() {
+                public init() {
 
-                    }
                 }
-                """,
+            }
+            """,
             macros: macros
         )
     }
@@ -538,16 +537,16 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public enum E {
-                    case a
-                }
-                """,
+            public enum E {
+                case a
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message: "@Flowable can only be attached to a struct, class, or actor.",
                     line: 1,
                     column: 1
-                )
+                ),
             ],
             macros: macros
         )
@@ -564,17 +563,17 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                public struct Thing {
-                    public var count = someDefault()
-                }
-                """,
+            public struct Thing {
+                public var count = someDefault()
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "Stored property 'count' needs an explicit type annotation so @Flowable can generate the initializer/stateless snapshot.",
+                    "Stored property 'count' needs an explicit type annotation so @Flowable can generate the initializer/stateless snapshot.",
                     line: 3,
                     column: 16
-                )
+                ),
             ],
             macros: macros
         )
@@ -594,24 +593,24 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Flags {
-                    var isOn = false
-                    var count = 0
-                    var label = "x"
+            struct Flags {
+                var isOn = false
+                var count = 0
+                var label = "x"
 
-                    init(isOn: Bool = false, count: Int = 0, label: String = "x") {
-                        self.isOn = isOn
-                        self.count = count
-                        self.label = label
-                    }
-
-                    static func makeFlow(_ flow: (Bool, Int, String)) -> Self {
-                        Self(isOn: flow.0, count: flow.1, label: flow.2)
-                    }
-
-                    typealias InFlow = (isOn: Bool, count: Int, label: String)
+                init(isOn: Bool = false, count: Int = 0, label: String = "x") {
+                    self.isOn = isOn
+                    self.count = count
+                    self.label = label
                 }
-                """,
+
+                static func makeFlow(_ flow: (Bool, Int, String)) -> Self {
+                    Self(isOn: flow.0, count: flow.1, label: flow.2)
+                }
+
+                typealias InFlow = (isOn: Bool, count: Int, label: String)
+            }
+            """,
             macros: macros
         )
     }
@@ -628,17 +627,17 @@ final class FlowableTests: XCTestCase {
             }
             """,
             expandedSource: """
-                struct Card {
-                    @State var isExpanded = false
-                }
-                """,
+            struct Card {
+                @State var isExpanded = false
+            }
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                        "'isExpanded' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                    "'isExpanded' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
                     line: 3,
                     column: 16
-                )
+                ),
             ],
             macros: macros
         )

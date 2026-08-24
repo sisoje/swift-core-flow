@@ -26,12 +26,12 @@ import SwiftSyntaxMacros
 /// declaration could compile as a plain, unmanaged property).
 public enum FlowUpMacro: AccessorMacro, PeerMacro {
     public static func expansion(
-        of node: AttributeSyntax,
+        of _: AttributeSyntax,
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [AccessorDeclSyntax] {
         let anchor = try validated(declaration, in: context)
-        let arguments = (0..<anchor.parameterCount).map { "a\($0)" }.joined(separator: ", ")
+        let arguments = (0 ..< anchor.parameterCount).map { "a\($0)" }.joined(separator: ", ")
         let signature = arguments.isEmpty ? "" : " \(arguments) in"
         return [
             """
@@ -45,12 +45,12 @@ public enum FlowUpMacro: AccessorMacro, PeerMacro {
                     }
                 }
             }
-            """
+            """,
         ]
     }
 
     public static func expansion(
-        of node: AttributeSyntax,
+        of _: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
@@ -102,14 +102,14 @@ public enum FlowUpMacro: AccessorMacro, PeerMacro {
         in context: some MacroExpansionContext
     ) throws -> Anchor {
         guard let varDecl = declaration.as(VariableDeclSyntax.self),
-            !isStatic(varDecl),
-            varDecl.bindingSpecifier.tokenKind == .keyword(.var),
-            varDecl.bindings.count == 1, let binding = varDecl.bindings.first,
-            let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
-            binding.accessorBlock == nil,
-            binding.initializer == nil,
-            let annotation = binding.typeAnnotation?.type,
-            let functionType = bareFunctionType(annotation)
+              !isStatic(varDecl),
+              varDecl.bindingSpecifier.tokenKind == .keyword(.var),
+              varDecl.bindings.count == 1, let binding = varDecl.bindings.first,
+              let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+              binding.accessorBlock == nil,
+              binding.initializer == nil,
+              let annotation = binding.typeAnnotation?.type,
+              let functionType = bareFunctionType(annotation)
         else {
             throw MacroExpansionErrorMessage(
                 "@FlowUp requires a stored instance 'var' with a function-type annotation and no initial value."
@@ -121,19 +121,23 @@ public enum FlowUpMacro: AccessorMacro, PeerMacro {
             )
         }
         if let extensionDecl = context.lexicalContext.first?.as(ExtensionDeclSyntax.self),
-            extensionDecl.extendedType.as(IdentifierTypeSyntax.self)?.name.text
-                != "EnvironmentValues"
+           extensionDecl.extendedType.as(IdentifierTypeSyntax.self)?.name.text
+           != "EnvironmentValues"
         {
             throw MacroExpansionErrorMessage(
                 "@FlowUp must be attached inside 'extension EnvironmentValues'."
             )
         }
         var effects = ""
-        if functionType.effectSpecifiers?.throwsClause != nil { effects += "try " }
-        if functionType.effectSpecifiers?.asyncSpecifier != nil { effects += "await " }
+        if functionType.effectSpecifiers?.throwsClause != nil {
+            effects += "try "
+        }
+        if functionType.effectSpecifiers?.asyncSpecifier != nil {
+            effects += "await "
+        }
         let access =
             varDecl.modifiers.first { accessKeywords.contains($0.name.tokenKind) }
-            .map { "\($0.trimmedDescription) " } ?? ""
+                .map { "\($0.trimmedDescription) " } ?? ""
         return Anchor(
             name: pattern.identifier.text,
             closureType: annotation,
@@ -146,7 +150,9 @@ public enum FlowUpMacro: AccessorMacro, PeerMacro {
     /// The function type under any type attributes; `nil` for anything
     /// that is not a function type.
     private static func bareFunctionType(_ type: TypeSyntax) -> FunctionTypeSyntax? {
-        if let functionType = type.as(FunctionTypeSyntax.self) { return functionType }
+        if let functionType = type.as(FunctionTypeSyntax.self) {
+            return functionType
+        }
         if let attributed = type.as(AttributedTypeSyntax.self) {
             return bareFunctionType(attributed.baseType)
         }
@@ -157,7 +163,9 @@ public enum FlowUpMacro: AccessorMacro, PeerMacro {
         if let identifier = type.as(IdentifierTypeSyntax.self) {
             return identifier.name.text == "Void"
         }
-        if let tuple = type.as(TupleTypeSyntax.self) { return tuple.elements.isEmpty }
+        if let tuple = type.as(TupleTypeSyntax.self) {
+            return tuple.elements.isEmpty
+        }
         return false
     }
 

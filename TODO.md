@@ -20,6 +20,6 @@
 
 - NOT doing: unifying `renderShell`'s field-decl branches with
   `outFlowFieldType` — same wrapper→substitution mapping spelled twice
-  (`@QueryCore var x: T` vs `QueryCore<T>`), but `FocusState<T>.Binding` and
+  (`@QueryResult var x: T` vs `QueryResult<T>`), but `FocusState<T>.Binding` and
   the plain-`let` rows don't fit one shape; the shared table would be worse
   than the duplication.

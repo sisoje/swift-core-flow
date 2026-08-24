@@ -1,6 +1,6 @@
 // swift-tools-version: 6.3
-import PackageDescription
 import CompilerPluginSupport
+import PackageDescription
 
 let package = Package(
     name: "CoreFlow",

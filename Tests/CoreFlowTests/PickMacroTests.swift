@@ -1,24 +1,22 @@
+@testable import CoreFlowMacros
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import Testing
 
-@testable import CoreFlowMacros
-
 private let testMacros: [String: Macro.Type] = [
-    "pick": PickMacro.self
+    "pick": PickMacro.self,
 ]
 
-@Suite struct PickMacroTests {
-
+struct PickMacroTests {
     @Test func singlePickReturnsBareValue() {
         assertMacroExpansion(
             "#pick(from: value, \\.limit)",
             expandedSource: """
-                {
-                    let __v0 = value;
-                    return __v0.limit
-                }()
-                """,
+            {
+                let __v0 = value;
+                return __v0.limit
+            }()
+            """,
             macros: testMacros
         )
     }
@@ -27,11 +25,11 @@ private let testMacros: [String: Macro.Type] = [
         assertMacroExpansion(
             "#pick(from: value, \\.name, \\.limit)",
             expandedSource: """
-                {
-                    let __v0 = value;
-                    return (name: __v0.name, limit: __v0.limit)
-                }()
-                """,
+            {
+                let __v0 = value;
+                return (name: __v0.name, limit: __v0.limit)
+            }()
+            """,
             macros: testMacros
         )
     }
@@ -40,11 +38,11 @@ private let testMacros: [String: Macro.Type] = [
         assertMacroExpansion(
             "#pick(from: value, \\.store.limit)",
             expandedSource: """
-                {
-                    let __v0 = value;
-                    return __v0.store.limit
-                }()
-                """,
+            {
+                let __v0 = value;
+                return __v0.store.limit
+            }()
+            """,
             macros: testMacros
         )
     }
@@ -55,11 +53,11 @@ private let testMacros: [String: Macro.Type] = [
         assertMacroExpansion(
             "#pick(from: store, \\.expenses, \\.limit => \"total\")",
             expandedSource: """
-                {
-                    let __v0 = store;
-                    return (expenses: __v0.expenses, total: __v0.limit)
-                }()
-                """,
+            {
+                let __v0 = store;
+                return (expenses: __v0.expenses, total: __v0.limit)
+            }()
+            """,
             macros: testMacros
         )
     }
@@ -71,11 +69,11 @@ private let testMacros: [String: Macro.Type] = [
         assertMacroExpansion(
             "#pick(from: store, \\.limit => \"total\", \\.expenses)",
             expandedSource: """
-                {
-                    let __v0 = store;
-                    return (total: __v0.limit, expenses: __v0.expenses)
-                }()
-                """,
+            {
+                let __v0 = store;
+                return (total: __v0.limit, expenses: __v0.expenses)
+            }()
+            """,
             macros: testMacros
         )
     }
@@ -86,12 +84,12 @@ private let testMacros: [String: Macro.Type] = [
         assertMacroExpansion(
             "#pick(from: store, \\.expenses, \\.limit, from: actions, \\.alerts)",
             expandedSource: """
-                {
-                    let __v0 = store;
-                    let __v1 = actions;
-                    return (expenses: __v0.expenses, limit: __v0.limit, alerts: __v1.alerts)
-                }()
-                """,
+            {
+                let __v0 = store;
+                let __v1 = actions;
+                return (expenses: __v0.expenses, limit: __v0.limit, alerts: __v1.alerts)
+            }()
+            """,
             macros: testMacros
         )
     }
@@ -102,12 +100,12 @@ private let testMacros: [String: Macro.Type] = [
         assertMacroExpansion(
             "#pick(from: store, \\.expenses, \\.limit, from: actions, \\.alerts, from: store, \\.name)",
             expandedSource: """
-                {
-                    let __v0 = store;
-                    let __v1 = actions;
-                    return (expenses: __v0.expenses, limit: __v0.limit, alerts: __v1.alerts, name: __v0.name)
-                }()
-                """,
+            {
+                let __v0 = store;
+                let __v1 = actions;
+                return (expenses: __v0.expenses, limit: __v0.limit, alerts: __v1.alerts, name: __v0.name)
+            }()
+            """,
             macros: testMacros
         )
     }
@@ -116,12 +114,12 @@ private let testMacros: [String: Macro.Type] = [
         assertMacroExpansion(
             "#pick(from: store, \\.limit => \"total\", from: actions, \\.alerts)",
             expandedSource: """
-                {
-                    let __v0 = store;
-                    let __v1 = actions;
-                    return (total: __v0.limit, alerts: __v1.alerts)
-                }()
-                """,
+            {
+                let __v0 = store;
+                let __v1 = actions;
+                return (total: __v0.limit, alerts: __v1.alerts)
+            }()
+            """,
             macros: testMacros
         )
     }
@@ -132,17 +130,17 @@ private let testMacros: [String: Macro.Type] = [
         assertMacroExpansion(
             "#pick(from: store, \\.limit, \\.limit)",
             expandedSource: """
-                {
-                    fatalError("#pick: duplicate field labels")
-                }()
-                """,
+            {
+                fatalError("#pick: duplicate field labels")
+            }()
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message: "#pick: duplicate field label 'limit' — rename this pick",
                     line: 1,
                     column: 29,
                     fixIts: [FixItSpec(message: "rename to \"limit2\"")]
-                )
+                ),
             ],
             macros: testMacros
         )
@@ -152,17 +150,17 @@ private let testMacros: [String: Macro.Type] = [
         assertMacroExpansion(
             "#pick(from: store, \\.limit, from: actions, \\.limit)",
             expandedSource: """
-                {
-                    fatalError("#pick: duplicate field labels")
-                }()
-                """,
+            {
+                fatalError("#pick: duplicate field labels")
+            }()
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message: "#pick: duplicate field label 'limit' — rename this pick",
                     line: 1,
                     column: 44,
                     fixIts: [FixItSpec(message: "rename to \"limit2\"")]
-                )
+                ),
             ],
             macros: testMacros
         )
@@ -174,17 +172,17 @@ private let testMacros: [String: Macro.Type] = [
         assertMacroExpansion(
             "#pick(from: store, \\.total, \\.limit => \"total\")",
             expandedSource: """
-                {
-                    fatalError("#pick: duplicate field labels")
-                }()
-                """,
+            {
+                fatalError("#pick: duplicate field labels")
+            }()
+            """,
             diagnostics: [
                 DiagnosticSpec(
                     message: "#pick: duplicate field label 'total' — rename this pick",
                     line: 1,
                     column: 29,
                     fixIts: [FixItSpec(message: "rename to \"total2\"")]
-                )
+                ),
             ],
             macros: testMacros
         )
@@ -199,7 +197,7 @@ private let testMacros: [String: Macro.Type] = [
                     message: "#pick: group 'from: store' has no picks",
                     line: 1,
                     column: 1
-                )
+                ),
             ],
             macros: testMacros
         )
@@ -215,7 +213,7 @@ private let testMacros: [String: Macro.Type] = [
                         + "(optionally `=> \"rename\"`), got 'limit'",
                     line: 1,
                     column: 1
-                )
+                ),
             ],
             macros: testMacros
         )
@@ -231,7 +229,7 @@ private let testMacros: [String: Macro.Type] = [
                         + "string literal, got 'total'",
                     line: 1,
                     column: 1
-                )
+                ),
             ],
             macros: testMacros
         )
@@ -247,13 +245,14 @@ private let testMacros: [String: Macro.Type] = [
                         + "#pick(from: store, \\.a, \\.b) or #pick(from: store, \\.a, from: actions, \\.b)",
                     line: 1,
                     column: 1
-                )
+                ),
             ],
             macros: testMacros
         )
     }
 
     // MARK: - Bare tuple sources
+
     //
     // Checks the EXPANSION's syntax only (assertMacroExpansion never resolves
     // types) — the actual claim that this works on tuple *values*, not just
@@ -265,11 +264,11 @@ private let testMacros: [String: Macro.Type] = [
         assertMacroExpansion(
             "#pick(from: t, \\.id, \\.name, \\.active)",
             expandedSource: """
-                {
-                    let __v0 = t;
-                    return (id: __v0.id, name: __v0.name, active: __v0.active)
-                }()
-                """,
+            {
+                let __v0 = t;
+                return (id: __v0.id, name: __v0.name, active: __v0.active)
+            }()
+            """,
             macros: testMacros
         )
     }
