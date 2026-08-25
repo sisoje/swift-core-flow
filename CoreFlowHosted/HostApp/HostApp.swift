@@ -17,10 +17,57 @@ enum Scenario: String {
     }
 }
 
+/// The log as a UIKit accessibility element whose label/value are computed
+/// when XCUITest snapshots it: appends touch no SwiftUI state, so logging —
+/// even mid-render — never re-renders anything.
+final class LogBox {
+    var items: [(String, String)] = []
+}
+
+final class LogView: UIView {
+    let box: LogBox
+
+    init(box: LogBox) {
+        self.box = box
+        super.init(frame: .zero)
+        isAccessibilityElement = true
+        accessibilityIdentifier = "log"
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError()
+    }
+
+    override var accessibilityLabel: String? {
+        get { json(box.items.map(\.0)) }
+        set {}
+    }
+
+    override var accessibilityValue: String? {
+        get { json(box.items.map(\.1)) }
+        set {}
+    }
+
+    private func json(_ strings: [String]) -> String {
+        String(decoding: try! JSONEncoder().encode(strings), as: UTF8.self)
+    }
+}
+
+struct LogElement: UIViewRepresentable {
+    let box: LogBox
+
+    func makeUIView(context _: Context) -> LogView {
+        LogView(box: box)
+    }
+
+    func updateUIView(_: LogView, context _: Context) {}
+}
+
 @main
 struct CoreFlowHostApp: App {
     private let scenario: Scenario
-    @State private var logItems: [(String, String)] = []
+    private let box = LogBox()
 
     init() {
         guard let raw = ProcessInfo.processInfo.environment["SCENARIO"] else {
@@ -47,15 +94,8 @@ struct CoreFlowHostApp: App {
                 case .unstructuredTask: UnstructuredTaskScenario()
                 }
             }
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("log")
-            .accessibilityLabel(json(logItems.map(\.0)))
-            .accessibilityValue(json(logItems.map(\.1)))
-            // Deferred (FIFO, order kept): some events arrive mid-render,
-            // where a state write is undefined behavior.
-            .testLog { property, value in
-                DispatchQueue.main.async { logItems.append((property, value)) }
-            }
+            .background(LogElement(box: box))
+            .testLog { property, value in box.items.append((property, value)) }
         }
     }
 
@@ -70,9 +110,5 @@ struct CoreFlowHostApp: App {
         #else
             Text("needs the 27 SDK")
         #endif
-    }
-
-    private func json(_ strings: [String]) -> String {
-        String(decoding: try! JSONEncoder().encode(strings), as: UTF8.self)
     }
 }

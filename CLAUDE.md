@@ -175,10 +175,17 @@ this bundle ("Failed to load coverage archive", no `archiveRef`).
 Every boundary event is log evidence, the package's own way: `@TestState`
 writes log themselves, and `QueryViewSortScenario.build()` logs `("query",
 order)` through `@TestLog` from inside the `query` autoclosure — at render
-time. Render-time events are why the host app's sink defers every append
-with `DispatchQueue.main.async` (FIFO, so order — the evidence — is kept):
-a `@State` write during a body evaluation is undefined behavior, and the
-example app's synchronous append would hit it. Locked by `QueryViewSortUITests` as
+time. Render-time events are why the host app's log is NOT SwiftUI state:
+`LogElement`, a `UIViewRepresentable` whose `LogView` overrides
+`accessibilityLabel`/`accessibilityValue` to JSON-encode a plain `LogBox`
+when XCUITest snapshots it, sits in the scenario's `.background`; the sink
+appends to the box synchronously. No state write, no deferral, and logging
+never re-renders anything — the two earlier designs (a `@State` array
+appended synchronously, then deferred with `DispatchQueue.main.async`)
+re-rendered the root on every event, which on the `xcode-27` runner's
+beta-4 simulator fed the gated scenario's query construction back into
+itself (~16 `query` events per second, unbounded) while 27A5252f locally
+stayed exact. Locked by `QueryViewSortUITests` as
 one ordered log each. Gated:
 `query, unrelated, unrelated, unrelated, sortDescending, query` — three
 parent re-renders (the body reads `unrelated`, so each write re-renders)
@@ -186,7 +193,10 @@ construct nothing; only the index write does. Ungated:
 `query, query, unrelated, query, unrelated, query, unrelated, query,
 sortDescending, query` — the doubled opening `query` is
 `.modelContainer(for:inMemory:)`'s own setup re-render, which the gated
-scenario absorbs; pinned as observed on the 27.0 simulator.
+scenario absorbs; pinned as observed on the 27.0 (27A5252f) simulator. The
+beta-4 runner showed ~66 opening constructions under the old state-backed
+log; whether that count was the log design or the beta is what the next CI
+run on the UIKit log element tells.
 
 swiftformat trap (0.62.1, probed): its `unusedArguments` rule does not
 count the `_items` backing spelling as a use of a `{ $items in … }` closure
