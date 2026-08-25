@@ -54,7 +54,7 @@ shipped from one library. A single dependency gets you every macro below.
 .product(name: "CoreFlow", package: "swift-core-flow"),
 ```
 
-Requires Swift 6.3+ (`swift-tools-version: 6.3`). Builds across the whole swift-syntax
+Requires Swift 6.4+ (`swift-tools-version: 6.4`, Xcode 27). Builds across the whole swift-syntax
 6xx line. Run everything with `swift build && swift test`.
 
 The conceptual model — nodes coupled by data, flow at creation, testing as

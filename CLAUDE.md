@@ -22,7 +22,7 @@ real scratch-package resolution; SwiftPM selected CoreFlow 1.0.2 and swift-synta
 603.0.2. The old `package: "CoreFlow"` spelling fails with
 `unknown package 'CoreFlow'` and names `swift-core-flow` as valid.
 
-The package targets Swift 6.3 (`swift-tools-version: 6.3`) in Swift 6 language
+The package targets Swift 6.4 (`swift-tools-version: 6.4`, Xcode 27) in Swift 6 language
 mode with strict concurrency. It supports swift-syntax
 `600.0.0..<700.0.0`; the APIs used here are stable across the Swift 6.x line.
 
@@ -142,9 +142,7 @@ in the package: they are preview views that double as test hosts, and the
 package stays free of scenario code. CI runs `sh test.sh` here
 (`.github/workflows/ci.yml`, jobs `package` and `hosted` on the `xcode-27`
 label — GitHub's macOS 26 image with Xcode 27 beta as default, no
-`xcode-select` — plus non-blocking `package-xcode26`/`hosted-xcode26` probe
-jobs on `macos-latest` to see what the latest non-beta
-Xcode makes of the package). The package REQUIRES Swift 6.4: verified on the
+`xcode-select`). The package REQUIRES Swift 6.4: verified on the
 `macos-latest` image (Xcode 26.6, Swift 6.3.3), the package builds but
 every direct construction fails — `'StatefulCard.Core' initializer is
 inaccessible due to 'private' protection level` in `ShellTests`, and
@@ -153,7 +151,11 @@ because on 6.3 a private defaulted stored property (a `@TestState`'s own
 private peers, `@Environment private`, …) still makes the synthesized
 memberwise init private, whereas 6.4 excludes such properties and keeps the
 init internal. `@Shell`'s no-generated-init design and every `Core(…)`/
-scenario construction rest on the 6.4 rule; do not try to run on Xcode 26.
+scenario construction rest on the 6.4 rule — the same rule the 27 SDK's own
+`@State` macro needs (its expansion is an init-accessor peer too, dumped
+with `-dump-macro-expansions`), so `swift-tools-version: 6.4` states the
+requirement at resolution time. A generated `Core` init plus hand-written
+scenario inits was built green and rejected. Do not try to run on Xcode 26.
 Every 27-SDK-only site — `SectionedResults+Mock.swift`, the sectioned
 fallback in `MockQueryTransform`, the sectioned unit tests,
 `QueryViewSectionedScenario`, its host-app case and UI test — is behind
