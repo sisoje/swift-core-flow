@@ -10,6 +10,7 @@ enum Scenario: String {
     case queryViewInsert = "QueryViewInsert"
     case flowUp = "FlowUp"
     case unstructuredTask = "UnstructuredTask"
+    case equatableGate = "EquatableGate"
 
     /// Used when `SCENARIO` is unset, so Cmd-R just works.
     static var defaultScenario: Scenario {
@@ -92,6 +93,7 @@ struct CoreFlowHostApp: App {
                 case .queryViewInsert: QueryViewInsertScenario()
                 case .flowUp: FlowUpScenario()
                 case .unstructuredTask: UnstructuredTaskScenario()
+                case .equatableGate: EquatableGateScenario()
                 }
             }
             .background(LogElement(box: box))

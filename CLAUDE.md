@@ -204,8 +204,14 @@ unrelated tap on CI, zero locally): `EquatableByParameterView` conforms as
 `@MainActor Equatable` — the correct conformance, SwiftUI compares views on
 the main actor — so this is the beta's `.equatable()`, not ours; a
 `nonisolated ==` over `nonisolated(unsafe) let index` was tried and
-rejected. That one test stays red on CI until the runner image moves past
-beta 4. The earlier ~66/150 opening constructions on beta 4 were the
+rejected. The gated test `XCTSkipIf`s below `Version 27.0 (Build
+24A5423a)` (the simulator runtime this was verified on; Apple build strings
+compare lexicographically within a major), so beta 4 skips it instead of
+failing. `EquatableGateScenario` / `EquatableGateUITests` is the
+macro-free probe: two `.equatable()` gates, one `@MainActor Equatable`,
+one nonisolated, each logging its body; on 27A5252f both run at launch,
+both run once more on the FIRST parent re-render (unexplained), then never
+— pinned, so a beta that treats the two differently shows it. The earlier ~66/150 opening constructions on beta 4 were the
 state-backed log feeding renders (gone with `LogElement`; FlowUp passed on
 CI the moment it landed).
 

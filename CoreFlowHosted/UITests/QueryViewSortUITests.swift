@@ -2,7 +2,10 @@ import XCTest
 
 final class QueryViewSortUITests: XCTestCase {
     @MainActor
-    func testGatedIndexSkipsQueryConstructionOnUnrelatedWrites() {
+    func testGatedIndexSkipsQueryConstructionOnUnrelatedWrites() throws {
+        // `.equatable()` skips the gated body from iOS 27.0 (24A5423a) on; the
+        // 27 beta 4 simulator re-renders it on every ancestor render.
+        try XCTSkipIf(ProcessInfo.processInfo.operatingSystemVersionString < "Version 27.0 (Build 24A5423a)")
         let app = launchApp(scenario: "QueryViewGated")
         XCTAssertTrue(app.buttons["unrelated"].waitForExistence(timeout: 5))
         for _ in 1 ... 3 {
