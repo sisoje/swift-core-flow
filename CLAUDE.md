@@ -220,7 +220,9 @@ CI the moment it landed).
 swiftformat trap (0.62.1, probed): its `unusedArguments` rule does not
 count the `_items` backing spelling as a use of a `{ $items in … }` closure
 parameter and rewrites it to `{ _ in`, after which nothing resolves. `$items`
-and bare `items` are recognized — never spell `_items` in a `$` closure.
+and bare `items` are recognized. `_items` is the `@Query` parity spelling and
+is what the scenarios use; where no bare `items` appears in the closure, the
+line above it carries `// swiftformat:disable:next unusedArguments`.
 
 Verified the hard way, do not repeat: (1) gated `content` returning
 `EmptyView` never constructs the query at all — SwiftUI never evaluates the

@@ -7,7 +7,7 @@ struct QueryViewInsertScenario: View {
         QueryView(query: Query(sort: \Novel.title)) { $novels in
             List {
                 Button("insert") {
-                    $novels.modelContext.insert(Novel(title: "Dune", genre: "Sci-Fi"))
+                    _novels.modelContext.insert(Novel(title: "Dune", genre: "Sci-Fi"))
                 }
                 ForEach(novels) { Text($0.title) }
             }

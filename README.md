@@ -487,8 +487,8 @@ struct BookList: View {
   re-evaluating the query every render.
 - **Content receives a `QueryResult`, re-propertified by the `$` parameter**:
   `books` reads the fetched array directly (`ForEach(books)`,
-  `books.isEmpty` — `@Query` ergonomics), `$books` reaches
-  `fetchError`/`modelContext`.
+  `books.isEmpty` — `@Query` ergonomics), `_books` reaches
+  `fetchError`/`modelContext` exactly as on a live `@Query`.
 - **Two mock paths.** Can the results in one line — `.mockQuery` registers
   typed `QueryResult` values per result type (an unregistered shape gets
   the empty result of that shape — `[]`, or an empty

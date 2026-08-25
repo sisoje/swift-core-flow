@@ -11,8 +11,9 @@ struct MockQueryResultsScenario: View {
             QueryView(query: Query(sort: \Novel.title)) { $novels in
                 List(novels) { Text($0.title) }
             }
+            // swiftformat:disable:next unusedArguments — `_tags` IS a use
             QueryView(query: Query(sort: \Tag.name)) { $tags in
-                if let error = $tags.fetchError {
+                if let error = _tags.fetchError {
                     Text(verbatim: "\(error)")
                 }
             }
