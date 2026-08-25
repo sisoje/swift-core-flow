@@ -146,7 +146,12 @@ actions/runner-images#14404; the plain `macos-26` image has only Xcode
 26.0.1–26.6 and no 27 SDK, so the first run failed on
 `xcode-select -s /Applications/Xcode_27.0.app`. Both jobs need the 27 SDK:
 the package compiles `SectionedResults`/`FetchResultsCollection` types that
-exist only there. NOT yet seen green on GitHub). Locally verified on the
+exist only there. BLOCKED on the runner's Xcode: as of 2026-08-25 the
+`xcode-27` image ships Xcode 27 beta 4 (SDK build 26A5388f), whose macOS
+and iOS 27.0 SDKs have NO `SectionedResults` — both jobs fail with `cannot
+find type 'SectionedResults' in scope`; locally, Xcode 27A5252f with SDKs
+24A5422a/26A5419a has it. CI goes green when the image moves to a later
+beta; nothing in the repo is wrong). Locally verified on the
 iPhone 17 Pro simulator, Xcode 27.0 beta. Coverage: the scheme gathers it for
 ALL targets (`gatherCoverageData: true`, no `coverageTargets`) — verified
 directly, listing only `package: CoreFlow/CoreFlow` as the coverage target
