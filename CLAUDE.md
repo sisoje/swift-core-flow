@@ -207,15 +207,13 @@ the main actor — so this is the beta's `.equatable()`, not ours; a
 rejected. The gated test `XCTSkipIf`s below `Version 27.0 (Build
 24A5423a)` (the simulator runtime this was verified on; Apple build strings
 compare lexicographically within a major), so beta 4 skips it instead of
-failing. `EquatableGateScenario` / `EquatableGateUITests` is the
-macro-free probe: two `.equatable()` gates, one `@MainActor Equatable`,
-one nonisolated, each logging its body; on 27A5252f both run at launch,
-both run once more on the FIRST parent re-render (unexplained), then never
-— pinned. CI on beta 4 answered it: BOTH gates re-ran on EVERY parent
-re-render (`isolated, nonisolated, unrelated, isolated, nonisolated,
-unrelated, …`), so beta 4's `.equatable()` skips nothing regardless of
-conformance isolation — an Apple beta bug, not the isolated conformance.
-The probe carries the same `XCTSkipIf` below 24A5423a. The earlier ~66/150 opening constructions on beta 4 were the
+failing. Settled by a
+throwaway probe (two `.equatable()` gates logging their bodies, one
+`@MainActor Equatable`, one nonisolated; removed after the run): on
+27A5252f both run at launch, once more on the first parent re-render,
+then never; on beta 4 BOTH re-ran on every parent re-render — beta 4's
+`.equatable()` skips nothing regardless of conformance isolation. Apple's
+beta bug, not the isolated conformance. The earlier ~66/150 opening constructions on beta 4 were the
 state-backed log feeding renders (gone with `LogElement`; FlowUp passed on
 CI the moment it landed).
 
