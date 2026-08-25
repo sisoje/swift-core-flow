@@ -1,26 +1,25 @@
 import XCTest
 
-// SectionedResults exists only in SwiftData >= 180 (the 27 SDKs).
-#if canImport(SwiftData, _version: 180)
-    final class QueryViewSectionedUITests: XCTestCase {
-        @MainActor
-        func testLiveSectionedQueryRendersSectionsAndRows() {
-            let app = launchApp(scenario: "QueryViewSectionedLive")
-            XCTAssertTrue(app.staticTexts["Dune"].waitForExistence(timeout: 5))
-            XCTAssertTrue(app.staticTexts["Anathem"].exists)
-            XCTAssertTrue(app.staticTexts["It"].exists)
-            XCTAssertTrue(app.staticTexts["Sci-Fi"].exists)
-            XCTAssertTrue(app.staticTexts["Horror"].exists)
-        }
-
-        @MainActor
-        func testFabricatedSectionedResultsRenderThroughRealSwiftUI() {
-            let app = launchApp(scenario: "QueryViewSectionedMocked")
-            XCTAssertTrue(app.staticTexts["Dune"].waitForExistence(timeout: 5))
-            XCTAssertTrue(app.staticTexts["Anathem"].exists)
-            XCTAssertTrue(app.staticTexts["It"].exists)
-            XCTAssertTrue(app.staticTexts["Sci-Fi"].exists)
-            XCTAssertTrue(app.staticTexts["Horror"].exists)
-        }
+final class QueryViewSectionedUITests: XCTestCase {
+    @MainActor
+    func testLiveSectionedQueryRendersSectionsAndRows() throws {
+        try XCTSkipIf(ProcessInfo.processInfo.operatingSystemVersionString < "Version 27.0 (Build 24A5423a)")
+        let app = launchApp(scenario: "QueryViewSectionedLive")
+        XCTAssertTrue(app.staticTexts["Dune"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Anathem"].exists)
+        XCTAssertTrue(app.staticTexts["It"].exists)
+        XCTAssertTrue(app.staticTexts["Sci-Fi"].exists)
+        XCTAssertTrue(app.staticTexts["Horror"].exists)
     }
-#endif
+
+    @MainActor
+    func testFabricatedSectionedResultsRenderThroughRealSwiftUI() throws {
+        try XCTSkipIf(ProcessInfo.processInfo.operatingSystemVersionString < "Version 27.0 (Build 24A5423a)")
+        let app = launchApp(scenario: "QueryViewSectionedMocked")
+        XCTAssertTrue(app.staticTexts["Dune"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Anathem"].exists)
+        XCTAssertTrue(app.staticTexts["It"].exists)
+        XCTAssertTrue(app.staticTexts["Sci-Fi"].exists)
+        XCTAssertTrue(app.staticTexts["Horror"].exists)
+    }
+}

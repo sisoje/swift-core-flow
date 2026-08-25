@@ -48,4 +48,12 @@ import SwiftUI
     #Preview("Mocked") {
         QueryViewSectionedScenario(mocked: true)
     }
+#else
+    struct QueryViewSectionedScenario: View {
+        let mocked: Bool
+
+        var body: some View {
+            Text("needs the 27 SDK")
+        }
+    }
 #endif

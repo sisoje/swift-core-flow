@@ -72,12 +72,8 @@ struct CoreFlowHostApp: App {
                 case .queryViewGated: QueryViewSortScenario(gated: true)
                 case .queryViewUngated: QueryViewSortScenario(gated: false)
                 case .mockQueryResults: MockQueryResultsScenario()
-                #if canImport(SwiftData, _version: 180)
-                    case .queryViewSectionedLive: QueryViewSectionedScenario(mocked: false)
-                    case .queryViewSectionedMocked: QueryViewSectionedScenario(mocked: true)
-                #else
-                    case .queryViewSectionedLive, .queryViewSectionedMocked: Text("needs the 27 SDK")
-                #endif
+                case .queryViewSectionedLive: QueryViewSectionedScenario(mocked: false)
+                case .queryViewSectionedMocked: QueryViewSectionedScenario(mocked: true)
                 case .queryViewInsert: QueryViewInsertScenario()
                 case .flowUp: FlowUpScenario()
                 case .unstructuredTask: UnstructuredTaskScenario()

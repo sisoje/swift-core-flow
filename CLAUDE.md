@@ -158,7 +158,7 @@ requirement at resolution time. A generated `Core` init plus hand-written
 scenario inits was built green and rejected. Do not try to run on Xcode 26.
 Every 27-SDK-only site — `SectionedResults+Mock.swift`, the sectioned
 fallback in `MockQueryTransform`, the sectioned unit tests,
-`QueryViewSectionedScenario`, its host-app case and UI test — is behind
+`QueryViewSectionedScenario` (whose `#else` is a same-named stub, so the host app switch has no guard; its UI tests `XCTSkipIf` below 24A5423a) — is behind
 `#if canImport(SwiftData, _version: 180)` (the SwiftData module's
 `user-module-version` in the 27.0 SDKs, read from the swiftinterface;
 `compiler(>=6.4)` was tried first and cannot separate the `xcode-27` image's
