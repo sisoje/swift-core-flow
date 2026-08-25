@@ -1,5 +1,7 @@
 # CoreFlow
 
+[![CI](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml)
+
 > **Make any SwiftUI project testable. One line, one macro is all you need.**
 >
 > **Need a deeplinking system? Also one line, one macro — done.**
