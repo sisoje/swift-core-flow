@@ -1,16 +1,16 @@
 name: CI
 on: [push, pull_request]
+# xcode-27 is GitHub's macOS 26 image with Xcode 27 beta as the default
+# Xcode (public preview); the package needs the 27 SDK.
 jobs:
   package:
-    runs-on: macos-26
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
-      - run: sudo xcode-select -s /Applications/Xcode_27.0.app
       - run: swift build && swift test
   hosted:
-    runs-on: macos-26
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
-      - run: sudo xcode-select -s /Applications/Xcode_27.0.app
       - run: brew install xcodegen
       - run: cd CoreFlowHosted && sh test.sh

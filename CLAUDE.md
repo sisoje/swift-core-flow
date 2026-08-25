@@ -140,9 +140,13 @@ claim, each ending in its `#Preview`, and `UITests/` (one `XCTestCase` per
 scenario plus `LaunchHelper.swift`). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
 package stays free of scenario code. CI runs `sh test.sh` here
-(`.github/workflows/ci.yml`, jobs `package` and `hosted` on `macos-26` with
-Xcode 27.0 — NOT yet seen green on GitHub; the image's Xcode path and
-simulator set are unverified until the first run). Locally verified on the
+(`.github/workflows/ci.yml`, jobs `package` and `hosted` on the `xcode-27`
+runner label — GitHub's macOS 26 image whose default Xcode is 27 beta, per
+actions/runner-images#14404; the plain `macos-26` image has only Xcode
+26.0.1–26.6 and no 27 SDK, so the first run failed on
+`xcode-select -s /Applications/Xcode_27.0.app`. Both jobs need the 27 SDK:
+the package compiles `SectionedResults`/`FetchResultsCollection` types that
+exist only there. NOT yet seen green on GitHub). Locally verified on the
 iPhone 17 Pro simulator, Xcode 27.0 beta. Coverage: the scheme gathers it for
 ALL targets (`gatherCoverageData: true`, no `coverageTargets`) — verified
 directly, listing only `package: CoreFlow/CoreFlow` as the coverage target
