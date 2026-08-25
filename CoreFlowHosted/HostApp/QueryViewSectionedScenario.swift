@@ -5,7 +5,6 @@ import SwiftUI
 // SectionedResults exists only in SwiftData >= 180 (the 27 SDKs).
 #if canImport(SwiftData, _version: 180)
     /// The same content over a real `sectionBy:` query or a `SectionedResults.mock`.
-    @available(iOS 27.0, *)
     struct QueryViewSectionedScenario: View {
         let mocked: Bool
 
@@ -46,7 +45,6 @@ import SwiftUI
         }
     }
 
-    @available(iOS 27.0, *)
     #Preview("Mocked") {
         QueryViewSectionedScenario(mocked: true)
     }

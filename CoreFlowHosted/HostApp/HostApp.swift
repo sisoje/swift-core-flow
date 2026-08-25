@@ -72,8 +72,12 @@ struct CoreFlowHostApp: App {
                 case .queryViewGated: QueryViewSortScenario(gated: true)
                 case .queryViewUngated: QueryViewSortScenario(gated: false)
                 case .mockQueryResults: MockQueryResultsScenario()
-                case .queryViewSectionedLive: sectioned(mocked: false)
-                case .queryViewSectionedMocked: sectioned(mocked: true)
+                #if canImport(SwiftData, _version: 180)
+                    case .queryViewSectionedLive: QueryViewSectionedScenario(mocked: false)
+                    case .queryViewSectionedMocked: QueryViewSectionedScenario(mocked: true)
+                #else
+                    case .queryViewSectionedLive, .queryViewSectionedMocked: Text("needs the 27 SDK")
+                #endif
                 case .queryViewInsert: QueryViewInsertScenario()
                 case .flowUp: FlowUpScenario()
                 case .unstructuredTask: UnstructuredTaskScenario()
@@ -82,18 +86,5 @@ struct CoreFlowHostApp: App {
             .background(LogElement(log: log))
             .testLog { log.items.append(($0, $1)) }
         }
-    }
-
-    @ViewBuilder
-    private func sectioned(mocked: Bool) -> some View {
-        #if canImport(SwiftData, _version: 180)
-            if #available(iOS 27.0, *) {
-                QueryViewSectionedScenario(mocked: mocked)
-            } else {
-                Text("needs iOS 27")
-            }
-        #else
-            Text("needs the 27 SDK")
-        #endif
     }
 }
