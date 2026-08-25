@@ -44,11 +44,13 @@ struct MockQueryTransform: QueryTransforming {
         if let empty = [E]() as? R {
             return QueryResult(wrappedValue: empty)
         }
-        if #available(iOS 27.0, macOS 27.0, tvOS 27.0, watchOS 27.0, visionOS 27.0, macCatalyst 27.0, *),
-           let empty = SectionedResults<E, String>.mock([]) as? R
-        {
-            return QueryResult(wrappedValue: empty)
-        }
+        #if compiler(>=6.4)
+            if #available(iOS 27.0, macOS 27.0, tvOS 27.0, watchOS 27.0, visionOS 27.0, macCatalyst 27.0, *),
+               let empty = SectionedResults<E, String>.mock([]) as? R
+            {
+                return QueryResult(wrappedValue: empty)
+            }
+        #endif
         fatalError("MockQueryTransform: no mock registered and no empty result for \(R.self)")
     }
 }

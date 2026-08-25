@@ -140,18 +140,17 @@ claim, each ending in its `#Preview`, and `UITests/` (one `XCTestCase` per
 scenario plus `LaunchHelper.swift`). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
 package stays free of scenario code. CI runs `sh test.sh` here
-(`.github/workflows/ci.yml`, jobs `package` and `hosted` on the `xcode-27`
-runner label — GitHub's macOS 26 image whose default Xcode is 27 beta, per
-actions/runner-images#14404; the plain `macos-26` image has only Xcode
-26.0.1–26.6 and no 27 SDK, so the first run failed on
-`xcode-select -s /Applications/Xcode_27.0.app`. Both jobs need the 27 SDK:
-the package compiles `SectionedResults`/`FetchResultsCollection` types that
-exist only there. BLOCKED on the runner's Xcode: as of 2026-08-25 the
-`xcode-27` image ships Xcode 27 beta 4 (SDK build 26A5388f), whose macOS
-and iOS 27.0 SDKs have NO `SectionedResults` — both jobs fail with `cannot
-find type 'SectionedResults' in scope`; locally, Xcode 27A5252f with SDKs
-24A5422a/26A5419a has it. CI goes green when the image moves to a later
-beta; nothing in the repo is wrong). Locally verified on the
+(`.github/workflows/ci.yml`, jobs `package` and `hosted` on `macos-latest`
+with whatever Xcode the image defaults to — no `xcode-select`). Every
+27-SDK-only site — `SectionedResults+Mock.swift`, the sectioned fallback in
+`MockQueryTransform`, the sectioned unit tests, `QueryViewSectionedScenario`,
+its host-app case and UI test — is behind `#if compiler(>=6.4)` (Xcode 27 =
+Swift 6.4; there is no SDK-version `#if`), so the package builds and the
+rest of both suites run on Xcode 26. On the `xcode-27` preview label the
+image had beta 4 (SDK 26A5388f), whose SDKs also lack `SectionedResults`
+while its compiler is 6.4 — the guard does not help there; CI covers the
+sectioned code only once the default image ships a later 27. NOT yet seen
+green on GitHub. Locally verified on the
 iPhone 17 Pro simulator, Xcode 27.0 beta. Coverage: the scheme gathers it for
 ALL targets (`gatherCoverageData: true`, no `coverageTargets`) — verified
 directly, listing only `package: CoreFlow/CoreFlow` as the coverage target

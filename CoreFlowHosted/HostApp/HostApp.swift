@@ -61,11 +61,15 @@ struct CoreFlowHostApp: App {
 
     @ViewBuilder
     private func sectioned(mocked: Bool) -> some View {
-        if #available(iOS 27.0, *) {
-            QueryViewSectionedScenario(mocked: mocked)
-        } else {
-            Text("needs iOS 27")
-        }
+        #if compiler(>=6.4)
+            if #available(iOS 27.0, *) {
+                QueryViewSectionedScenario(mocked: mocked)
+            } else {
+                Text("needs iOS 27")
+            }
+        #else
+            Text("needs the 27 SDK")
+        #endif
     }
 
     private func json(_ strings: [String]) -> String {
