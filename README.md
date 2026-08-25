@@ -458,7 +458,7 @@ happens to recompute — and `Query` construction is not a free struct
 assignment; it wires a real fetch pipeline. Dependency-keyed recreation
 isn't a style preference, it's the only correct flow for this API —
 [the full argument, and the pattern QueryView packages, is in the Data
-Flow series](https://medium.com/@redhotbits/swiftui-data-flow-pattern-the-only-proper-way-to-use-swiftdata-query-2569727a573d).
+Flow series](https://medium.com/@redhotbits/the-only-proper-way-to-use-swiftdata-query-c48e66726c37).
 
 The live SwiftData shell: build a real `Query` dynamically, and hand content
 its result as plain data.
@@ -1600,7 +1600,7 @@ Swift tools version 6.3, Swift 6 language mode (strict concurrency), swift-synta
 The conceptual model, taught macro-free — the split these macros mechanize:
 
 - Lazar Otasevic — [SwiftUI Data Flow Masterclass](https://medium.com/@redhotbits/swiftui-data-flow-masterclass-099f0768f776) — nodes, waves, boundary events, the shell/core split, execution-log testing
-- Lazar Otasevic — [The (only) proper way to use SwiftData Query](https://medium.com/@redhotbits/swiftui-data-flow-pattern-the-only-proper-way-to-use-swiftdata-query-2569727a573d) — a SOT with construction parameters demands dependency-keyed recreation; the pattern `QueryView` packages
+- Lazar Otasevic — [The (only) proper way to use SwiftData Query](https://medium.com/@redhotbits/the-only-proper-way-to-use-swiftdata-query-c48e66726c37) — a SOT with construction parameters demands dependency-keyed recreation; the pattern `QueryView` packages
 
 Data-flow programming and data coupling — the model behind the package as a
 whole: a SwiftUI app as nodes (views, view modifiers) coupled only by the
