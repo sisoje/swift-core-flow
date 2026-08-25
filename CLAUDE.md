@@ -712,7 +712,7 @@ Content>` (`Result` passes through VERBATIM) and
 `View.mockQuery(_: repeat QueryResult<each R>)` — the one mock entry point,
 a variadic parameter-pack extension injecting the canned transform.
 INTERNAL by design (mock only through `mockQuery`): `QueryTransforming`
-(one `@MainActor` requirement `toCore(_:)` mapping `Query<E, R>` →
+(one `@MainActor` requirement `toResult(_:)` mapping `Query<E, R>` →
 `QueryResult<R>`), `DefaultQueryTransform` (carries
 `wrappedValue`/`fetchError`, seeds `givenModelContext`; `QueryResult` also
 exposes the same live conversion as its own

@@ -2,11 +2,11 @@ import SwiftData
 import SwiftUI
 
 protocol QueryTransforming {
-    @MainActor func toCore<E: PersistentModel, R>(_ q: Query<E, R>) -> QueryResult<R>
+    @MainActor func toResult<E: PersistentModel, R>(_ q: Query<E, R>) -> QueryResult<R>
 }
 
 struct DefaultQueryTransform: QueryTransforming {
-    func toCore<R>(_ q: Query<some PersistentModel, R>) -> QueryResult<R> {
+    func toResult<R>(_ q: Query<some PersistentModel, R>) -> QueryResult<R> {
         QueryResult(
             wrappedValue: q.wrappedValue,
             fetchError: q.fetchError,
@@ -27,18 +27,18 @@ struct MockQueryTransform: QueryTransforming {
         self.resmap = resmap
     }
 
-    init<each R>(_ cores: repeat QueryResult<each R>) {
+    init<each R>(_ results: repeat QueryResult<each R>) {
         resmap = [:]
-        repeat insert(each cores)
+        repeat insert(each results)
     }
 
-    mutating func insert<R>(_ core: QueryResult<R>) {
-        resmap[ObjectIdentifier(R.self)] = core
+    mutating func insert<R>(_ result: QueryResult<R>) {
+        resmap[ObjectIdentifier(R.self)] = result
     }
 
-    func toCore<E: PersistentModel, R>(_: Query<E, R>) -> QueryResult<R> {
-        if let core = resmap[ObjectIdentifier(R.self)] as? QueryResult<R> {
-            return core
+    func toResult<E: PersistentModel, R>(_: Query<E, R>) -> QueryResult<R> {
+        if let result = resmap[ObjectIdentifier(R.self)] as? QueryResult<R> {
+            return result
         }
         // `Query`'s initializers fix `Result` to exactly these two shapes.
         if let empty = [E]() as? R {
@@ -57,8 +57,8 @@ extension EnvironmentValues {
 }
 
 public extension View {
-    func mockQuery<each R>(_ cores: repeat QueryResult<each R>) -> some View {
-        environment(\.queryTransform, MockQueryTransform(repeat each cores))
+    func mockQuery<each R>(_ results: repeat QueryResult<each R>) -> some View {
+        environment(\.queryTransform, MockQueryTransform(repeat each results))
     }
 }
 
@@ -121,13 +121,13 @@ public struct QueryView<Index: Equatable, Element: PersistentModel, Result, Cont
         if let index {
             EquatableByParameterView(index: index) {
                 PropertyHostView(property: query()) {
-                    content(queryTransform.toCore($0))
+                    content(queryTransform.toResult($0))
                 }
             }
             .equatable()
         } else {
             PropertyHostView(property: query()) {
-                content(queryTransform.toCore($0))
+                content(queryTransform.toResult($0))
             }
         }
     }

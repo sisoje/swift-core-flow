@@ -39,16 +39,16 @@ struct QueryViewTests {
         let registered = QueryResult(wrappedValue: [Track(title: "Dune")])
         let mock = MockQueryTransform(registered)
         let query = Query(sort: \Track.title)
-        #expect(mock.toCore(query).wrappedValue.map(\.title) == ["Dune"])
+        #expect(mock.toResult(query).wrappedValue.map(\.title) == ["Dune"])
         // Unregistered array shape: the empty array, not a trap.
-        #expect(MockQueryTransform().toCore(query).wrappedValue.isEmpty)
+        #expect(MockQueryTransform().toResult(query).wrappedValue.isEmpty)
         guard
             #available(macOS 27.0, iOS 27.0, tvOS 27.0, watchOS 27.0, visionOS 27.0,
                        macCatalyst 27.0, *)
         else { return }
         // Unregistered sectioned shape: an empty SectionedResults.
         let sectioned = Query(sort: \Track.title, sectionBy: \Track.title)
-        #expect(MockQueryTransform().toCore(sectioned).wrappedValue.isEmpty)
+        #expect(MockQueryTransform().toResult(sectioned).wrappedValue.isEmpty)
     }
 
     @Test func initsAndDollarParameterTypecheckInABody() {
@@ -57,8 +57,8 @@ struct QueryViewTests {
                 QueryView(index: true, query: Query(sort: \Track.title)) { $tracks in
                     Text(verbatim: "\(tracks.count)")
                 }
-                QueryView(query: Query(sort: \Track.title)) { core in
-                    Text(verbatim: "\(core.wrappedValue.count)")
+                QueryView(query: Query(sort: \Track.title)) { result in
+                    Text(verbatim: "\(result.wrappedValue.count)")
                 }
             }
         }
