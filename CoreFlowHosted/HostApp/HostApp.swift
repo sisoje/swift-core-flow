@@ -52,7 +52,7 @@ struct LogElement: UIViewRepresentable {
 @main
 struct CoreFlowHostApp: App {
     private let scenario: Scenario
-    private let log = LogView()
+    @State private var log = LogView()
 
     init() {
         guard let raw = ProcessInfo.processInfo.environment["SCENARIO"] else {

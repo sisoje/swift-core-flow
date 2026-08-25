@@ -1,6 +1,7 @@
 # CoreFlow
 
 [![CI](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml)
+![Swift 6.4](https://img.shields.io/badge/Swift-6.4-F05138?logo=swift&logoColor=white)
 
 > **Make any SwiftUI project testable. One line, one macro is all you need.**
 >
