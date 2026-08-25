@@ -23,16 +23,16 @@ final class LogView: UIView {
     var items: [(String, String)] = []
 
     override var accessibilityLabel: String? {
-        get { json(items.map(\.0)) }
+        get { Self.json(items.map(\.0)) }
         set {}
     }
 
     override var accessibilityValue: String? {
-        get { json(items.map(\.1)) }
+        get { Self.json(items.map(\.1)) }
         set {}
     }
 
-    private func json(_ strings: [String]) -> String {
+    private static func json(_ strings: [String]) -> String {
         String(decoding: try! JSONEncoder().encode(strings), as: UTF8.self)
     }
 }
