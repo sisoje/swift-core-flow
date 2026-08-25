@@ -1,0 +1,53 @@
+name: CoreFlowHosted
+options:
+  bundleIdPrefix: com.coreflow.hosted
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  CoreFlow:
+    path: ..
+targets:
+  # One file: `@testable import CoreFlow` reaches the package's internal
+  # scenarios; SCENARIO picks one.
+  CoreFlowHostApp:
+    type: application
+    platform: iOS
+    sources: [HostApp]
+    dependencies:
+      - package: CoreFlow
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        SWIFT_VERSION: "6.0"
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        CODE_SIGNING_ALLOWED: NO
+  CoreFlowHostUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: CoreFlowHostApp
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        # No MainActor default: XCTestCase's inherited inits are nonisolated.
+        CODE_SIGNING_ALLOWED: NO
+        TEST_TARGET_NAME: CoreFlowHostApp
+schemes:
+  CoreFlowHostApp:
+    build:
+      targets:
+        CoreFlowHostApp: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      debugEnabled: false
+      gatherCoverageData: true
+      targets:
+        - CoreFlowHostUITests

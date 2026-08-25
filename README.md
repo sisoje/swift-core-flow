@@ -656,6 +656,10 @@ struct DownloadButton: View {
   field — a *class* in `State`, not `State<Task?>`, because the lifecycle is
   the point: the box's `willSet` cancels on replacement, its `deinit` cancels
   when SwiftUI releases the storage, a hook a value in `State` doesn't have.
+  One caveat, verified hosted: a task closure that captures the view
+  (`Task { … self.x … }`) holds the view copy, which holds the storage —
+  a cycle that keeps the box alive until the task ends, so teardown can't
+  cancel it. Use a capture list — `Task { [service] in … }` — instead.
   The `willSet` is equality-guarded (`Task`'s `Equatable` is identity), so
   writing the task it already holds back into it — a binding round-trip, a
   defensive `x = x` — is not a cancel. The box is `@Observable`, so a `body`

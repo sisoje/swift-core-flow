@@ -29,11 +29,24 @@ mode with strict concurrency. It supports swift-syntax
 ### Commands
 
 - Build and test: `swift build && swift test`
-- Format source and tests:
-  `swift format --in-place --recursive Sources Tests`
+- Format source, tests, and the hosted project:
+  `swiftformat Sources Tests CoreFlowHosted` (nicklockwood's swiftformat,
+  default rules — the committed tree is clean under it; Apple's
+  `swift format` is NOT the formatter and rewrites ~30 clean files)
 - Regenerate the example app: `cd CoreFlowExample && sh generate.sh`
 - Verify the generated example and UI tests:
   `cd CoreFlowExample && sh test.sh`
+- Run the package's hosted scenarios (UI tests on a simulator):
+  `cd CoreFlowHosted && sh test.sh`
+
+### The example app is provisional
+
+`CoreFlowExample` is a showcase, not verification infrastructure, and may be
+removed entirely one day. CI never runs it. A hosted-behavior claim (DynamicProperty
+installation, environment injection, lifecycle, focus, gestures, FlowUp
+accumulation, QueryView gating) is proven in `CoreFlowHosted`, the package's own
+hosted scenario/UI-test project; never make the example the only owner of a
+claim, and never grow the example to prove one.
 
 ### Documentation and verification rules
 
@@ -114,6 +127,105 @@ A macro combining outputs from existing macros must collect stored properties
 once and call the shared renderers directly. Do not implement a composite macro
 by stacking existing attributes: stacking works only while generated member sets
 do not collide, and it repeats collection and diagnostics for the same fields.
+
+### Hosted scenarios: `CoreFlowHosted`
+
+`CoreFlowHosted` is the package's own xcodegen project for claims that need a
+live SwiftUI host: `project.yml`, `test.sh` (the example's, scheme swapped),
+`HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
+switching on the `SCENARIO` environment variable, `defaultScenario` for
+Cmd-R, hosting the log element with the example app's accessibility JSON
+convention: names in `label`, values in `value`) plus one scenario file per
+claim, each ending in its `#Preview`, and `UITests/` (one `XCTestCase` per
+scenario plus `LaunchHelper.swift`). ALL scenarios live in the host app, none
+in the package: they are preview views that double as test hosts, and the
+package stays free of scenario code. CI runs `sh test.sh` here
+(`.github/workflows/ci.yml`, jobs `package` and `hosted` on `macos-26` with
+Xcode 27.0 — NOT yet seen green on GitHub; the image's Xcode path and
+simulator set are unverified until the first run). Locally verified on the
+iPhone 17 Pro simulator, Xcode 27.0 beta. Coverage: the scheme gathers it for
+ALL targets (`gatherCoverageData: true`, no `coverageTargets`) — verified
+directly, listing only `package: CoreFlow/CoreFlow` as the coverage target
+sets `onlyGenerateCoverageForSpecifiedTargets` and yields an EMPTY report
+under UI tests (coverage recorded, zero targets); with all targets the
+package's sources report normally. Read it with `xcrun xccov view --report`
+on the report object exported from the result bundle (`xcresulttool export
+object --legacy --id <reportRef>`); `xccov view --report <bundle>` fails on
+this bundle ("Failed to load coverage archive", no `archiveRef`).
+
+Every boundary event is log evidence, the package's own way: `@TestState`
+writes log themselves, and `QueryViewSortScenario.build()` logs `("query",
+order)` through `@TestLog` from inside the `query` autoclosure — at render
+time. Render-time events are why the host app's sink defers every append
+with `DispatchQueue.main.async` (FIFO, so order — the evidence — is kept):
+a `@State` write during a body evaluation is undefined behavior, and the
+example app's synchronous append would hit it. Locked by `QueryViewSortUITests` as
+one ordered log each. Gated:
+`query, unrelated, unrelated, unrelated, sortDescending, query` — three
+parent re-renders (the body reads `unrelated`, so each write re-renders)
+construct nothing; only the index write does. Ungated:
+`query, query, unrelated, query, unrelated, query, unrelated, query,
+sortDescending, query` — the doubled opening `query` is
+`.modelContainer(for:inMemory:)`'s own setup re-render, which the gated
+scenario absorbs; pinned as observed on the 27.0 simulator.
+
+swiftformat trap (0.62.1, probed): its `unusedArguments` rule does not
+count the `_items` backing spelling as a use of a `{ $items in … }` closure
+parameter and rewrites it to `{ _ in`, after which nothing resolves. `$items`
+and bare `items` are recognized — never spell `_items` in a `$` closure.
+
+Verified the hard way, do not repeat: (1) gated `content` returning
+`EmptyView` never constructs the query at all — SwiftUI never evaluates the
+gated subtree's body when its content produces no output, so the log showed
+the `@TestState` writes and zero `query` events; content must render. (2) A
+scenario body that does not READ a `@TestState` field is not re-rendered by
+writes to it, so an "unrelated write" scenario must display the field. (3) A
+view whose `@Environment` value is a closure (any `@FlowUp` flow) is never
+equal to its previous value, so it re-renders on EVERY ancestor render — a
+render-phase log in such a body loops forever against the log's own refresh.
+
+The other scenarios, each one UI test unless noted:
+
+- `MockQueryResultsScenario` / `MockQueryResultsUITests`: `.mockQuery` over two queries
+  with NO container anywhere — the canned `[Novel]` renders, and a canned
+  `fetchError` on the `[Tag]` result renders through `$tags.fetchError`.
+  Verified fact: a
+  `Query` installed by `PropertyHostView` does not trap without a
+  `modelContainer`; the mock path is genuinely container-free.
+- `QueryViewSectionedScenario(mocked:)` / `QueryViewSectionedUITests` (two tests, 27+): the
+  same `ForEach(sections, id: \.title) { Section(title) { ForEach(section) } }`
+  content over a real `Query(sort:sectionBy:)` on a seeded container, and
+  over `SectionedResults.mock` canned through `mockQuery` — the fabricated
+  value survives real SwiftUI consumption (sections, rows), not just `count`.
+  Tests here are flat copy-paste by rule: readable like a book, no shared
+  assertion helpers beyond `LaunchHelper.swift`.
+- `QueryViewInsertScenario` / `QueryViewInsertUITests`: an insert through
+  `$novels.modelContext` lands in the watched container and the list
+  updates — `givenModelContext` seeding is the live context end to end.
+- `FlowUpScenario` / `FlowUpUITests`: one collector over a caller
+  (`@Environment(\.scenarioFlow)`, a `send` button logging `send hi` before
+  calling) and `FlowLeaf(name:)` listeners logging `(name, payload)`, the
+  second one behind `if showSecond`. Pinned log: `send hi, first hi` —
+  then `showSecond true` — then `send hi, first hi, second hi`: the hosted
+  end-to-end flow, and a listener registered later is collected and called
+  in registration order. Disappearing and `.id` identity-reset
+  re-registration were verified once in a richer version (no stale or
+  duplicate listener) and cut — not locked. NOT observable and NOT claimed: how often the accumulator republishes. A
+  closure-valued environment is never equal to its previous value, so every
+  collector render re-runs every consumer regardless (observed: a
+  render-phase log in the caller loops against the log's own refresh, even
+  under `.equatable()`); a hand-written entry over the generated
+  `scenarioFlow_Key` array with `onChange` did measure it (leaf re-render →
+  no republish; appear/disappear/reset → one each) but was cut as slop.
+- `UnstructuredTaskScenario` / `UnstructuredTaskUITests`: hiding the
+  `Worker` cancels a task whose closure does NOT capture the view
+  (`Task { [log] in … }`) — `work task, showWorker false, cancelled work`.
+  Verified once and cut from the suite (not locked): a task closure that
+  captures `self` (reading `log` on the view) is NEVER cancelled by
+  teardown — the captured view copy holds `State<TaskStorage>`, whose
+  `_value` is the live box, a retain cycle until the task itself ends (no
+  `cancelled` within 3 s). A real limitation of the cancel-on-teardown
+  guarantee; see `@UnstructuredTask`.
 
 ### Example app and generated-source workflow
 
@@ -732,11 +844,11 @@ seeding helper (the native `.modelContainer(for:inMemory:onSetup:)` is
 already the one-liner). SECOND mock path, no seam involved: a seeded
 in-memory `ModelContainer` — the REAL query runs against test data, so
 sort/filter/section assertions exercise the query's own configuration; the
-example app's `BookList` scenario uses this path. The file ends with a
-`QueryViewScenario` (nested `PreviewBook` `@Model`, toggle-driven sort,
-seeded in-memory container inlined in its own body) and
-`#Preview { QueryViewScenario() }` — the living example, matching the
-example app's scenario convention.
+example app's `BookList` scenario uses this path. The living example is
+`QueryViewSortScenario(gated:)` in `CoreFlowHosted/HostApp` (nested `Book`
+`@Model`, `@TestState` sort flag and unrelated counter, `@TestLog`-logged
+query construction, seeded in-memory container inlined in its own body,
+previews `"Gated"` and `"Ungated"`; see `Hosted scenarios`).
 
 Sectioned queries (iOS 27) ride the verbatim rule: content receives
 `QueryResult<SectionedResults<Element, String>>` and reads Apple's own
@@ -795,9 +907,10 @@ fallback (`index` nil), re-evaluating the query expression every render.
 Verified live by
 the example app's `BookList` (scenario + UI test): `QueryView` hosted over a
 real `Query` over a scenario-seeded in-memory `ModelContainer`,
-the sort toggle rebuilding the query and reordering rows live. NOT verified: the
-gate actually skipping body re-evaluation on an unchanged index — no
-scenario observes the negative; do not claim it.
+the sort toggle rebuilding the query and reordering rows live. The gate's
+negative — an unchanged index skipping the query rebuild — and the ungated
+init's positive are verified live by `QueryViewSortScenario(gated:)` +
+`QueryViewSortUITests` in `CoreFlowHosted` (see `Hosted scenarios`).
 
 ## Logged-property family
 
@@ -934,7 +1047,12 @@ Production-safe, not test-only: the uninstalled sink is a no-op.
 - **Lifecycle lives in the `TaskStorage` box, one choke point.** A CLASS in
   `State`, not `State<Task?>`: `willSet` cancels the replaced task, `deinit`
   cancels the live one when SwiftUI releases the storage (a value in `State`
-  has no teardown hook). The `willSet` is equality-guarded — `Task`'s
+  has no teardown hook). VERIFIED LIMIT (hosted, once; see `Hosted scenarios`):
+  teardown cancellation reaches only a task whose closure does not capture
+  the view. A `Task { … self.x … }` holds the view copy, whose
+  `State<TaskStorage>` still holds the box, so `deinit` cannot run until the
+  task ends — use a capture list (`Task { [log] in … }`). The `willSet`
+  is equality-guarded — `Task`'s
   stdlib `Equatable` is identity — so a self-reassignment (binding
   round-trip, defensive `x = x`) is not a cancel; that's why
   `CancellableTask` refines `Equatable`. `@Observable` (with `willSet` and
@@ -1123,9 +1241,11 @@ access copy, attributed type) and the five diagnostics. `FlowUpTests` owns
 compiled behavior: combined-call order, same-signature flow isolation,
 payload-read-at-call-time, first-throw-aborts, async-sequential, empty
 default, the `@MainActor` flow, and `.onFlow`/`.collectFlow` typechecking in a
-body. Direct `EnvironmentValues()` construction needs no hosting. NOT yet
-verified live: accumulator not re-firing on leaf re-renders and hosted
-end-to-end flow — those need an example-app scenario; do not claim them.
+body. Direct `EnvironmentValues()` construction needs no hosting. Verified
+live by `FlowUpScenario` + `FlowUpUITests` in `CoreFlowHosted`: the hosted
+end-to-end flow. Consumers reading the flow
+re-render on every collector render (closure value, never equal); see
+`Hosted scenarios` for what is and is not measurable.
 `FLOWUP-PLAN.md` holds the full design record and probe log.
 
 ## `@Capability`
@@ -1467,6 +1587,7 @@ behavior.
 | overload resolution and tuple KeyPaths | compiled end-to-end test | `EndToEndTests` |
 | wrapper SDK parity | pinned swiftinterface inspection plus compiled use | Shell/QueryResult evidence |
 | logging order, focus, environment installation | hosted scenario/UI test | generated example app |
+| QueryView index gating, container-free `mockQuery`, sectioned live/mock rendering, live `modelContext`, FlowUp accumulation, task teardown | hosted scenario/UI test | `CoreFlowHosted` (one `*UITests` per scenario) |
 | binding write-through | compiled/runtime test | `ShellTests`, example UI tests |
 | task replacement and teardown | runtime test | `TaskStorageTests` |
 | reflection labels | runtime test | `ReflectorTests` |
@@ -1485,7 +1606,7 @@ Exact API owners:
   sectioned-mock runtime behavior (caller order, title subscript, seeding a
   `QueryResult`), and `MockQueryTransform`'s registry hit plus both empty
   fallbacks (`mockTransformReturnsRegisteredThenEmptyFallback`); `mockQuery`
-  itself is exercised only by typechecking.
+  hosted behavior is `MockQueryResultsUITests`/`QueryViewSectionedUITests` in `CoreFlowHosted`.
 - `TestSupportSyntaxTests` owns TestState/TestAction/TestFocus expansion;
   `TestSupportEndToEndTests` owns compiled seed/binding behavior;
   `UnstructuredTaskTests` owns task-macro and Shell re-expansion;
@@ -1589,7 +1710,7 @@ section owns file, registration, and shared-renderer steps. Additional checks:
   registration, append-publishing, `@unchecked Sendable`, and computed
   `defaultValue`; any change to the ID/keypath surface re-verifies metatype
   keypath inference and same-name static/instance resolution; hosted
-  accumulator behavior needs an example-app scenario before being claimed.
+  accumulator behavior is `FlowUpUITests` in `CoreFlowHosted` — rerun it.
 - **Pick:** verify all source arities, expansion labels versus positional static
   results, rename non-evaluation, one-time source binding, written order, tuple
   KeyPaths, both nesting cases, diagnostics, and Fix-Its.

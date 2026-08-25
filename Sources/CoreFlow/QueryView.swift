@@ -45,7 +45,8 @@ struct MockQueryTransform: QueryTransforming {
             return QueryResult(wrappedValue: empty)
         }
         if #available(iOS 27.0, macOS 27.0, tvOS 27.0, watchOS 27.0, visionOS 27.0, macCatalyst 27.0, *),
-           let empty = SectionedResults<E, String>.mock([]) as? R {
+           let empty = SectionedResults<E, String>.mock([]) as? R
+        {
             return QueryResult(wrappedValue: empty)
         }
         fatalError("MockQueryTransform: no mock registered and no empty result for \(R.self)")
@@ -131,42 +132,4 @@ public struct QueryView<Index: Equatable, Element: PersistentModel, Result, Cont
             }
         }
     }
-}
-
-struct QueryViewScenario: View {
-    @Model
-    final class PreviewBook {
-        var title: String
-        init(title: String) {
-            self.title = title
-        }
-    }
-
-    @State private var sortDescending = false
-
-    var body: some View {
-        VStack {
-            Toggle("Sort Z–A", isOn: $sortDescending)
-                .padding(.horizontal)
-            QueryView(
-                index: sortDescending,
-                query: Query(sort: \PreviewBook.title, order: sortDescending ? .reverse : .forward)
-            ) { $books in
-                List(books) { book in
-                    Text(book.title)
-                }
-            }
-        }
-        // Mocking IS a seeded in-memory container: the real query runs, so
-        // the sort is genuinely the query's own.
-        .modelContainer(for: PreviewBook.self, inMemory: true) { result in
-            let context = try! result.get().mainContext
-            context.insert(PreviewBook(title: "Dune"))
-            context.insert(PreviewBook(title: "Anathem"))
-        }
-    }
-}
-
-#Preview {
-    QueryViewScenario()
 }
