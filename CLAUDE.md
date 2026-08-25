@@ -191,14 +191,23 @@ stayed exact. Locked by `QueryViewSortUITests` as
 one ordered log each. Gated:
 `query, unrelated, unrelated, unrelated, sortDescending, query` — three
 parent re-renders (the body reads `unrelated`, so each write re-renders)
-construct nothing; only the index write does. Ungated:
-`query, query, unrelated, query, unrelated, query, unrelated, query,
-sortDescending, query` — the doubled opening `query` is
-`.modelContainer(for:inMemory:)`'s own setup re-render, which the gated
-scenario absorbs; pinned as observed on the 27.0 (27A5252f) simulator. The
-beta-4 runner showed ~66 opening constructions under the old state-backed
-log; whether that count was the log design or the beta is what the next CI
-run on the UIKit log element tells.
+construct nothing; only the index write does. Ungated: the tail after
+launch is exact — `unrelated, query, unrelated, query, unrelated, query,
+sortDescending, query` — while the OPENING count is build-dependent: the
+ungated first appearance constructs twice on 27A5252f and three times on
+the `xcode-27` runner's beta 4. It is not `.modelContainer(for:inMemory:)`'s
+setup: a pre-built container passed to `.modelContainer(_:)` still logged
+two (probed), so the test asserts the label's `["query"` prefix and its
+8-event suffix. The gated scenario absorbs those extra renders, which is
+the point. Beta 4 also did NOT skip the gated body (one construction per
+unrelated tap on CI, zero locally): `EquatableByParameterView` conforms as
+`@MainActor Equatable` — the correct conformance, SwiftUI compares views on
+the main actor — so this is the beta's `.equatable()`, not ours; a
+`nonisolated ==` over `nonisolated(unsafe) let index` was tried and
+rejected. That one test stays red on CI until the runner image moves past
+beta 4. The earlier ~66/150 opening constructions on beta 4 were the
+state-backed log feeding renders (gone with `LogElement`; FlowUp passed on
+CI the moment it landed).
 
 swiftformat trap (0.62.1, probed): its `unusedArguments` rule does not
 count the `_items` backing spelling as a use of a `{ $items in … }` closure
