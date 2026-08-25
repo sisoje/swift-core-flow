@@ -35,6 +35,22 @@ struct QueryViewTests {
         #expect(QueryResult(wrappedValue: sectioned).wrappedValue.count == 2)
     }
 
+    @Test func mockTransformReturnsRegisteredThenEmptyFallback() {
+        let registered = QueryResult(wrappedValue: [Track(title: "Dune")])
+        let mock = MockQueryTransform(registered)
+        let query = Query(sort: \Track.title)
+        #expect(mock.toCore(query).wrappedValue.map(\.title) == ["Dune"])
+        // Unregistered array shape: the empty array, not a trap.
+        #expect(MockQueryTransform().toCore(query).wrappedValue.isEmpty)
+        guard
+            #available(macOS 27.0, iOS 27.0, tvOS 27.0, watchOS 27.0, visionOS 27.0,
+                       macCatalyst 27.0, *)
+        else { return }
+        // Unregistered sectioned shape: an empty SectionedResults.
+        let sectioned = Query(sort: \Track.title, sectionBy: \Track.title)
+        #expect(MockQueryTransform().toCore(sectioned).wrappedValue.isEmpty)
+    }
+
     @Test func initsAndDollarParameterTypecheckInABody() {
         struct Probe: View {
             var body: some View {

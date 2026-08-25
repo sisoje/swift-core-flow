@@ -75,7 +75,7 @@ is the per-macro reference.
 | [`@TestFocusState`](#testfocusstate) | accessor + peer macro | a drop-in `@FocusState` that logs every programmatic write — a real `FocusState` underneath, so focus genuinely moves when hosted; `$name` is the real `FocusState<T>.Binding` |
 | [`@UnstructuredTask`](#unstructuredtask) | accessor + peer macro | a view-owned slot for a cancellable unstructured `Task` — replacing cancels the previous task, view teardown cancels the live one, and every mutation logs like `@TestState` |
 | [`@QueryResult`](#queryresult) | property wrapper | `@Query`'s drop-in stand-in on `Core` — the fetched result as a bare init parameter (`Core(items: [item], …)`), same read surface as the live wrapper, no SwiftData stack |
-| [`View.mockQuery(_:)`](#queryview) | View modifier | cans a subtree's queries in one line — typed `QueryResult` values per result type; anything unregistered traps loudly, no logic in the mock |
+| [`View.mockQuery(_:)`](#queryview) | View modifier | cans a subtree's queries in one line — typed `QueryResult` values per result type; anything unregistered gets the empty result of its shape |
 | [`QueryView`](#queryview) | View | the live SwiftData shell — builds a real `Query` dynamically, rebuilt only when its `index` changes, and hands content a `QueryResult` (`{ $books in … }`), so components read plain data in production and tests alike |
 | [`SectionedResults.mock`](#sectionedresultsmock--because-apple-sealed-plain-data) | runtime utility | fabricates iOS 27's init-less sectioned results for tests/previews — Apple sealed plain data (filed as FB24480699); genuine inner fetch collection, caller's order, loud failure if the private layout ever changes |
 | [`@TestLog`](#the-testlog-seam) | property wrapper | reads the installed sink — `@TestLog private var log` self-initializes and `log(name, value)` is a direct call (verified); the macros generate the same thing as an explicit field, `private let log_x = TestLog()` |
@@ -482,8 +482,9 @@ struct BookList: View {
   `books.isEmpty` — `@Query` ergonomics), `$books` reaches
   `fetchError`/`modelContext`.
 - **Two mock paths.** Can the results in one line — `.mockQuery` registers
-  typed `QueryResult` values per result type (an unregistered shape traps
-  loudly) — or seed an in-memory container and let the REAL query run
+  typed `QueryResult` values per result type (an unregistered shape gets
+  the empty result of that shape — `[]`, or an empty
+  `SectionedResults` — so the subtree still renders) — or seed an in-memory container and let the REAL query run
   against your test data, so sorting, filtering, and sectioning are
   genuinely the query's own:
 

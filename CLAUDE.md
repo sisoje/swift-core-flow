@@ -720,10 +720,14 @@ exposes the same live conversion as its own
 `\.queryTransform` the body reads, and `MockQueryTransform` (a
 `[ObjectIdentifier: Any]` registry keyed on `R.self` — `R` alone
 determines `E`, so one non-generic value serves a subtree mixing
-query/model types; NO logic: a registry hit is returned, an unregistered
-shape is a loud `fatalError`). Rejected along the way, all built green:
-per-Element payload enums (cannot satisfy the generic), minimums-returning
-fallbacks (logic in a mock), public transforms, a `View.mockContainer`
+query/model types; a registry hit is returned, an unregistered shape
+falls back to the EMPTY result of its declared shape — `Query`'s inits fix
+`R` to exactly `[E]` or `SectionedResults<E, String>`, so the fallback is
+a runtime `as? R` on `[E]()` then on `SectionedResults<E, String>.mock([])`
+(27+), `fatalError` only past both; the mock succeeds as much as possible,
+a subtree it was not seeded for renders empty). Rejected along the way,
+all built green: per-Element payload enums (cannot satisfy the generic),
+public transforms, a `View.mockContainer`
 seeding helper (the native `.modelContainer(for:inMemory:onSetup:)` is
 already the one-liner). SECOND mock path, no seam involved: a seeded
 in-memory `ModelContainer` — the REAL query runs against test data, so
@@ -1479,9 +1483,9 @@ Exact API owners:
   `QueryViewTests` owns the QueryView surface compiled (both inits
   typechecking in a body, `$` closure re-propertification) and the
   sectioned-mock runtime behavior (caller order, title subscript, seeding a
-  `QueryResult`). `MockQueryTransform`/`mockQuery` currently have no direct
-  test coverage — restored after the seam deletion without their old canned
-  tests.
+  `QueryResult`), and `MockQueryTransform`'s registry hit plus both empty
+  fallbacks (`mockTransformReturnsRegisteredThenEmptyFallback`); `mockQuery`
+  itself is exercised only by typechecking.
 - `TestSupportSyntaxTests` owns TestState/TestAction/TestFocus expansion;
   `TestSupportEndToEndTests` owns compiled seed/binding behavior;
   `UnstructuredTaskTests` owns task-macro and Shell re-expansion;
