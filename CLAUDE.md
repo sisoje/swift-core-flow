@@ -211,7 +211,11 @@ failing. `EquatableGateScenario` / `EquatableGateUITests` is the
 macro-free probe: two `.equatable()` gates, one `@MainActor Equatable`,
 one nonisolated, each logging its body; on 27A5252f both run at launch,
 both run once more on the FIRST parent re-render (unexplained), then never
-— pinned, so a beta that treats the two differently shows it. The earlier ~66/150 opening constructions on beta 4 were the
+— pinned. CI on beta 4 answered it: BOTH gates re-ran on EVERY parent
+re-render (`isolated, nonisolated, unrelated, isolated, nonisolated,
+unrelated, …`), so beta 4's `.equatable()` skips nothing regardless of
+conformance isolation — an Apple beta bug, not the isolated conformance.
+The probe carries the same `XCTSkipIf` below 24A5423a. The earlier ~66/150 opening constructions on beta 4 were the
 state-backed log feeding renders (gone with `LogElement`; FlowUp passed on
 CI the moment it landed).
 
