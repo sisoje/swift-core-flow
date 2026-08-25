@@ -178,10 +178,10 @@ Every boundary event is log evidence, the package's own way: `@TestState`
 writes log themselves, and `QueryViewSortScenario.build()` logs `("query",
 order)` through `@TestLog` from inside the `query` autoclosure — at render
 time. Render-time events are why the host app's log is NOT SwiftUI state:
-`LogElement`, a `UIViewRepresentable` whose `LogView` overrides
-`accessibilityLabel`/`accessibilityValue` to JSON-encode a plain `LogBox`
+`LogElement`, a `UIViewRepresentable` over a `LogView` that overrides
+`accessibilityLabel`/`accessibilityValue` to JSON-encode its own `items`
 when XCUITest snapshots it, sits in the scenario's `.background`; the sink
-appends to the box synchronously. No state write, no deferral, and logging
+appends to it synchronously. No state write, no deferral, and logging
 never re-renders anything — the two earlier designs (a `@State` array
 appended synchronously, then deferred with `DispatchQueue.main.async`)
 re-rendered the root on every event, which on the `xcode-27` runner's

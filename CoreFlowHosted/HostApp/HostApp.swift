@@ -17,35 +17,18 @@ enum Scenario: String {
     }
 }
 
-/// The log as a UIKit accessibility element whose label/value are computed
-/// when XCUITest snapshots it: appends touch no SwiftUI state, so logging —
-/// even mid-render — never re-renders anything.
-final class LogBox {
-    var items: [(String, String)] = []
-}
-
+/// XCUITest reads label/value on demand, so appending re-renders nothing —
+/// even from inside a body.
 final class LogView: UIView {
-    let box: LogBox
-
-    init(box: LogBox) {
-        self.box = box
-        super.init(frame: .zero)
-        isAccessibilityElement = true
-        accessibilityIdentifier = "log"
-    }
-
-    @available(*, unavailable)
-    required init?(coder _: NSCoder) {
-        fatalError()
-    }
+    var items: [(String, String)] = []
 
     override var accessibilityLabel: String? {
-        get { json(box.items.map(\.0)) }
+        get { json(items.map(\.0)) }
         set {}
     }
 
     override var accessibilityValue: String? {
-        get { json(box.items.map(\.1)) }
+        get { json(items.map(\.1)) }
         set {}
     }
 
@@ -55,10 +38,12 @@ final class LogView: UIView {
 }
 
 struct LogElement: UIViewRepresentable {
-    let box: LogBox
+    let log: LogView
 
     func makeUIView(context _: Context) -> LogView {
-        LogView(box: box)
+        log.isAccessibilityElement = true
+        log.accessibilityIdentifier = "log"
+        return log
     }
 
     func updateUIView(_: LogView, context _: Context) {}
@@ -67,7 +52,7 @@ struct LogElement: UIViewRepresentable {
 @main
 struct CoreFlowHostApp: App {
     private let scenario: Scenario
-    private let box = LogBox()
+    private let log = LogView()
 
     init() {
         guard let raw = ProcessInfo.processInfo.environment["SCENARIO"] else {
@@ -94,8 +79,8 @@ struct CoreFlowHostApp: App {
                 case .unstructuredTask: UnstructuredTaskScenario()
                 }
             }
-            .background(LogElement(box: box))
-            .testLog { property, value in box.items.append((property, value)) }
+            .background(LogElement(log: log))
+            .testLog { log.items.append(($0, $1)) }
         }
     }
 
