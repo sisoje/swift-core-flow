@@ -57,6 +57,14 @@ shipped from one library. A single dependency gets you every macro below.
 Requires Swift 6.4+ (`swift-tools-version: 6.4`, Xcode 27). Builds across the whole swift-syntax
 6xx line. Run everything with `swift build && swift test`.
 
+Why 6.4: `@TestState` is an init-accessor property (the same shape the iOS 27
+SDK's own `@State` macro expands to). Swift 6.3 makes a struct's memberwise
+initializer *private* when a private init-accessor property is present, so
+every `@Shell` `Core` — and any view holding `@TestState` — becomes
+unconstructible from tests; Swift 6.4 excludes such properties and keeps the
+initializer internal. Verified on Xcode 26.6:
+`'StatefulCard.Core' initializer is inaccessible due to 'private' protection level`.
+
 The conceptual model — nodes coupled by data, flow at creation, testing as
 reading the execution log — is one article:
 [SwiftUI Data Flow Masterclass](https://medium.com/@redhotbits/swiftui-data-flow-masterclass-099f0768f776), published on Medium and
