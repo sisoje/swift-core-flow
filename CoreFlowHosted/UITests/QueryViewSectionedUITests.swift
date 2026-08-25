@@ -1,7 +1,7 @@
 import XCTest
 
-// SectionedResults exists only in the 27 SDKs (Xcode 27 = Swift 6.4).
-#if compiler(>=6.4)
+// SectionedResults exists only in SwiftData >= 180 (the 27 SDKs).
+#if canImport(SwiftData, _version: 180)
     final class QueryViewSectionedUITests: XCTestCase {
         @MainActor
         func testLiveSectionedQueryRendersSectionsAndRows() {

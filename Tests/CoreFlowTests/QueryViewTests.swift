@@ -18,7 +18,7 @@ private final class Track {
 
 @MainActor
 struct QueryViewTests {
-    #if compiler(>=6.4)
+    #if canImport(SwiftData, _version: 180)
         @Test func sectionedMockFabricatesPlainData() {
             guard
                 #available(macOS 27.0, iOS 27.0, tvOS 27.0, watchOS 27.0, visionOS 27.0,
@@ -44,7 +44,7 @@ struct QueryViewTests {
         #expect(mock.toResult(query).wrappedValue.map(\.title) == ["Dune"])
         // Unregistered array shape: the empty array, not a trap.
         #expect(MockQueryTransform().toResult(query).wrappedValue.isEmpty)
-        #if compiler(>=6.4)
+        #if canImport(SwiftData, _version: 180)
             guard
                 #available(macOS 27.0, iOS 27.0, tvOS 27.0, watchOS 27.0, visionOS 27.0,
                            macCatalyst 27.0, *)

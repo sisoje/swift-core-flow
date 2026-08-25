@@ -2,12 +2,12 @@ name: CI
 on: [push, pull_request]
 jobs:
   package:
-    runs-on: macos-latest
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
       - run: swift build && swift test
   hosted:
-    runs-on: macos-latest
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
       - run: brew install xcodegen

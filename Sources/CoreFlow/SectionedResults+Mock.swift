@@ -1,8 +1,8 @@
 import Foundation
 import SwiftData
 
-// SectionedResults exists only in the 27 SDKs (Xcode 27 = Swift 6.4).
-#if compiler(>=6.4)
+// SectionedResults exists only in SwiftData >= 180 (the 27 SDKs).
+#if canImport(SwiftData, _version: 180)
     /// The runtime reflection entry points Mirror itself uses — field names and
     /// offsets straight from metadata, no instance involved.
     private struct FieldReflectionMetadata {

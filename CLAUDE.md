@@ -140,17 +140,26 @@ claim, each ending in its `#Preview`, and `UITests/` (one `XCTestCase` per
 scenario plus `LaunchHelper.swift`). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
 package stays free of scenario code. CI runs `sh test.sh` here
-(`.github/workflows/ci.yml`, jobs `package` and `hosted` on `macos-latest`
-with whatever Xcode the image defaults to — no `xcode-select`). Every
-27-SDK-only site — `SectionedResults+Mock.swift`, the sectioned fallback in
-`MockQueryTransform`, the sectioned unit tests, `QueryViewSectionedScenario`,
-its host-app case and UI test — is behind `#if compiler(>=6.4)` (Xcode 27 =
-Swift 6.4; there is no SDK-version `#if`), so the package builds and the
-rest of both suites run on Xcode 26. On the `xcode-27` preview label the
-image had beta 4 (SDK 26A5388f), whose SDKs also lack `SectionedResults`
-while its compiler is 6.4 — the guard does not help there; CI covers the
-sectioned code only once the default image ships a later 27. NOT yet seen
-green on GitHub. Locally verified on the
+(`.github/workflows/ci.yml`, jobs `package` and `hosted` on the `xcode-27`
+label — GitHub's macOS 26 image with Xcode 27 beta as default, no
+`xcode-select`). The package REQUIRES Swift 6.4: verified on the
+`macos-latest` image (Xcode 26.6, Swift 6.3.3), the package builds but
+every direct construction fails — `'StatefulCard.Core' initializer is
+inaccessible due to 'private' protection level` in `ShellTests`, and
+`'QueryViewSortScenario' initializer is inaccessible …` in the host app —
+because on 6.3 a private defaulted stored property (a `@TestState`'s own
+private peers, `@Environment private`, …) still makes the synthesized
+memberwise init private, whereas 6.4 excludes such properties and keeps the
+init internal. `@Shell`'s no-generated-init design and every `Core(…)`/
+scenario construction rest on the 6.4 rule; do not try to run on Xcode 26.
+Every 27-SDK-only site — `SectionedResults+Mock.swift`, the sectioned
+fallback in `MockQueryTransform`, the sectioned unit tests,
+`QueryViewSectionedScenario`, its host-app case and UI test — is behind
+`#if canImport(SwiftData, _version: 180)` (the SwiftData module's
+`user-module-version` in the 27.0 SDKs, read from the swiftinterface;
+`compiler(>=6.4)` was tried first and cannot separate the `xcode-27` image's
+beta 4 — Swift 6.4 but SDK 26A5388f without `SectionedResults` — from a
+current 27). NOT yet seen green on GitHub. Locally verified on the
 iPhone 17 Pro simulator, Xcode 27.0 beta. Coverage: the scheme gathers it for
 ALL targets (`gatherCoverageData: true`, no `coverageTargets`) — verified
 directly, listing only `package: CoreFlow/CoreFlow` as the coverage target

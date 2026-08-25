@@ -61,7 +61,7 @@ struct CoreFlowHostApp: App {
 
     @ViewBuilder
     private func sectioned(mocked: Bool) -> some View {
-        #if compiler(>=6.4)
+        #if canImport(SwiftData, _version: 180)
             if #available(iOS 27.0, *) {
                 QueryViewSectionedScenario(mocked: mocked)
             } else {
