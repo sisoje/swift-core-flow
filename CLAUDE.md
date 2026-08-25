@@ -142,9 +142,9 @@ in the package: they are preview views that double as test hosts, and the
 package stays free of scenario code. CI runs `sh test.sh` here
 (`.github/workflows/ci.yml`, jobs `package` and `hosted` on the `xcode-27`
 label — GitHub's macOS 26 image with Xcode 27 beta as default, no
-`xcode-select` — plus a non-blocking `package-xcode26` probe job on
-`macos-latest`, `continue-on-error`, to see what the latest non-beta Xcode
-makes of the package). The package REQUIRES Swift 6.4: verified on the
+`xcode-select` — plus non-blocking `package-xcode26`/`hosted-xcode26` probe
+jobs on `macos-latest`, `continue-on-error`, to see what the latest non-beta
+Xcode makes of the package). The package REQUIRES Swift 6.4: verified on the
 `macos-latest` image (Xcode 26.6, Swift 6.3.3), the package builds but
 every direct construction fails — `'StatefulCard.Core' initializer is
 inaccessible due to 'private' protection level` in `ShellTests`, and

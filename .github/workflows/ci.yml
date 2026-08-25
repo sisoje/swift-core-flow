@@ -12,10 +12,17 @@ jobs:
       - uses: actions/checkout@v4
       - run: brew install xcodegen
       - run: cd CoreFlowHosted && sh test.sh
-  # Probe only: what the latest non-beta Xcode makes of the package.
+  # Probes only: what the latest non-beta Xcode makes of the package.
   package-xcode26:
     runs-on: macos-latest
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - run: swift build && swift test
+  hosted-xcode26:
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: cd CoreFlowHosted && sh test.sh
