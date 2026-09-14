@@ -167,7 +167,8 @@ app switch has no guard) — is behind
 beta 4 — Swift 6.4 but SDK 26A5388f without `SectionedResults` — from a
 current 27). As of 2026-09-14 the label ships beta 6, whose SDK has
 `SectionedResults` and whose `.equatable()` skips — `package` green there,
-`hosted` 7/8 before the log modifier's `Gate` (see below). Locally verified on the
+`hosted` 7/8 before the log modifier's `Gate` and 8/8 with it (run
+34835172613, 2026-09-14) — CI green. Locally verified on the
 iPhone 17 Pro simulator, Xcode 27.0 release (27A266a, runtime 24A434) and
 earlier the 27A5252f beta — 8/8, zero skips. Coverage: the scheme gathers it for
 ALL targets (`gatherCoverageData: true`, no `coverageTargets`) — verified
