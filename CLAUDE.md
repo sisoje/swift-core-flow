@@ -158,13 +158,15 @@ requirement at resolution time. A generated `Core` init plus hand-written
 scenario inits was built green and rejected. Do not try to run on Xcode 26.
 Every 27-SDK-only site — `SectionedResults+Mock.swift`, the sectioned
 fallback in `MockQueryTransform`, the sectioned unit tests,
-`QueryViewSectionedScenario` (whose `#else` is a same-named stub, so the host app switch has no guard; its UI tests `XCTSkipIf` below 24A5423a) — is behind
+`QueryViewSectionedScenario` (whose `#else` is a same-named stub, so the host
+app switch has no guard) — is behind
 `#if canImport(SwiftData, _version: 180)` (the SwiftData module's
 `user-module-version` in the 27.0 SDKs, read from the swiftinterface;
 `compiler(>=6.4)` was tried first and cannot separate the `xcode-27` image's
 beta 4 — Swift 6.4 but SDK 26A5388f without `SectionedResults` — from a
 current 27). NOT yet seen green on GitHub. Locally verified on the
-iPhone 17 Pro simulator, Xcode 27.0 beta. Coverage: the scheme gathers it for
+iPhone 17 Pro simulator, Xcode 27.0 release (27A266a, runtime 24A434) and
+earlier the 27A5252f beta — 8/8, zero skips. Coverage: the scheme gathers it for
 ALL targets (`gatherCoverageData: true`, no `coverageTargets`) — verified
 directly, listing only `package: CoreFlow/CoreFlow` as the coverage target
 sets `onlyGenerateCoverageForSpecifiedTargets` and yields an EMPTY report
@@ -177,17 +179,36 @@ this bundle ("Failed to load coverage archive", no `archiveRef`).
 Every boundary event is log evidence, the package's own way: `@TestState`
 writes log themselves, and `QueryViewSortScenario.build()` logs `("query",
 order)` through `@TestLog` from inside the `query` autoclosure — at render
-time. Render-time events are why the host app's log is NOT SwiftUI state:
-`LogElement`, a `UIViewRepresentable` over a `LogView` that overrides
-`accessibilityLabel`/`accessibilityValue` to JSON-encode its own `items`
-when XCUITest snapshots it, sits in the scenario's `.background`; the sink
-appends to it synchronously. No state write, no deferral, and logging
-never re-renders anything — the two earlier designs (a `@State` array
-appended synchronously, then deferred with `DispatchQueue.main.async`)
-re-rendered the root on every event, which on the `xcode-27` runner's
-beta-4 simulator fed the gated scenario's query construction back into
-itself (~16 `query` events per second, unbounded) while 27A5252f locally
-stayed exact. Locked by `QueryViewSortUITests` as
+time. Render-time events shape the host app's log, pure SwiftUI by rule:
+`TestLogging`, the `ViewModifier` behind `View.setupLogging()`, holds the
+log as its own `@State private var items: [(String, String)]` and makes the
+content itself the element — `.accessibilityElement(children: .contain)`
+(buttons stay reachable) plus `accessibilityIdentifier`/
+`accessibilityLabel`/`accessibilityValue` (JSON of the names/values), the
+example app's convention, no background view, no store class — so an
+append re-renders the modifier body only; the `content` proxy shields the
+scenarios (8/8 twice, exact logs). The identifier is NOT a constant: the
+launching test sets `TEST_LOG` in `launchEnvironment` (`"log"`, the only
+place it is spelled), the app reads it from `ProcessInfo`, and
+`XCUIApplication.log` reads it back off `launchEnvironment` — one value,
+both processes; without `TEST_LOG` (Cmd-R, previews) the modifier returns
+the bare content. And
+the sink appends DEFERRED (`Task { … }` from the `@MainActor` sink — same
+actor, enqueue order held: 8/8 twice with exact logs). The deferral is
+load-bearing, probed on the 27.0 release: a synchronous `items.append` in
+the sink is a `@State` write during the scenario's body evaluation — SwiftUI
+logs "Modifying state during view update, this will cause undefined
+behavior" and both sort tests fail (5 assertions): a synchronous append from a render-phase event re-ran
+the gated subtree on every unrelated tap (`query, unrelated, query, …`) and
+looped the ungated scenario until XCUITest's snapshot query timed out
+(184 s) — probed on the 27.0 release; deferred, 8/8 twice. Rejected before
+it: a `@State` array on the root (synchronous, then deferred) re-rendered
+the root on every event, which on the beta-4 runner fed the gated
+scenario's query construction back into itself (~16 `query`/s, unbounded);
+and a `UIViewRepresentable` whose `UIView` overrode
+`accessibilityLabel`/`accessibilityValue` (read at snapshot time, so no
+state at all) — worked everywhere, dropped as UIKit in a SwiftUI package.
+Locked by `QueryViewSortUITests` as
 one ordered log each. Gated:
 `query, unrelated, unrelated, unrelated, sortDescending, query` — three
 parent re-renders (the body reads `unrelated`, so each write re-renders)
@@ -204,18 +225,20 @@ unrelated tap on CI, zero locally): `EquatableByParameterView` conforms as
 `@MainActor Equatable` — the correct conformance, SwiftUI compares views on
 the main actor — so this is the beta's `.equatable()`, not ours; a
 `nonisolated ==` over `nonisolated(unsafe) let index` was tried and
-rejected. The gated test `XCTSkipIf`s below `Version 27.0 (Build
-24A5423a)` (the simulator runtime this was verified on; Apple build strings
-compare lexicographically within a major), so beta 4 skips it instead of
-failing. Settled by a
+rejected. No skip guard: an `XCTSkipIf` below `Version 27.0 (Build
+24A5423a)` was added for beta 4 and REMOVED — Apple build strings are not
+orderable across beta→release by string or by number (release `24A434`
+sorts below beta `24A5423a` either way), so on the 27.0 release it skipped
+the gated and both sectioned tests outright. On the release the gate skips
+exactly as on 27A5252f. Settled by a
 throwaway probe (two `.equatable()` gates logging their bodies, one
 `@MainActor Equatable`, one nonisolated; removed after the run): on
 27A5252f both run at launch, once more on the first parent re-render,
 then never; on beta 4 BOTH re-ran on every parent re-render — beta 4's
 `.equatable()` skips nothing regardless of conformance isolation. Apple's
 beta bug, not the isolated conformance. The earlier ~66/150 opening constructions on beta 4 were the
-state-backed log feeding renders (gone with `LogElement`; FlowUp passed on
-CI the moment it landed).
+root-state-backed log feeding renders (gone once the log left the root;
+FlowUp passed on CI the moment it did).
 
 swiftformat trap (0.62.1, probed): its `unusedArguments` rule does not
 count the `_items` backing spelling as a use of a `{ $items in … }` closure
@@ -1298,7 +1321,6 @@ live by `FlowUpScenario` + `FlowUpUITests` in `CoreFlowHosted`: the hosted
 end-to-end flow. Consumers reading the flow
 re-render on every collector render (closure value, never equal); see
 `Hosted scenarios` for what is and is not measurable.
-`FLOWUP-PLAN.md` holds the full design record and probe log.
 
 ## `@Capability`
 

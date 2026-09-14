@@ -1,18 +1,21 @@
 import XCTest
 
 /// The app is a separate process and inherits nothing from the shell that
-/// invoked xcodebuild, so every test states its scenario explicitly.
+/// invoked xcodebuild, so every test states its scenario explicitly. The
+/// log element's identifier travels the same way, so both processes read
+/// one value.
 @MainActor
 func launchApp(scenario: String) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchEnvironment["SCENARIO"] = scenario
+    app.launchEnvironment["TEST_LOG"] = "log"
     app.launch()
     return app
 }
 
 extension XCUIApplication {
     var log: XCUIElement {
-        otherElements["log"]
+        otherElements[launchEnvironment["TEST_LOG"]!]
     }
 
     /// The log's values, JSON-decoded from the element's value; empty when

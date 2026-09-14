@@ -19,12 +19,13 @@ let package = Package(
         // Every macro's implementation, compiled as one compiler plugin; never ships
         // to consumers. One file per macro (FlowableMacro.swift, ShellMacro.swift,
         // CapabilityMacro.swift, PickMacro.swift, TestSupportMacros.swift,
-        // UnstructuredTaskMacro.swift), plus the shared stored-property
-        // collection + rendering helpers (StoredProperty.swift, MemberMacroEntry.swift,
-        // FieldRendering.swift, FlowableRendering.swift, ShellRendering.swift) that
-        // @Flowable builds on and @Shell reuses, and TuplePicker's own key-path
-        // parsing (KeyPathPick.swift, TuplePickerSupport.swift). One Plugin.swift
-        // lists every macro type.
+        // TestFocusStateMacro.swift, UnstructuredTaskMacro.swift, FlowUpMacro.swift),
+        // plus the shared stored-property collection + rendering helpers
+        // (StoredProperty.swift, MemberMacroEntry.swift, FieldRendering.swift,
+        // FlowableRendering.swift, ShellRendering.swift) that @Flowable builds on
+        // and @Shell reuses, and TuplePicker's own key-path parsing
+        // (KeyPathPick.swift, TuplePickerSupport.swift). One Plugin.swift lists
+        // every macro type.
         .macro(
             name: "CoreFlowMacros",
             dependencies: [
@@ -36,8 +37,10 @@ let package = Package(
         ),
         // The public-facing library: every macro's attribute/expression declaration,
         // one file per macro (Flowable.swift, Shell.swift, Capability.swift,
-        // TuplePicker.swift, TestSupport.swift, UnstructuredTask.swift), plus
-        // Reflector.swift, a small non-macro companion.
+        // TuplePicker.swift, TestSupport.swift, TestFocusState.swift,
+        // UnstructuredTask.swift, FlowUp.swift), plus the non-macro runtime:
+        // Reflector.swift, QueryResult.swift, QueryView.swift, and
+        // SectionedResults+Mock.swift.
         .target(name: "CoreFlow", dependencies: ["CoreFlowMacros"]),
         // All tests — macro-expansion + diagnostic coverage per macro, plus
         // TuplePicker's real-compiled end-to-end suite. XCTest and swift-testing

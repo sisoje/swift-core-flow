@@ -17,42 +17,43 @@ enum Scenario: String {
     }
 }
 
-/// XCUITest reads label/value on demand, so appending re-renders nothing —
-/// even from inside a body.
-final class LogView: UIView {
-    var items: [(String, String)] = []
+/// Logging exists only under a launching test, which names the element
+/// through `TEST_LOG`; Cmd-R and previews get the bare content.
+struct TestLogging: ViewModifier {
+    /// An append re-renders this body only; `content` shields the scenario.
+    @State private var items: [(String, String)] = []
 
-    override var accessibilityLabel: String? {
-        get { Self.json(items.map(\.0)) }
-        set {}
+    func body(content: Content) -> some View {
+        if let name = ProcessInfo.processInfo.environment["TEST_LOG"] {
+            content
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier(name)
+                .accessibilityLabel(json(items.map(\.0)))
+                .accessibilityValue(json(items.map(\.1)))
+                // Deferred: some events fire mid-render, and a synchronous
+                // append there re-runs the scenario, not just this body.
+                .testLog { name, value in
+                    Task { items.append((name, value)) }
+                }
+        } else {
+            content
+        }
     }
 
-    override var accessibilityValue: String? {
-        get { Self.json(items.map(\.1)) }
-        set {}
-    }
-
-    private static func json(_ strings: [String]) -> String {
+    private func json(_ strings: [String]) -> String {
         String(decoding: try! JSONEncoder().encode(strings), as: UTF8.self)
     }
 }
 
-struct LogElement: UIViewRepresentable {
-    let log: LogView
-
-    func makeUIView(context _: Context) -> LogView {
-        log.isAccessibilityElement = true
-        log.accessibilityIdentifier = "log"
-        return log
+extension View {
+    func setupLogging() -> some View {
+        modifier(TestLogging())
     }
-
-    func updateUIView(_: LogView, context _: Context) {}
 }
 
 @main
 struct CoreFlowHostApp: App {
     private let scenario: Scenario
-    @State private var log = LogView()
 
     init() {
         guard let raw = ProcessInfo.processInfo.environment["SCENARIO"] else {
@@ -79,8 +80,7 @@ struct CoreFlowHostApp: App {
                 case .unstructuredTask: UnstructuredTaskScenario()
                 }
             }
-            .background(LogElement(log: log))
-            .testLog { log.items.append(($0, $1)) }
+            .setupLogging()
         }
     }
 }
