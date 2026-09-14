@@ -1,6 +1,8 @@
 #!/bin/sh
-# Runs the hosted UI-test suite once on an iPhone simulator. Each test
-# launches its own scenario (launchApp sets SCENARIO per launch).
+# CI entry point for the hosted UI-test suite: three simulator clones in
+# parallel, no coverage. Each test launches its own scenario (launchApp
+# passes a TestPayload per launch). Xcode runs the same scheme with its own
+# settings.
 set -eu
 cd "$(dirname "$0")"
 
@@ -16,4 +18,7 @@ xcodebuild test \
     -project CoreFlowHosted.xcodeproj \
     -scheme CoreFlowHostApp \
     -destination "platform=iOS Simulator,name=iPhone 17 Pro" \
-    -collect-test-diagnostics never
+    -collect-test-diagnostics never \
+    -parallel-testing-enabled YES \
+    -parallel-testing-worker-count 3 \
+    -enableCodeCoverage NO

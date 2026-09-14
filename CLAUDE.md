@@ -139,7 +139,7 @@ element name, and the scenario set are spelled); and `UITests/` (one
 `launchApp(scenario: TestScenario)` encodes the payload into
 `launchEnvironment`). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
-package stays free of scenario code. CI runs `sh test.sh` here
+package stays free of scenario code. CI runs `sh test.sh` here (three simulator clones in parallel, coverage off — the script is the CI entry point; Xcode uses the scheme)
 (`.github/workflows/ci.yml`, jobs `package` and `hosted` on the `xcode-27`
 label — GitHub's macOS 26 image with Xcode 27 beta as default, no
 `xcode-select`). The package REQUIRES Swift 6.4: verified on the
