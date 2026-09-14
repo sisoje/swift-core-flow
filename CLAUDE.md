@@ -139,10 +139,15 @@ element name, and the scenario set are spelled); and `UITests/` (one
 `launchApp(scenario: TestScenario)` encodes the payload into
 `launchEnvironment`). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
-package stays free of scenario code. CI runs `sh test.sh` here (three simulator clones in parallel, coverage off — the script is the CI entry point; Xcode uses the scheme)
+package stays free of scenario code. CI runs `sh test.sh` here (coverage off — the script is the CI entry point; Xcode uses the scheme)
 (`.github/workflows/ci.yml`, jobs `package` and `hosted` on the `xcode-27`
 label — GitHub's macOS 26 image with Xcode 27 beta as default, no
-`xcode-select`). The package REQUIRES Swift 6.4: verified on the
+`xcode-select`). `actions/cache` keeps the package job's `.build` and the
+hosted job's `~/Library/Developer/Xcode/DerivedData` — dependencies plus the
+previous build products, both keyed on `Package.resolved` with a prefix
+fallback. Known trade-off, accepted: a cache entry is saved only when its key
+misses, so the derived data is refreshed only when the lock changes, and
+later runs rebuild the delta from that snapshot. The package REQUIRES Swift 6.4: verified on the
 `macos-latest` image (Xcode 26.6, Swift 6.3.3), the package builds but
 every direct construction fails — `'StatefulCard.Core' initializer is
 inaccessible due to 'private' protection level` in `ShellTests`, and

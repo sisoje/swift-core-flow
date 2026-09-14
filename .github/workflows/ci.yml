@@ -5,10 +5,20 @@ jobs:
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-
       - run: swift build && swift test
   hosted:
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: derived-${{ hashFiles('Package.resolved') }}
+          restore-keys: derived-
       - run: brew install xcodegen
       - run: cd CoreFlowHosted && sh test.sh
