@@ -8,9 +8,7 @@ import Testing
 private struct ActionHost: View {
     @TestAction var save: (String) -> Void = { _ in }
     @TestAction var refresh: () -> Bool = { true }
-    @TestAction var fetch: @Sendable (Int, Bool) async throws -> [String] = { n, _ in
-        (0 ..< n).map { String($0) }
-    }
+    @TestAction var fetch: @Sendable (Int) async throws -> Int = { $0 }
 
     var body: some View {
         Color.clear
@@ -27,6 +25,6 @@ struct TestActionTests {
         host.save("second")
         #expect(saved == ["first", "second"])
         #expect(host.refresh() == true)
-        #expect(try await host.fetch(3, false) == ["0", "1", "2"])
+        #expect(try await host.fetch(3) == 3)
     }
 }
