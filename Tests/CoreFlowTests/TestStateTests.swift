@@ -2,12 +2,10 @@ import CoreFlow
 import SwiftUI
 import Testing
 
-// `\.testLog` is hardcoded to the package entry, whose default is a no-op.
-// Setter writes and action calls read that seam — an @Environment read
-// SwiftUI flags as a runtime issue outside a live view — so logging and
-// forwarding are verified live by CoreFlowExample's UI tests. Verifiable
-// here: the generated surface compiles against real SwiftUI and bindings
-// read their seeds.
+/// `\.testLog` is hardcoded to the package entry, whose default is a no-op,
+/// and an @Environment read is a runtime issue outside a live view — so the
+/// log is verified hosted. Verifiable here: the generated surface compiles
+/// against real SwiftUI and bindings read their seeds.
 private struct CounterHost: View {
     @TestState var count: Int = 0
     @TestState var isOn = false
@@ -30,10 +28,9 @@ private struct CounterHost: View {
 /// View conformance implies @MainActor isolation for the whole type, so the
 /// suite must match — same rule as ShellTests.
 @MainActor
-struct TestSupportEndToEndTests {
-    @Test func stateBindingsReadTheirSeeds() {
+struct TestStateTests {
+    @Test func bindingsReadTheirSeeds() {
         let host = CounterHost()
-
         #expect(host.readCount() == 0)
         #expect(host.readIsOn() == false)
     }
