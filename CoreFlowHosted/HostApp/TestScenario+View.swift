@@ -13,6 +13,7 @@ extension TestScenario: View {
         case .flowUpThrows: FlowUpThrowsScenario()
         case .unstructuredTask: UnstructuredTaskScenario()
         case .shellCore: ShellCoreScenario()
+        case .testState: TestStateScenario()
         case .testAction: TestActionScenario()
         case .testFocusState: TestFocusStateScenario()
         case .gestureState: GestureStateScenario()

@@ -10,6 +10,7 @@ enum TestScenario: Codable {
     case flowUpThrows
     case unstructuredTask
     case shellCore
+    case testState
     case testAction
     case testFocusState
     case gestureState

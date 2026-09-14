@@ -315,6 +315,10 @@ The other scenarios, each one UI test unless noted:
   `_value` is the live box, a retain cycle until the task itself ends (no
   `cancelled` within 3 s). A real limitation of the cancel-on-teardown
   guarantee; see `@UnstructuredTask`.
+- `TestStateScenario` / `TestStateUITests`: `@TestState`'s own claims
+  hosted — a direct write (`count += 1`) and a `$isOn` binding write from a
+  real `Toggle` log through the same setter (`count 1, isOn true`) while
+  both values stay live on screen.
 - `ShellCoreScenario` / `ShellCoreUITests`: a `@Shell` host's `Core` hosted
   (`ShellCard.Core(name: $name, title:)`): its `@State` logs as `@TestState`
   (`isOn true`), its `@AppStorage` row, `@Binding` on `Core`, writes
@@ -1022,7 +1026,8 @@ Outside hosting the environment entry returns its no-op default but SwiftUI
 reports an uninstalled read. Unit tests therefore stop at generated surfaces
 and closure plumbing — `TestActionTests` locks forwarding for all three
 effect shapes with the seam uninstalled — while `CoreFlowHosted` owns
-logging (`TestActionUITests`; every scenario's `@TestState` writes). `TestStateTests` and `TestActionTests` run `@MainActor`
+logging (`TestStateUITests`, `TestActionUITests`; every scenario's
+`@TestState` writes). `TestStateTests` and `TestActionTests` run `@MainActor`
 because their hosts conform to `View`; see `Verified limitations`.
 
 ## `@TestState`
@@ -1653,7 +1658,7 @@ behavior.
 | synthesized memberwise initialization | compiled probe/test | `ShellTests`, `QueryResultTests`, `TestStateTests`, `TestActionTests` |
 | overload resolution and tuple KeyPaths | compiled end-to-end test | `PickTests` |
 | wrapper SDK parity | pinned swiftinterface inspection plus compiled use | Shell/QueryResult evidence |
-| logging order, focus, environment installation | hosted scenario/UI test | `CoreFlowHosted` (`TestActionUITests`, `TestFocusStateUITests`, `ShellCoreUITests`, `ViewModifierCoreUITests`) |
+| logging order, focus, environment installation | hosted scenario/UI test | `CoreFlowHosted` (`TestStateUITests`, `TestActionUITests`, `TestFocusStateUITests`, `ShellCoreUITests`, `ViewModifierCoreUITests`) |
 | QueryView index gating, container-free `mockQuery`, sectioned live/mock rendering, live `modelContext`, FlowUp end to end, task teardown, hosted `Core` (`@TestState` + `@AppStorage`→`Binding` write-through), `@TestAction` logging, `@TestFocusState`, `@GestureState(reset:)` on `Core` | hosted scenario/UI test | `CoreFlowHosted` (one `*UITests` per scenario) |
 | binding write-through | compiled/runtime test | `ShellTests`, `ShellCoreUITests` |
 | task replacement and teardown | hosted scenario/UI test | `UnstructuredTaskUITests` (assign, clear-to-`nil` cancels, teardown cancels) — the box is never tested directly, only through its wrapper |
