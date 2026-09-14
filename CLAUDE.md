@@ -164,7 +164,9 @@ app switch has no guard) — is behind
 `user-module-version` in the 27.0 SDKs, read from the swiftinterface;
 `compiler(>=6.4)` was tried first and cannot separate the `xcode-27` image's
 beta 4 — Swift 6.4 but SDK 26A5388f without `SectionedResults` — from a
-current 27). NOT yet seen green on GitHub. Locally verified on the
+current 27). As of 2026-09-14 the label ships beta 6, whose SDK has
+`SectionedResults` and whose `.equatable()` skips — `package` green there,
+`hosted` 7/8 before the `ScenarioHost` gate (see below). Locally verified on the
 iPhone 17 Pro simulator, Xcode 27.0 release (27A266a, runtime 24A434) and
 earlier the 27A5252f beta — 8/8, zero skips. Coverage: the scheme gathers it for
 ALL targets (`gatherCoverageData: true`, no `coverageTargets`) — verified
@@ -187,7 +189,15 @@ content itself the element — `.accessibilityElement(children: .contain)`
 `accessibilityLabel`/`accessibilityValue` (JSON of the names/values), the
 example app's convention, no background view, no store class — so an
 append re-renders the modifier body only; the `content` proxy shields the
-scenarios (8/8 twice, exact logs). The identifier is NOT a constant: the
+scenarios (8/8 twice, exact logs) — on the release. On the `xcode-27`
+runner's beta 6 the proxy did NOT shield: a modifier re-render re-rendered
+the content, so the ungated scenario logged `query` on every append and
+looped (3,692 constructions before the assertion; the other 7 tests passed,
+the gated one included). Hence `ScenarioHost`, `View, @MainActor
+Equatable` by `scenario` alone, under `.equatable()` INSIDE the modifier —
+the scenario subtree depends on nothing else, and the gate keeps a
+modifier re-render from reaching it on any build (same mechanism as
+`QueryView`'s own gate). The identifier is NOT a constant: the
 launching test sets `TEST_LOG` in `launchEnvironment` (`"log"`, the only
 place it is spelled), the app reads it from `ProcessInfo`, and
 `XCUIApplication.log` reads it back off `launchEnvironment` — one value,

@@ -51,6 +51,31 @@ extension View {
     }
 }
 
+/// Equal by `scenario` alone: the log modifier above re-renders on every
+/// append, and this gate keeps that from reaching the scenarios — a
+/// SwiftUI build where the modifier's `content` is not shielded (27 beta 6)
+/// otherwise loops the ungated scenario through its own `query` log.
+struct ScenarioHost: View, @MainActor Equatable {
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.scenario == rhs.scenario
+    }
+
+    let scenario: Scenario
+
+    var body: some View {
+        switch scenario {
+        case .queryViewGated: QueryViewSortScenario(gated: true)
+        case .queryViewUngated: QueryViewSortScenario(gated: false)
+        case .mockQueryResults: MockQueryResultsScenario()
+        case .queryViewSectionedLive: QueryViewSectionedScenario(mocked: false)
+        case .queryViewSectionedMocked: QueryViewSectionedScenario(mocked: true)
+        case .queryViewInsert: QueryViewInsertScenario()
+        case .flowUp: FlowUpScenario()
+        case .unstructuredTask: UnstructuredTaskScenario()
+        }
+    }
+}
+
 @main
 struct CoreFlowHostApp: App {
     private let scenario: Scenario
@@ -68,19 +93,9 @@ struct CoreFlowHostApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                switch scenario {
-                case .queryViewGated: QueryViewSortScenario(gated: true)
-                case .queryViewUngated: QueryViewSortScenario(gated: false)
-                case .mockQueryResults: MockQueryResultsScenario()
-                case .queryViewSectionedLive: QueryViewSectionedScenario(mocked: false)
-                case .queryViewSectionedMocked: QueryViewSectionedScenario(mocked: true)
-                case .queryViewInsert: QueryViewInsertScenario()
-                case .flowUp: FlowUpScenario()
-                case .unstructuredTask: UnstructuredTaskScenario()
-                }
-            }
-            .setupLogging()
+            ScenarioHost(scenario: scenario)
+                .equatable()
+                .setupLogging()
         }
     }
 }
