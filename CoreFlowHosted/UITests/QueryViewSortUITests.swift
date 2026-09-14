@@ -5,7 +5,7 @@ final class QueryViewSortUITests: XCTestCase {
     func testGatedIndexSkipsQueryConstructionOnUnrelatedWrites() {
         // `.equatable()` skips the gated body from iOS 27.0 (24A5423a) on; the
         // 27 beta 4 simulator re-renders it on every ancestor render.
-        let app = launchApp(scenario: "QueryViewGated")
+        let app = launchApp(scenario: .queryViewGated)
         XCTAssertTrue(app.buttons["unrelated"].waitForExistence(timeout: 5))
         for _ in 1 ... 3 {
             app.buttons["unrelated"].tap()
@@ -21,7 +21,7 @@ final class QueryViewSortUITests: XCTestCase {
 
     @MainActor
     func testUngatedConstructsQueryOnEveryRender() {
-        let app = launchApp(scenario: "QueryViewUngated")
+        let app = launchApp(scenario: .queryViewUngated)
         XCTAssertTrue(app.buttons["unrelated"].waitForExistence(timeout: 5))
         for _ in 1 ... 3 {
             app.buttons["unrelated"].tap()

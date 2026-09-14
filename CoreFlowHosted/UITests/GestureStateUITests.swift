@@ -3,7 +3,7 @@ import XCTest
 final class GestureStateUITests: XCTestCase {
     @MainActor
     func testCustomResetFiresOnCoreWhenTheGestureEnds() {
-        let app = launchApp(scenario: "GestureState")
+        let app = launchApp(scenario: .gestureState)
         let resets = app.staticTexts["resets"]
         XCTAssertTrue(resets.waitForExistence(timeout: 5))
         XCTAssertEqual(resets.label, "resets 0")

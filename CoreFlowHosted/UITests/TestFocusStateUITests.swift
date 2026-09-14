@@ -3,7 +3,7 @@ import XCTest
 final class TestFocusStateUITests: XCTestCase {
     @MainActor
     func testSystemFocusIsSilentAndProgrammaticWriteLogs() {
-        let app = launchApp(scenario: "TestFocusState")
+        let app = launchApp(scenario: .testFocusState)
         let status = app.staticTexts["focusStatus"]
         XCTAssertTrue(status.waitForExistence(timeout: 5))
         XCTAssertEqual(status.label, "unfocused")

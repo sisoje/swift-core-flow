@@ -13,7 +13,7 @@ final class FlowUpExpansionTests: XCTestCase {
         // hidden storage, the forwarding loop's only home. Peers: the tag
         // (per-name identity), the hand-rolled environment entry (native
         // @Entry refuses to expand inside another macro's expansion), and
-        // the same-named static FlowUpID. Effects mirror the declared
+        // the same-named static _FlowUpID. Effects mirror the declared
         // type: try await.
         assertMacroExpansion(
             """
@@ -37,12 +37,12 @@ final class FlowUpExpansionTests: XCTestCase {
                 }
 
                 enum handleUrl_Key: EnvironmentKey {
-                    static var defaultValue: [FlowUpClosure<(URL) async throws -> Void>] {
+                    static var defaultValue: [_FlowUpClosure<(URL) async throws -> Void>] {
                         []
                     }
                 }
 
-                fileprivate var handleUrl_closures: [FlowUpClosure<(URL) async throws -> Void>] {
+                fileprivate var handleUrl_closures: [_FlowUpClosure<(URL) async throws -> Void>] {
                     get {
                         self[handleUrl_Key.self]
                     }
@@ -51,8 +51,8 @@ final class FlowUpExpansionTests: XCTestCase {
                     }
                 }
 
-                static var handleUrl: FlowUpID<handleUrl_Key, (URL) async throws -> Void> {
-                    FlowUpID(keyPath: \\.handleUrl_closures)
+                static var handleUrl: _FlowUpID<handleUrl_Key, (URL) async throws -> Void> {
+                    _FlowUpID(keyPath: \\.handleUrl_closures)
                 }
             }
             """,
@@ -84,12 +84,12 @@ final class FlowUpExpansionTests: XCTestCase {
                 }
 
                 enum refresh_Key: EnvironmentKey {
-                    static var defaultValue: [FlowUpClosure<() -> Void>] {
+                    static var defaultValue: [_FlowUpClosure<() -> Void>] {
                         []
                     }
                 }
 
-                fileprivate var refresh_closures: [FlowUpClosure<() -> Void>] {
+                fileprivate var refresh_closures: [_FlowUpClosure<() -> Void>] {
                     get {
                         self[refresh_Key.self]
                     }
@@ -98,8 +98,8 @@ final class FlowUpExpansionTests: XCTestCase {
                     }
                 }
 
-                static var refresh: FlowUpID<refresh_Key, () -> Void> {
-                    FlowUpID(keyPath: \\.refresh_closures)
+                static var refresh: _FlowUpID<refresh_Key, () -> Void> {
+                    _FlowUpID(keyPath: \\.refresh_closures)
                 }
             }
             """,
@@ -132,12 +132,12 @@ final class FlowUpExpansionTests: XCTestCase {
                 }
 
                 public enum shared_Key: EnvironmentKey {
-                    public static var defaultValue: [FlowUpClosure<(Int, String) -> Void>] {
+                    public static var defaultValue: [_FlowUpClosure<(Int, String) -> Void>] {
                         []
                     }
                 }
 
-                fileprivate var shared_closures: [FlowUpClosure<(Int, String) -> Void>] {
+                fileprivate var shared_closures: [_FlowUpClosure<(Int, String) -> Void>] {
                     get {
                         self[shared_Key.self]
                     }
@@ -146,8 +146,8 @@ final class FlowUpExpansionTests: XCTestCase {
                     }
                 }
 
-                public static var shared: FlowUpID<shared_Key, (Int, String) -> Void> {
-                    FlowUpID(keyPath: \\.shared_closures)
+                public static var shared: _FlowUpID<shared_Key, (Int, String) -> Void> {
+                    _FlowUpID(keyPath: \\.shared_closures)
                 }
             }
             """,
@@ -179,12 +179,12 @@ final class FlowUpExpansionTests: XCTestCase {
                 }
 
                 enum ping_Key: EnvironmentKey {
-                    static var defaultValue: [FlowUpClosure<@MainActor (Int) -> Void>] {
+                    static var defaultValue: [_FlowUpClosure<@MainActor (Int) -> Void>] {
                         []
                     }
                 }
 
-                fileprivate var ping_closures: [FlowUpClosure<@MainActor (Int) -> Void>] {
+                fileprivate var ping_closures: [_FlowUpClosure<@MainActor (Int) -> Void>] {
                     get {
                         self[ping_Key.self]
                     }
@@ -193,8 +193,8 @@ final class FlowUpExpansionTests: XCTestCase {
                     }
                 }
 
-                static var ping: FlowUpID<ping_Key, @MainActor (Int) -> Void> {
-                    FlowUpID(keyPath: \\.ping_closures)
+                static var ping: _FlowUpID<ping_Key, @MainActor (Int) -> Void> {
+                    _FlowUpID(keyPath: \\.ping_closures)
                 }
             }
             """,

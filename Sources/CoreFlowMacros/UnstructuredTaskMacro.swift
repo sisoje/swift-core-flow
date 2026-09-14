@@ -4,7 +4,7 @@ import SwiftSyntaxMacros
 /// `@UnstructuredTask private var download: Task<Data, Error>?` — a view-owned
 /// slot for a cancellable unstructured `Task` that logs, `@TestState`'s
 /// sibling. The property becomes COMPUTED over a self-initialized
-/// `State<TaskStorage>` peer — no init accessor, so it can never be a
+/// `State<_TaskStorage>` peer — no init accessor, so it can never be a
 /// memberwise-init parameter whatever its access level, and the task always
 /// starts `nil` (a written default is refused by the macro itself — see
 /// `validated` below). The
@@ -17,7 +17,7 @@ import SwiftSyntaxMacros
 /// writes cancel and log identically. Required shape: a stored `var` with an
 /// optional-sugared type annotation and no initial value (`T?` — the
 /// storage's element is that type minus the `?`,
-/// `CancellableTask`-constrained, so `Task`'s own generic arguments are
+/// `_CancellableTask`-constrained, so `Task`'s own generic arguments are
 /// never parsed and a typealias works); anything else THROWS from
 /// expansion — a compile error at the attribute, never a silent skip
 /// (see `validated` below).
@@ -54,7 +54,7 @@ public enum UnstructuredTaskMacro: AccessorMacro, PeerMacro {
         let elementText = element.trimmedDescription
         let optionalText = optional.trimmedDescription
         return [
-            "private let \(raw: name)_storage: State<TaskStorage<\(raw: elementText)>> = State(wrappedValue: TaskStorage())",
+            "private let \(raw: name)_storage: State<_TaskStorage<\(raw: elementText)>> = State(wrappedValue: _TaskStorage())",
             "private let log_\(raw: name) = TestLog()",
             """
             private var `$\(raw: name)`: Binding<\(raw: optionalText)> {

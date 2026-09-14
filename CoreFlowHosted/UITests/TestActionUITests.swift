@@ -3,7 +3,7 @@ import XCTest
 final class TestActionUITests: XCTestCase {
     @MainActor
     func testCallsLogBeforeForwardingSyncAndAsync() {
-        let app = launchApp(scenario: "TestAction")
+        let app = launchApp(scenario: .testAction)
         XCTAssertTrue(app.buttons["save"].waitForExistence(timeout: 5))
         app.buttons["save"].tap()
         app.buttons["fetch"].tap()

@@ -3,7 +3,7 @@ import XCTest
 final class QueryViewSectionedUITests: XCTestCase {
     @MainActor
     func testLiveSectionedQueryRendersSectionsAndRows() {
-        let app = launchApp(scenario: "QueryViewSectionedLive")
+        let app = launchApp(scenario: .queryViewSectionedLive)
         XCTAssertTrue(app.staticTexts["Dune"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Anathem"].exists)
         XCTAssertTrue(app.staticTexts["It"].exists)
@@ -13,7 +13,7 @@ final class QueryViewSectionedUITests: XCTestCase {
 
     @MainActor
     func testFabricatedSectionedResultsRenderThroughRealSwiftUI() {
-        let app = launchApp(scenario: "QueryViewSectionedMocked")
+        let app = launchApp(scenario: .queryViewSectionedMocked)
         XCTAssertTrue(app.staticTexts["Dune"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Anathem"].exists)
         XCTAssertTrue(app.staticTexts["It"].exists)

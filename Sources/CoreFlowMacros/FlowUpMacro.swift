@@ -10,7 +10,7 @@ import SwiftSyntaxMacros
 /// `@Entry` refuses to expand inside another macro's expansion buffer: its
 /// container check cannot see the extension from there, verified
 /// directly), the fileprivate settable entry holding the bare wrapper
-/// array, and a same-named `static` `FlowUpID`
+/// array, and a same-named `static` `_FlowUpID`
 /// (legal — static and instance members may share a name) that `on` /
 /// `accumulate` resolve through a metatype-rooted keypath, so one name
 /// spells every call site.
@@ -61,13 +61,13 @@ public enum FlowUpMacro: AccessorMacro, PeerMacro {
         return [
             """
             \(raw: anchor.access)enum \(raw: anchor.name)_Key: EnvironmentKey {
-                \(raw: anchor.access)static var defaultValue: [FlowUpClosure<\(raw: typeText)>] {
+                \(raw: anchor.access)static var defaultValue: [_FlowUpClosure<\(raw: typeText)>] {
                     []
                 }
             }
             """,
             """
-            fileprivate var \(raw: anchor.name)_closures: [FlowUpClosure<\(raw: typeText)>] {
+            fileprivate var \(raw: anchor.name)_closures: [_FlowUpClosure<\(raw: typeText)>] {
                 get {
                     self[\(raw: anchor.name)_Key.self]
                 }
@@ -77,8 +77,8 @@ public enum FlowUpMacro: AccessorMacro, PeerMacro {
             }
             """,
             """
-            \(raw: anchor.access)static var \(raw: anchor.name): FlowUpID<\(raw: anchor.name)_Key, \(raw: typeText)> {
-                FlowUpID(keyPath: \\.\(raw: anchor.name)_closures)
+            \(raw: anchor.access)static var \(raw: anchor.name): _FlowUpID<\(raw: anchor.name)_Key, \(raw: typeText)> {
+                _FlowUpID(keyPath: \\.\(raw: anchor.name)_closures)
             }
             """,
         ]

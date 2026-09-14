@@ -33,20 +33,8 @@ mode with strict concurrency. It supports swift-syntax
   `swiftformat Sources Tests CoreFlowHosted` (nicklockwood's swiftformat,
   default rules — the committed tree is clean under it; Apple's
   `swift format` is NOT the formatter and rewrites ~30 clean files)
-- Regenerate the example app: `cd CoreFlowExample && sh generate.sh`
-- Verify the generated example and UI tests:
-  `cd CoreFlowExample && sh test.sh`
 - Run the package's hosted scenarios (UI tests on a simulator):
   `cd CoreFlowHosted && sh test.sh`
-
-### The example app is provisional
-
-`CoreFlowExample` is a showcase, not verification infrastructure, and may be
-removed entirely one day. CI never runs it. A hosted-behavior claim (DynamicProperty
-installation, environment injection, lifecycle, focus, gestures, FlowUp
-accumulation, QueryView gating) is proven in `CoreFlowHosted`, the package's own
-hosted scenario/UI-test project; never make the example the only owner of a
-claim, and never grow the example to prove one.
 
 ### Documentation and verification rules
 
@@ -58,8 +46,6 @@ claim, and never grow the example to prove one.
   events, the shell/core split, and execution-log testing, taught macro-free as
   a manual two-view split. The macros mechanize that same split—one conceptual
   story with different vehicles.
-- `CoreFlowExample/SPEC.md` is the source specification for the example app; its
-  Swift sources regenerate from that document.
 - Documentation states facts and current decisions, not removal chronology.
   Compress without losing qualifications; keep references at the bottom; do not
   name an API before its chapter introduces it.
@@ -81,9 +67,15 @@ claim, and never grow the example to prove one.
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift`, `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction`, `testLog`, `TestLog` — `TestFocusState.swift`, `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `TaskStorage`/`CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `FlowUpClosure`/`FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below), `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the sealed-type fabricator; same section) |
+| `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `UITestLogging.swift` (`uiTestLog(accessibilityIdentifier:)`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), and the `Experimental/` directory — the two implementation-dependent runtime techniques, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the memory-layout fabricator for Apple's sealed type; see the `QueryResult` section) |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro (`FlowableExpansionTests`, `ShellExpansionTests`, `CapabilityExpansionTests`, `PickExpansionTests`, `TestStateExpansionTests`, `TestActionExpansionTests`, `TestFocusStateExpansionTests`, `UnstructuredTaskExpansionTests`, `FlowUpExpansionTests`); depends on `CoreFlowMacros` + `SwiftSyntaxMacrosTestSupport`, never on the product |
-| `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`ShellTests`, `QueryResultTests`, `QueryViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `UnstructuredTaskTests`, `TaskStorageTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
+| `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
+
+Public machinery that only macro expansions name — `_TaskStorage`,
+`_CancellableTask`, `_FlowUpClosure`, `_FlowUpID` — is `_`-prefixed, Apple's
+convention for public-but-not-API: expansions land in the consumer's module,
+so the types must be public, but the README never names them and user code
+never should. `TestLog` is the exception: hand-written `@TestLog` is API.
 
 Per-macro target/product sets were considered and rejected. Their ceremony is
 not worth dependency granularity no consumer needs. Adding a macro means adding
@@ -132,14 +124,20 @@ do not collide, and it repeats collection and diagnostics for the same fields.
 ### Hosted scenarios: `CoreFlowHosted`
 
 `CoreFlowHosted` is the package's own xcodegen project for claims that need a
-live SwiftUI host: `project.yml`, `test.sh` (the example's, scheme swapped),
+live SwiftUI host: `project.yml`, `test.sh`,
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
-switching on the `SCENARIO` environment variable — no default, a missing or
-unknown `SCENARIO` or a missing `TEST_LOG` is a `fatalError`: the app runs
-only under a launching test — hosting the log element with the example app's accessibility JSON
-convention: names in `label`, values in `value`) plus one scenario file per
-claim, each ending in its `#Preview`, and `UITests/` (one `XCTestCase` per
-scenario plus `LaunchHelper.swift`). ALL scenarios live in the host app, none
+switching on the `TestScenario` it decodes from a `TestPayload` in the
+`testPayloadEnvironmentKey` environment variable — no default, a missing payload is a
+`fatalError`: the app runs only under a launching test — hosting the log
+element: names JSON in `label`, values JSON in `value`) plus one scenario
+file per claim, each ending in its `#Preview`; `Shared/` — compiled into
+BOTH targets (`sources: [HostApp, Shared]` / `[UITests, Shared]`) —
+holding `TestScenario.swift` (the enum) and `TestPayload.swift` (`testPayloadEnvironmentKey`,
+`logAccessibilityIdentifier`, `try!` JSON encode/decode — the one place the key, the
+element name, and the scenario set are spelled); and `UITests/` (one
+`XCTestCase` per scenario plus `LaunchHelper.swift`, whose
+`launchApp(scenario: TestScenario)` encodes the payload into
+`launchEnvironment`). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
 package stays free of scenario code. CI runs `sh test.sh` here
 (`.github/workflows/ci.yml`, jobs `package` and `hosted` on the `xcode-27`
@@ -158,15 +156,10 @@ scenario construction rest on the 6.4 rule — the same rule the 27 SDK's own
 with `-dump-macro-expansions`), so `swift-tools-version: 6.4` states the
 requirement at resolution time. A generated `Core` init plus hand-written
 scenario inits was built green and rejected. Do not try to run on Xcode 26.
-Every 27-SDK-only site — `SectionedResults+Mock.swift`, the sectioned
-fallback in `MockQueryTransform`, the sectioned unit tests,
-`QueryViewSectionedScenario` (whose `#else` is a same-named stub, so the host
-app switch has no guard) — is behind
-`#if canImport(SwiftData, _version: 180)` (the SwiftData module's
-`user-module-version` in the 27.0 SDKs, read from the swiftinterface;
-`compiler(>=6.4)` was tried first and cannot separate the `xcode-27` image's
-beta 4 — Swift 6.4 but SDK 26A5388f without `SectionedResults` — from a
-current 27). As of 2026-09-14 the label ships beta 6, whose SDK has
+No SDK guards: the package requires Xcode 27, whose SDKs have
+`SectionedResults`; the `#if canImport(SwiftData, _version: 180)` guards
+that once let the beta-4 runner (Swift 6.4, SDK 26A5388f without the type)
+build were removed once Xcode 27 shipped. As of 2026-09-14 the label ships beta 6, whose SDK has
 `SectionedResults` and whose `.equatable()` skips — `package` green there,
 `hosted` 7/8 before the log modifier's `Gate` and 8/8 with it (run
 34835172613, 2026-09-14) — CI green. Locally verified on the
@@ -185,12 +178,13 @@ Every boundary event is log evidence, the package's own way: `@TestState`
 writes log themselves, and `QueryViewSortScenario.build()` logs `("query",
 order)` through `@TestLog` from inside the `query` autoclosure — at render
 time. Render-time events shape the host app's log, pure SwiftUI by rule:
-`TestLogging`, the `ViewModifier` behind `View.setupLogging()`, holds the
+`UITestLogging`, the package's `ViewModifier` behind `View.uiTestLog(accessibilityIdentifier:)`
+(`TestSupport/UITestLogging.swift`, public so any hosted test app has it), holds the
 log as its own `@State private var items: [(String, String)]` and makes the
 content itself the element — `.accessibilityElement(children: .contain)`
 (buttons stay reachable) plus `accessibilityIdentifier`/
-`accessibilityLabel`/`accessibilityValue` (JSON of the names/values), the
-example app's convention, no background view, no store class — so an
+`accessibilityLabel`/`accessibilityValue` (JSON of the names/values), no
+background view, no store class — so an
 append re-renders the modifier body only; the `content` proxy shields the
 scenarios (8/8 twice, exact logs) — on the release. On the `xcode-27`
 runner's beta 6 the proxy did NOT shield: a modifier re-render re-rendered
@@ -200,12 +194,10 @@ the gated one included). Hence the modifier's private `Gate<Key, Content>`
 — `View, @MainActor Equatable`, always equal, wrapping `content` under
 `.equatable()` — so the modifier's own
 re-render never reaches the content on any build (same mechanism as
-`QueryView`'s gate; `content` is not `Equatable` itself, hence the wrapper). The identifier is NOT a constant: the
-launching test sets `TEST_LOG` in `launchEnvironment` (`"log"`, the only
-place it is spelled), the app reads it from `ProcessInfo`, and
-`XCUIApplication.log` reads it back off `launchEnvironment` — one value,
-both processes; the app's `init` reads it into `logIdentifier` and passes
-it to `setupLogging(_:)`, the modifier always instruments. And
+`QueryView`'s gate; `content` is not `Equatable` itself, hence the wrapper). The element's identifier is
+`TestPayload.logAccessibilityIdentifier`: the app passes it to `uiTestLog(accessibilityIdentifier:)` (the
+modifier knows nothing of the payload) and `XCUIApplication.log` reads it
+from the same shared file; the modifier always instruments. And
 the sink appends DEFERRED (`Task { … }` from the `@MainActor` sink — same
 actor, enqueue order held: 8/8 twice with exact logs). The deferral is
 load-bearing, probed on the 27.0 release: a synchronous `items.append` in
@@ -291,7 +283,9 @@ The other scenarios, each one UI test unless noted:
 - `FlowUpScenario` / `FlowUpUITests`: one collector over a caller
   (`@Environment(\.scenarioFlow)`, a `send` button logging `send hi` before
   calling) and `FlowLeaf(name:)` listeners logging `(name, payload)`, the
-  second one behind `if showSecond`. Pinned log: `send hi, first hi` —
+  second one behind `if showSecond`, plus an `other` leaf on a second,
+  same-shaped flow (`scenarioOtherFlow`) that must stay silent —
+  isolation. Pinned log: `send hi, first hi` —
   then `showSecond true` — then `send hi, first hi, second hi`: the hosted
   end-to-end flow, and a listener registered later is collected and called
   in registration order. Disappearing and `.id` identity-reset
@@ -303,19 +297,31 @@ The other scenarios, each one UI test unless noted:
   under `.equatable()`); a hand-written entry over the generated
   `scenarioFlow_Key` array with `onChange` did measure it (leaf re-render →
   no republish; appear/disappear/reset → one each) but was cut as slop.
-- `UnstructuredTaskScenario` / `UnstructuredTaskUITests`: hiding the
-  `Worker` cancels a task whose closure does NOT capture the view
-  (`Task { [log] in … }`) — `work task, showWorker false, cancelled work`.
+- `FlowUpThrowsScenario` / `FlowUpThrowsUITests`: an `async throws` flow
+  with two leaves — `first` logs then throws `SaveFailure`, `second` logs —
+  and a caller that awaits the combined closure and logs the result. Pinned
+  log: `send hi, first hi, result SaveFailure()`; `second` never runs.
+- `UnstructuredTaskScenario` / `UnstructuredTaskUITests` (three tests): hiding
+  the `Worker` cancels a task whose closure does NOT capture the view
+  (`Task { [log] in … }`) — `work task, showWorker false, cancelled work`;
+  and clearing the slot logs `nil` and cancels — `work task, work nil,
+  cancelled work` (the cancelled task's resumption logs strictly after the
+  clearing write); and reassigning the live task (`work = work`) logs
+  `work task` but cancels nothing — `work task, work task, work nil,
+  cancelled work`, one `cancelled`, from the clear.
   Verified once and cut from the suite (not locked): a task closure that
   captures `self` (reading `log` on the view) is NEVER cancelled by
-  teardown — the captured view copy holds `State<TaskStorage>`, whose
+  teardown — the captured view copy holds `State<_TaskStorage>`, whose
   `_value` is the live box, a retain cycle until the task itself ends (no
   `cancelled` within 3 s). A real limitation of the cancel-on-teardown
   guarantee; see `@UnstructuredTask`.
 - `ShellCoreScenario` / `ShellCoreUITests`: a `@Shell` host's `Core` hosted
   (`ShellCard.Core(name: $name, title:)`): its `@State` logs as `@TestState`
-  (`isOn true`) and its `@AppStorage` row, `@Binding` on `Core`, writes
-  through the scenario's own `@TestState` (`name renamed`).
+  (`isOn true`), its `@AppStorage` row, `@Binding` on `Core`, writes
+  through the scenario's own `@TestState` (`name renamed`), and its verbatim
+  `@Environment(\.greeting)` reads the value the scenario installs with
+  `.environment` (`mocked greeting`) — the native mocking path, on a hosted
+  `Core`.
 - `TestActionScenario` / `TestActionUITests`: `@TestAction` call logging
   hosted for a sync and a `@Sendable async throws` action — `save draft,
   fetch 3, fetched 6`: the async wrapper awaits the log before forwarding,
@@ -327,63 +333,10 @@ The other scenarios, each one UI test unless noted:
 - `GestureStateScenario` / `GestureStateUITests`: `@GestureState(reset:)`
   copied verbatim onto a hosted `Core`, custom reset closure included — a
   drag ends, the reset fires (`resets 1`, `resetsSeen 1`).
-
-### Example app and generated-source workflow
-
-`CoreFlowExample` is an xcodegen project whose checked-in source-of-truth files
-are exactly `project.yml`, `test.sh`, `generate.sh`, and `SPEC.md` (plus repository
-metadata such as `.gitignore`). Generated Swift sources and the Xcode project may
-also be present in the working directory. Swift sources are collapsed into
-`SPEC.md` and regenerated with `sh generate.sh`; keep `project.yml`, `test.sh`,
-and `generate.sh` verbatim as part of the specification. Run `sh test.sh` after
-every regeneration.
-
-`CoreFlowExampleUI` is a real SPM library containing every component, one source
-file per host/scenario/`#Preview` after generation:
-
-- reading-list components use internal `@Shell` hosts with SwiftData `@Query`
-  and `@AppStorage`;
-- the public `@Flowable @Shell ReadingListScreen` composes them and is the app's
-  single entry point;
-- `BookStore` is a closure capability behind a public `@Entry`, mocked by
-  construction and wrapped in an always-equal `Equatable` value;
-- six internal components exercise plain `@GestureState`, custom
-  `@GestureState(reset:)`, `@FocusState`, a `ViewModifier` host, and an async
-  throwing action (`SaveButton`), plus an `@UnstructuredTask` slot
-  (`DownloadButton`).
-
-`RealApp` (`CoreFlowRealApp`) imports the library normally, uses live wrappers,
-and injects the live `BookStore` through a `ViewModifier` that reads the real
-`modelContext`. `TestApp` (`CoreFlowTestApp`) uses `@testable import` to reach
-internal scenarios. The `SCENARIO` environment variable selects one;
-`defaultScenario` is used when it is absent so Cmd-R works.
-
-Every scenario hosts a `Core`, often bare `Core()`: substituted `@TestState`
-fields own and log their state. A scenario supplies only caller-owned boundaries:
-`@TestAction` closures, data arguments, and genuine `@Binding` backings. The app
-installs one sink on the root view with `.testLog { … }` and appends each
-`(name, value)` to plain `@State` at the write site.
-
-The scenario `Group` exposes the log through accessibility without a phantom
-view or opacity trick:
-
-- `.accessibilityElement(children: .contain)`;
-- identifier `log`;
-- names JSON in `label`;
-- values JSON in `value`.
-
-JSON preserves arbitrary description content. Each XCUITest waits for its own
-finish signal with `log.wait(for: \.label, toEqual:)`; because names are fixed
-identifiers and raw-string comparable, that equality is also the names
-assertion. It then decodes `app.logValues` as `[String]` and compares the values.
-This is intentionally an in-process live assertion, not a recorded snapshot
-file: there is no record/re-record cycle and one unstable description cannot
-poison a file-wide diff. Streaming values such as drag distances remain
-predicate-asserted.
-
-`test.sh` passes `-collect-test-diagnostics never`. Simulator diagnostic
-collection timed out once at exactly 600 seconds on the Xcode beta; disabling
-that post-test collection makes the run deterministic without changing the test.
+- `ViewModifierCoreScenario` / `ViewModifierCoreUITests`: a `ViewModifier`
+  host's `Core` hosted through `.modifier(Dimmer.Core())` — the copied
+  `body(content:)` wraps real content and its `@State` logs (`isDimmed
+  true, false`).
 
 ## Package-wide invariants
 
@@ -822,8 +775,8 @@ only *cross*-expansion name references are forbidden, the same Swift-level
 rule that makes `#Preview` unable to see `Core` or any macro-generated name
 (verified directly, five ways). `#Preview { Card() }` works since the
 host's `body` is hand-written source, and a mocked `Core` previews through
-any hand-written wrapper — the example app's scenarios double as exactly
-that (`#Preview { DragCardScenario() }`): the scenario is an ordinary
+any hand-written wrapper — `CoreFlowHosted`'s scenarios are exactly that
+(`#Preview { GestureStateScenario() }`): the scenario is an ordinary
 name, so the cross-expansion rule never triggers. A macro-generated name
 also fails in a file-scope TYPE position (`func f() -> DragCard.Core` →
 "has no member 'Core'", verified directly) — reference it in expressions
@@ -859,8 +812,8 @@ storage write-through. It leaves `Core.body` unevaluated because the copied
 `Tests/CoreFlowExpansionTests/ShellExpansionTests.swift` owns expansion shape, copy rules
 (`testHelpersStaticMembersAndNestedTypesAreCopiedButInitsAreNot`), diagnostics,
 host-kind detection, and its separate-extension negative case. `Core` hosted
-is `ShellCoreUITests` and `GestureStateUITests` in `CoreFlowHosted`; the
-example app's scenarios duplicate the model live.
+is `ShellCoreUITests`, `ViewModifierCoreUITests`, and `GestureStateUITests`
+in `CoreFlowHosted`.
 
 ## `QueryResult`
 
@@ -945,8 +898,8 @@ public transforms, a `View.mockContainer`
 seeding helper (the native `.modelContainer(for:inMemory:onSetup:)` is
 already the one-liner). SECOND mock path, no seam involved: a seeded
 in-memory `ModelContainer` — the REAL query runs against test data, so
-sort/filter/section assertions exercise the query's own configuration; the
-example app's `BookList` scenario uses this path. The living example is
+sort/filter/section assertions exercise the query's own configuration;
+`QueryViewSortScenario` uses this path. The living example is
 `QueryViewSortScenario(gated:)` in `CoreFlowHosted/HostApp` (nested `Book`
 `@Model`, `@TestState` sort flag and unrelated counter, `@TestLog`-logged
 query construction, seeded in-memory container inlined in its own body,
@@ -968,7 +921,7 @@ every variant taxed the production path to fix Apple's sealing. Ruling: no
 `map` in the pipeline; do not retry.
 
 Sectioned MOCKING is `SectionedResults.mock(_: [(title:elements:)])` in
-`Sources/CoreFlow/SectionedResults+Mock.swift` — non-throwing (`try!`
+`Sources/CoreFlow/Experimental/SectionedResults+Mock.swift` — non-throwing (`try!`
 inside; a mock failing has no recovery), fabricating the two init-less
 shells by memberwise-initializing their stored fields at runtime-reported
 offsets (the `swift_reflectionMirror_recursiveCount/ChildMetadata/
@@ -1007,9 +960,9 @@ input of both `query` and `content`; a value left out is a state change the
 gated body will not see. The `Index == Never` initializer is the ungated
 fallback (`index` nil), re-evaluating the query expression every render.
 Verified live by
-the example app's `BookList` (scenario + UI test): `QueryView` hosted over a
-real `Query` over a scenario-seeded in-memory `ModelContainer`,
-the sort toggle rebuilding the query and reordering rows live. The gate's
+`QueryViewSortScenario`: `QueryView` hosted over a real `Query` over a
+scenario-seeded in-memory `ModelContainer`, the sort write rebuilding the
+query. The gate's
 negative — an unchanged index skipping the query rebuild — and the ungated
 init's positive are verified live by `QueryViewSortScenario(gated:)` +
 `QueryViewSortUITests` in `CoreFlowHosted` (see `Hosted scenarios`).
@@ -1037,7 +990,7 @@ twice. Never skip malformed input that could compile as unmanaged state.
 |---|---|---|---|---|---|
 | `@TestState` | stored `var`, any type | `State<T>` peer | yes | described new value | routed `Binding<T>` |
 | `@TestAction` | stored closure `var` | closure peer | yes | arguments by arity | none |
-| `@UnstructuredTask` | computed optional task slot | `State<TaskStorage<T>>` peer | no | `task` / `nil` | routed `Binding<T?>` |
+| `@UnstructuredTask` | computed optional task slot | `State<_TaskStorage<T>>` peer | no | `task` / `nil` | routed `Binding<T?>` |
 | `@TestFocusState` | computed focus slot | `FocusState<T>` peer | no | described programmatic write | native `FocusState<T>.Binding` |
 
 ### Shared logging seam
@@ -1047,7 +1000,11 @@ struct rather than a bare closure entry that would warn about invalidation.
 `TestLog` is a `DynamicProperty` wrapping the hand-written environment read, and
 its `wrappedValue` is the `@MainActor (String, String) -> Void` sink. Global-
 actor function values are implicitly Sendable, so all events serialize on the
-main actor.
+main actor. The public `View.uiTestLog(accessibilityIdentifier:)`
+(`TestSupport/UITestLogging.swift`) is
+the sink's UI-test end: internal `UITestLogging` installs the sink and exposes
+the log as an accessibility element — design record and evidence under
+`Hosted scenarios`.
 
 Payloads are `String`, not `Any`: an `Any` containing a class can fail region
 isolation inside a generated `@Sendable async` closure, where the caller cannot
@@ -1124,7 +1081,7 @@ alternatives; see `Rejected designs and dead ends`.
 ## `@UnstructuredTask`
 
 The third macro in the `@TestState` family (`UnstructuredTaskMacro.swift`;
-declaration plus the runtime `TaskStorage`/`CancellableTask` in
+declaration plus the runtime `_TaskStorage`/`_CancellableTask` in
 `Sources/CoreFlow/UnstructuredTask.swift`) — a view-owned slot for a
 cancellable unstructured `Task` that logs. Ported from the standalone
 `~/dev/TaskState` package (there a runtime `@propertyWrapper` around
@@ -1138,7 +1095,7 @@ Production-safe, not test-only: the uninstalled sink is a no-op.
 
 - **Accessor + peer like `@TestState`, but the property becomes COMPUTED —
   no init accessor, and the task always starts `nil`.** The storage peer
-  self-initializes (`= State(wrappedValue: TaskStorage())`), so the
+  self-initializes (`= State(wrappedValue: _TaskStorage())`), so the
   property is never a memberwise-init parameter whatever its access level —
   `@TestState`'s internal-vs-private role split doesn't exist here. The
   initial value isn't configurable by design. `validated()` explicitly checks
@@ -1148,23 +1105,24 @@ Production-safe, not test-only: the uninstalled sink is a no-op.
   The macro also generates a private `$name: Binding<T?>` whose getter and
   setter route through the logged property, so binding writes share its
   cancellation and logging behavior.
-- **Lifecycle lives in the `TaskStorage` box, one choke point.** A CLASS in
+- **Lifecycle lives in the `_TaskStorage` box, one choke point.** A CLASS in
   `State`, not `State<Task?>`: `willSet` cancels the replaced task, `deinit`
   cancels the live one when SwiftUI releases the storage (a value in `State`
   has no teardown hook). VERIFIED LIMIT (hosted, once; see `Hosted scenarios`):
   teardown cancellation reaches only a task whose closure does not capture
   the view. A `Task { … self.x … }` holds the view copy, whose
-  `State<TaskStorage>` still holds the box, so `deinit` cannot run until the
+  `State<_TaskStorage>` still holds the box, so `deinit` cannot run until the
   task ends — use a capture list (`Task { [log] in … }`). The `willSet`
   is equality-guarded — `Task`'s
   stdlib `Equatable` is identity — so a self-reassignment (binding
   round-trip, defensive `x = x`) is not a cancel; that's why
-  `CancellableTask` refines `Equatable`. `@Observable` (with `willSet` and
-  `deinit` — both compile and fire under the macro, locked by
-  `TaskStorageTests`) so a `body` reading the property re-renders on task
-  change.
+  `_CancellableTask` refines `Equatable` (locked through the wrapper, hosted:
+  `UnstructuredTaskUITests` reassigns the live task, then clears — exactly
+  one `cancelled`, from the clear). `@Observable` (with `willSet` and `deinit` — both
+  fire under the macro, `UnstructuredTaskUITests`) so a `body` reading the
+  property re-renders on task change.
 - **The storage element is the annotation minus its `?`, never a parsed
-  `Task<Success, Failure>`.** `TaskStorage<T: CancellableTask>` (public
+  `Task<Success, Failure>`.** `_TaskStorage<T: _CancellableTask>` (public
   protocol: `cancel()` + `Equatable`, conformance on `Task` itself) means
   the macro only unwraps `OptionalTypeSyntax` — a typealiased task type
   (`VoidTask?`) works, and there's no generic-argument parsing to get
@@ -1186,7 +1144,7 @@ Production-safe, not test-only: the uninstalled sink is a no-op.
 ## `@TestFocusState`
 
 The fourth macro in the `@TestState` family (`TestFocusStateMacro.swift`;
-declaration in `TestFocusState.swift`) — a drop-in `@FocusState` that logs,
+declaration in `TestSupport/TestFocusState.swift`) — a drop-in `@FocusState` that logs,
 and `@Shell`'s substitution for `@FocusState` on `Core` (the `@State →
 @TestState` rename treatment exactly: wrapper token renamed on the host's
 own line, private required via `sourceOfTruthMustBePrivate`).
@@ -1262,14 +1220,14 @@ policy); declaration plus the runtime in `Sources/CoreFlow/FlowUp.swift`.
 
 ### Runtime and generated surface
 
-Runtime (stable, generic): `FlowUpClosure<Closure>` — the listener box,
+Runtime (stable, generic): `_FlowUpClosure<Closure>` — the listener box,
 `===`/ObjectIdentifier equality, `internal(set)` payload array,
-`@unchecked Sendable`; `FlowUpID<Tag, Closure>` — public init, internal
+`@unchecked Sendable`; `_FlowUpID<Tag, Closure>` — public init, internal
 keypath; internal `FlowUpPreferenceKey<Tag, Closure>` (bare wrapper-array
 value, append reduce), internal `FlowUpRegistration` and
 `FlowUpAccumulator` modifiers; public `View.onFlow(_:_:)` / `collectFlow(_:)`
 generic over a metatype-rooted keypath
-(`KeyPath<EnvironmentValues.Type, FlowUpID<Tag, Closure>>`, SE-0438).
+(`KeyPath<EnvironmentValues.Type, _FlowUpID<Tag, Closure>>`, SE-0438).
 
 Generated per flow, all in the anchor's expansion: the anchor's accessor —
 the consumer surface, a genuine closure looping every listener with
@@ -1280,7 +1238,7 @@ is BOTH the `EnvironmentKey` and the per-name preference tag (one
 runtime generic — and must be a *computed* static: a stored `static let`
 of the non-Sendable array is a strict-concurrency error, verified); the
 fileprivate settable entry over that key; and a same-named `static`
-returning `FlowUpID` — legal because static and instance members may share
+returning `_FlowUpID` — legal because static and instance members may share
 a name, resolved without ambiguity in both keypath positions (verified
 directly). The anchor's access level is copied onto the key enum and the
 static (the static's return type names the key), so a public anchor
@@ -1292,7 +1250,7 @@ clobbers manual writes on the next preference change.
 ### Semantics
 
 - Registration is identity-stable: `.on`'s modifier holds ONE
-  `FlowUpClosure` in `@State` (class-box-in-`State`, the `TaskStorage`
+  `_FlowUpClosure` in `@State` (class-box-in-`State`, the `_TaskStorage`
   pattern) and refreshes its payload each body — a render-phase write to a
   plain object. The preference value compares equal across waves; only a
   registration appearing/disappearing (including a structural identity
@@ -1306,11 +1264,10 @@ clobbers manual writes on the next preference change.
   registration order; sibling order is preference-traversal order,
   documented as unspecified.
 - Main-actor contract: register and invoke on the main actor.
-  `FlowUpClosure` is `@unchecked Sendable` backed by that contract, and
+  `_FlowUpClosure` is `@unchecked Sendable` backed by that contract, and
   the claim is REQUIRED: a `@MainActor`-typed flow makes the accessor's
   returned closure isolated, and sending the array into it is a
-  region-isolation error without Sendable (compiled evidence in
-  `FlowUpTests`). Per-flow enforcement is free:
+  region-isolation error without Sendable (found by a compiled probe that sent the array into a `@MainActor` flow). Per-flow enforcement is free:
   `@MainActor (URL) -> Void` rides the full type text verbatim through
   every generic position (compiled).
 - Required shape (thrown, family policy; peer role stays silent): stored
@@ -1334,20 +1291,25 @@ clobbers manual writes on the next preference change.
   original enclosing extension, so any inner macro that inspects its
   surroundings refuses. Hand-rolled key + entry is the design.
 - A `FlowUpClosures` protocol and a per-name container struct were built
-  and removed: once the container is pure data, `FlowUpID`'s generic
+  and removed: once the container is pure data, `_FlowUpID`'s generic
   parameters carry identity + closure type with zero contract surface, and
   the tag merged into the environment key enum.
 
 ### Verification
 
-`FlowUpExpansionTests` owns expansion snapshots (effects, zero-arg, public
+`FlowUpExpansionTests`FlowUpExpansionTests` owns expansion snapshots (effects, zero-arg, public
 access copy, attributed type) and the five diagnostics. `FlowUpTests` owns
-compiled behavior: combined-call order, same-signature flow isolation,
-payload-read-at-call-time, first-throw-aborts, async-sequential, empty
-default, the `@MainActor` flow, and `.onFlow`/`.collectFlow` typechecking in a
-body. Direct `EnvironmentValues()` construction needs no hosting. Verified
-live by `FlowUpScenario` + `FlowUpUITests` in `CoreFlowHosted`: the hosted
-end-to-end flow. Consumers reading the flow
+the PUBLIC surface compiled, nothing more: every flow shape's empty default
+is a no-op (`EnvironmentValues().flowX(…)`), and `.onFlow`/`.collectFlow`
+typecheck in a body for `(Int)`, `()`, `async throws`, `@MainActor`, and
+`public` flows. The earlier compiled behavior tests built `_FlowUpClosure`
+boxes and wrote the internal keypath — implementation-detail tests, removed;
+behavior is hosted: `FlowUpUITests` (order, a late listener, and isolation —
+a same-shaped second flow whose `other` leaf stays silent) and
+`FlowUpThrowsUITests` (the first listener logs and throws, the second is
+never called — first-throw-aborts and, by the same evidence, sequential
+execution). Payload-read-at-call-time is a design fact (the registration
+refreshes its payload each body), not locked. Consumers reading the flow
 re-render on every collector render (closure value, never equal); see
 `Hosted scenarios` for what is and is not measurable.
 
@@ -1417,7 +1379,9 @@ emitted type text needs that placeholder outside its scope is an unguarded
 limitation, not specially diagnosed.
 
 `CapabilityExpansionTests` owns expansion and diagnostic coverage, including
-extension attachment, effects, one/many/zero shapes, and access.
+extension attachment, effects, one/many/zero shapes, and access;
+`CapabilityTests` compiles a `@Capability` class and locks the
+cached-versus-fresh behavior above.
 
 ## `#pick`
 
@@ -1475,7 +1439,7 @@ results, tuple KeyPaths, and nesting behavior.
 ### Contract and implementation
 
 `Reflector` is ordinary runtime Swift, not a macro. The enum in
-`Sources/CoreFlow/Reflector.swift` exposes one function,
+`Sources/CoreFlow/Experimental/Reflector.swift` exposes one function,
 `public static func fieldNames<T>(of: T.Type) -> [String]`, because field-name
 reflection naturally complements Flowable's generated `InFlow`.
 
@@ -1689,15 +1653,14 @@ behavior.
 | synthesized memberwise initialization | compiled probe/test | `ShellTests`, `QueryResultTests`, `TestStateTests`, `TestActionTests` |
 | overload resolution and tuple KeyPaths | compiled end-to-end test | `PickTests` |
 | wrapper SDK parity | pinned swiftinterface inspection plus compiled use | Shell/QueryResult evidence |
-| logging order, focus, environment installation | hosted scenario/UI test | `CoreFlowHosted` (`TestActionUITests`, `TestFocusStateUITests`, `ShellCoreUITests`); the example app duplicates them |
+| logging order, focus, environment installation | hosted scenario/UI test | `CoreFlowHosted` (`TestActionUITests`, `TestFocusStateUITests`, `ShellCoreUITests`, `ViewModifierCoreUITests`) |
 | QueryView index gating, container-free `mockQuery`, sectioned live/mock rendering, live `modelContext`, FlowUp end to end, task teardown, hosted `Core` (`@TestState` + `@AppStorage`→`Binding` write-through), `@TestAction` logging, `@TestFocusState`, `@GestureState(reset:)` on `Core` | hosted scenario/UI test | `CoreFlowHosted` (one `*UITests` per scenario) |
 | binding write-through | compiled/runtime test | `ShellTests`, `ShellCoreUITests` |
-| task replacement and teardown | runtime test | `TaskStorageTests` |
+| task replacement and teardown | hosted scenario/UI test | `UnstructuredTaskUITests` (assign, clear-to-`nil` cancels, teardown cancels) — the box is never tested directly, only through its wrapper |
 | reflection labels | runtime test | `ReflectorTests` |
 | package identity | scratch consumer resolution | recorded SwiftPM resolve probe—not a test suite |
 | release elimination | optimized binary inspection | recorded release probe—not a test suite |
 | compiler limitation/dead end | minimal direct probe and exact output | `Verified limitations` / `Rejected designs and dead ends` |
-| generated example correctness | regeneration plus UI test script | `CoreFlowExample/SPEC.md`, `generate.sh`, `test.sh` |
 
 Exact API owners:
 
@@ -1718,10 +1681,11 @@ Exact API owners:
   owns compiled action forwarding;
   `UnstructuredTaskTests` owns task-macro and Shell re-expansion;
   `FlowUpExpansionTests` owns FlowUp expansion and diagnostics; `FlowUpTests`
-  owns compiled FlowUp behavior (combined calls, isolation, effects);
-  `TaskStorageTests` owns cancellation lifecycle.
-- `CapabilityExpansionTests` owns Capability expansion and diagnostics; the
-  cached-versus-fresh runtime observation is a recorded probe.
+  owns the public surface compiled (empty defaults, typechecking); behavior
+  is `FlowUpUITests`/`FlowUpThrowsUITests`.
+- `CapabilityExpansionTests` owns Capability expansion and diagnostics;
+  `CapabilityTests` (compiled) owns the runtime shape: computed values
+  freeze at capture, method closures stay live on a class.
 - `PickExpansionTests` owns pick expansion, diagnostics, and Fix-Its;
   `PickTests` owns compiled overloads, nesting, and tuple KeyPaths.
 - `ReflectorTests` owns reflection runtime behavior.
@@ -1747,23 +1711,6 @@ report raw and relevant counts when a filter selects extra suites.
 Displayed generated-code blocks match locked expansions except for explicit
 normalization. Compiler-output fences are quoted evidence, not prose to tighten.
 
-### Example-app verification
-
-`CoreFlowExample/SPEC.md` is the source of truth. Preserve `project.yml`,
-`generate.sh`, and `test.sh` verbatim in it; never hand-edit generated Swift.
-
-1. Run `cd CoreFlowExample && sh generate.sh`.
-2. Inspect generated-source drift.
-3. Run `cd CoreFlowExample && sh test.sh`.
-4. Confirm RealApp uses live boundaries and TestApp uses `SCENARIO`-selected
-   scenarios with a working default.
-5. Confirm accessibility-log JSON and each scenario's finish signal.
-6. Preserve `-collect-test-diagnostics never` unless the verified 600-second
-   simulator collection failure is re-tested and resolved.
-
-Package unit tests alone do not justify “verified live.” If generation or UI
-tests cannot run, state that limitation.
-
 ## Maintenance checklists
 
 ### Change a stored-property macro
@@ -1779,7 +1726,7 @@ section owns file, registration, and shared-renderer steps. Additional checks:
 5. Update exact expansion/diagnostic tests and add real compilation for type or
    initializer behavior.
 6. Run both Flowable and Shell owners when shared collection changes.
-7. Regenerate/test the example for wrapper or generated-View changes.
+7. Run `CoreFlowHosted` for wrapper or generated-View changes.
 
 ### Change `@Shell`
 
@@ -1841,14 +1788,14 @@ and diagnostic fences must match recorded output with normalization stated.
 3. Re-run recorded limitations: generated-Environment crash, cross-expansion
    visibility, tuple KeyPaths, coverage counters, `#sourceLocation`, Observable
    nesting, and strict-concurrency isolation.
-4. Run full package and example-app tests.
+4. Run full package tests and `CoreFlowHosted`.
 5. Change a limitation only when new evidence supersedes it; record both
    toolchains.
 
 ### Prepare a release
 
 1. Run `swift build` and full `swift test`.
-2. Regenerate and test `CoreFlowExample`.
+2. Run `CoreFlowHosted`.
 3. Re-run the recorded scratch-consumer resolution with
    `.product(name: "CoreFlow", package: "swift-core-flow")`.
 4. Verify supported tools, tags/version instructions, and displayed dependency

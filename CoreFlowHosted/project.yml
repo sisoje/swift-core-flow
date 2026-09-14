@@ -12,7 +12,7 @@ targets:
   CoreFlowHostApp:
     type: application
     platform: iOS
-    sources: [HostApp]
+    sources: [HostApp, Shared]
     dependencies:
       - package: CoreFlow
     settings:
@@ -27,7 +27,7 @@ targets:
   CoreFlowHostUITests:
     type: bundle.ui-testing
     platform: iOS
-    sources: [UITests]
+    sources: [UITests, Shared]
     dependencies:
       - target: CoreFlowHostApp
     settings:

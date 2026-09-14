@@ -27,7 +27,7 @@ final class UnstructuredTaskExpansionTests: XCTestCase {
                     }
                 }
 
-                private let download_storage: State<TaskStorage<Task<Data, Error>>> = State(wrappedValue: TaskStorage())
+                private let download_storage: State<_TaskStorage<Task<Data, Error>>> = State(wrappedValue: _TaskStorage())
 
                 private let log_download = TestLog()
 
@@ -68,7 +68,7 @@ final class UnstructuredTaskExpansionTests: XCTestCase {
                     }
                 }
 
-                private let work_storage: State<TaskStorage<VoidTask>> = State(wrappedValue: TaskStorage())
+                private let work_storage: State<_TaskStorage<VoidTask>> = State(wrappedValue: _TaskStorage())
 
                 private let log_work = TestLog()
 

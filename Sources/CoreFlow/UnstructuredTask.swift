@@ -1,17 +1,19 @@
 import SwiftUI
 
-/// What `TaskStorage` needs from its element: any `Task` specialization.
+/// What `_TaskStorage` needs from its element: any `Task` specialization.
 /// Constraining the box on this — instead of on `Task`'s own two generic
 /// parameters — means `@UnstructuredTask` only strips the property type's
 /// `?` and never parses `Task<Success, Failure>`'s arguments, so a typealias
 /// of a task type works (the conformance lives on `Task` itself). Refines
 /// `Equatable` — `Task` already is, by identity — so the box can tell a
-/// replacement from a self-reassignment.
-public protocol CancellableTask: Equatable {
+/// replacement from a self-reassignment. Public in access only — for the
+/// user this is private machinery: nothing but `@UnstructuredTask`'s own
+/// expansion, which lands in the consumer's module, should ever name it.
+public protocol _CancellableTask: Equatable {
     func cancel()
 }
 
-extension Task: CancellableTask {}
+extension Task: _CancellableTask {}
 
 /// `@UnstructuredTask`'s storage box, held in a generated `State` field so
 /// SwiftUI owns its lifecycle. A class in `State` — not `State<Task?>` —
@@ -22,9 +24,12 @@ extension Task: CancellableTask {}
 /// (a binding round-trip, a defensive `x = x`) must not cancel it —
 /// `Task`'s `Equatable` is identity, so a genuinely new task always cancels
 /// the old. `@Observable` so a `body` reading the property re-renders when
-/// the task changes.
+/// the task changes. Public in access only — for the user this is private
+/// machinery: the macro's expansion spells `State(wrappedValue:
+/// _TaskStorage<T>())` inside the consumer's module, so the type must be
+/// visible there; nothing else should name it.
 @Observable
-public final class TaskStorage<T: CancellableTask> {
+public final class _TaskStorage<T: _CancellableTask> {
     public var task: T? {
         willSet {
             if newValue != task {

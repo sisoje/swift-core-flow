@@ -3,7 +3,7 @@ import XCTest
 final class FlowUpUITests: XCTestCase {
     @MainActor
     func testSendReachesEveryListenerIncludingOneShownLater() {
-        let app = launchApp(scenario: "FlowUp")
+        let app = launchApp(scenario: .flowUp)
         XCTAssertTrue(app.buttons["send"].waitForExistence(timeout: 5))
 
         app.buttons["send"].tap()

@@ -3,7 +3,7 @@ import XCTest
 final class QueryViewInsertUITests: XCTestCase {
     @MainActor
     func testInsertThroughTheQueryContextUpdatesTheList() {
-        let app = launchApp(scenario: "QueryViewInsert")
+        let app = launchApp(scenario: .queryViewInsert)
         XCTAssertTrue(app.buttons["insert"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Dune"].exists)
         app.buttons["insert"].tap()

@@ -3,6 +3,8 @@ import SwiftUI
 
 extension EnvironmentValues {
     @FlowUp var scenarioFlow: (String) -> Void
+    /// Same closure shape, different flow: its leaf must stay silent.
+    @FlowUp var scenarioOtherFlow: (String) -> Void
 }
 
 struct FlowUpScenario: View {
@@ -15,9 +17,11 @@ struct FlowUpScenario: View {
             if showSecond {
                 FlowLeaf(name: "second")
             }
+            OtherLeaf()
             Button("show second") { showSecond = true }
         }
         .collectFlow(\.scenarioFlow)
+        .collectFlow(\.scenarioOtherFlow)
     }
 }
 
@@ -40,6 +44,15 @@ struct FlowLeaf: View {
     var body: some View {
         Text(name)
             .onFlow(\.scenarioFlow) { log(name, $0) }
+    }
+}
+
+struct OtherLeaf: View {
+    @TestLog private var log
+
+    var body: some View {
+        Text("other")
+            .onFlow(\.scenarioOtherFlow) { log("other", $0) }
     }
 }
 

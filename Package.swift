@@ -37,10 +37,13 @@ let package = Package(
         ),
         // The public-facing library: every macro's attribute/expression declaration,
         // one file per macro (Flowable.swift, Shell.swift, Capability.swift,
-        // TuplePicker.swift, TestSupport.swift, TestFocusState.swift,
-        // UnstructuredTask.swift, FlowUp.swift), plus the non-macro runtime:
-        // Reflector.swift, QueryResult.swift, QueryView.swift, and
-        // SectionedResults+Mock.swift.
+        // TuplePicker.swift, UnstructuredTask.swift, FlowUp.swift, and the
+        // TestSupport/ directory: TestLog, UITestLogging, TestState, TestAction,
+        // TestFocusState), plus the non-macro runtime: QueryResult.swift,
+        // QueryView.swift, and the Experimental/ directory — Reflector.swift and
+        // SectionedResults+Mock.swift, implementation-dependent runtime
+        // techniques (uninitialized-memory reflection, memory-layout
+        // fabrication) kept apart on purpose.
         .target(name: "CoreFlow", dependencies: ["CoreFlowMacros"]),
         // Expansion tests — `assertMacroExpansion` snapshots + diagnostics, one
         // file per macro, against the plugin module itself.

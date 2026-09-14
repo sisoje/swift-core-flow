@@ -19,6 +19,8 @@ struct Worker: View {
     @TestLog private var log
 
     var body: some View {
+        Button("clear") { work = nil }
+        Button("reassign") { work = work }
         Button("start") {
             work = Task { [log] in
                 do {

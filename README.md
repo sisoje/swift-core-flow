@@ -91,6 +91,7 @@ is the per-macro reference.
 | [`SectionedResults.mock`](#sectionedresultsmock--because-apple-sealed-plain-data) | runtime utility | fabricates iOS 27's init-less sectioned results for tests/previews — Apple sealed plain data (filed as FB24480699); genuine inner fetch collection, caller's order, loud failure if the private layout ever changes |
 | [`@TestLog`](#the-testlog-seam) | property wrapper | reads the installed sink — `@TestLog private var log` self-initializes and `log(name, value)` is a direct call (verified); the macros generate the same thing as an explicit field, `private let log_x = TestLog()` |
 | [`View.testLog(_:)`](#the-testlog-seam) | View modifier | installs the one logging sink, once, on the root view; without it the log is a no-op, so hosts behave normally anywhere else |
+| [`View.uiTestLog(accessibilityIdentifier:)`](#the-testlog-seam) | View modifier | the sink plus its evidence: exposes the whole log as one accessibility element (names JSON in `label`, values JSON in `value`) for XCUITest to read — the one line a hosted test app needs |
 | [`@Capability`](#capability) | member macro | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
 | [`#pick`](#pick-tuplepicker) | expression macro | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
 | [`Reflector`](#reflector) | runtime utility | lists a value type's field names off its type alone, no instance needed — pairs with `@Flowable`'s `InFlow` |
@@ -165,8 +166,9 @@ test wearing a costume: it tests the actual unit — `Core` — by evidence, wit
 no side effects beyond the component's boundaries.** Inside those boundaries, taps,
 focus, gestures, and owned state are real; at them, every boundary event —
 instrumented state writes and action calls — enters the log instead of crossing
-into an effect. The example app follows this model: its `SCENARIO` launch
-variable selects the scenario, and XCUITest asserts the log.
+into an effect. The package's own hosted suite (`CoreFlowHosted`) follows
+this model: a `SCENARIO` launch variable selects the scenario, and XCUITest
+asserts the log.
 
 ### Wrapper mapping reference
 
@@ -431,8 +433,8 @@ type position such as `func f() -> Card.Core`; use it in an expression or behind
 
 Use the scenario introduced above. Its hand-written `body` constructs
 `Card.Core(…)` in expression position, while `#Preview { CardScenario() }`
-names only ordinary types. The example app uses every scenario this way: as a
-preview stage that the UI tests can name too.
+names only ordinary types. `CoreFlowHosted` uses every scenario this way: as
+a preview stage that the UI tests can name too.
 
 ---
 
@@ -630,14 +632,15 @@ evidence.**
   assertion. A test that needs "was this read?" uses a use-site spy binding
   instead.
 
-Demonstrated live in the example app (`CoreFlowExample` — deliberately
-collapsed to a `SPEC.md` its sources regenerate from): the
-app appends every `(name, value)` into plain `@State` and exposes the
-log on an accessibility element (names JSON in `label`, values JSON in
-`value`); each XCUITest drives one scenario, waits for the label to equal the
-expected name sequence, then asserts the decoded values — down to
-`TextField` writing its binding twice per keystroke, real behavior pinned
-as-is.
+- **`uiTestLog(accessibilityIdentifier: "log")` is the UI-test end of the
+  seam.** One modifier at the root installs the sink and exposes the
+  accumulated log as an accessibility element under the identifier you pass
+  — names JSON in `label`, values JSON in `value` — so an XCUITest launches a
+  scenario, waits for the label to equal the expected name sequence, then
+  asserts the decoded values. Appends are deferred off the render phase and the content
+  sits behind an always-equal gate, so logging never re-renders the
+  scenario it observes — even from an event fired mid-render. That is how
+  `CoreFlowHosted`, the package's own hosted test app, runs every scenario.
 
 ---
 
@@ -663,8 +666,8 @@ struct DownloadButton: View {
 ```
 
 - **Replacing cancels the previous task; teardown cancels the live one.**
-  The property reads/writes a `TaskStorage` box held in a generated `State`
-  field — a *class* in `State`, not `State<Task?>`, because the lifecycle is
+  The property reads/writes a generated storage box held in a generated
+  `State` field — a *class* in `State`, not `State<Task?>`, because the lifecycle is
   the point: the box's `willSet` cancels on replacement, its `deinit` cancels
   when SwiftUI releases the storage, a hook a value in `State` doesn't have.
   One caveat, verified hosted: a task closure that captures the view
@@ -692,9 +695,10 @@ struct DownloadButton: View {
   (`ChildView(task: $download)`).
 - **Required shape:** a stored `var` with an optional-*sugared* type
   annotation (`Task<Success, Failure>?` — or a typealias of a task type: the
-  storage's element is the annotation minus its `?`, constrained to the
-  `CancellableTask` protocol rather than parsed into `Task`'s generic
-  arguments; `Task<…>!` and long-form `Optional<Task<…>>` don't count).
+  storage's element is the annotation minus its `?`, constrained to a
+  cancel-and-compare protocol that `Task` conforms to rather than parsed into
+  `Task`'s generic arguments; `Task<…>!` and long-form `Optional<Task<…>>`
+  don't count).
   Anything else is a compile error at the attribute, thrown by the macro
   itself — same policy as the whole family.
 - **Under [`@Shell`](#shell)** it rides the verbatim-copy rule like any
@@ -817,7 +821,7 @@ struct PromoBanner: View {
   the no-op.
 - **Registrations are identity-stable.** `.on` holds one listener box in
   `@State` (a class in `State`, the
-  [`@UnstructuredTask`](#unstructuredtask) `TaskStorage` pattern) and
+  [`@UnstructuredTask`](#unstructuredtask) storage-box pattern) and
   refreshes its payload each body: an unrelated re-render never re-fires
   the accumulator or touches the environment — only a listener genuinely
   appearing or disappearing does — while the combined closure reads
@@ -1487,7 +1491,7 @@ same way regardless of how many sources are present.
 
 ## Reflector
 
-Not a macro — a small runtime utility (`Sources/CoreFlow/Reflector.swift`) shipped
+Not a macro — a small runtime utility (`Sources/CoreFlow/Experimental/Reflector.swift`) shipped
 alongside the macros because it's a natural companion to `@Flowable`, not because
 it needs code generation.
 
@@ -1584,13 +1588,16 @@ stays the source. SwiftUI's runtime stops being the only place it can run.
 
 ## Package layout
 
-One target pair shared by all macros — not a pair per macro:
+One target pair shared by all macros — not a pair per macro — plus two test
+targets and one hosted test project:
 
 | Target | Kind | Contents |
 |---|---|---|
-| `CoreFlowMacros` | macro plugin | every macro's implementation: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, one file each, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift` (`@TestFocusState`), and `UnstructuredTaskMacro.swift` (`@UnstructuredTask`) — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `makeFlow(_:)`, and `InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` (`@TestState`/`@TestAction`, `View.testLog(_:)`, and the `TestLog` dynamic property), `TestFocusState.swift` (`@TestFocusState`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime `TaskStorage` box and `CancellableTask` protocol) — plus two small non-macro additions: `Reflector.swift` and `QueryResult.swift` |
-| `CoreFlowTests` | test (XCTest + swift-testing) | `assertMacroExpansion` coverage per macro, plus real-compiled end-to-end suites (TuplePicker, Reflector, Shell's `Core`, `QueryResult`, the test-support macros) — both test frameworks coexist fine in one target |
+| `CoreFlowMacros` | macro plugin | every macro's implementation, one file each: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift`, `UnstructuredTaskMacro.swift`, `FlowUpMacro.swift` — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `makeFlow(_:)`, and `InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `CoreFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — `View.testLog(_:)` and the `TestLog` dynamic property — `UITestLogging.swift`, `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, the two implementation-dependent techniques (uninitialized-memory reflection, memory-layout fabrication), kept apart on purpose |
+| `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro, against the plugin module |
+| `CoreFlowTests` | test (XCTest + swift-testing) | every compiled and runtime suite, one file per API, against the product only |
+| `CoreFlowHosted/` | xcodegen project, not a package target | the hosted scenarios and XCUITests — every claim that needs a live SwiftUI host (`cd CoreFlowHosted && sh test.sh`); CI runs it alongside `swift test` |
 
 Swift tools version 6.4, Swift 6 language mode (strict concurrency), swift-syntax `600.0.0..<700.0.0`.
 
