@@ -10,6 +10,10 @@ enum Scenario: String {
     case queryViewInsert = "QueryViewInsert"
     case flowUp = "FlowUp"
     case unstructuredTask = "UnstructuredTask"
+    case shellCore = "ShellCore"
+    case testAction = "TestAction"
+    case testFocusState = "TestFocusState"
+    case gestureState = "GestureState"
 }
 
 /// Logging exists only under a launching test, which names the element
@@ -90,6 +94,10 @@ struct CoreFlowHostApp: App {
                 case .queryViewInsert: QueryViewInsertScenario()
                 case .flowUp: FlowUpScenario()
                 case .unstructuredTask: UnstructuredTaskScenario()
+                case .shellCore: ShellCoreScenario()
+                case .testAction: TestActionScenario()
+                case .testFocusState: TestFocusStateScenario()
+                case .gestureState: GestureStateScenario()
                 }
             }
             .setupLogging(logIdentifier)

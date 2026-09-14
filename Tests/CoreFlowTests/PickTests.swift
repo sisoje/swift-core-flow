@@ -11,7 +11,7 @@ import Testing
 private typealias Store = (expenses: [Int], limit: Int, name: String)
 private typealias Actions = (alerts: [String], submit: () -> Void)
 
-struct EndToEndTests {
+struct PickTests {
     @Test func pickProjectsMultipleFields() {
         let store: Store = (expenses: [1, 2, 3], limit: 10, name: "Groceries")
         let picked = #pick(from: store, \.expenses, \.limit)

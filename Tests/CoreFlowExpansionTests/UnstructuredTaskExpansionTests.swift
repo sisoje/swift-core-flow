@@ -3,7 +3,7 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 
-final class UnstructuredTaskSyntaxTests: XCTestCase {
+final class UnstructuredTaskExpansionTests: XCTestCase {
     let macros: [String: Macro.Type] = [
         "UnstructuredTask": UnstructuredTaskMacro.self,
     ]

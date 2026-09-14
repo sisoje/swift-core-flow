@@ -3,7 +3,7 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 
-final class CapabilityTests: XCTestCase {
+final class CapabilityExpansionTests: XCTestCase {
     let macros: [String: Macro.Type] = ["Capability": CapabilityMacro.self]
 
     func testAttachedToAnExtensionBundlesComputedPropertiesAndMethods() {

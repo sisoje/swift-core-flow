@@ -42,17 +42,18 @@ let package = Package(
         // Reflector.swift, QueryResult.swift, QueryView.swift, and
         // SectionedResults+Mock.swift.
         .target(name: "CoreFlow", dependencies: ["CoreFlowMacros"]),
-        // All tests — macro-expansion + diagnostic coverage per macro, plus
-        // TuplePicker's real-compiled end-to-end suite. XCTest and swift-testing
-        // coexist fine in one test target.
+        // Expansion tests — `assertMacroExpansion` snapshots + diagnostics, one
+        // file per macro, against the plugin module itself.
         .testTarget(
-            name: "CoreFlowTests",
+            name: "CoreFlowExpansionTests",
             dependencies: [
                 "CoreFlowMacros",
-                "CoreFlow",
                 .product(name: "SwiftSyntaxMacrosTestSupport", package: "swift-syntax"),
             ]
         ),
+        // Compiled/runtime tests against the product, one file per API. XCTest
+        // and swift-testing coexist fine in one test target.
+        .testTarget(name: "CoreFlowTests", dependencies: ["CoreFlow"]),
     ],
     swiftLanguageModes: [.v6]
 )

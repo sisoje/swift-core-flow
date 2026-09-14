@@ -3,7 +3,7 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 
-final class FlowUpSyntaxTests: XCTestCase {
+final class FlowUpExpansionTests: XCTestCase {
     let macros: [String: Macro.Type] = [
         "FlowUp": FlowUpMacro.self,
     ]

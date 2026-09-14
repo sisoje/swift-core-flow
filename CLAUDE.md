@@ -82,7 +82,8 @@ claim, and never grow the example to prove one.
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift`, `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
 | `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, `TestSupport.swift` — `@TestState`/`@TestAction`, `testLog`, `TestLog` — `TestFocusState.swift`, `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `TaskStorage`/`CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `FlowUpClosure`/`FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `Reflector.swift` (pairs with `@Flowable`, see below), `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the sealed-type fabricator; same section) |
-| `CoreFlowTests` | test (XCTest + swift-testing, same target) | all coverage: `assertMacroExpansion` per macro, plus real-compiled end-to-end suites (TuplePicker, Reflector, Shell's `Core`, `QueryResult`, the test-support macros, FlowUp) |
+| `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro (`FlowableExpansionTests`, `ShellExpansionTests`, `CapabilityExpansionTests`, `PickExpansionTests`, `TestStateExpansionTests`, `TestActionExpansionTests`, `TestFocusStateExpansionTests`, `UnstructuredTaskExpansionTests`, `FlowUpExpansionTests`); depends on `CoreFlowMacros` + `SwiftSyntaxMacrosTestSupport`, never on the product |
+| `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`ShellTests`, `QueryResultTests`, `QueryViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `UnstructuredTaskTests`, `TaskStorageTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
 
 Per-macro target/product sets were considered and rejected. Their ceremony is
 not worth dependency granularity no consumer needs. Adding a macro means adding
@@ -311,6 +312,21 @@ The other scenarios, each one UI test unless noted:
   `_value` is the live box, a retain cycle until the task itself ends (no
   `cancelled` within 3 s). A real limitation of the cancel-on-teardown
   guarantee; see `@UnstructuredTask`.
+- `ShellCoreScenario` / `ShellCoreUITests`: a `@Shell` host's `Core` hosted
+  (`ShellCard.Core(name: $name, title:)`): its `@State` logs as `@TestState`
+  (`isOn true`) and its `@AppStorage` row, `@Binding` on `Core`, writes
+  through the scenario's own `@TestState` (`name renamed`).
+- `TestActionScenario` / `TestActionUITests`: `@TestAction` call logging
+  hosted for a sync and a `@Sendable async throws` action — `save draft,
+  fetch 3, fetched 6`: the async wrapper awaits the log before forwarding,
+  so the call logs ahead of the state write its result causes.
+- `TestFocusStateScenario` / `TestFocusStateUITests`: tapping the field
+  (system focus through the real `FocusState.Binding`) changes the status
+  and logs nothing (`[]`); the programmatic `isFocused.toggle()` logs
+  `isFocused false` — the property logs, the projection wires.
+- `GestureStateScenario` / `GestureStateUITests`: `@GestureState(reset:)`
+  copied verbatim onto a hosted `Core`, custom reset closure included — a
+  drag ends, the reset fires (`resets 1`, `resetsSeen 1`).
 
 ### Example app and generated-source workflow
 
@@ -649,7 +665,7 @@ check matches the `private` keyword regardless of its `(set)` detail, so
   inline default is required by `stateNeedsInlineDefault` in `ShellMacro.swift`:
   the initial value is part of the component's definition, never a test
   parameter. The check uses the carried `binding`; `@Flowable` renders nothing
-  from private `@State`, as locked by `FlowableTests`.
+  from private `@State`, as locked by `FlowableExpansionTests`.
   Private + defaulted means excluded from the memberwise init entirely
   with the init staying internal (verified directly — `makeCore` in
   `ShellTests.swift` constructs without it). `@AppStorage`/`@SceneStorage`
@@ -707,7 +723,8 @@ check matches the `private` keyword regardless of its `(set)` detail, so
   `@ScaledMetric(relativeTo:)`) rides along byte-for-byte with nothing to
   reconstruct — a rebuilt declaration would silently swap a custom
   `reset:` closure for the default one; the copy can't, since `Core`'s
-  field *is* the same declaration. The same rule covers attribute
+  field *is* the same declaration (`GestureStateUITests` fires the custom
+  reset on a hosted `Core`). The same rule covers attribute
   spellings with no bare wrapper identifier to report
   (`@MyModule.Tracked`) — copied, not mistaken for plain fields. A
   private copy is self-initializing by construction (the
@@ -839,11 +856,11 @@ discarded alternatives.
 `Tests/CoreFlowTests/ShellTests.swift` owns direct Core construction and external-
 storage write-through. It leaves `Core.body` unevaluated because the copied
 `@Environment` would be an uninstalled SwiftUI runtime read.
-`Tests/CoreFlowTests/ShellSyntaxTests.swift` owns expansion shape, copy rules
+`Tests/CoreFlowExpansionTests/ShellExpansionTests.swift` owns expansion shape, copy rules
 (`testHelpersStaticMembersAndNestedTypesAreCopiedButInitsAreNot`), diagnostics,
-host-kind detection, and its separate-extension negative case. The example
-app's scenarios and UI tests verify the model live and regenerate from
-`CoreFlowExample/SPEC.md`.
+host-kind detection, and its separate-extension negative case. `Core` hosted
+is `ShellCoreUITests` and `GestureStateUITests` in `CoreFlowHosted`; the
+example app's scenarios duplicate the model live.
 
 ## `QueryResult`
 
@@ -1047,8 +1064,8 @@ nested `DynamicProperty` installation, verified by the UI tests.
 Outside hosting the environment entry returns its no-op default but SwiftUI
 reports an uninstalled read. Unit tests therefore stop at generated surfaces
 and closure plumbing — `TestActionTests` locks forwarding for all three
-effect shapes with the seam uninstalled — while the example app's hosted UI
-tests own logging. `TestStateTests` and `TestActionTests` run `@MainActor`
+effect shapes with the seam uninstalled — while `CoreFlowHosted` owns
+logging (`TestActionUITests`; every scenario's `@TestState` writes). `TestStateTests` and `TestActionTests` run `@MainActor`
 because their hosts conform to `View`; see `Verified limitations`.
 
 ## `@TestState`
@@ -1222,12 +1239,12 @@ own line, private required via `sourceOfTruthMustBePrivate`).
   requires a hosted scenario with the sink installed, like every other
   logged event. Package tests stop at the lifecycle
   boundary — no unit test evaluates unhosted wrapper behavior; what's
-  locked here is the expansion shape (`TestSupportSyntaxTests`) and the
-  substitution + the non-private diagnostic (`ShellSyntaxTests`);
+  locked here is the expansion shape (`TestFocusStateExpansionTests`) and the
+  substitution + the non-private diagnostic (`ShellExpansionTests`);
   read/write/projection parity holds by type identity (`name` reads the
   bare value on both sides, `$name` is the same nominal
   `FocusState<T>.Binding` on both). Live focus movement and logging are
-  the example app's story.
+  `TestFocusStateUITests` in `CoreFlowHosted`.
 
 ## `@FlowUp`
 
@@ -1323,7 +1340,7 @@ clobbers manual writes on the next preference change.
 
 ### Verification
 
-`FlowUpSyntaxTests` owns expansion snapshots (effects, zero-arg, public
+`FlowUpExpansionTests` owns expansion snapshots (effects, zero-arg, public
 access copy, attributed type) and the five diagnostics. `FlowUpTests` owns
 compiled behavior: combined-call order, same-signature flow isolation,
 payload-read-at-call-time, first-throw-aborts, async-sequential, empty
@@ -1399,8 +1416,8 @@ without exposing a placeholder in the tuple field type. A signature whose
 emitted type text needs that placeholder outside its scope is an unguarded
 limitation, not specially diagnosed.
 
-`CapabilityTests` owns both expansion and compiled coverage, including
-extension attachment, effects, one/many/zero shapes, access, and diagnostics.
+`CapabilityExpansionTests` owns expansion and diagnostic coverage, including
+extension attachment, effects, one/many/zero shapes, and access.
 
 ## `#pick`
 
@@ -1447,10 +1464,10 @@ identity, not macro spelling or shared implementation type.
 Duplicate labels diagnose as `#pick: duplicate field label 'limit' — rename
 this pick` with Fix-It `rename to "limit2"` (the concrete label varies). Parser
 diagnostics also reject non-KeyPath picks and non-literal rename operands; keep
-their exact source-tested spelling in `PickMacroTests`.
+their exact source-tested spelling in `PickExpansionTests`.
 
-`PickMacroTests` owns expansion, ordering, renames, tuple sources, diagnostics,
-and Fix-Its. `EndToEndTests` owns compiled overload resolution, positional
+`PickExpansionTests` owns expansion, ordering, renames, tuple sources, diagnostics,
+and Fix-Its. `PickTests` owns compiled overload resolution, positional
 results, tuple KeyPaths, and nesting behavior.
 
 ## `Reflector`
@@ -1669,12 +1686,12 @@ behavior.
 | emitted syntax/formatting | expansion snapshot | the macro's syntax/expansion suite |
 | diagnostic text, anchor, Fix-It | exact expansion diagnostic | the macro's syntax suite |
 | generated declarations compile | real compiled test | the API's end-to-end suite |
-| synthesized memberwise initialization | compiled probe/test | `FlowableTests`, `ShellTests`, `QueryResultTests`, `TestStateTests`, `TestActionTests` |
-| overload resolution and tuple KeyPaths | compiled end-to-end test | `EndToEndTests` |
+| synthesized memberwise initialization | compiled probe/test | `ShellTests`, `QueryResultTests`, `TestStateTests`, `TestActionTests` |
+| overload resolution and tuple KeyPaths | compiled end-to-end test | `PickTests` |
 | wrapper SDK parity | pinned swiftinterface inspection plus compiled use | Shell/QueryResult evidence |
-| logging order, focus, environment installation | hosted scenario/UI test | generated example app |
-| QueryView index gating, container-free `mockQuery`, sectioned live/mock rendering, live `modelContext`, FlowUp accumulation, task teardown | hosted scenario/UI test | `CoreFlowHosted` (one `*UITests` per scenario) |
-| binding write-through | compiled/runtime test | `ShellTests`, example UI tests |
+| logging order, focus, environment installation | hosted scenario/UI test | `CoreFlowHosted` (`TestActionUITests`, `TestFocusStateUITests`, `ShellCoreUITests`); the example app duplicates them |
+| QueryView index gating, container-free `mockQuery`, sectioned live/mock rendering, live `modelContext`, FlowUp end to end, task teardown, hosted `Core` (`@TestState` + `@AppStorage`→`Binding` write-through), `@TestAction` logging, `@TestFocusState`, `@GestureState(reset:)` on `Core` | hosted scenario/UI test | `CoreFlowHosted` (one `*UITests` per scenario) |
+| binding write-through | compiled/runtime test | `ShellTests`, `ShellCoreUITests` |
 | task replacement and teardown | runtime test | `TaskStorageTests` |
 | reflection labels | runtime test | `ReflectorTests` |
 | package identity | scratch consumer resolution | recorded SwiftPM resolve probe—not a test suite |
@@ -1684,29 +1701,34 @@ behavior.
 
 Exact API owners:
 
-- `FlowableTests` owns Flowable expansion and compilation.
-- `ShellSyntaxTests` owns Shell expansion/diagnostics; `ShellTests` owns compiled
+- `FlowableExpansionTests` owns Flowable expansion and diagnostics; there is
+  no compiled Flowable suite (`ReflectorTests` compiles `InFlow`).
+- `ShellExpansionTests` owns Shell expansion/diagnostics; `ShellTests` owns compiled
   Core behavior; `QueryResultTests` owns query parity and initialization;
   `QueryViewTests` owns the QueryView surface compiled (both inits
-  typechecking in a body, `$` closure re-propertification) and the
-  sectioned-mock runtime behavior (caller order, title subscript, seeding a
-  `QueryResult`), and `MockQueryTransform`'s registry hit plus both empty
+  typechecking in a body, `$` closure re-propertification) and
+  `MockQueryTransform`'s registry hit plus both empty
   fallbacks (`mockTransformReturnsRegisteredThenEmptyFallback`); `mockQuery`
-  hosted behavior is `MockQueryResultsUITests`/`QueryViewSectionedUITests` in `CoreFlowHosted`.
-- `TestSupportSyntaxTests` owns TestState/TestAction/TestFocus expansion;
+  hosted behavior is `MockQueryResultsUITests`/`QueryViewSectionedUITests` in `CoreFlowHosted`;
+  `SectionedResultsMockTests` owns the sectioned-mock runtime behavior
+  (caller order, title subscript, seeding a `QueryResult`).
+- `TestStateExpansionTests`/`TestActionExpansionTests`/`TestFocusStateExpansionTests`
+  own the family's expansion;
   `TestStateTests` owns compiled seed/binding behavior; `TestActionTests`
   owns compiled action forwarding;
   `UnstructuredTaskTests` owns task-macro and Shell re-expansion;
-  `FlowUpSyntaxTests` owns FlowUp expansion and diagnostics; `FlowUpTests`
+  `FlowUpExpansionTests` owns FlowUp expansion and diagnostics; `FlowUpTests`
   owns compiled FlowUp behavior (combined calls, isolation, effects);
   `TaskStorageTests` owns cancellation lifecycle.
-- The single XCTest class `CapabilityTests` owns Capability expansion and
-  compilation; there is no `CapabilityMacroTests`.
-- `PickMacroTests` owns pick expansion, diagnostics, and Fix-Its;
-  `EndToEndTests` owns compiled overloads, nesting, and tuple KeyPaths.
+- `CapabilityExpansionTests` owns Capability expansion and diagnostics; the
+  cached-versus-fresh runtime observation is a recorded probe.
+- `PickExpansionTests` owns pick expansion, diagnostics, and Fix-Its;
+  `PickTests` owns compiled overloads, nesting, and tuple KeyPaths.
 - `ReflectorTests` owns reflection runtime behavior.
 
-XCTest and Swift Testing coexist in `CoreFlowTests`. Filters match substrings;
+XCTest and Swift Testing coexist in `CoreFlowTests`; `CoreFlowExpansionTests`
+is XCTest only. `swift test --filter CoreFlowExpansionTests` runs every
+snapshot, `--filter CoreFlowTests` every compiled suite. Filters match substrings;
 report raw and relevant counts when a filter selects extra suites.
 
 ### Expansion and diagnostic comparison

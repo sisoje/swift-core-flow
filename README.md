@@ -1295,7 +1295,7 @@ and so on), and parameter packs can't carry per-element labels in today's Swift.
 expansion body *does* build a labeled tuple literal (visible via "Expand Macro"), but at
 the call site the value's static type is the unlabeled pack expansion, so labels get
 silently stripped on assignment. Access the result by index (`.0`, `.1`), not by field
-name — see `EndToEndTests.pickSingleFieldReturnsBareValue`.
+name — see `PickTests.pickSingleFieldReturnsBareValue`.
 
 #### Rename via a real argument label — a hard wall for one field, verified twice; fine for a whole source
 
@@ -1411,7 +1411,7 @@ let inner = #pick(from: store, \.expenses, \.limit)
 let outer = #pick(from: inner, \.0)
 ```
 
-— which is what `EndToEndTests.pickOfPickComposesOnATupleValue` exercises.
+— which is what `PickTests.pickOfPickComposesOnATupleValue` exercises.
 
 **Nesting a call that resolves to a *different arity's* overload is a different story, and
 it works** — verified directly, including at runtime, not just type-checked:

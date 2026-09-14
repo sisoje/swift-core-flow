@@ -1,14 +1,14 @@
 @testable import CoreFlowMacros
 import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
-import Testing
+import XCTest
 
 private let testMacros: [String: Macro.Type] = [
     "pick": PickMacro.self,
 ]
 
-struct PickMacroTests {
-    @Test func singlePickReturnsBareValue() {
+final class PickExpansionTests: XCTestCase {
+    func testSinglePickReturnsBareValue() {
         assertMacroExpansion(
             "#pick(from: value, \\.limit)",
             expandedSource: """
@@ -21,7 +21,7 @@ struct PickMacroTests {
         )
     }
 
-    @Test func multiPickReturnsLabeledTuple() {
+    func testMultiPickReturnsLabeledTuple() {
         assertMacroExpansion(
             "#pick(from: value, \\.name, \\.limit)",
             expandedSource: """
@@ -34,7 +34,7 @@ struct PickMacroTests {
         )
     }
 
-    @Test func chainedPickUsesLastComponentAsLabel() {
+    func testChainedPickUsesLastComponentAsLabel() {
         assertMacroExpansion(
             "#pick(from: value, \\.store.limit)",
             expandedSource: """
@@ -49,7 +49,7 @@ struct PickMacroTests {
 
     // MARK: - Rename via `=>`
 
-    @Test func renameOverridesTheDerivedLabel() {
+    func testRenameOverridesTheDerivedLabel() {
         assertMacroExpansion(
             "#pick(from: store, \\.expenses, \\.limit => \"total\")",
             expandedSource: """
@@ -62,7 +62,7 @@ struct PickMacroTests {
         )
     }
 
-    @Test func renameComposesWithReorderingOutputFollowsWrittenOrder() {
+    func testRenameComposesWithReorderingOutputFollowsWrittenOrder() {
         // `total` (renamed from .limit) is written BEFORE `expenses` here —
         // the output tuple's field order follows that, not the tuple's
         // original declaration order.
@@ -80,7 +80,7 @@ struct PickMacroTests {
 
     // MARK: - Multiple sources
 
-    @Test func twoSourcePickFollowsWrittenOrder() {
+    func testTwoSourcePickFollowsWrittenOrder() {
         assertMacroExpansion(
             "#pick(from: store, \\.expenses, \\.limit, from: actions, \\.alerts)",
             expandedSource: """
@@ -94,7 +94,7 @@ struct PickMacroTests {
         )
     }
 
-    @Test func repeatedValueAcrossSourcesIsBoundOnceNotTwice() {
+    func testRepeatedValueAcrossSourcesIsBoundOnceNotTwice() {
         // `store` follows `from:` twice — one merged, interleaved result,
         // and only a single `let __v0 = store` (no `__v2`).
         assertMacroExpansion(
@@ -110,7 +110,7 @@ struct PickMacroTests {
         )
     }
 
-    @Test func renameWorksAcrossSources() {
+    func testRenameWorksAcrossSources() {
         assertMacroExpansion(
             "#pick(from: store, \\.limit => \"total\", from: actions, \\.alerts)",
             expandedSource: """
@@ -126,7 +126,7 @@ struct PickMacroTests {
 
     // MARK: - Diagnostics
 
-    @Test func duplicateLabelProducesDiagnosticWithRenameFixIt() {
+    func testDuplicateLabelProducesDiagnosticWithRenameFixIt() {
         assertMacroExpansion(
             "#pick(from: store, \\.limit, \\.limit)",
             expandedSource: """
@@ -146,7 +146,7 @@ struct PickMacroTests {
         )
     }
 
-    @Test func duplicateLabelAcrossSourcesProducesDiagnosticWithFixIt() {
+    func testDuplicateLabelAcrossSourcesProducesDiagnosticWithFixIt() {
         assertMacroExpansion(
             "#pick(from: store, \\.limit, from: actions, \\.limit)",
             expandedSource: """
@@ -166,7 +166,7 @@ struct PickMacroTests {
         )
     }
 
-    @Test func renameCollidingWithAnotherFieldsDerivedLabelProducesDiagnostic() {
+    func testRenameCollidingWithAnotherFieldsDerivedLabelProducesDiagnostic() {
         // \.limit is explicitly renamed to "total", which collides with the
         // plain \.total pick already deriving that same label.
         assertMacroExpansion(
@@ -188,7 +188,7 @@ struct PickMacroTests {
         )
     }
 
-    @Test func sourceWithNoPicksProducesDiagnostic() {
+    func testSourceWithNoPicksProducesDiagnostic() {
         assertMacroExpansion(
             "#pick(from: store, from: actions, \\.alerts)",
             expandedSource: "#pick(from: store, from: actions, \\.alerts)",
@@ -203,7 +203,7 @@ struct PickMacroTests {
         )
     }
 
-    @Test func nonKeyPathTokenProducesDiagnosticNamingTheToken() {
+    func testNonKeyPathTokenProducesDiagnosticNamingTheToken() {
         assertMacroExpansion(
             "#pick(from: store, limit)",
             expandedSource: "#pick(from: store, limit)",
@@ -219,7 +219,7 @@ struct PickMacroTests {
         )
     }
 
-    @Test func nonStringRenameLiteralProducesDiagnostic() {
+    func testNonStringRenameLiteralProducesDiagnostic() {
         assertMacroExpansion(
             "#pick(from: store, \\.limit => total)",
             expandedSource: "#pick(from: store, \\.limit => total)",
@@ -235,7 +235,7 @@ struct PickMacroTests {
         )
     }
 
-    @Test func missingFromLabelProducesDiagnostic() {
+    func testMissingFromLabelProducesDiagnostic() {
         assertMacroExpansion(
             "#pick(store, \\.limit)",
             expandedSource: "#pick(store, \\.limit)",
@@ -260,7 +260,7 @@ struct PickMacroTests {
     // runs it. Composition (#pick of a #pick) is ALSO only tested there, and
     // only as two separate statements — see the note below.
 
-    @Test func tupleSourceWithHeterogeneousFieldTypesExpandsLikeAnyOtherSource() {
+    func testTupleSourceWithHeterogeneousFieldTypesExpandsLikeAnyOtherSource() {
         assertMacroExpansion(
             "#pick(from: t, \\.id, \\.name, \\.active)",
             expandedSource: """

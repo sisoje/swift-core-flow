@@ -3,7 +3,7 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 
-final class FlowableTests: XCTestCase {
+final class FlowableExpansionTests: XCTestCase {
     let macros: [String: Macro.Type] = ["Flowable": FlowableMacro.self]
 
     func testPublicStructGetsPublicInit() {

@@ -3,7 +3,7 @@ import SwiftSyntaxMacros
 import SwiftSyntaxMacrosTestSupport
 import XCTest
 
-final class ShellSyntaxTests: XCTestCase {
+final class ShellExpansionTests: XCTestCase {
     let macros: [String: Macro.Type] = ["Shell": ShellMacro.self]
 
     func testMixOfPlainQueryEnvironmentStateAndBindingFields() {
