@@ -5,22 +5,20 @@
 set -eu
 cd "$(dirname "$0")"
 
-# Boot in the background so the simulator comes up while the build runs:
-# on a cold runner the first launch through xcodebuild otherwise timed out
-# ("Timed out while launching application via Xcode", 129 s).
-xcrun simctl boot "iPhone 17 Pro" 2>/dev/null || true
-
 xcodegen generate
 
-# The generic destination: a concrete device makes xcodebuild wait on
-# CoreSimulator, which is busy booting — measured 230 s before it printed a
-# line, the whole boot the background start was meant to hide.
 xcodebuild build-for-testing \
     -project CoreFlowHosted.xcodeproj \
     -scheme CoreFlowHostApp \
     -destination "generic/platform=iOS Simulator" \
     -enableCodeCoverage NO
 
+# Boot explicitly, after the build: on a cold runner the first launch through
+# xcodebuild timed out ("Timed out while launching application via Xcode",
+# 129 s), and a boot started in the background does not overlap anything —
+# xcodebuild blocks on CoreSimulator until the boot finishes (~200 s
+# measured, twice, whatever destination it was given).
+xcrun simctl boot "iPhone 17 Pro" 2>/dev/null || true
 xcrun simctl bootstatus "iPhone 17 Pro" -b
 
 xcodebuild test-without-building \
