@@ -166,8 +166,8 @@ No SDK guards: the package requires Xcode 27, whose SDKs have
 that once let the beta-4 runner (Swift 6.4, SDK 26A5388f without the type)
 build were removed once Xcode 27 shipped. As of 2026-09-14 the label ships beta 6, whose SDK has
 `SectionedResults` and whose `.equatable()` skips — `package` green there,
-`hosted` 7/8 before the log modifier's `Gate` and 8/8 with it (run
-34835172613, 2026-09-14) — CI green. Locally verified on the
+`hosted` 8/8 on 2026-09-14 (run 34835172613) with the since-replaced gated
+log design — see the log paragraph below for the beta-6 flake record. Locally verified on the
 iPhone 17 Pro simulator, Xcode 27.0 release (27A266a, runtime 24A434) and
 earlier the 27A5252f beta — 8/8, zero skips. Coverage: the scheme gathers it for
 ALL targets (`gatherCoverageData: true`, no `coverageTargets`) — verified
@@ -182,42 +182,31 @@ this bundle ("Failed to load coverage archive", no `archiveRef`).
 Every boundary event is log evidence, the package's own way: `@TestState`
 writes log themselves, and `QueryViewSortScenario.build()` logs `("query",
 order)` through `@TestLog` from inside the `query` autoclosure — at render
-time. Render-time events shape the host app's log, pure SwiftUI by rule:
-`UITestLogging`, the package's `ViewModifier` behind `View.uiTestLog(accessibilityIdentifier:)`
-(`TestSupport/UITestLogging.swift`, public so any hosted test app has it), holds the
-log as its own `@State private var items: [(String, String)]` and makes the
-content itself the element — `.accessibilityElement(children: .contain)`
-(buttons stay reachable) plus `accessibilityIdentifier`/
-`accessibilityLabel`/`accessibilityValue` (JSON of the names/values), no
-background view, no store class — so an
-append re-renders the modifier body only; the `content` proxy shields the
-scenarios (8/8 twice, exact logs) — on the release. On the `xcode-27`
-runner's beta 6 the proxy did NOT shield: a modifier re-render re-rendered
-the content, so the ungated scenario logged `query` on every append and
-looped (3,692 constructions before the assertion; the other 7 tests passed,
-the gated one included). Hence the modifier's private `Gate<Key, Content>`
-— `View, @MainActor Equatable`, always equal, wrapping `content` under
-`.equatable()` — so the modifier's own
-re-render never reaches the content on any build (same mechanism as
-`QueryView`'s gate; `content` is not `Equatable` itself, hence the wrapper). The element's identifier is
-`TestPayload.logAccessibilityIdentifier`: the app passes it to `uiTestLog(accessibilityIdentifier:)` (the
-modifier knows nothing of the payload) and `XCUIApplication.log` reads it
-from the same shared file; the modifier always instruments. And
-the sink appends DEFERRED (`Task { … }` from the `@MainActor` sink — same
-actor, enqueue order held: 8/8 twice with exact logs). The deferral is
-load-bearing, probed on the 27.0 release: a synchronous `items.append` in
-the sink is a `@State` write during the scenario's body evaluation — SwiftUI
-logs "Modifying state during view update, this will cause undefined
-behavior" and both sort tests fail (5 assertions): a synchronous append from a render-phase event re-ran
-the gated subtree on every unrelated tap (`query, unrelated, query, …`) and
-looped the ungated scenario until XCUITest's snapshot query timed out
-(184 s) — probed on the 27.0 release; deferred, 8/8 twice. Rejected before
-it: a `@State` array on the root (synchronous, then deferred) re-rendered
-the root on every event, which on the beta-4 runner fed the gated
-scenario's query construction back into itself (~16 `query`/s, unbounded);
-and a `UIViewRepresentable` whose `UIView` overrode
-`accessibilityLabel`/`accessibilityValue` (read at snapshot time, so no
-state at all) — worked everywhere, dropped as UIKit in a SwiftUI package.
+time. Render-time events shape the log, pure SwiftUI by rule:
+`UITestLogging`, the package's `ViewModifier` behind
+`View.uiTestLog(accessibilityIdentifier:)` (`TestSupport/UITestLogging.swift`,
+public so any hosted test app has it), holds the log in an `@Observable`
+`Store` CLASS kept in its own `@State` and never reads the items itself; a
+`Leaf` in the content's `.background` — `Color.clear` with
+`accessibilityElement`/`accessibilityIdentifier`/`accessibilityLabel`/
+`accessibilityValue` (JSON of the names/values) — is the store's only
+observer, so an append re-renders the leaf and nothing else, with nothing
+to leak into the scenarios. The sink appends DEFERRED (`Task { … }` from the
+`@MainActor` sink — same actor, enqueue order held): a synchronous append
+from a render-phase event is a state write during a body evaluation
+("Modifying state during view update", both sort tests fail). Rejected, in
+order, all with evidence: a `@State` array on the ROOT (synchronous, then
+deferred) re-rendered the root on every event and looped the ungated
+scenario on the beta-4 runner (~16 `query`/s); a `UIViewRepresentable`
+whose `UIView` overrode the accessibility getters (no state at all) worked
+everywhere and was dropped as UIKit in a SwiftUI package; `@State` items
+READ BY THE MODIFIER BODY, the content behind an always-equal
+`.equatable()` gate — exact on the release simulator, but on the `xcode-27`
+runner's beta 6 the gate held in 2 of 5 runs and otherwise leaked the
+modifier's re-render into the content, storming whichever sort scenario
+logged at render time (3,692 and 1,861 `query` entries) — a design that
+depends on `.equatable()` skipping is a coin flip there. The class-plus-leaf
+shape depends on no gate; locally 17/17 in 146 s versus ~200 s before.
 Locked by `QueryViewSortUITests` as
 one ordered log each. Gated:
 `query, unrelated, unrelated, unrelated, sortDescending, query` — three

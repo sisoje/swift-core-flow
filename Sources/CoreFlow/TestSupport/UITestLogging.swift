@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// The log as an accessibility element for XCUITest: installs the sink and
-/// exposes every `(name, value)` on the content itself — names JSON in
-/// `label`, values JSON in `value` — under `logIdentifier`. Always
-/// instruments; a hosted test app applies it once at the root.
+/// exposes every `(name, value)` — names JSON in `label`, values JSON in
+/// `value` — under `accessibilityIdentifier`. Always instruments; a hosted
+/// test app applies it once at the root.
 public extension View {
     func uiTestLog(accessibilityIdentifier: String) -> some View {
         modifier(UITestLogging(logIdentifier: accessibilityIdentifier))
@@ -12,39 +12,42 @@ public extension View {
 
 struct UITestLogging: ViewModifier {
     let logIdentifier: String
-    /// An append re-renders this body only; `content` shields the scenario.
-    @State private var items: [(String, String)] = []
+
+    /// A class, observed only by the leaf below: this body never reads the
+    /// items, so an append re-renders the leaf and nothing else — no gate to
+    /// rely on, and nothing for a SwiftUI build that does not shield a
+    /// modifier's content to leak into the scenario.
+    @Observable
+    fileprivate final class Store {
+        var items: [(String, String)] = []
+    }
+
+    @State private var store = Store()
 
     func body(content: Content) -> some View {
-        Gate(content: content)
-            .equatable()
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier(logIdentifier)
-            .accessibilityLabel(Self.json(items.map(\.0)))
-            .accessibilityValue(Self.json(items.map(\.1)))
-            // Deferred: some events fire mid-render, and a synchronous
-            // append there re-runs the scenario, not just this body.
+        content
+            .background(Leaf(store: store, logIdentifier: logIdentifier))
+            // Deferred: some events fire mid-render, and a synchronous append
+            // there is a state write during a body evaluation.
             .testLog { property, value in
-                Task { items.append((property, value)) }
+                Task { store.items.append((property, value)) }
             }
     }
 
-    private static func json(_ strings: [String]) -> String {
-        String(decoding: try! JSONEncoder().encode(strings), as: UTF8.self)
-    }
-
-    /// Always equal, so this body's re-render on every append never reaches
-    /// `content` — a SwiftUI build that does not shield a modifier's content
-    /// (27 beta 6) otherwise loops a scenario logging at render time.
-    private struct Gate<Content: View>: View, @MainActor Equatable {
-        static func == (_: Self, _: Self) -> Bool {
-            true
-        }
-
-        let content: Content
+    private struct Leaf: View {
+        let store: Store
+        let logIdentifier: String
 
         var body: some View {
-            content
+            Color.clear
+                .accessibilityElement()
+                .accessibilityIdentifier(logIdentifier)
+                .accessibilityLabel(Self.json(store.items.map(\.0)))
+                .accessibilityValue(Self.json(store.items.map(\.1)))
+        }
+
+        private static func json(_ strings: [String]) -> String {
+            String(decoding: try! JSONEncoder().encode(strings), as: UTF8.self)
         }
     }
 }
