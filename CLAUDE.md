@@ -69,7 +69,7 @@ mode with strict concurrency. It supports swift-syntax
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift`, `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
 | `CoreFlow` | library (the one product) | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `UITestLogging.swift` (`uiTestLog(accessibilityIdentifier:)`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), and the `Experimental/` directory — the two implementation-dependent runtime techniques, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the memory-layout fabricator for Apple's sealed type; see the `QueryResult` section) |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro (`FlowableExpansionTests`, `ShellExpansionTests`, `CapabilityExpansionTests`, `PickExpansionTests`, `TestStateExpansionTests`, `TestActionExpansionTests`, `TestFocusStateExpansionTests`, `UnstructuredTaskExpansionTests`, `FlowUpExpansionTests`); depends on `CoreFlowMacros` + `SwiftSyntaxMacrosTestSupport`, never on the product |
-| `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
+| `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`FlowableTests`, `ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
 
 Public machinery that only macro expansions name — `_TaskStorage`,
 `_CancellableTask`, `_FlowUpClosure`, `_FlowUpID` — is `_`-prefixed, Apple's
@@ -319,13 +319,15 @@ The other scenarios, each one UI test unless noted:
   hosted — a direct write (`count += 1`) and a `$isOn` binding write from a
   real `Toggle` log through the same setter (`count 1, isOn true`) while
   both values stay live on screen.
-- `ShellCoreScenario` / `ShellCoreUITests`: a `@Shell` host's `Core` hosted
-  (`ShellCard.Core(name: $name, title:)`): its `@State` logs as `@TestState`
-  (`isOn true`), its `@AppStorage` row, `@Binding` on `Core`, writes
-  through the scenario's own `@TestState` (`name renamed`), and its verbatim
+- `ShellCoreScenario` / `ShellCoreUITests`: every substitution row on one
+  hosted `Core` (`ShellCard.Core(name: $name, novels: [Novel(…)], title:)`):
+  `@State` logs as `@TestState` (`isOn true`); `@FocusState` logs as
+  `@TestFocusState` on the programmatic write (`isFocused true`); the
+  `@AppStorage` row, `@Binding` on `Core`, writes through the scenario's own
+  `@TestState` (`name renamed`); the `@Query` row is a bare `[Novel]` and
+  the copied `ForEach(novels)` renders it (`Dune`); and the verbatim
   `@Environment(\.greeting)` reads the value the scenario installs with
-  `.environment` (`mocked greeting`) — the native mocking path, on a hosted
-  `Core`.
+  `.environment` (`mocked greeting`) — the native mocking path.
 - `TestActionScenario` / `TestActionUITests`: `@TestAction` call logging
   hosted for a sync and a `@Sendable async throws` action — `save draft,
   fetch 3, fetched 6`: the async wrapper awaits the log before forwarding,
@@ -1669,8 +1671,9 @@ behavior.
 
 Exact API owners:
 
-- `FlowableExpansionTests` owns Flowable expansion and diagnostics; there is
-  no compiled Flowable suite (`ReflectorTests` compiles `InFlow`).
+- `FlowableExpansionTests` owns Flowable expansion and diagnostics;
+  `FlowableTests` (compiled) calls the generated `init`, `makeFlow(_:)`, and
+  `InFlow` for the many- and one-field shapes.
 - `ShellExpansionTests` owns Shell expansion/diagnostics; `ShellTests` owns compiled
   Core behavior; `QueryResultTests` owns query parity and initialization;
   `QueryViewTests` owns the QueryView surface compiled (both inits
