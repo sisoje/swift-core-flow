@@ -10,92 +10,89 @@ enum Scenario: String {
     case queryViewInsert = "QueryViewInsert"
     case flowUp = "FlowUp"
     case unstructuredTask = "UnstructuredTask"
-
-    /// Used when `SCENARIO` is unset, so Cmd-R just works.
-    static var defaultScenario: Scenario {
-        .queryViewGated
-    }
 }
 
 /// Logging exists only under a launching test, which names the element
 /// through `TEST_LOG`; Cmd-R and previews get the bare content.
 struct TestLogging: ViewModifier {
+    let logIdentifier: String
     /// An append re-renders this body only; `content` shields the scenario.
     @State private var items: [(String, String)] = []
 
     func body(content: Content) -> some View {
-        if let name = ProcessInfo.processInfo.environment["TEST_LOG"] {
-            content
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier(name)
-                .accessibilityLabel(json(items.map(\.0)))
-                .accessibilityValue(json(items.map(\.1)))
-                // Deferred: some events fire mid-render, and a synchronous
-                // append there re-runs the scenario, not just this body.
-                .testLog { name, value in
-                    Task { items.append((name, value)) }
-                }
-        } else {
-            content
-        }
+        Gate(content: content)
+            .equatable()
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier(logIdentifier)
+            .accessibilityLabel(Self.json(items.map(\.0)))
+            .accessibilityValue(Self.json(items.map(\.1)))
+            // Deferred: some events fire mid-render, and a synchronous
+            // append there re-runs the scenario, not just this body.
+            .testLog { property, value in
+                Task { items.append((property, value)) }
+            }
     }
 
-    private func json(_ strings: [String]) -> String {
+    private static func json(_ strings: [String]) -> String {
         String(decoding: try! JSONEncoder().encode(strings), as: UTF8.self)
+    }
+
+    /// Always equal, so this body's re-render on every append never reaches
+    /// `content` — a SwiftUI build that does not shield a modifier's content
+    /// (27 beta 6) otherwise loops a scenario logging at render time.
+    private struct Gate<Content: View>: View, @MainActor Equatable {
+        static func == (_: Self, _: Self) -> Bool {
+            true
+        }
+
+        let content: Content
+
+        var body: some View {
+            content
+        }
     }
 }
 
 extension View {
-    func setupLogging() -> some View {
-        modifier(TestLogging())
-    }
-}
-
-/// Equal by `scenario` alone: the log modifier above re-renders on every
-/// append, and this gate keeps that from reaching the scenarios — a
-/// SwiftUI build where the modifier's `content` is not shielded (27 beta 6)
-/// otherwise loops the ungated scenario through its own `query` log.
-struct ScenarioHost: View, @MainActor Equatable {
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.scenario == rhs.scenario
-    }
-
-    let scenario: Scenario
-
-    var body: some View {
-        switch scenario {
-        case .queryViewGated: QueryViewSortScenario(gated: true)
-        case .queryViewUngated: QueryViewSortScenario(gated: false)
-        case .mockQueryResults: MockQueryResultsScenario()
-        case .queryViewSectionedLive: QueryViewSectionedScenario(mocked: false)
-        case .queryViewSectionedMocked: QueryViewSectionedScenario(mocked: true)
-        case .queryViewInsert: QueryViewInsertScenario()
-        case .flowUp: FlowUpScenario()
-        case .unstructuredTask: UnstructuredTaskScenario()
-        }
+    func setupLogging(_ logIdentifier: String) -> some View {
+        modifier(TestLogging(logIdentifier: logIdentifier))
     }
 }
 
 @main
 struct CoreFlowHostApp: App {
     private let scenario: Scenario
+    private let logIdentifier: String
 
     init() {
+        guard let logIdentifier = ProcessInfo.processInfo.environment["TEST_LOG"] else {
+            fatalError("TEST_LOG not set")
+        }
         guard let raw = ProcessInfo.processInfo.environment["SCENARIO"] else {
-            scenario = .defaultScenario
-            return
+            fatalError("SCENARIO not set")
         }
         guard let scenario = Scenario(rawValue: raw) else {
             fatalError("Unknown SCENARIO: \(raw)")
         }
+        self.logIdentifier = logIdentifier
         self.scenario = scenario
     }
 
     var body: some Scene {
         WindowGroup {
-            ScenarioHost(scenario: scenario)
-                .equatable()
-                .setupLogging()
+            Group {
+                switch scenario {
+                case .queryViewGated: QueryViewSortScenario(gated: true)
+                case .queryViewUngated: QueryViewSortScenario(gated: false)
+                case .mockQueryResults: MockQueryResultsScenario()
+                case .queryViewSectionedLive: QueryViewSectionedScenario(mocked: false)
+                case .queryViewSectionedMocked: QueryViewSectionedScenario(mocked: true)
+                case .queryViewInsert: QueryViewInsertScenario()
+                case .flowUp: FlowUpScenario()
+                case .unstructuredTask: UnstructuredTaskScenario()
+                }
+            }
+            .setupLogging(logIdentifier)
         }
     }
 }

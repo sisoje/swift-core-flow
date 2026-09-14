@@ -133,8 +133,9 @@ do not collide, and it repeats collection and diagnostics for the same fields.
 `CoreFlowHosted` is the package's own xcodegen project for claims that need a
 live SwiftUI host: `project.yml`, `test.sh` (the example's, scheme swapped),
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
-switching on the `SCENARIO` environment variable, `defaultScenario` for
-Cmd-R, hosting the log element with the example app's accessibility JSON
+switching on the `SCENARIO` environment variable — no default, a missing or
+unknown `SCENARIO` or a missing `TEST_LOG` is a `fatalError`: the app runs
+only under a launching test — hosting the log element with the example app's accessibility JSON
 convention: names in `label`, values in `value`) plus one scenario file per
 claim, each ending in its `#Preview`, and `UITests/` (one `XCTestCase` per
 scenario plus `LaunchHelper.swift`). ALL scenarios live in the host app, none
@@ -166,7 +167,7 @@ app switch has no guard) — is behind
 beta 4 — Swift 6.4 but SDK 26A5388f without `SectionedResults` — from a
 current 27). As of 2026-09-14 the label ships beta 6, whose SDK has
 `SectionedResults` and whose `.equatable()` skips — `package` green there,
-`hosted` 7/8 before the `ScenarioHost` gate (see below). Locally verified on the
+`hosted` 7/8 before the log modifier's `Gate` (see below). Locally verified on the
 iPhone 17 Pro simulator, Xcode 27.0 release (27A266a, runtime 24A434) and
 earlier the 27A5252f beta — 8/8, zero skips. Coverage: the scheme gathers it for
 ALL targets (`gatherCoverageData: true`, no `coverageTargets`) — verified
@@ -193,16 +194,16 @@ scenarios (8/8 twice, exact logs) — on the release. On the `xcode-27`
 runner's beta 6 the proxy did NOT shield: a modifier re-render re-rendered
 the content, so the ungated scenario logged `query` on every append and
 looped (3,692 constructions before the assertion; the other 7 tests passed,
-the gated one included). Hence `ScenarioHost`, `View, @MainActor
-Equatable` by `scenario` alone, under `.equatable()` INSIDE the modifier —
-the scenario subtree depends on nothing else, and the gate keeps a
-modifier re-render from reaching it on any build (same mechanism as
-`QueryView`'s own gate). The identifier is NOT a constant: the
+the gated one included). Hence the modifier's private `Gate<Key, Content>`
+— `View, @MainActor Equatable`, always equal, wrapping `content` under
+`.equatable()` — so the modifier's own
+re-render never reaches the content on any build (same mechanism as
+`QueryView`'s gate; `content` is not `Equatable` itself, hence the wrapper). The identifier is NOT a constant: the
 launching test sets `TEST_LOG` in `launchEnvironment` (`"log"`, the only
 place it is spelled), the app reads it from `ProcessInfo`, and
 `XCUIApplication.log` reads it back off `launchEnvironment` — one value,
-both processes; without `TEST_LOG` (Cmd-R, previews) the modifier returns
-the bare content. And
+both processes; the app's `init` reads it into `logIdentifier` and passes
+it to `setupLogging(_:)`, the modifier always instruments. And
 the sink appends DEFERRED (`Task { … }` from the `@MainActor` sink — same
 actor, enqueue order held: 8/8 twice with exact logs). The deferral is
 load-bearing, probed on the 27.0 release: a synchronous `items.append` in
