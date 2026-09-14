@@ -139,7 +139,7 @@ element name, and the scenario set are spelled); and `UITests/` (one
 `launchApp(scenario: TestScenario)` encodes the payload into
 `launchEnvironment`). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
-package stays free of scenario code. CI runs `sh test.sh` here (coverage off — the script is the CI entry point; Xcode uses the scheme)
+package stays free of scenario code. CI runs `sh test.sh` here (the CI entry point, coverage off; Xcode uses the scheme): `simctl boot` first, non-blocking, so the simulator boots during `build-for-testing`, then `bootstatus -b`, then `test-without-building` — measured serial: boot 159 s, build 232 s, 17 tests 188 s
 (`.github/workflows/ci.yml`, jobs `package` and `hosted` on the `xcode-27`
 label — GitHub's macOS 26 image with Xcode 27 beta as default, no
 `xcode-select`). `actions/cache` keeps the package job's `.build` and the
