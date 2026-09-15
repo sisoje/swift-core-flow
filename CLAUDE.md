@@ -1309,8 +1309,9 @@ verbatim), and
 `TestEnvironmentTests` (the three shapes typecheck on a View and forward
 unhosted). Hosted by `TestEnvironmentScenario` / `TestEnvironmentUITests`: a
 `@Shell` sheet content whose `Core` dismisses itself — log
-`isPresented true, dismiss, isPresented false` (the second `isPresented` is
-the sheet binding written back by SwiftUI after the REAL dismiss) and the
+`isPresented true, dismiss, isPresented false, isPresented false` (the
+sheet binding written back by SwiftUI after the REAL dismiss, twice as the
+sheet finishes — identical on the 27.0 simulator and CI, so pinned) and the
 close button gone.
 
 ## `@FlowUp`

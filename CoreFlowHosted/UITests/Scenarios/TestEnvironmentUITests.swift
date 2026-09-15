@@ -9,13 +9,11 @@ final class TestEnvironmentUITests: XCTestCase {
         XCTAssertTrue(app.buttons["close"].waitForExistence(timeout: 5))
 
         app.buttons["close"].tap()
-        // The real DismissAction ran: the sheet's binding write comes back
-        // through the scenario's @TestState, after the logged call.
-        XCTAssertTrue(
-            app.log.wait(for: \.label, toEqual: #"["isPresented","dismiss","isPresented"]"#, timeout: 5),
-            app.log.label
-        )
-        XCTAssertEqual(app.log.logValues, ["true", "", "false"])
+        // The real DismissAction ran: SwiftUI writes the sheet binding back
+        // through the scenario's @TestState — twice, as the sheet finishes.
+        let names = #"["isPresented","dismiss","isPresented","isPresented"]"#
+        XCTAssertTrue(app.log.wait(for: \.label, toEqual: names, timeout: 5), app.log.label)
+        XCTAssertEqual(app.log.logValues, ["true", "", "false", "false"])
         XCTAssertFalse(app.buttons["close"].exists)
     }
 }
