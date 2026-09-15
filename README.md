@@ -548,10 +548,12 @@ struct BookList: View {
 ```
 
 - **The `query:` expression is deferred (an autoclosure), evaluated only
-  when `index` changes** — toggling the flag makes a new query; unrelated
-  parent re-renders don't reach it. `index` must cover every input of both
-  `query` and `content`: a value left out is a state change the gated body
-  will not see — aggregate multiple inputs into one `Equatable` key struct.
+  when `index` changes** — `index` is the query'"'"'s parameter set, and the
+  built query is memoized by it: toggling the flag makes a new query;
+  unrelated parent re-renders hand the stored one back and never reach the
+  expression. `index` must cover every input of `query`: a value left out is
+  a parameter change the query will not follow — aggregate multiple inputs
+  into one `Equatable` key struct.
   The init without `index:` is the ungated fallback,
   re-evaluating the query every render.
 - **Content receives a `QueryResult`, re-propertified by the `$` parameter**:

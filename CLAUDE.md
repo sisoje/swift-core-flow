@@ -241,25 +241,28 @@ modifier's re-render into the content, storming whichever sort scenario
 logged at render time (3,692 and 1,861 `query` entries) — a design that
 depends on `.equatable()` skipping is a coin flip there. The class-plus-leaf
 shape depends on no gate; locally 17/17 in 146 s versus ~200 s before.
-Locked by `QueryViewSortUITests` as
-one ordered log each, asserting the label's `["query"` prefix and an exact
-tail — the OPENING count is build-dependent on both. Gated tail: `unrelated,
-unrelated, unrelated, sortDescending, query` — three parent re-renders (the
-body reads `unrelated`, so each write re-renders) construct nothing; only
-the index write does; the first appearance constructs once on the release
-simulator and three times on the `xcode-27` runner's beta 6. Ungated tail:
+Locked by `QueryViewSortUITests`. Gated: the EXACT log `query, unrelated,
+unrelated, unrelated, sortDescending, query` — the memo constructs once at
+first appearance whatever the build re-renders, three parent re-renders (the
+body reads `unrelated`, so each write re-renders) construct nothing, only the
+index write does. Ungated: the label's `["query"` prefix and an exact tail —
+the OPENING count is build-dependent. Ungated tail:
 `unrelated, query, unrelated, query, unrelated, query, sortDescending,
 query`; the first appearance constructs twice on 27A5252f and three times on
 the beta runners. It is not `.modelContainer(for:inMemory:)`'s
 setup: a pre-built container passed to `.modelContainer(_:)` still logged
 two (probed), so the test asserts the label's `["query"` prefix and its
 8-event suffix. The gated scenario absorbs those extra renders, which is
-the point. Beta 4 also did NOT skip the gated body (one construction per
-unrelated tap on CI, zero locally): `EquatableByParameterView` conforms as
-`@MainActor Equatable` — the correct conformance, SwiftUI compares views on
-the main actor — so this is the beta's `.equatable()`, not ours; a
-`nonisolated ==` over `nonisolated(unsafe) let index` was tried and
-rejected. No skip guard: an `XCTSkipIf` below `Version 27.0 (Build
+the point. History of the gate: until 2026-09-16 it was
+`EquatableByParameterView.equatable()` (`@MainActor Equatable`, equality on
+`index` only — the correct conformance, SwiftUI compares views on the main
+actor; a `nonisolated ==` over `nonisolated(unsafe) let index` was tried and
+rejected). Beta 4 never skipped it (one construction per unrelated tap on
+CI, zero locally); beta 6 skipped it in some runs and not others (runs 44–51
+green, 52–53 one `query` per unrelated tap:
+`["query","query","query","query","unrelated","query","unrelated","query",…]`),
+with no change to the gate between. The memo replaced it so the skip no
+longer depends on `EquatableView`. No skip guard: an `XCTSkipIf` below `Version 27.0 (Build
 24A5423a)` was added for beta 4 and REMOVED — Apple build strings are not
 orderable across beta→release by string or by number (release `24A434`
 sorts below beta `24A5423a` either way), so on the 27.0 release it skipped
@@ -1012,14 +1015,22 @@ Result>` — the call site spells the query expression bare,
 `query: Query(sort: …)`, deferral preserved — and
 `content: (QueryResult<Result>) -> Content`. Internal `PropertyHostView` stores
 the built query as a view property — what makes SwiftUI install a
-`DynamicProperty`; passed into a closure it would never update. The `index:`
-initializer gates everything behind internal
-`EquatableByParameterView.equatable()`, whose equality reads `index` only:
-query construction is assumed expensive, so an unchanged index skips body
-re-evaluation entirely. The caller's contract is that `index` covers every
-input of both `query` and `content`; a value left out is a state change the
-gated body will not see. The `Index == Never` initializer is the ungated
-fallback (`index` nil), re-evaluating the query expression every render.
+`DynamicProperty`; passed into a closure it would never update. `index` is the query's
+parameter set, and the built `Query` is MEMOIZED by it: a private `Memo`
+class held in `@State` (a render-phase write to a plain object, the
+`_FlowUpClosure` pattern) keeps the last index and query, and `body` asks it
+for the query every render — same index, the stored value is handed to
+`PropertyHostView` again (what any view holding a `@Query` does each render,
+so the installed property keeps updating) and the autoclosure never runs;
+new index, one rebuild. The skip is OUR decision on any build; it replaced
+`EquatableByParameterView.equatable()` (2026-09-16), which was the same idea
+through SwiftUI's `EquatableView` and which the `xcode-27` runner's betas
+honored inconsistently (record under `Hosted scenarios`). Cost: `content`
+re-runs on every parent render over already-fetched data. The caller's
+contract is that `index` covers every input of `query`; a value left out is
+a parameter change the query will not follow. The `Index == Never`
+initializer is the ungated fallback (`index` nil never matches the memo),
+rebuilding the query every render.
 Verified live by
 `QueryViewSortScenario`: `QueryView` hosted over a real `Query` over a
 scenario-seeded in-memory `ModelContainer`, the sort write rebuilding the

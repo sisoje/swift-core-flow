@@ -10,16 +10,12 @@ final class QueryViewSortUITests: XCTestCase {
         }
         app.buttons["sort"].tap()
 
-        // Three unrelated writes re-render the parent with no query
+        // The memo constructs once at first appearance whatever the build
+        // re-renders; three unrelated writes re-render the parent with no
         // construction between them; only the index write constructs again.
-        // How many times the first appearance constructs is build-dependent
-        // (1 on the release simulator, 3 on the 27 beta 6 runner), so only the
-        // tail after launch is exact.
-        let names = #""unrelated","unrelated","unrelated","sortDescending","query"]"#
-        let values = #""1","2","3","true","reverse"]"#
-        XCTAssertTrue(app.log.label.hasPrefix(#"["query""#), app.log.label)
-        XCTAssertTrue(app.log.label.hasSuffix(names), app.log.label)
-        XCTAssertTrue((app.log.value as? String ?? "").hasSuffix(values))
+        let names = #"["query","unrelated","unrelated","unrelated","sortDescending","query"]"#
+        XCTAssertTrue(app.log.wait(for: \.label, toEqual: names, timeout: 5), app.log.label)
+        XCTAssertEqual(app.log.logValues, ["forward", "1", "2", "3", "true", "reverse"])
     }
 
     @MainActor

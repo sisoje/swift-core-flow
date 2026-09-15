@@ -75,22 +75,6 @@ struct PropertyHostView<Property, Content: View>: View {
     }
 }
 
-/// Equality ignores `content`, so under `.equatable()` an unchanged index skips
-/// body re-evaluation entirely — captured state in `content` stays frozen until
-/// the index changes.
-struct EquatableByParameterView<Index: Equatable, Content: View>: View, @MainActor Equatable {
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.index == rhs.index
-    }
-
-    let index: Index
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        content()
-    }
-}
-
 public struct QueryView<Index: Equatable, Element: PersistentModel, Result, Content: View>: View {
     /// `index` must cover every input of BOTH `query` and `content`; a value
     /// left out is a state change the gated body will not see.
@@ -112,24 +96,38 @@ public struct QueryView<Index: Equatable, Element: PersistentModel, Result, Cont
         self.content = content
     }
 
+    /// The gate: the built `Query` memoized by index, so an unchanged index
+    /// never runs the autoclosure — our decision, not `.equatable()`'s (whose
+    /// skipping a beta can flip). A plain class in `@State`: a render-phase
+    /// write to a plain object, no SwiftUI state write. Handing the same
+    /// `Query` value to `PropertyHostView` each render is what any view holding
+    /// a `@Query` does, so the installed property keeps updating.
+    private final class Memo {
+        var index: Index?
+        var query: Query<Element, Result>?
+
+        func query(for index: Index?, build: () -> Query<Element, Result>) -> Query<Element, Result> {
+            // A nil index (the Index == Never init) never matches: ungated.
+            if let index, let query, index == self.index {
+                return query
+            }
+            self.index = index
+            let built = build()
+            query = built
+            return built
+        }
+    }
+
     @Environment(\.queryTransform) private var queryTransform
+    @State private var memo = Memo()
     // nil means ungated: the Index == Never init cannot supply a value.
     var index: Index?
     let query: () -> Query<Element, Result>
     let content: (QueryResult<Result>) -> Content
 
     public var body: some View {
-        if let index {
-            EquatableByParameterView(index: index) {
-                PropertyHostView(property: query()) {
-                    content(queryTransform.toResult($0))
-                }
-            }
-            .equatable()
-        } else {
-            PropertyHostView(property: query()) {
-                content(queryTransform.toResult($0))
-            }
+        PropertyHostView(property: memo.query(for: index, build: query)) {
+            content(queryTransform.toResult($0))
         }
     }
 }
