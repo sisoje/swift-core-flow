@@ -27,3 +27,6 @@ xcodebuild test-without-building \
     -destination "platform=iOS Simulator,name=iPhone 17 Pro" \
     -collect-test-diagnostics never \
     -enableCodeCoverage NO
+
+# Quiescent for the warm-simulator cache saved at the end of the CI job.
+xcrun simctl shutdown "iPhone 17 Pro"
