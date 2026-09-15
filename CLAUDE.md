@@ -208,14 +208,15 @@ logged at render time (3,692 and 1,861 `query` entries) — a design that
 depends on `.equatable()` skipping is a coin flip there. The class-plus-leaf
 shape depends on no gate; locally 17/17 in 146 s versus ~200 s before.
 Locked by `QueryViewSortUITests` as
-one ordered log each. Gated:
-`query, unrelated, unrelated, unrelated, sortDescending, query` — three
-parent re-renders (the body reads `unrelated`, so each write re-renders)
-construct nothing; only the index write does. Ungated: the tail after
-launch is exact — `unrelated, query, unrelated, query, unrelated, query,
-sortDescending, query` — while the OPENING count is build-dependent: the
-ungated first appearance constructs twice on 27A5252f and three times on
-the `xcode-27` runner's beta 4. It is not `.modelContainer(for:inMemory:)`'s
+one ordered log each, asserting the label's `["query"` prefix and an exact
+tail — the OPENING count is build-dependent on both. Gated tail: `unrelated,
+unrelated, unrelated, sortDescending, query` — three parent re-renders (the
+body reads `unrelated`, so each write re-renders) construct nothing; only
+the index write does; the first appearance constructs once on the release
+simulator and three times on the `xcode-27` runner's beta 6. Ungated tail:
+`unrelated, query, unrelated, query, unrelated, query, sortDescending,
+query`; the first appearance constructs twice on 27A5252f and three times on
+the beta runners. It is not `.modelContainer(for:inMemory:)`'s
 setup: a pre-built container passed to `.modelContainer(_:)` still logged
 two (probed), so the test asserts the label's `["query"` prefix and its
 8-event suffix. The gated scenario absorbs those extra renders, which is
