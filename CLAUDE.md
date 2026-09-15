@@ -245,13 +245,15 @@ Locked by `QueryViewSortUITests`. Gated: the EXACT log `query, unrelated,
 unrelated, unrelated, sortDescending, query` — the memo constructs once at
 first appearance whatever the build re-renders, three parent re-renders (the
 body reads `unrelated`, so each write re-renders) construct nothing, only the
-index write does. No index (`gated: false`): the EXACT log `query,
-unrelated, unrelated, unrelated, sortDescending` — one construction, kept;
-even the sort write, which the expression reads, rebuilds nothing (no index,
-no parameters). Before the memo the no-index init rebuilt every render and
-its opening count was build-dependent (twice on 27A5252f, three times on the
-beta runners; not `.modelContainer(for:inMemory:)`'s setup — a pre-built
-container still logged two, probed). History of the gate: until 2026-09-16 it was
+index write does. Ungated: the label's `["query"` prefix and an exact tail —
+the OPENING count is build-dependent. Ungated tail:
+`unrelated, query, unrelated, query, unrelated, query, sortDescending,
+query`; the first appearance constructs twice on 27A5252f and three times on
+the beta runners. It is not `.modelContainer(for:inMemory:)`'s
+setup: a pre-built container passed to `.modelContainer(_:)` still logged
+two (probed), so the test asserts the label's `["query"` prefix and its
+8-event suffix. The gated scenario absorbs those extra renders, which is
+the point. History of the gate: until 2026-09-16 it was
 `EquatableByParameterView.equatable()` (`@MainActor Equatable`, equality on
 `index` only — the correct conformance, SwiftUI compares views on the main
 actor; a `nonisolated ==` over `nonisolated(unsafe) let index` was tried and
@@ -1028,15 +1030,14 @@ honored inconsistently (record under `Hosted scenarios`). Cost: `content`
 re-runs on every parent render over already-fetched data. The caller's
 contract is that `index` covers every input of `query`; a value left out is
 a parameter change the query will not follow. The `Index == Never`
-initializer means no index, no parameters: `nil == nil` matches the memo
-after the first build, so the query is built ONCE and kept — a constant
-query; an expression that reads state without an index never rebuilds.
+initializer is the ungated fallback (`index` nil, `body` bypasses the memo),
+rebuilding the query every render.
 Verified live by
 `QueryViewSortScenario`: `QueryView` hosted over a real `Query` over a
 scenario-seeded in-memory `ModelContainer`, the sort write rebuilding the
 query. The gate's
-negative — an unchanged index skipping the query rebuild — and the no-index
-init's build-once are verified live by `QueryViewSortScenario(gated:)` +
+negative — an unchanged index skipping the query rebuild — and the ungated
+init's positive are verified live by `QueryViewSortScenario(gated:)` +
 `QueryViewSortUITests` in `CoreFlowHosted` (see `Hosted scenarios`).
 
 ## Logged-property family

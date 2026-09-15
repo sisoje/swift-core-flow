@@ -89,8 +89,6 @@ public struct QueryView<Index: Equatable, Element: PersistentModel, Result, Cont
         self.content = content
     }
 
-    /// No index: no parameters, so the query is built once and kept — the
-    /// expression must not read state, nothing would rebuild it.
     public init(
         query: @autoclosure @escaping () -> Query<Element, Result>,
         @ViewBuilder content: @escaping (QueryResult<Result>) -> Content
@@ -109,9 +107,7 @@ public struct QueryView<Index: Equatable, Element: PersistentModel, Result, Cont
         var index: Index?
         var query: Query<Element, Result>?
 
-        func query(for index: Index?, build: () -> Query<Element, Result>) -> Query<Element, Result> {
-            // No index (the Index == Never init): no parameters, so nil == nil
-            // matches after the first build — a constant query.
+        func query(for index: Index, build: () -> Query<Element, Result>) -> Query<Element, Result> {
             if let query, index == self.index {
                 return query
             }
@@ -124,14 +120,21 @@ public struct QueryView<Index: Equatable, Element: PersistentModel, Result, Cont
 
     @Environment(\.queryTransform) private var queryTransform
     @State private var memo = Memo()
-    // nil means no index: the Index == Never init cannot supply a value.
+    // nil means ungated: the Index == Never init cannot supply a value, and
+    // body skips the memo — the query is rebuilt every render.
     var index: Index?
     let query: () -> Query<Element, Result>
     let content: (QueryResult<Result>) -> Content
 
     public var body: some View {
-        PropertyHostView(property: memo.query(for: index, build: query)) {
-            content(queryTransform.toResult($0))
+        if let index {
+            PropertyHostView(property: memo.query(for: index, build: query)) {
+                content(queryTransform.toResult($0))
+            }
+        } else {
+            PropertyHostView(property: query()) {
+                content(queryTransform.toResult($0))
+            }
         }
     }
 }

@@ -54,6 +54,6 @@ struct QueryViewSortScenario: View {
     QueryViewSortScenario(gated: true)
 }
 
-#Preview("No index") {
+#Preview("Ungated") {
     QueryViewSortScenario(gated: false)
 }
