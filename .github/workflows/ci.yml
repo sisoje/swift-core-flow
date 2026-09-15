@@ -15,6 +15,8 @@ jobs:
         run: swift build && swift test
   hosted:
     runs-on: xcode-27
+    env:
+      SIMULATOR: iPhone 17 Pro
     steps:
       - uses: actions/checkout@v4
       - name: Cache derived data
@@ -36,7 +38,7 @@ jobs:
       # application via Xcode", 129 s).
       - name: Boot the simulator
         run: |
-          xcrun simctl boot "iPhone 17 Pro"
-          xcrun simctl bootstatus "iPhone 17 Pro" -b
+          xcrun simctl boot "$SIMULATOR"
+          xcrun simctl bootstatus "$SIMULATOR" -b
       - name: Run the hosted UI tests
-        run: sh CoreFlowHosted/test.sh
+        run: sh CoreFlowHosted/test.sh "$SIMULATOR"
