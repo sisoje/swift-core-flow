@@ -135,14 +135,18 @@ simulator commands in either; the workflow's job-level `SIMULATOR` env names
 the device once, boots it, and passes it to `test.sh` —
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
 switching on the `TestScenario` it decodes from a `TestPayload` in the
-`testPayloadEnvironmentKey` environment variable — no default, a missing payload is a
-`fatalError`: the app runs only under a launching test — hosting the log
+`testPayloadEnvironmentKey` environment variable — optional: with no payload (previews,
+Cmd-R) the window shows nothing — hosting the log
 element: names JSON in `label`, values JSON in `value`) plus one scenario
 file per claim, each ending in its `#Preview`; `Shared/` — compiled into
 BOTH targets (`sources: [HostApp, Shared]` / `[UITests, Shared]`) —
 holding `TestScenario.swift` (the enum) and `TestPayload.swift` (`testPayloadEnvironmentKey`,
 `logAccessibilityIdentifier`, `try!` JSON encode/decode — the one place the key, the
-element name, and the scenario set are spelled); and `UITests/` (one
+element name, and the scenario set are spelled), both types `nonisolated`: the
+app target defaults to `MainActor` isolation, under which `TestPayload.decode`
+and the synthesized `Codable` conformance are actor-isolated and cannot be
+passed point-free to `Optional.map` ("converting function value … loses global
+actor"), and they are pure data shared with the test bundle anyway; and `UITests/` (one
 `XCTestCase` per scenario plus `LaunchHelper.swift`, whose
 `launchApp(scenario: TestScenario)` encodes the payload into
 `launchEnvironment` and whose `app.log` is

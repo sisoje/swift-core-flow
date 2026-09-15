@@ -3,18 +3,12 @@ import SwiftUI
 
 @main
 struct CoreFlowHostApp: App {
-    private let scenario: TestScenario
-
-    init() {
-        guard let raw = ProcessInfo.processInfo.environment[TestPayload.testPayloadEnvironmentKey] else {
-            fatalError("\(TestPayload.testPayloadEnvironmentKey) not set")
-        }
-        scenario = TestPayload.decode(raw).scenario
-    }
+    /// Optional: previews and Cmd-R launch without a payload and show nothing.
+    private var payload: TestPayload? = ProcessInfo.processInfo.environment[TestPayload.testPayloadEnvironmentKey].map(TestPayload.decode)
 
     var body: some Scene {
         WindowGroup {
-            scenario
+            payload?.scenario
                 .uiTestLog(accessibilityIdentifier: TestPayload.logAccessibilityIdentifier)
         }
     }
