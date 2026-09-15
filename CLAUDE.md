@@ -152,7 +152,8 @@ is quiescent), later runs boot over it and skip first-boot initialization.
 Measured locally on 27.0: a fresh device is 1.0 GB after one boot, 440 MB
 compressed, 22 s to boot. CI timing pending the first cached run. The workflow starts that boot
 fire-and-forget (`nohup xcrun simctl boot … &`) right after the cache
-restore, so it overlaps `brew install xcodegen` and `xcodegen generate`;
+restore, so it overlaps the derived-data restore, `brew install xcodegen`, and
+`xcodegen generate`;
 `xcodebuild` still waits for whatever boot remains, and `test.sh`'s own
 `simctl boot || true` plus `bootstatus -b` is the join. Building with
 `-sdk iphonesimulator` and no `-destination`, to skip the destination lookup
