@@ -167,7 +167,7 @@ func isStatic(_ varDecl: VariableDeclSyntax) -> Bool {
 }
 
 /// True if the annotation spells `@Sendable` anywhere on the function type.
-private func isSendableType(_ type: TypeSyntax) -> Bool {
+func isSendableType(_ type: TypeSyntax) -> Bool {
     guard let attributed = type.as(AttributedTypeSyntax.self) else {
         if let tuple = type.as(TupleTypeSyntax.self), tuple.elements.count == 1,
            let inner = tuple.elements.first?.type
@@ -185,7 +185,7 @@ private func isSendableType(_ type: TypeSyntax) -> Bool {
 
 /// The function type inside a possibly attributed/parenthesized annotation
 /// (`@Sendable () -> Void`, `((Int) -> Void)`), or nil for a non-function type.
-private func functionType(of type: TypeSyntax) -> FunctionTypeSyntax? {
+func functionType(of type: TypeSyntax) -> FunctionTypeSyntax? {
     if let fn = type.as(FunctionTypeSyntax.self) {
         return fn
     }
@@ -200,6 +200,7 @@ private func functionType(of type: TypeSyntax) -> FunctionTypeSyntax? {
     return nil
 }
 
+/// Shared with `TestEnvironmentMacro`, whose `storage` is the environment value.
 /// `{ a0, a1 in log("move", (a0, a1)); [return ][try ][await ]storage(a0, a1) }`
 /// — payload is `""` for zero arguments, the described bare argument for
 /// one, a described tuple beyond. `log` and `storage` are locals the getter extracts first, so the
@@ -207,7 +208,7 @@ private func functionType(of type: TypeSyntax) -> FunctionTypeSyntax? {
 /// `@Sendable`, and not dragging the whole view copy into the closure keeps it
 /// clean for `async`/`@Sendable` action types). Environment resolution happens
 /// at the view copy's install either way — see CLAUDE.md.
-private func wrapperClosure(name: String, function: FunctionTypeSyntax, isSendable: Bool)
+func wrapperClosure(name: String, function: FunctionTypeSyntax, isSendable: Bool)
     -> String
 {
     let parameters = (0 ..< function.parameters.count).map { "a\($0)" }

@@ -14,6 +14,7 @@ nonisolated enum TestScenario: Codable {
     case testAction
     case testFocusState
     case testAccessibilityFocusState
+    case testEnvironment
     case gestureState
     case viewModifierCore
 }

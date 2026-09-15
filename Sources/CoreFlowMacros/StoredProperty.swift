@@ -78,6 +78,25 @@ public struct StoredProperty {
         wrapperName == "AccessibilityFocusState"
     }
 
+    /// A private `@Environment` ACTION → `@TestEnvironment(\.kp)` on `Core`: the
+    /// key-path whitelist, per key path like the wrapper whitelist, each with
+    /// its value type (collection infers it for the bare host line) and the
+    /// closure type `Core` declares (a macro cannot read the action's call
+    /// signature). Logging only — the real value is what gets called. Every
+    /// other `@Environment` read stays verbatim.
+    public static let environmentActions: [String: (valueType: String, closureType: String)] = [
+        "\\.dismiss": ("DismissAction", "() -> Void"),
+        "\\.openURL": ("OpenURLAction", "(URL) -> Void"),
+    ]
+
+    public var environmentAction: (keyPath: String, type: String)? {
+        guard isPrivate, wrapperName == "Environment",
+              let keyPath = environmentKeyPath(varDecl.attributes),
+              let action = Self.environmentActions[keyPath]
+        else { return nil }
+        return (keyPath, action.closureType)
+    }
+
     /// EXTERNAL storage — a dependency, injected as `@Binding` on `Core`:
     /// same shape (settable `wrappedValue`, `projectedValue` genuinely *is*
     /// `Binding<T>` — verified directly), and their storage installs only
@@ -137,6 +156,14 @@ public func collectStoredProperties(
                 // generic parameter to resolve — so a bare `@Namespace private
                 // var ns` needs no annotation and no type checker.
                 inferredType = "Namespace.ID"
+            } else if wrapperName == "Environment",
+                      let action = environmentKeyPath(varDecl.attributes)
+                      .flatMap({ StoredProperty.environmentActions[$0] })
+            {
+                // A whitelisted environment action: its value type is fixed, so
+                // the usual bare `@Environment(\.dismiss) private var dismiss`
+                // needs no annotation either.
+                inferredType = TypeSyntax(stringLiteral: action.valueType)
             } else {
                 inferredType = binding.initializer.flatMap { inferredLiteralType($0.value) }
             }
@@ -257,6 +284,17 @@ public func accessLevel(of decl: some DeclGroupSyntax) -> String {
     ]
     let modifier = decl.modifiers.first { accessKeywords.contains($0.name.tokenKind) }
     return modifier.map { "\($0.name.text) " } ?? ""
+}
+
+/// The key-path argument of a property's `@Environment(\.kp)` attribute, as
+/// written; nil without one.
+public func environmentKeyPath(_ attributes: AttributeListSyntax) -> String? {
+    for case let .attribute(attr) in attributes
+        where attr.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "Environment"
+    {
+        return keyPathArgument(attr)
+    }
+    return nil
 }
 
 /// The name of the first attribute on a property (its property-wrapper type, e.g.

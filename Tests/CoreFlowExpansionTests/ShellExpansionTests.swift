@@ -168,6 +168,39 @@ final class ShellExpansionTests: XCTestCase {
         )
     }
 
+    func testEnvironmentActionsBecomeTestEnvironmentOnCore() {
+        // Whitelisted @Environment ACTIONS get a live instrument, per key path
+        // (the bare host line needs no annotation, the value type is fixed).
+        // A closure @Entry off the list and a value read stay verbatim copies.
+        assertMacroExpansion(
+            """
+            @Shell
+            struct Closer {
+                @Environment(\\.dismiss) private var dismiss
+                @Environment(\\.openURL) private var openURL
+                @Environment(\\.save) private var save: (String) async throws -> Void
+                @Environment(\\.colorScheme) private var colorScheme: ColorScheme
+            }
+            """,
+            expandedSource: """
+            struct Closer {
+                @Environment(\\.dismiss) private var dismiss
+                @Environment(\\.openURL) private var openURL
+                @Environment(\\.save) private var save: (String) async throws -> Void
+                @Environment(\\.colorScheme) private var colorScheme: ColorScheme
+
+                struct Core {
+                    @TestEnvironment(\\.dismiss) private var dismiss: () -> Void
+                    @TestEnvironment(\\.openURL) private var openURL: (URL) -> Void
+                    @Environment(\\.save) private var save: (String) async throws -> Void
+                    @Environment(\\.colorScheme) private var colorScheme: ColorScheme
+                }
+            }
+            """,
+            macros: macros
+        )
+    }
+
     func testAccessibilityFocusStateIsRenamedToTestAccessibilityFocusStateOnCore() {
         // An exact @FocusState clone (verified directly against the real
         // SwiftUI interface), whitelisted alongside it: the same rename

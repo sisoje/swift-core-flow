@@ -58,6 +58,8 @@ hosts behave normally.
   behavior and logs programmatic property writes; the native focus binding wires the UI.
 - [`@TestAccessibilityFocusState`](#testfocusstate) (accessor + peer macro) the
   same over `@AccessibilityFocusState`.
+- [`@TestEnvironment`](#testenvironment) (accessor + peer macro) logs each call of
+  a sealed environment action — `\.dismiss`, `\.openURL` — then runs the real one.
 - [`@TestLog`](#the-testlog-seam) (property wrapper) reads the installed sink
   for explicit event logging.
 - [`View.testLog(_:)`](#the-testlog-seam) (view modifier) installs the logging sink.
@@ -245,7 +247,10 @@ not require standing up an entire SwiftData stack. `@FocusState` becomes
 `FocusState<T>.Binding` has no public initializer, and focus writes no-op
 outside a live view, so no mock is possible; the substitute retains a real
 `FocusState` and logs programmatic writes. `@AccessibilityFocusState`, its
-exact clone, becomes `@TestAccessibilityFocusState` the same way. The whitelist ends there —
+exact clone, becomes `@TestAccessibilityFocusState` the same way. A
+whitelisted `@Environment` action — `\.dismiss`, `\.openURL` — becomes
+[`@TestEnvironment`](#testenvironment), also a live instrument: the real value
+stays and every call logs. The whitelist ends there —
 the only wrappers this package really knows: each substitution buys a log, an
 injectable boundary, or a bare value.
 
@@ -283,6 +288,7 @@ inert or defaulted otherwise.
 | `@State` | `@TestState` |
 | `@FocusState` | `@TestFocusState` |
 | `@AccessibilityFocusState` | `@TestAccessibilityFocusState` |
+| `@Environment(\.dismiss)`, `@Environment(\.openURL)` | `@TestEnvironment(\.kp)` |
 | `@AppStorage` / `@SceneStorage` | `@Binding` |
 | `@Query` | `@QueryResult` |
 
@@ -832,6 +838,43 @@ Assigning `.password` logs
   logs. (A well-shaped property with a non-`Bool`, non-optional annotation
   passes the macro and fails on the generated `FocusState` peer instead,
   in the compiler's own words — same as the live wrapper.)
+
+## TestEnvironment
+
+A logged call through a real environment value — and what [`@Shell`](#shell)
+substitutes for an `@Environment` action on `Core`:
+
+```swift
+@Shell
+struct SheetContent: View {
+    @Environment(\.dismiss) private var dismiss
+    var body: some View { Button("close") { dismiss() } }
+}
+// Core: @TestEnvironment(\.dismiss) private var dismiss: () -> Void
+```
+
+Reading the property returns a closure that logs `(name, payload)` — `""` for
+zero arguments, the described argument for one, a described tuple beyond,
+`try`/`await` carried through — and then calls the REAL value read from
+`Environment(\.keyPath)`. Hosted, `dismiss()` logs `dismiss` and the sheet
+closes; that is the "did it really dismiss" test, which plain SwiftUI cannot
+write because `DismissAction` has no public initializer. Unhosted, the
+environment's default runs, a no-op for the sealed actions. Nothing to inject
+and nothing to forget: the boundary is instrumented, not replaced.
+
+Hand-written, the other whitelisted action:
+
+```swift
+@TestEnvironment(\.openURL) private var openURL: (URL) -> Void
+```
+
+Your own closure `@Entry` values need none of this: they are yours to inject
+with `.environment`, and the mock is where the log goes.
+
+`@Shell` substitutes it per key path, `\.dismiss` and `\.openURL` today (the
+bare host line needs no annotation); every other `@Environment`, a value read
+or a closure `@Entry`, stays verbatim. A labeled action such as
+`openWindow(id:)` has no closure spelling and stays verbatim too.
 
 ## FlowUp
 
@@ -1663,7 +1706,7 @@ targets and one hosted test project:
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one file each: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift`, `UnstructuredTaskMacro.swift`, `FlowUpMacro.swift` — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `makeFlow(_:)`, and `InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — `View.testLog(_:)` and the `TestLog` dynamic property — `UITestLogging.swift`, `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, the two implementation-dependent techniques (uninitialized-memory reflection, memory-layout fabrication), kept apart on purpose |
+| `CoreFlow` | library | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — `View.testLog(_:)` and the `TestLog` dynamic property — `UITestLogging.swift`, `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, the two implementation-dependent techniques (uninitialized-memory reflection, memory-layout fabrication), kept apart on purpose |
 | `CoreFlowUITesting` | library, UI-test bundles only | the XCUITest end of `uiTestLog`: `XCUIApplication.uiTestLog(accessibilityIdentifier:)`, `XCUIElement.logNames`/`logValues`, `wait(for:toEqual:timeout:)` — imports XCTest, so an app target never links it |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro, against the plugin module |
 | `CoreFlowTests` | test (XCTest + swift-testing) | every compiled and runtime suite, one file per API, against the product only |

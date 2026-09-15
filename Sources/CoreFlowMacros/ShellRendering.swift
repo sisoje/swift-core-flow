@@ -41,6 +41,12 @@ func renderShell(
         // verified directly), so hosted behavior stays live and every
         // programmatic write logs. @AccessibilityFocusState, its exact clone,
         // gets the same treatment: @TestAccessibilityFocusState.
+        // @Environment ACTIONS on the key-path whitelist (`environmentActions`)
+        // → @TestEnvironment: the REAL value stays the peer, every call logs —
+        // a live instrument like @TestFocusState.
+        if let action = p.environmentAction {
+            return "@TestEnvironment(\(action.keyPath)) private var \(p.name): \(action.type)"
+        }
         if p.isExternalStorage {
             return "@Binding var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }

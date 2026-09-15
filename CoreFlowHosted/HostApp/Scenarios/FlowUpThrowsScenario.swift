@@ -29,7 +29,6 @@ struct ThrowsCaller: View {
                 log("send", "hi")
                 do {
                     try await save("hi")
-                    log("result", "ok")
                 } catch {
                     log("result", "\(error)")
                 }

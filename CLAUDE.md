@@ -68,11 +68,11 @@ mode with strict concurrency. It supports swift-syntax
 
 | Target | Kind | Contents |
 |---|---|---|
-| `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift` — `@TestFocusState` + `@TestAccessibilityFocusState`, one shared expansion — `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `UITestLogging.swift` (`uiTestLog(accessibilityIdentifier:)`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), and the `Experimental/` directory — the two implementation-dependent runtime techniques, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the memory-layout fabricator for Apple's sealed type; see the `QueryResult` section) |
+| `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift` — `@TestFocusState` + `@TestAccessibilityFocusState`, one shared expansion — `TestEnvironmentMacro.swift`, `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `UITestLogging.swift` (`uiTestLog(accessibilityIdentifier:)`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), and the `Experimental/` directory — the two implementation-dependent runtime techniques, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection; pairs with `@Flowable`, see below), `FocusStateBinding+Mock.swift` (`FocusState.Binding.mock(_:)`, a layout-guaranteed bit cast, unhosted use only — see `Rejected designs`), and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the memory-layout fabricator for Apple's sealed type; see the `QueryResult` section) |
 | `CoreFlowUITesting` | library, UI-test bundles only | `UITestLog.swift`: the XCUITest end of `uiTestLog` — `XCUIApplication.uiTestLog(accessibilityIdentifier:)` (the element), `XCUIElement.logNames`/`logValues` (JSON-decoded label/value, empty when undecodable), `wait(for:toEqual:timeout:)` (an `XCTNSPredicateExpectation` poll). Imports XCTest, so it is its own product: an app target must never link it. Consumer: `CoreFlowHosted/UITests` |
-| `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro (`FlowableExpansionTests`, `ShellExpansionTests`, `CapabilityExpansionTests`, `PickExpansionTests`, `TestStateExpansionTests`, `TestActionExpansionTests`, `TestFocusStateExpansionTests`, `TestAccessibilityFocusStateExpansionTests`, `UnstructuredTaskExpansionTests`, `FlowUpExpansionTests`); depends on `CoreFlowMacros` + `SwiftSyntaxMacrosTestSupport`, never on the product |
-| `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`FlowableTests`, `ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
+| `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro (`FlowableExpansionTests`, `ShellExpansionTests`, `CapabilityExpansionTests`, `PickExpansionTests`, `TestStateExpansionTests`, `TestActionExpansionTests`, `TestFocusStateExpansionTests`, `TestAccessibilityFocusStateExpansionTests`, `TestEnvironmentExpansionTests`, `UnstructuredTaskExpansionTests`, `FlowUpExpansionTests`); depends on `CoreFlowMacros` + `SwiftSyntaxMacrosTestSupport`, never on the product |
+| `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`FlowableTests`, `ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `TestEnvironmentTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
 
 Public machinery that only macro expansions name — `_TaskStorage`,
 `_CancellableTask`, `_FlowUpClosure`, `_FlowUpID` — is `_`-prefixed, Apple's
@@ -370,6 +370,10 @@ The other scenarios, each one UI test unless noted:
   (`isFocused true`) over a real `AccessibilityFocusState` peer wired with
   `.accessibilityFocused`. Assistive-technology focus is not exercisable on
   the simulator; only the write is claimed.
+- `TestEnvironmentScenario` / `TestEnvironmentUITests`: `@Environment(\.dismiss)`
+  on a `@Shell` sheet content, `@TestEnvironment(\.dismiss)` on its `Core`
+  presented in a sheet — `isPresented true, dismiss, isPresented false`, the
+  close button gone: the call logged, the REAL `DismissAction` run.
 - `GestureStateScenario` / `GestureStateUITests`: `@GestureState(reset:)`
   copied verbatim onto a hosted `Core`, custom reset closure included — a
   drag ends, the reset fires (`resets 1`, `resetsSeen 1`).
@@ -640,6 +644,7 @@ syntax. Unknown wrappers are never guessed.
 | private `@State` | private `@TestState`, inline default retained | Node-owned state stays sealed; writes become evidence. |
 | private `@FocusState` | private `@TestFocusState` | No public focus-binding initializer exists; instrument the real hosted peer. |
 | private `@AccessibilityFocusState` | private `@TestAccessibilityFocusState` | The same wrapper for assistive-technology focus; same treatment. |
+| private `@Environment(\.kp)` on the key-path whitelist (`\.dismiss`, `\.openURL`) | private `@TestEnvironment(\.kp)` | An environment action becomes a logged call through the REAL value: a live instrument, nothing to inject. |
 | private `@AppStorage` / `@SceneStorage` | `@Binding` | External storage becomes caller-supplied; persistence keys disappear because the twin does not persist. |
 | private `@Query` | `@QueryResult` | Fetched data becomes a bare supplied value without a SwiftData stack. |
 | every other declaration, wrapped or plain | verbatim copy, with `public` erased | Preserve caller data or runtime machinery where no designed substitution exists. |
@@ -688,7 +693,15 @@ check matches the `private` keyword regardless of its `(set)` detail, so
   an exact `@FocusState` clone interface-wise (verified against the
   swiftinterface: the same `init()` overloads, a `Binding` with a settable
   `wrappedValue` and no public initializer, `.accessibilityFocused(_:equals:)`
-  demanding it), so the same macro over the other wrapper.
+  demanding it), so the same macro over the other wrapper. `@Environment` ACTIONS → `@TestEnvironment(\.kp)`
+  (`StoredProperty.environmentActions`, a whitelist PER KEY PATH — unlike
+  the wrappers, one entry per action: `\.dismiss` → `DismissAction` /
+  `() -> Void`, `\.openURL` → `OpenURLAction` / `(URL) -> Void`; the value
+  type lets collection accept the usual bare `@Environment(\.dismiss) private
+  var dismiss` like `Namespace.ID`, the closure type is what `Core` declares).
+  Logging only: the real value is the peer and gets called. Every other
+  `@Environment`, a value read or a closure `@Entry` off the list, stays
+  verbatim; adding an action is one table entry.
 - **The mapped source-of-truth wrappers must be private — enforced with a
   diagnostic, not accommodated.** `sourceOfTruthMustBePrivate`
   (`StoredProperty.swift`, checked in `collectStoredProperties`) rejects
@@ -1037,6 +1050,7 @@ twice. Never skip malformed input that could compile as unmanaged state.
 | `@UnstructuredTask` | computed optional task slot | `State<_TaskStorage<T>>` peer | no | `task` / `nil` | routed `Binding<T?>` |
 | `@TestFocusState` | computed focus slot | `FocusState<T>` peer | no | described programmatic write | native `FocusState<T>.Binding` |
 | `@TestAccessibilityFocusState` | computed focus slot | `AccessibilityFocusState<T>` peer | no | described programmatic write | native `AccessibilityFocusState<T>.Binding` |
+| `@TestEnvironment(\.kp)` | computed closure over an environment action | `Environment<Value>` peer | no | arguments by arity | none |
 
 ### Shared logging seam
 
@@ -1261,6 +1275,40 @@ itself is not exercisable on the simulator, so nothing about it is claimed).
   `FocusState<T>.Binding` on both). Live focus movement and logging are
   `TestFocusStateUITests` in `CoreFlowHosted`.
 
+## `@TestEnvironment`
+
+The fifth macro in the `@TestState` family (`TestEnvironmentMacro.swift`;
+declaration in `TestSupport/TestEnvironment.swift`):
+`@TestEnvironment(\.dismiss) private var dismiss: () -> Void` — a logged call
+through a REAL environment value, and `@Shell`'s substitution for an
+`@Environment` action on `Core` (see the transformation table). A live
+instrument, not a mock, the `@TestFocusState` shape: the peer is
+`private let name_storage = Environment(\.kp)` (an explicit field, never
+generated wrapper sugar — the SILGen crash), the getter returns
+`@TestAction`'s wrapper closure (`wrapperClosure` in `TestSupportMacros.swift`,
+shared; arity payloads, `try`/`await` mirrored, the `@Sendable async` hop)
+over `name_storage.wrappedValue` as `storage`, so `dismiss()` reads the same on
+the host and on `Core`. Hosted, the actual `DismissAction`/`OpenURLAction` runs after
+the log; unhosted the environment's default runs
+(a no-op for these sealed actions). A user's own closure `@Entry` is
+deliberately NOT in scope: it is theirs to inject with `.environment`, and
+the mock is where its log goes. Required shape (thrown, family policy; peer
+role stays silent): a stored instance `var`, a function-type annotation, no
+initializer, and the key-path argument. Limit: anything callable without
+labels forwards; a labeled action (`openWindow(id:)`) has no closure spelling
+and stays verbatim on `Core`. `@Shell` substitutes only the key paths in
+`StoredProperty.environmentActions` (`\.dismiss`, `\.openURL`); `keyPathArgument`
+reads the attribute's argument as written. Locked by `TestEnvironmentExpansionTests` (two shapes),
+the Shell test `testEnvironmentActionsBecomeTestEnvironmentOnCore` (the two
+whitelisted key paths, a closure `@Entry` off the list and a value read left
+verbatim), and
+`TestEnvironmentTests` (the three shapes typecheck on a View and forward
+unhosted). Hosted by `TestEnvironmentScenario` / `TestEnvironmentUITests`: a
+`@Shell` sheet content whose `Core` dismisses itself — log
+`isPresented true, dismiss, isPresented false` (the second `isPresented` is
+the sheet binding written back by SwiftUI after the REAL dismiss) and the
+close button gone.
+
 ## `@FlowUp`
 
 ### Contract
@@ -1289,7 +1337,11 @@ generic over a metatype-rooted keypath
 Generated per flow, all in the anchor's expansion: the anchor's accessor —
 the consumer surface, a genuine closure looping every listener with
 `try`/`await` mirrored from the declared type (the forwarding loop's only
-home; arity from the function-type syntax as `a0, a1, …`); a key enum that
+home; arity from the function-type syntax as `a0, a1, …`). Deliberately NO
+logging in the combined closure: `@FlowUp` is production plumbing, and a
+sink read plus a main-actor assumption on every call would make a test seam
+part of the runtime contract (built, reverted 2026-09-15); a caller logs its
+own `send` line where it wants evidence; a key enum that
 is BOTH the `EnvironmentKey` and the per-name preference tag (one
 `defaultValue` witnesses only `EnvironmentKey` — the preference key is the
 runtime generic — and must be a *computed* static: a stored `static let`
@@ -1654,6 +1706,19 @@ Ruling: tests write `.constant`, `Binding(get:set:)`, or a file-scoped
 
 ### Intercepting receiving-side focus bindings
 
+PROBED (2026-09-15, 27.0 simulator) — a fabricated `FocusState<Value>.Binding`:
+the type is `@frozen` with one stored `_binding: Binding<Value>`, so
+`unsafeBitCast` from a `Binding(get:set:)` is layout-guaranteed and reads/
+writes through the backing binding (`FocusStateBindingMockTests`). Hosted it
+is inert: with a child's `.focused(fake)`, a system tap never calls the setter
+(nothing logged, twice), and a programmatic write through it moves no focus
+(`typeText` found no keyboard focus). The modifier drives focus through
+`FocusState`'s location, not the binding's accessors. Consequences: a
+fabricated `$name` on `@TestFocusState` could not log system focus either,
+and a `Core` holding a fabricated binding must stay unhosted. Kept as
+`Experimental/FocusStateBinding+Mock.swift` (`FocusState.Binding.mock(_:)`)
+for that unhosted use only.
+
 Receiving-side support for a host storing `FocusState<T>.Binding` was designed
 and dropped. A native binding mutation (`name.wrappedValue = x`) executes inside
 Apple's sealed type after the getter returns it; no macro role can intercept a
@@ -1710,7 +1775,7 @@ behavior.
 | synthesized memberwise initialization | compiled probe/test | `ShellTests`, `QueryResultTests`, `TestStateTests`, `TestActionTests` |
 | overload resolution and tuple KeyPaths | compiled end-to-end test | `PickTests` |
 | wrapper SDK parity | pinned swiftinterface inspection plus compiled use | Shell/QueryResult evidence |
-| logging order, focus, environment installation | hosted scenario/UI test | `CoreFlowHosted` (`TestStateUITests`, `TestActionUITests`, `TestFocusStateUITests`, `TestAccessibilityFocusStateUITests`, `ShellCoreUITests`, `ViewModifierCoreUITests`) |
+| logging order, focus, environment installation | hosted scenario/UI test | `CoreFlowHosted` (`TestStateUITests`, `TestActionUITests`, `TestFocusStateUITests`, `TestAccessibilityFocusStateUITests`, `ShellCoreUITests`, `TestEnvironmentUITests`, `ViewModifierCoreUITests`) |
 | QueryView index gating, container-free `mockQuery`, sectioned live/mock rendering, live `modelContext`, FlowUp end to end, task teardown, hosted `Core` (`@TestState` + `@AppStorage`→`Binding` write-through), `@TestAction` logging, `@TestFocusState`, `@GestureState(reset:)` on `Core` | hosted scenario/UI test | `CoreFlowHosted` (one `*UITests` per scenario) |
 | binding write-through | compiled/runtime test | `ShellTests`, `ShellCoreUITests` |
 | task replacement and teardown | hosted scenario/UI test | `UnstructuredTaskUITests` (assign, clear-to-`nil` cancels, teardown cancels) — the box is never tested directly, only through its wrapper |
@@ -1737,6 +1802,9 @@ Exact API owners:
   own the family's expansion;
   `TestStateTests` owns compiled seed/binding behavior; `TestActionTests`
   owns compiled action forwarding;
+  `TestEnvironmentExpansionTests` owns `@TestEnvironment` expansion and
+  `TestEnvironmentTests` its compiled surface; behavior is
+  `TestEnvironmentUITests`;
   `UnstructuredTaskTests` owns task-macro and Shell re-expansion;
   `FlowUpExpansionTests` owns FlowUp expansion and diagnostics; `FlowUpTests`
   owns the public surface compiled (empty defaults, typechecking); behavior
