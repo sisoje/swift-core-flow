@@ -125,8 +125,9 @@ do not collide, and it repeats collection and diagnostics for the same fields.
 
 `CoreFlowHosted` is the package's own xcodegen project for claims that need a
 live SwiftUI host: `project.yml`, `build.sh` (`xcodegen generate` +
-`build-for-testing`), `test.sh` (`test-without-building`) — no simulator
-commands in either, the workflow owns the device —
+`build-for-testing`), `test.sh` (`test-without-building`, targeting the UDID passed as `$1`, the
+named device when none is given) — no simulator commands in either, the
+workflow owns the device and passes its UDID —
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
 switching on the `TestScenario` it decodes from a `TestPayload` in the
 `testPayloadEnvironmentKey` environment variable — no default, a missing payload is a

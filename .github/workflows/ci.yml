@@ -52,7 +52,7 @@ jobs:
           xcrun simctl boot "${{ steps.sim.outputs.udid }}"
           xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
       - name: Run the hosted UI tests
-        run: sh CoreFlowHosted/test.sh
+        run: sh CoreFlowHosted/test.sh "${{ steps.sim.outputs.udid }}"
       # Quiescent for the warm-simulator cache saved at the end of the job.
       - name: Shut down the simulator
         run: xcrun simctl shutdown "${{ steps.sim.outputs.udid }}"
