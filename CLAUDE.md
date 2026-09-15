@@ -284,10 +284,11 @@ and bare `items` are recognized. `_items` is the `@Query` parity spelling and
 is what the scenarios use; where no bare `items` appears in the closure, the
 line above it carries `// swiftformat:disable:next unusedArguments`.
 
-Verified the hard way, do not repeat: (1) gated `content` returning
-`EmptyView` never constructs the query at all — SwiftUI never evaluates the
-gated subtree's body when its content produces no output, so the log showed
-the `@TestState` writes and zero `query` events; content must render. (2) A
+Verified the hard way, do not repeat: (1) under the former `.equatable()`
+gate, gated `content` returning `EmptyView` never constructed the query at
+all — SwiftUI never evaluated the gated subtree's body when its content
+produced no output, so the log showed the `@TestState` writes and zero
+`query` events; content must render. (2) A
 scenario body that does not READ a `@TestState` field is not re-rendered by
 writes to it, so an "unrelated write" scenario must display the field. (3) A
 view whose `@Environment` value is a closure (any `@FlowUp` flow) is never

@@ -76,8 +76,9 @@ struct PropertyHostView<Property, Content: View>: View {
 }
 
 public struct QueryView<Index: Equatable, Element: PersistentModel, Result, Content: View>: View {
-    /// `index` must cover every input of BOTH `query` and `content`; a value
-    /// left out is a state change the gated body will not see.
+    /// `index` is the query's parameter set: it must cover every input of
+    /// `query`; a value left out is a parameter change the memoized query will
+    /// not follow. `content` is not gated and reads whatever state it wants.
     public init(
         index: Index,
         query: @autoclosure @escaping () -> Query<Element, Result>,

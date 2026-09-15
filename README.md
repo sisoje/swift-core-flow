@@ -32,7 +32,8 @@ to a subtree.
 - [`QueryView`](#queryview) (view) owns the live query and hands content a
   `QueryResult` (`{ $books in … }`), so content reads plain data in production
   and tests alike. With `index:`, the query is rebuilt only when the index
-  changes; the index must cover every input of both query and content.
+  changes; the index is the query's parameter set and must cover every input
+  of `query`.
   The initializer without `index:` rebuilds the query on every render.
 - [`@QueryResult`](#queryresult) (property wrapper) replaces `@Query` on
   Shell's generated `Core`, preserving the live query's read surface for
@@ -548,7 +549,7 @@ struct BookList: View {
 ```
 
 - **The `query:` expression is deferred (an autoclosure), evaluated only
-  when `index` changes** — `index` is the query'"'"'s parameter set, and the
+  when `index` changes** — `index` is the query's parameter set, and the
   built query is memoized by it: toggling the flag makes a new query;
   unrelated parent re-renders hand the stored one back and never reach the
   expression. `index` must cover every input of `query`: a value left out is
