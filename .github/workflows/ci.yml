@@ -17,9 +17,6 @@ jobs:
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve the simulator UDID
-        id: sim
-        run: echo "udid=$(xcrun simctl list -j devices available | jq -r '.devices | to_entries[] | select(.key | test("iOS")) | .value[] | select(.name == "iPhone 17 Pro") | .udid' | head -1)" >> "$GITHUB_OUTPUT"
       - name: Cache derived data
         uses: actions/cache@v4
         with:
@@ -39,7 +36,7 @@ jobs:
       # application via Xcode", 129 s).
       - name: Boot the simulator
         run: |
-          xcrun simctl boot "${{ steps.sim.outputs.udid }}"
-          xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
+          xcrun simctl boot "iPhone 17 Pro"
+          xcrun simctl bootstatus "iPhone 17 Pro" -b
       - name: Run the hosted UI tests
-        run: sh CoreFlowHosted/test.sh "${{ steps.sim.outputs.udid }}"
+        run: sh CoreFlowHosted/test.sh
