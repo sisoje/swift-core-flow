@@ -69,7 +69,7 @@ mode with strict concurrency. It supports swift-syntax
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift` — `@TestFocusState` + `@TestAccessibilityFocusState`, one shared expansion — `TestEnvironmentMacro.swift`, `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `UITestLogging.swift` (`uiTestLog(accessibilityIdentifier:)`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), and the `Experimental/` directory — the two implementation-dependent runtime techniques, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection; pairs with `@Flowable`, see below), `FocusStateBinding+Mock.swift` (`FocusState.Binding.mock(_:)`, a layout-guaranteed bit cast, unhosted use only — see `Rejected designs`), and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the memory-layout fabricator for Apple's sealed type; see the `QueryResult` section) |
+| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `UITestLogging.swift` (`uiTestLog(accessibilityIdentifier:)`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), and the `Experimental/` directory — the two implementation-dependent runtime techniques, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the memory-layout fabricator for Apple's sealed type; see the `QueryResult` section) |
 | `CoreFlowUITesting` | library, UI-test bundles only | `UITestLog.swift`: the XCUITest end of `uiTestLog` — `XCUIApplication.uiTestLog(accessibilityIdentifier:)` (the element), `XCUIElement.logNames`/`logValues` (JSON-decoded label/value, empty when undecodable), `wait(for:toEqual:timeout:)` (an `XCTNSPredicateExpectation` poll). Imports XCTest, so it is its own product: an app target must never link it. Consumer: `CoreFlowHosted/UITests` |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro (`FlowableExpansionTests`, `ShellExpansionTests`, `CapabilityExpansionTests`, `PickExpansionTests`, `TestStateExpansionTests`, `TestActionExpansionTests`, `TestFocusStateExpansionTests`, `TestAccessibilityFocusStateExpansionTests`, `TestEnvironmentExpansionTests`, `UnstructuredTaskExpansionTests`, `FlowUpExpansionTests`); depends on `CoreFlowMacros` + `SwiftSyntaxMacrosTestSupport`, never on the product |
 | `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`FlowableTests`, `ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `TestEnvironmentTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
@@ -365,6 +365,10 @@ The other scenarios, each one UI test unless noted:
   (system focus through the real `FocusState.Binding`) changes the status
   and logs nothing (`[]`); the programmatic `isFocused.toggle()` logs
   `isFocused false` — the property logs, the projection wires.
+- `FocusBindingScenario` / `FocusBindingUITests`: the receiving side through
+  the REAL projection — `$isFocused` from `@TestFocusState` handed to a child
+  declaring `FocusState<Bool>.Binding`; system tap and the child's binding
+  writes move focus silently, the owner's property write logs `isFocused true`.
 - `TestAccessibilityFocusStateScenario` / `TestAccessibilityFocusStateUITests`:
   `@TestAccessibilityFocusState` hosted — the programmatic write logs
   (`isFocused true`) over a real `AccessibilityFocusState` peer wired with
@@ -1709,15 +1713,19 @@ Ruling: tests write `.constant`, `Binding(get:set:)`, or a file-scoped
 PROBED (2026-09-15, 27.0 simulator) — a fabricated `FocusState<Value>.Binding`:
 the type is `@frozen` with one stored `_binding: Binding<Value>`, so
 `unsafeBitCast` from a `Binding(get:set:)` is layout-guaranteed and reads/
-writes through the backing binding (`FocusStateBindingMockTests`). Hosted it
+writes through the backing binding (unit-probed). Hosted it
 is inert: with a child's `.focused(fake)`, a system tap never calls the setter
 (nothing logged, twice), and a programmatic write through it moves no focus
 (`typeText` found no keyboard focus). The modifier drives focus through
 `FocusState`'s location, not the binding's accessors. Consequences: a
 fabricated `$name` on `@TestFocusState` could not log system focus either,
-and a `Core` holding a fabricated binding must stay unhosted. Kept as
-`Experimental/FocusStateBinding+Mock.swift` (`FocusState.Binding.mock(_:)`)
-for that unhosted use only.
+and a `Core` holding a fabricated binding could only ever be unhosted. Not
+kept. `$name` on `@TestFocusState` stays the REAL projection, and passing it
+to a child IS the receiving-side story: `FocusBindingScenario` /
+`FocusBindingUITests` hand `$isFocused` to a `FocusReceiver` declaring
+`FocusState<Bool>.Binding` — a system tap and the child's writes through the
+binding move focus both ways (typed text lands) and log nothing, the owner's
+property write moves focus and logs `isFocused true` (passed twice, 27.0).
 
 Receiving-side support for a host storing `FocusState<T>.Binding` was designed
 and dropped. A native binding mutation (`name.wrappedValue = x`) executes inside
