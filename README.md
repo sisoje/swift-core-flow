@@ -76,25 +76,71 @@ is the per-macro reference.
 
 ## What's inside
 
-| Concept | Form | Does |
-|---|---|---|
-| [`@FlowUp`](#flowup) | accessor + peer macro | declares an upward closure flow on `EnvironmentValues` — `.onFlow(\.name)` registers listeners up a preference channel, `.collectFlow(\.name)` spools them back down the environment as one combined closure, `@Environment(\.name)` calls them all |
-| [`@Shell`](#shell) | member macro | generates a nested `Core` struct — the host's standalone twin: same body, owned writes logged and external boundaries supplied, directly constructible in tests (previews reach it through a hand-written wrapper view — `#Preview`'s own expansion can't name macro-generated code) |
-| [`@Flowable`](#flowable) | member macro | writes a memberwise `init` at the type's own access level, plus a `makeFlow(_:)` factory taking the same properties as one unlabeled tuple and an `InFlow` typealias naming their labeled shape |
-| [`@TestState`](#teststate-and-testaction) | accessor + peer macro | a drop-in `@State` that logs every mutation — each write reaches the injected sink the moment it happens, binding writes included |
-| [`@TestAction`](#teststate-and-testaction) | accessor + peer macro | an action closure that logs every call — reading the property IS the logged action; each call logs its payload to the injected sink, then forwards |
-| [`@TestFocusState`](#testfocusstate) | accessor + peer macro | a drop-in `@FocusState` that logs every programmatic write — a real `FocusState` underneath, so focus genuinely moves when hosted; `$name` is the real `FocusState<T>.Binding` |
-| [`@UnstructuredTask`](#unstructuredtask) | accessor + peer macro | a view-owned slot for a cancellable unstructured `Task` — replacing cancels the previous task, view teardown cancels the live one, and every mutation logs like `@TestState` |
-| [`@QueryResult`](#queryresult) | property wrapper | `@Query`'s drop-in stand-in on `Core` — the fetched result as a bare init parameter (`Core(items: [item], …)`), same read surface as the live wrapper, no SwiftData stack |
-| [`View.mockQuery(_:)`](#queryview) | View modifier | cans a subtree's queries in one line — typed `QueryResult` values per result type; anything unregistered gets the empty result of its shape |
-| [`QueryView`](#queryview) | View | the live SwiftData shell — builds a real `Query` dynamically, rebuilt only when its `index` changes, and hands content a `QueryResult` (`{ $books in … }`), so components read plain data in production and tests alike |
-| [`SectionedResults.mock`](#sectionedresultsmock--because-apple-sealed-plain-data) | runtime utility | fabricates iOS 27's init-less sectioned results for tests/previews — Apple sealed plain data (filed as FB24480699); genuine inner fetch collection, caller's order, loud failure if the private layout ever changes |
-| [`@TestLog`](#the-testlog-seam) | property wrapper | reads the installed sink — `@TestLog private var log` self-initializes and `log(name, value)` is a direct call (verified); the macros generate the same thing as an explicit field, `private let log_x = TestLog()` |
-| [`View.testLog(_:)`](#the-testlog-seam) | View modifier | installs the one logging sink, once, on the root view; without it the log is a no-op, so hosts behave normally anywhere else |
-| [`View.uiTestLog(accessibilityIdentifier:)`](#the-testlog-seam) | View modifier | the sink plus its evidence: exposes the whole log as one accessibility element (names JSON in `label`, values JSON in `value`) for XCUITest to read — the one line a hosted test app needs |
-| [`@Capability`](#capability) | member macro | bundles every eligible computed property/method into a `Capability` tuple + computed property — works on an extension |
-| [`#pick`](#pick-tuplepicker) | expression macro | projects one or more fields — via KeyPath — from one or more sources into a single tuple |
-| [`Reflector`](#reflector) | runtime utility | lists a value type's field names off its type alone, no instance needed — pairs with `@Flowable`'s `InFlow` |
+### Test a view
+
+[`@Shell`](#shell) (member macro) generates a nested `Core`: the same body,
+owned writes logged, external storage and fetched data supplied by the test.
+Construct it directly or host it in a scenario for real interactions.
+
+### Route events through the view tree
+
+[`@FlowUp`](#flowup) (accessor + peer macro) declares a typed closure flow.
+`.onFlow` registers listeners, `.collectFlow` gathers them, and `@Environment`
+supplies one closure calling them all. Use it for deeplinks and events scoped
+to a subtree.
+
+### SwiftData as input
+
+- [`QueryView`](#queryview) (view) owns the live query and hands content a
+  `QueryResult` (`{ $books in … }`), so content reads plain data in production
+  and tests alike. With `index:`, the query is rebuilt only when the index
+  changes; the index must cover every input of both query and content.
+  The initializer without `index:` rebuilds the query on every render.
+- [`@QueryResult`](#queryresult) (property wrapper) replaces `@Query` on
+  Shell's generated `Core`, preserving the live query's read surface for
+  fetched data, errors, and context. Tests supply the fetched value directly:
+  `Core(items: [item], …)`.
+- [`View.mockQuery(_:)`](#queryview) (view modifier) supplies canned results
+  to a subtree, registered by result type; unregistered shapes receive empty results.
+- [`SectionedResults.mock`](#sectionedresultsmock--because-apple-sealed-plain-data)
+  (runtime utility) fabricates iOS 27 sectioned results for tests and previews,
+  preserving caller order. Uses private runtime layout because Apple exposes no initializer.
+
+### Record boundary events
+
+These tools provide the execution log used by Shell scenarios and can also
+be used independently. Without an installed sink, logging is a no-op and
+hosts behave normally.
+
+- [`@TestState`](#teststate-and-testaction) (accessor + peer macro) keeps state
+  live and logs every write, including binding writes.
+- [`@TestAction`](#teststate-and-testaction) (accessor + peer macro) logs each
+  call's arguments, then forwards to the supplied closure.
+- [`@TestFocusState`](#testfocusstate) (accessor + peer macro) keeps native focus
+  behavior and logs programmatic property writes; the native focus binding wires the UI.
+- [`@TestLog`](#the-testlog-seam) (property wrapper) reads the installed sink
+  for explicit event logging.
+- [`View.testLog(_:)`](#the-testlog-seam) (view modifier) installs the logging sink.
+- [`View.uiTestLog(accessibilityIdentifier:)`](#the-testlog-seam) (view modifier)
+  installs the sink through `testLog` and exposes the log as one accessibility
+  element for XCUITest.
+
+### Own a task's lifetime
+
+[`@UnstructuredTask`](#unstructuredtask) (accessor + peer macro) holds a
+view-owned task, cancels it on replacement or teardown, and logs assignments.
+Teardown cancellation requires the task closure to avoid retaining the view.
+
+### Shape data and capabilities
+
+- [`@Flowable`](#flowable) (member macro) generates a memberwise initializer,
+  `makeFlow(_:)` tuple factory, and `InFlow` typealias for construction inputs.
+- [`#pick`](#pick-tuplepicker) (expression macro) projects fields via KeyPath
+  from one or more sources into one tuple; a single pick returns the bare value.
+- [`@Capability`](#capability) (member macro) bundles computed values and
+  methods into a tuple so a consumer receives only the operations and data it needs.
+- [`Reflector`](#reflector) (runtime utility) reads field names from a value
+  type alone, pairing with `InFlow`; an experimental runtime technique.
 
 ---
 
@@ -610,8 +656,7 @@ evidence.**
   gets only the explicit field (`private let log_x = TestLog()`):
   macro-generated wrapper *sugar* crashes swiftc (verified directly;
   hand-written identical sugar compiles fine), so the constructed-value
-  form is the one the macros can emit — and why the table spells the type
-  bare. Bad shapes throw from expansion — a compile error at the
+  form is the one the macros can emit. Bad shapes throw from expansion — a compile error at the
   attribute naming what's wrong (missing type/default, `let`, non-closure
   on `@TestAction`) — the family-wide policy: a silent skip can compile
   as a plain, unmanaged stored property that never logs.
