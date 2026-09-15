@@ -33,7 +33,8 @@ mode with strict concurrency. It supports swift-syntax
   default rules — the committed tree is clean under it; Apple's
   `swift format` is NOT the formatter and rewrites ~30 clean files)
 - Run the package's hosted scenarios (UI tests on a simulator):
-  `cd CoreFlowHosted && sh test.sh`
+  `cd CoreFlowHosted && sh build.sh && sh test.sh` (boot a simulator first or
+  let `test-without-building` boot the named one)
 
 ### Documentation and verification rules
 
@@ -123,7 +124,9 @@ do not collide, and it repeats collection and diagnostics for the same fields.
 ### Hosted scenarios: `CoreFlowHosted`
 
 `CoreFlowHosted` is the package's own xcodegen project for claims that need a
-live SwiftUI host: `project.yml`, `test.sh`,
+live SwiftUI host: `project.yml`, `build.sh` (`xcodegen generate` +
+`build-for-testing`), `test.sh` (`test-without-building`) — no simulator
+commands in either, the workflow owns the device —
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
 switching on the `TestScenario` it decodes from a `TestPayload` in the
 `testPayloadEnvironmentKey` environment variable — no default, a missing payload is a
@@ -138,7 +141,7 @@ element name, and the scenario set are spelled); and `UITests/` (one
 `launchApp(scenario: TestScenario)` encodes the payload into
 `launchEnvironment`). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
-package stays free of scenario code. CI runs `sh test.sh` here (the CI entry point, coverage off; Xcode uses the scheme): `build-for-testing` against `generic/platform=iOS Simulator` first, then `simctl boot` + `bootstatus -b`, then `test-without-building` on the device. The boot cannot be overlapped with the build: started in the background, it makes `xcodebuild` block on CoreSimulator until the boot finishes before printing a line (208–230 s measured, twice, generic and concrete destinations alike). Measured: cold boot ~160 s, build 232 s cold / 95 s on a derived-data cache hit, 17 tests ~190–220 s
+package stays free of scenario code. CI runs `build.sh`, then `simctl bootstatus -b`, then `test.sh`, then `simctl shutdown`, as named steps (coverage off; Xcode uses the scheme): `build-for-testing` against `generic/platform=iOS Simulator`, the join, `test-without-building` on the device. The boot cannot be overlapped with the build: started in the background, it makes `xcodebuild` block on CoreSimulator until the boot finishes before printing a line (208–230 s measured, twice, generic and concrete destinations alike). Measured: cold boot ~160 s, build 232 s cold / 95 s on a derived-data cache hit, 17 tests ~190–220 s
 (`.github/workflows/ci.yml`, jobs `package` and `hosted` on the `xcode-27`
 label — GitHub's macOS 26 image with Xcode 27 beta as default, no
 `xcode-select`). `actions/cache` keeps the package job's `.build` and the
@@ -147,15 +150,15 @@ previous build products, both keyed on `Package.resolved` with a prefix
 fallback. The hosted job also caches the `iPhone 17 Pro` device's
 `CoreSimulator/Devices/<udid>/data` keyed on the iOS runtime build (CircleCI's
 warm-snapshot technique): the first run pays the cold boot and saves the
-booted data directory (`test.sh` shuts the device down last so the snapshot
-is quiescent), later runs boot over it and skip first-boot initialization.
+booted data directory (the job's last step shuts the device down so the
+snapshot is quiescent), later runs boot over it and skip first-boot initialization.
 Measured locally on 27.0: a fresh device is 1.0 GB after one boot, 440 MB
 compressed, 22 s to boot. CI timing pending the first cached run. The workflow starts that boot
 fire-and-forget (`nohup xcrun simctl boot … &`) right after the cache
 restore, so it overlaps the derived-data restore, `brew install xcodegen`, and
 `xcodegen generate`;
-`xcodebuild` still waits for whatever boot remains, and `test.sh`'s own
-`simctl boot || true` plus `bootstatus -b` is the join. Building with
+`xcodebuild` still waits for whatever boot remains, and the `bootstatus -b`
+step between `build.sh` and `test.sh` is the join. Building with
 `-sdk iphonesimulator` and no `-destination`, to skip the destination lookup
 that stalls, was tried locally and fails: `-sdk` applies to every target, so
 the macro plugin is built for the simulator SDK and swiftc reports
