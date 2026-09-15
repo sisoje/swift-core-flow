@@ -11,8 +11,8 @@ jobs:
           path: .build
           key: spm-${{ hashFiles('Package.resolved') }}
           restore-keys: spm-
-      - name: Build and test the package
-        run: swift build && swift test
+      - name: Test the package
+        run: swift test
   hosted:
     runs-on: xcode-27
     env:
