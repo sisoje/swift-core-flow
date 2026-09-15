@@ -154,7 +154,7 @@ actor"), and they are pure data shared with the test bundle anyway; and `UITests
 the tests read `app.log.logValues` and `app.log.wait(for: \.label, …)`, the
 product's API, nothing hosted-private beyond the identifier). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
-package stays free of scenario code. CI runs `build.sh`, then one blocking boot step (`simctl boot` + `bootstatus -b`), then `test.sh`, as named steps (coverage off; Xcode uses the scheme): `build-for-testing` against `generic/platform=iOS Simulator`, the boot, `test-without-building` on the device. The boot cannot be overlapped with the build: started in the background, it makes `xcodebuild` block on CoreSimulator until the boot finishes before printing a line (208–230 s measured, twice, generic and concrete destinations alike). Measured: cold boot ~160 s, build 232 s cold / 95 s on a derived-data cache hit, 17 tests ~190–220 s
+package stays free of scenario code. CI runs `build.sh`, then one blocking boot step (`simctl boot` + `bootstatus -b`), then `test.sh`, as named steps (coverage off; Xcode uses the scheme): `build-for-testing` against `generic/platform=iOS Simulator`, the boot, `test-without-building` on the device. The boot cannot be overlapped with the build: started in the background, it makes `xcodebuild` block on CoreSimulator until the boot finishes before printing a line (208–230 s measured, twice, generic and concrete destinations alike). Measured: cold boot ~160 s, build 232 s cold / 95 s on a derived-data cache hit, 17 tests ~190–220 s (18 since `TestAccessibilityFocusStateUITests`, unmeasured)
 (`.github/workflows/ci.yml`, jobs `package` and `hosted` on the `xcode-27`
 label — GitHub's macOS 26 image with Xcode 27 beta as default, no
 `xcode-select`). `actions/cache` keeps the package job's `.build` and the
@@ -777,8 +777,7 @@ value-form `@ViewBuilder`. Copied members retain their access modifiers; a
 
 - **Automatic `View`/`ViewModifier` detection, off the attached type's own
   inheritance clause** (`coreConformance`, in `ShellMacro.swift`, returning `Core`'s
-  inheritance clause text — the `ShellHostKind` enum it replaced was the
-  `TODO.md` item): `struct Card: View` or `struct VM: ViewModifier`
+  inheritance clause text): `struct Card: View` or `struct VM: ViewModifier`
   additionally declares `Core: View`/`: ViewModifier` — satisfied by the
   copied `body`/`body(content:)`. `App` and `Scene` hosts are deliberately
   NOT recognized, not a gap: an app has one `App` and mostly one `Scene`;
@@ -1710,7 +1709,7 @@ behavior.
 | synthesized memberwise initialization | compiled probe/test | `ShellTests`, `QueryResultTests`, `TestStateTests`, `TestActionTests` |
 | overload resolution and tuple KeyPaths | compiled end-to-end test | `PickTests` |
 | wrapper SDK parity | pinned swiftinterface inspection plus compiled use | Shell/QueryResult evidence |
-| logging order, focus, environment installation | hosted scenario/UI test | `CoreFlowHosted` (`TestStateUITests`, `TestActionUITests`, `TestFocusStateUITests`, `ShellCoreUITests`, `ViewModifierCoreUITests`) |
+| logging order, focus, environment installation | hosted scenario/UI test | `CoreFlowHosted` (`TestStateUITests`, `TestActionUITests`, `TestFocusStateUITests`, `TestAccessibilityFocusStateUITests`, `ShellCoreUITests`, `ViewModifierCoreUITests`) |
 | QueryView index gating, container-free `mockQuery`, sectioned live/mock rendering, live `modelContext`, FlowUp end to end, task teardown, hosted `Core` (`@TestState` + `@AppStorage`→`Binding` write-through), `@TestAction` logging, `@TestFocusState`, `@GestureState(reset:)` on `Core` | hosted scenario/UI test | `CoreFlowHosted` (one `*UITests` per scenario) |
 | binding write-through | compiled/runtime test | `ShellTests`, `ShellCoreUITests` |
 | task replacement and teardown | hosted scenario/UI test | `UnstructuredTaskUITests` (assign, clear-to-`nil` cancels, teardown cancels) — the box is never tested directly, only through its wrapper |
@@ -1733,7 +1732,7 @@ Exact API owners:
   hosted behavior is `MockQueryResultsUITests`/`QueryViewSectionedUITests` in `CoreFlowHosted`;
   `SectionedResultsMockTests` owns the sectioned-mock runtime behavior
   (caller order, title subscript, seeding a `QueryResult`).
-- `TestStateExpansionTests`/`TestActionExpansionTests`/`TestFocusStateExpansionTests`
+- `TestStateExpansionTests`/`TestActionExpansionTests`/`TestFocusStateExpansionTests`/`TestAccessibilityFocusStateExpansionTests`
   own the family's expansion;
   `TestStateTests` owns compiled seed/binding behavior; `TestActionTests`
   owns compiled action forwarding;
