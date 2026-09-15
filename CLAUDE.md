@@ -1,9 +1,8 @@
 # CoreFlow maintainer context
 
 CoreFlow is one Swift package with one macro-plugin target and one library
-product. It ships independent Swift macros plus two small runtime utilities,
-`QueryResult` and `Reflector`; consumers add one dependency and receive the whole
-package.
+product. It ships independent Swift macros alongside runtime utilities and
+test support; consumers add one dependency and receive the whole package.
 
 ## Session contract
 
@@ -882,9 +881,8 @@ a variadic parameter-pack extension injecting the canned transform.
 INTERNAL by design (mock only through `mockQuery`): `QueryTransforming`
 (one `@MainActor` requirement `toResult(_:)` mapping `Query<E, R>` →
 `QueryResult<R>`), `DefaultQueryTransform` (carries
-`wrappedValue`/`fetchError`, seeds `givenModelContext`; `QueryResult` also
-exposes the same live conversion as its own
-`@MainActor init(_: Query<Element, Value>)`), the `@Entry`
+`wrappedValue`/`fetchError`, seeds `givenModelContext` through
+`QueryResult.init(wrappedValue:fetchError:givenModelContext:)`), the `@Entry`
 `\.queryTransform` the body reads, and `MockQueryTransform` (a
 `[ObjectIdentifier: Any]` registry keyed on `R.self` — `R` alone
 determines `E`, so one non-generic value serves a subtree mixing
@@ -1299,7 +1297,7 @@ clobbers manual writes on the next preference change.
 
 ### Verification
 
-`FlowUpExpansionTests`FlowUpExpansionTests` owns expansion snapshots (effects, zero-arg, public
+`FlowUpExpansionTests` owns expansion snapshots (effects, zero-arg, public
 access copy, attributed type) and the five diagnostics. `FlowUpTests` owns
 the PUBLIC surface compiled, nothing more: every flow shape's empty default
 is a no-op (`EnvironmentValues().flowX(…)`), and `.onFlow`/`.collectFlow`

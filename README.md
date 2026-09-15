@@ -167,8 +167,8 @@ no side effects beyond the component's boundaries.** Inside those boundaries, ta
 focus, gestures, and owned state are real; at them, every boundary event —
 instrumented state writes and action calls — enters the log instead of crossing
 into an effect. The package's own hosted suite (`CoreFlowHosted`) follows
-this model: a `SCENARIO` launch variable selects the scenario, and XCUITest
-asserts the log.
+this model: a JSON `TestPayload` in the `testPayloadEnvironmentKey` launch
+variable selects the scenario, and XCUITest asserts the log.
 
 ### Wrapper mapping reference
 
@@ -206,7 +206,7 @@ An unmapped wrapper — `@Binding`, `@Environment`, `@GestureState`, `@Namespace
 unrecognized qualified spelling such as `@MyModule.Tracked` — rides onto `Core`
 byte-for-byte, including attribute arguments and defaults. That verbatim copy
 is load-bearing: reconstructing `@GestureState(reset:)` could silently replace
-its custom reset closure, while the copy cannot. `TrickyDragCardUITests` proves
+its custom reset closure, while the copy cannot. `GestureStateUITests` proves
 this live — the custom reset fires on `Core` exactly as on the host.
 
 Access follows the source declaration: `public` is erased because `Core` is
@@ -637,8 +637,9 @@ evidence.**
   accumulated log as an accessibility element under the identifier you pass
   — names JSON in `label`, values JSON in `value` — so an XCUITest launches a
   scenario, waits for the label to equal the expected name sequence, then
-  asserts the decoded values. Appends are deferred off the render phase and the content
-  sits behind an always-equal gate, so logging never re-renders the
+  asserts the decoded values. Appends are deferred off the render phase.
+  An `@Observable` store holds the log, and only the accessibility leaf reads
+  its entries, so appending re-renders that leaf without re-rendering the
   scenario it observes — even from an event fired mid-render. That is how
   `CoreFlowHosted`, the package's own hosted test app, runs every scenario.
 
