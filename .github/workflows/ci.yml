@@ -17,19 +17,9 @@ jobs:
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
-      # Warm simulator: the device's data directory after one boot, so the
-      # next run skips first-boot initialization. Keyed on the iOS runtime
-      # build; the UDID is the image's pre-created device.
-      - name: Resolve simulator UDID and runtime build
+      - name: Resolve the simulator UDID
         id: sim
-        run: |
-          echo "udid=$(xcrun simctl list -j devices available | jq -r '.devices | to_entries[] | select(.key | test("iOS")) | .value[] | select(.name == "iPhone 17 Pro") | .udid' | head -1)" >> "$GITHUB_OUTPUT"
-          echo "build=$(xcrun simctl list -j runtimes | jq -r '.runtimes[] | select(.platform == "iOS") | .buildversion' | head -1)" >> "$GITHUB_OUTPUT"
-      - name: Cache warm simulator
-        uses: actions/cache@v4
-        with:
-          path: ~/Library/Developer/CoreSimulator/Devices/${{ steps.sim.outputs.udid }}/data
-          key: sim-${{ steps.sim.outputs.build }}
+        run: echo "udid=$(xcrun simctl list -j devices available | jq -r '.devices | to_entries[] | select(.key | test("iOS")) | .value[] | select(.name == "iPhone 17 Pro") | .udid' | head -1)" >> "$GITHUB_OUTPUT"
       - name: Cache derived data
         uses: actions/cache@v4
         with:
@@ -53,6 +43,3 @@ jobs:
           xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
       - name: Run the hosted UI tests
         run: sh CoreFlowHosted/test.sh "${{ steps.sim.outputs.udid }}"
-      # Quiescent for the warm-simulator cache saved at the end of the job.
-      - name: Shut down the simulator
-        run: xcrun simctl shutdown "${{ steps.sim.outputs.udid }}"

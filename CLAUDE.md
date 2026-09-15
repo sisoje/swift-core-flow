@@ -148,13 +148,12 @@ label — GitHub's macOS 26 image with Xcode 27 beta as default, no
 `xcode-select`). `actions/cache` keeps the package job's `.build` and the
 hosted job's `~/Library/Developer/Xcode/DerivedData` — dependencies plus the
 previous build products, both keyed on `Package.resolved` with a prefix
-fallback. The hosted job also caches the `iPhone 17 Pro` device's
-`CoreSimulator/Devices/<udid>/data` keyed on the iOS runtime build (CircleCI's
-warm-snapshot technique): the first run pays the cold boot and saves the
-booted data directory (the job's last step shuts the device down so the
-snapshot is quiescent), later runs boot over it and skip first-boot initialization.
-Measured locally on 27.0: a fresh device is 1.0 GB after one boot, 440 MB
-compressed, 22 s to boot. CI timing pending the first cached run. The boot is one blocking
+fallback. Tried and REMOVED (runs 37–43,
+2026-09-15): caching the booted device's `CoreSimulator/Devices/<udid>/data`
+keyed on the runtime build, CircleCI's warm-snapshot technique — 1.1 GB
+entry, 20–37 s to restore, and the boot over it still took 134 s against
+~160 s cold: the runner's cold cost is CoreSimulator's first use on a fresh
+VM, not first-boot indexing. Net loss; do not retry. The boot is one blocking
 step (`simctl boot` + `bootstatus -b`) between `build.sh` and `test.sh`,
 serial on purpose: started fire-and-forget in the background it overlapped
 nothing profitably — the derived-data restore took 113 s behind it instead
