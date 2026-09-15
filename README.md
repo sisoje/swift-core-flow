@@ -9,72 +9,10 @@
 >
 > **Dynamic SwiftData queries? One view — and mocking them is one line too.**
 
-## Why
-
-Ask how to test a SwiftUI view and the standard answer is: move its logic into
-a ViewModel. But a SwiftUI view is not UI. Its `body` never draws anything; it
-computes a description from data, including the actions attached to it. Moving
-this computation into a ViewModel does not separate logic from UI — it
-separates logic from logic, imposing an architecture to compensate for a
-tooling gap.
-
-A SwiftUI view is difficult to test because of the runtime around it, not
-because of how it is written. `@State` needs a render host, `body`
-will not evaluate outside one, and property-wrapper behavior cannot be
-abstracted behind a protocol. Tests cannot run the view's logic directly,
-substitute the dependencies it reads, or reuse its `body` through a conformance.
-
-## The answer
-
-CoreFlow takes the opposite route: instead of making you restructure your code
-to fit the tests, it makes the tests reach the code where you wrote it. SwiftUI
-cannot run that code in isolation, so CoreFlow generates a runnable twin. Keep
-the production view exactly as it is; the twin is the seam.
-
-State reaches SwiftUI through a source-of-truth declaration on exactly one
-node: a view, view modifier, `App`, or `Scene`. Values and bindings carry it to
-descendants, forming the dataflow network. CoreFlow attaches its seams at those
-declarations: the twin logs writes to node-owned state and turns external
-storage and fetched data into test boundaries.
-
-This decides who the package is for. Plain SwiftUI is already in this shape, so
-you can adopt CoreFlow one view at a time, with no migration. Put a screen's
-state in an `ObservableObject` ViewModel, however, and there is no node boundary
-to substitute: the source of truth and its write sites live outside the
-network, so the twin inherits the same opaque reference instead of an
-observable boundary.
+## What's inside
 
 CoreFlow is a small, growing collection of independent Swift macros, all
-shipped from one library. A single dependency gets you every macro below.
-
-## Installation
-
-```swift
-// Package.swift
-.package(url: "https://github.com/sisoje/swift-core-flow.git", from: "1.0.0"),
-
-// target dependency
-.product(name: "CoreFlow", package: "swift-core-flow"),
-```
-
-Requires Swift 6.4+ (`swift-tools-version: 6.4`, Xcode 27). Builds across the whole swift-syntax
-6xx line. Run everything with `swift build && swift test`.
-
-Why 6.4: `@TestState` is an init-accessor property (the same shape the iOS 27
-SDK's own `@State` macro expands to). Swift 6.3 makes a struct's memberwise
-initializer *private* when a private init-accessor property is present, so
-every `@Shell` `Core` — and any view holding `@TestState` — becomes
-unconstructible from tests; Swift 6.4 excludes such properties and keeps the
-initializer internal. Verified on Xcode 26.6:
-`'StatefulCard.Core' initializer is inaccessible due to 'private' protection level`.
-
-The conceptual model — nodes coupled by data, flow at creation, testing as
-reading the execution log — is one article:
-[SwiftUI Data Flow Masterclass](https://medium.com/@redhotbits/swiftui-data-flow-masterclass-099f0768f776), published on Medium and
-taught macro-free; the macros mechanize its shell/core split. This README
-is the per-macro reference.
-
-## What's inside
+shipped from one library. A single dependency gets you all of them.
 
 ### Test a view
 
@@ -141,6 +79,68 @@ Teardown cancellation requires the task closure to avoid retaining the view.
   methods into a tuple so a consumer receives only the operations and data it needs.
 - [`Reflector`](#reflector) (runtime utility) reads field names from a value
   type alone, pairing with `InFlow`; an experimental runtime technique.
+
+## Why
+
+Ask how to test a SwiftUI view and the standard answer is: move its logic into
+a ViewModel. But a SwiftUI view is not UI. Its `body` never draws anything; it
+computes a description from data, including the actions attached to it. Moving
+this computation into a ViewModel does not separate logic from UI — it
+separates logic from logic, imposing an architecture to compensate for a
+tooling gap.
+
+A SwiftUI view is difficult to test because of the runtime around it, not
+because of how it is written. `@State` needs a render host, `body`
+will not evaluate outside one, and property-wrapper behavior cannot be
+abstracted behind a protocol. Tests cannot run the view's logic directly,
+substitute the dependencies it reads, or reuse its `body` through a conformance.
+
+## The answer
+
+CoreFlow takes the opposite route: instead of making you restructure your code
+to fit the tests, it makes the tests reach the code where you wrote it. SwiftUI
+cannot run that code in isolation, so CoreFlow generates a runnable twin. Keep
+the production view exactly as it is; the twin is the seam.
+
+State reaches SwiftUI through a source-of-truth declaration on exactly one
+node: a view, view modifier, `App`, or `Scene`. Values and bindings carry it to
+descendants, forming the dataflow network. CoreFlow attaches its seams at those
+declarations: the twin logs writes to node-owned state and turns external
+storage and fetched data into test boundaries.
+
+This decides who the package is for. Plain SwiftUI is already in this shape, so
+you can adopt CoreFlow one view at a time, with no migration. Put a screen's
+state in an `ObservableObject` ViewModel, however, and there is no node boundary
+to substitute: the source of truth and its write sites live outside the
+network, so the twin inherits the same opaque reference instead of an
+observable boundary.
+
+## Installation
+
+```swift
+// Package.swift
+.package(url: "https://github.com/sisoje/swift-core-flow.git", from: "1.0.0"),
+
+// target dependency
+.product(name: "CoreFlow", package: "swift-core-flow"),
+```
+
+Requires Swift 6.4+ (`swift-tools-version: 6.4`, Xcode 27). Builds across the whole swift-syntax
+6xx line. Run everything with `swift build && swift test`.
+
+Why 6.4: `@TestState` is an init-accessor property (the same shape the iOS 27
+SDK's own `@State` macro expands to). Swift 6.3 makes a struct's memberwise
+initializer *private* when a private init-accessor property is present, so
+every `@Shell` `Core` — and any view holding `@TestState` — becomes
+unconstructible from tests; Swift 6.4 excludes such properties and keeps the
+initializer internal. Verified on Xcode 26.6:
+`'StatefulCard.Core' initializer is inaccessible due to 'private' protection level`.
+
+The conceptual model — nodes coupled by data, flow at creation, testing as
+reading the execution log — is one article:
+[SwiftUI Data Flow Masterclass](https://medium.com/@redhotbits/swiftui-data-flow-masterclass-099f0768f776), published on Medium and
+taught macro-free; the macros mechanize its shell/core split. This README
+is the per-macro reference.
 
 ---
 
