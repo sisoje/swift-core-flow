@@ -421,6 +421,9 @@ elsewhere, via a typealias or protocol composition, or spelled with a
 qualification (`SwiftUI.View`), is invisible to it. Only a bare `View`/
 `ViewModifier` identifier directly on the attached type is recognized.
 
+`App` and `Scene` hosts are deliberately not recognized. An app has one `App`
+and mostly one `Scene`; whoever needs those tested handles it by hand.
+
 ### How a Core relates to its host
 
 The host is a completely ordinary SwiftUI view — its hand-written `body`

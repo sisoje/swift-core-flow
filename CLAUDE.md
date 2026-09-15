@@ -757,9 +757,13 @@ value-form `@ViewBuilder`. Copied members retain their access modifiers; a
 ### Host-kind detection and read-surface parity
 
 - **Automatic `View`/`ViewModifier` detection, off the attached type's own
-  inheritance clause** (`detectHostKind`, in `ShellMacro.swift`): `struct
-  Card: View` or `struct VM: ViewModifier` additionally declares `Core:
-  View`/`: ViewModifier` — satisfied by the copied `body`/`body(content:)`.
+  inheritance clause** (`coreConformance`, in `ShellMacro.swift`, returning `Core`'s
+  inheritance clause text — the `ShellHostKind` enum it replaced was the
+  `TODO.md` item): `struct Card: View` or `struct VM: ViewModifier`
+  additionally declares `Core: View`/`: ViewModifier` — satisfied by the
+  copied `body`/`body(content:)`. `App` and `Scene` hosts are deliberately
+  NOT recognized, not a gap: an app has one `App` and mostly one `Scene`;
+  whoever needs those tested handles it by hand.
   For `ViewModifier`, the copied `body(content:)`'s `Content` resolves to
   `Core`'s *own* `ViewModifier.Content` — a different concrete type from the
   host's (`typealias Content = _ViewModifier_Content<Self>`, keyed on the
@@ -1533,7 +1537,7 @@ bare `View`/`ViewModifier` inheritance and bare known wrapper identifiers; it
 cannot see extension conformance, typealiases or protocol compositions, or
 qualified spellings such as `SwiftUI.View` and `@SwiftUI.State`. Qualified and
 unknown wrappers therefore follow the verbatim fallback. Package-wide
-invariants and Shell retain `detectHostKind`, the pinned swift-syntax `603.0.2`
+invariants and Shell retain `coreConformance`, the pinned swift-syntax `603.0.2`
 evidence, and local consequences.
 
 ### Macro-generated code coverage

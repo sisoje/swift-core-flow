@@ -2,29 +2,27 @@ import SwiftDiagnostics
 import SwiftSyntax
 import SwiftSyntaxMacros
 
-enum ShellHostKind {
-    case view
-    case viewModifier
-    case none
-}
-
+/// `Core`'s inheritance clause: `": View"`, `": ViewModifier"`, or nothing.
+/// `App` and `Scene` hosts are deliberately not recognized: an app has one
+/// `App` and mostly one `Scene`, tested by hand if at all.
+///
 /// Textual, not semantic — macros never get a type checker (verified against
 /// the pinned swift-syntax 603.0.2: `expansion` receives only syntax +
 /// context). Misses conformance declared in a separate extension, via a
 /// typealias or composition, or spelled qualified (`SwiftUI.View`) — only a
 /// bare identifier in the attached type's own inheritance clause counts.
-func detectHostKind(of declaration: some DeclGroupSyntax) -> ShellHostKind {
+func coreConformance(of declaration: some DeclGroupSyntax) -> String {
     let inherited =
         declaration.inheritanceClause?.inheritedTypes.compactMap {
             $0.type.as(IdentifierTypeSyntax.self)?.name.text
         } ?? []
     if inherited.contains("ViewModifier") {
-        return .viewModifier
+        return ": ViewModifier"
     }
     if inherited.contains("View") {
-        return .view
+        return ": View"
     }
-    return .none
+    return ""
 }
 
 /// Every non-stored, non-init member's source text, dedented, for
@@ -37,7 +35,7 @@ func detectHostKind(of declaration: some DeclGroupSyntax) -> ShellHostKind {
 /// against `Core`'s fields by read-surface parity — `$x` is `Binding<T>` on
 /// both sides, `@Query`'s fetched value reads directly on both, and a
 /// verbatim copy *is* the same declaration. Members in a separate extension
-/// aren't seen (syntax-only, like `detectHostKind`).
+/// aren't seen (syntax-only, like `coreConformance`).
 func copiedMemberSources(of declaration: some DeclGroupSyntax) -> [String] {
     declaration.memberBlock.members.compactMap { member in
         if member.decl.is(InitializerDeclSyntax.self) {
@@ -116,7 +114,7 @@ public enum ShellMacro: MemberMacro {
             return []
         }
         return renderShell(
-            properties: properties, hostKind: detectHostKind(of: declaration),
+            properties: properties, conformance: coreConformance(of: declaration),
             copiedMembers: copiedMemberSources(of: declaration)
         )
     }

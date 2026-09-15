@@ -23,7 +23,7 @@ import SwiftSyntax
 /// situational code belongs at the use site, shaped by the test (see
 /// `ShellTests`).
 func renderShell(
-    properties: [StoredProperty], hostKind: ShellHostKind = .none,
+    properties: [StoredProperty], conformance: String = "",
     copiedMembers: [String] = []
 ) -> [DeclSyntax] {
     let fieldDecls = properties.map { p -> String in
@@ -84,13 +84,6 @@ func renderShell(
         copy.bindings = PatternBindingListSyntax([p.binding.with(\.trailingComma, nil)])
         return copy.trimmedDescription
     }.joined(separator: "\n")
-
-    let conformance: String
-    switch hostKind {
-    case .view: conformance = ": View"
-    case .viewModifier: conformance = ": ViewModifier"
-    case .none: conformance = ""
-    }
 
     let copies = copiedMembers.map { "\n\n\($0)" }.joined()
     let statelessStruct = DeclSyntax(
