@@ -155,8 +155,10 @@ snapshot is quiescent), later runs boot over it and skip first-boot initializati
 Measured locally on 27.0: a fresh device is 1.0 GB after one boot, 440 MB
 compressed, 22 s to boot. CI timing pending the first cached run. The workflow starts that boot
 fire-and-forget (`nohup xcrun simctl boot … &`) right after the cache
-restore, so it overlaps the derived-data restore, `brew install xcodegen`, and
-`xcodegen generate`;
+restore, so it overlaps `brew install xcodegen` and `xcodegen generate` — NOT the
+derived-data restore, which ran BEFORE the boot in 3–7 s and took 113 s when
+moved behind it (runs 38–40, 2026-09-15): the first-boot storm owns the
+disk; the caches restore first, then the boot starts;
 `xcodebuild` still waits for whatever boot remains, and the `bootstatus -b`
 step between `build.sh` and `test.sh` is the join. Building with
 `-sdk iphonesimulator` and no `-destination`, to skip the destination lookup
