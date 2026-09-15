@@ -137,7 +137,8 @@ the device once, boots it, and passes it to `test.sh` —
 switching on the `TestScenario` it decodes from a `TestPayload` in the
 `testPayloadEnvironmentKey` environment variable — optional: with no payload (previews,
 Cmd-R) the window shows nothing — hosting the log
-element: names JSON in `label`, values JSON in `value`) plus one scenario
+element: names JSON in `label`, values JSON in `value`; `Models.swift`; and
+`TestScenario+View.swift`, the switch) with `HostApp/Scenarios/`, one scenario
 file per claim, each ending in its `#Preview`; `Shared/` — compiled into
 BOTH targets (`sources: [HostApp, Shared]` / `[UITests, Shared]`) —
 holding `TestScenario.swift` (the enum) and `TestPayload.swift` (`testPayloadEnvironmentKey`,
