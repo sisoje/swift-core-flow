@@ -1643,7 +1643,7 @@ targets and one hosted test project:
 | `CoreFlow` | library (the one product) | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — `View.testLog(_:)` and the `TestLog` dynamic property — `UITestLogging.swift`, `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, the two implementation-dependent techniques (uninitialized-memory reflection, memory-layout fabrication), kept apart on purpose |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro, against the plugin module |
 | `CoreFlowTests` | test (XCTest + swift-testing) | every compiled and runtime suite, one file per API, against the product only |
-| `CoreFlowHosted/` | xcodegen project, not a package target | the hosted scenarios and XCUITests — every claim that needs a live SwiftUI host (`cd CoreFlowHosted && sh build.sh && sh test.sh`); CI runs it alongside `swift test` |
+| `CoreFlowHosted/` | xcodegen project, not a package target | the hosted scenarios and XCUITests — every claim that needs a live SwiftUI host (`cd CoreFlowHosted && sh build.sh && sh test.sh "iPhone 17 Pro"`); CI runs it alongside `swift test` |
 
 Swift tools version 6.4, Swift 6 language mode (strict concurrency), swift-syntax `600.0.0..<700.0.0`.
 

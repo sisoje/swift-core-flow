@@ -33,8 +33,8 @@ mode with strict concurrency. It supports swift-syntax
   default rules — the committed tree is clean under it; Apple's
   `swift format` is NOT the formatter and rewrites ~30 clean files)
 - Run the package's hosted scenarios (UI tests on a simulator):
-  `cd CoreFlowHosted && sh build.sh && sh test.sh` (boot a simulator first or
-  let `test-without-building` boot the named one)
+  `cd CoreFlowHosted && sh build.sh && sh test.sh "iPhone 17 Pro"` (boot it
+  first or let `test-without-building` boot it)
 
 ### Documentation and verification rules
 
@@ -125,8 +125,9 @@ do not collide, and it repeats collection and diagnostics for the same fields.
 
 `CoreFlowHosted` is the package's own xcodegen project for claims that need a
 live SwiftUI host: `project.yml`, `build.sh` (`xcodegen generate` +
-`build-for-testing`), `test.sh` (`test-without-building` on the named device) — no simulator
-commands in either, the workflow boots the named device —
+`build-for-testing`), `test.sh` (`test-without-building` on the simulator named by `$1`) — no
+simulator commands in either; the workflow's job-level `SIMULATOR` env names
+the device once, boots it, and passes it to `test.sh` —
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
 switching on the `TestScenario` it decodes from a `TestPayload` in the
 `testPayloadEnvironmentKey` environment variable — no default, a missing payload is a
