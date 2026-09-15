@@ -147,8 +147,8 @@ element name, and the scenario set are spelled), both types `nonisolated`: the
 app target defaults to `MainActor` isolation, under which `TestPayload.decode`
 and the synthesized `Codable` conformance are actor-isolated and cannot be
 passed point-free to `Optional.map` ("converting function value … loses global
-actor"), and they are pure data shared with the test bundle anyway; and `UITests/` (one
-`XCTestCase` per scenario plus `LaunchHelper.swift`, whose
+actor"), and they are pure data shared with the test bundle anyway; and `UITests/` (`UITests/Scenarios/`, one
+`XCTestCase` per scenario, plus `LaunchHelper.swift` at the root, whose
 `launchApp(scenario: TestScenario)` encodes the payload into
 `launchEnvironment` and whose `app.log` is
 `uiTestLog(accessibilityIdentifier:)` from the `CoreFlowUITesting` product —
