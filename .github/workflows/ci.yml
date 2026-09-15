@@ -5,17 +5,20 @@ jobs:
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - name: Cache SwiftPM build
+        uses: actions/cache@v4
         with:
           path: .build
           key: spm-${{ hashFiles('Package.resolved') }}
           restore-keys: spm-
-      - run: swift build && swift test
+      - name: Build and test the package
+        run: swift build && swift test
   hosted:
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/cache@v4
+      - name: Cache derived data
+        uses: actions/cache@v4
         with:
           path: ~/Library/Developer/Xcode/DerivedData
           key: derived-${{ hashFiles('Package.resolved') }}
@@ -23,13 +26,17 @@ jobs:
       # Warm simulator: the device's data directory after one boot, so the
       # next run skips first-boot initialization. Keyed on the iOS runtime
       # build; the UDID is the image's pre-created device.
-      - id: sim
+      - name: Resolve simulator UDID and runtime build
+        id: sim
         run: |
           echo "udid=$(xcrun simctl list -j devices available | jq -r '.devices | to_entries[] | select(.key | test("iOS")) | .value[] | select(.name == "iPhone 17 Pro") | .udid' | head -1)" >> "$GITHUB_OUTPUT"
           echo "build=$(xcrun simctl list -j runtimes | jq -r '.runtimes[] | select(.platform == "iOS") | .buildversion' | head -1)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
+      - name: Cache warm simulator
+        uses: actions/cache@v4
         with:
           path: ~/Library/Developer/CoreSimulator/Devices/${{ steps.sim.outputs.udid }}/data
           key: sim-${{ steps.sim.outputs.build }}
-      - run: brew install xcodegen
-      - run: cd CoreFlowHosted && sh test.sh
+      - name: Install xcodegen
+        run: brew install xcodegen
+      - name: Build, boot, and run the hosted UI tests
+        run: cd CoreFlowHosted && sh test.sh
