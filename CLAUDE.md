@@ -154,7 +154,13 @@ compressed, 22 s to boot. CI timing pending the first cached run. The workflow s
 fire-and-forget (`nohup xcrun simctl boot … &`) right after the cache
 restore, so it overlaps `brew install xcodegen` and `xcodegen generate`;
 `xcodebuild` still waits for whatever boot remains, and `test.sh`'s own
-`simctl boot || true` plus `bootstatus -b` is the join. Known trade-off, accepted: a cache entry is saved only when its key
+`simctl boot || true` plus `bootstatus -b` is the join. Building with
+`-sdk iphonesimulator` and no `-destination`, to skip the destination lookup
+that stalls, was tried locally and fails: `-sdk` applies to every target, so
+the macro plugin is built for the simulator SDK and swiftc reports
+"external macro implementation type … produced malformed response" at every
+`@FlowUp`; it also builds fat (`arm64-x86_64`). `-destination` is what lets
+the macro host build for macOS. Do not retry. Known trade-off, accepted: a cache entry is saved only when its key
 misses, so the derived data is refreshed only when the lock changes, and
 later runs rebuild the delta from that snapshot. The package REQUIRES Swift 6.4: verified on the
 `macos-latest` image (Xcode 26.6, Swift 6.3.3), the package builds but
