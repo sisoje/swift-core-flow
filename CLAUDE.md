@@ -153,14 +153,14 @@ warm-snapshot technique): the first run pays the cold boot and saves the
 booted data directory (the job's last step shuts the device down so the
 snapshot is quiescent), later runs boot over it and skip first-boot initialization.
 Measured locally on 27.0: a fresh device is 1.0 GB after one boot, 440 MB
-compressed, 22 s to boot. CI timing pending the first cached run. The workflow starts that boot
-fire-and-forget (`nohup xcrun simctl boot … &`) right after the cache
-restore, so it overlaps `brew install xcodegen` and `xcodegen generate` — NOT the
-derived-data restore, which ran BEFORE the boot in 3–7 s and took 113 s when
-moved behind it (runs 38–40, 2026-09-15): the first-boot storm owns the
-disk; the caches restore first, then the boot starts;
-`xcodebuild` still waits for whatever boot remains, and the `bootstatus -b`
-step between `build.sh` and `test.sh` is the join. Building with
+compressed, 22 s to boot. CI timing pending the first cached run. The boot is one blocking
+step (`simctl boot` + `bootstatus -b`) between `build.sh` and `test.sh`,
+serial on purpose: started fire-and-forget in the background it overlapped
+nothing profitably — the derived-data restore took 113 s behind it instead
+of 3–7 s before it, and `brew install xcodegen` 119 s instead of 9 s (runs
+38–41, 2026-09-15); the boot's first minutes own the disk, and `xcodebuild`
+blocks on CoreSimulatorService until the boot completes regardless. Do not
+background the boot again. Building with
 `-sdk iphonesimulator` and no `-destination`, to skip the destination lookup
 that stalls, was tried locally and fails: `-sdk` applies to every target, so
 the macro plugin is built for the simulator SDK and swiftc reports

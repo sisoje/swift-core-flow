@@ -36,23 +36,21 @@ jobs:
           path: ~/Library/Developer/Xcode/DerivedData
           key: derived-${{ hashFiles('Package.resolved') }}
           restore-keys: derived-
-      # Fire and forget: the boot overlaps the steps below that never open
-      # CoreSimulator. xcodebuild waits for whatever boot remains (measured:
-      # it blocks on CoreSimulatorService until the boot completes), so this
-      # buys at most the install and generate time. Not the derived-data
-      # restore: run under the boot it took 113 s instead of 7 s (run 40 vs
-      # 39), the boot's first-boot storm owns the disk.
-      # Booting explicitly, never through the first app launch: on a cold
-      # runner that timed out ("Timed out while launching application via
-      # Xcode", 129 s).
-      - name: Boot simulator in the background
-        run: nohup xcrun simctl boot "${{ steps.sim.outputs.udid }}" >/dev/null 2>&1 &
       - name: Install xcodegen
         run: brew install xcodegen
       - name: Generate and build for testing
         run: sh CoreFlowHosted/build.sh
-      - name: Wait for the simulator
-        run: xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
+      # Serial on purpose. The boot's first minutes own the disk: started in
+      # the background it made the derived-data restore take 113 s instead of
+      # 7 s and `brew install xcodegen` 119 s instead of 9 s (runs 40, 41),
+      # and xcodebuild blocks on CoreSimulatorService until the boot
+      # completes anyway. Booting explicitly, never through the first app
+      # launch: on a cold runner that timed out ("Timed out while launching
+      # application via Xcode", 129 s).
+      - name: Boot the simulator
+        run: |
+          xcrun simctl boot "${{ steps.sim.outputs.udid }}"
+          xcrun simctl bootstatus "${{ steps.sim.outputs.udid }}" -b
       - name: Run the hosted UI tests
         run: sh CoreFlowHosted/test.sh
       # Quiescent for the warm-simulator cache saved at the end of the job.
