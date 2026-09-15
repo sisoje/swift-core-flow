@@ -56,6 +56,8 @@ hosts behave normally.
   call's arguments, then forwards to the supplied closure.
 - [`@TestFocusState`](#testfocusstate) (accessor + peer macro) keeps native focus
   behavior and logs programmatic property writes; the native focus binding wires the UI.
+- [`@TestAccessibilityFocusState`](#testfocusstate) (accessor + peer macro) the
+  same over `@AccessibilityFocusState`.
 - [`@TestLog`](#the-testlog-seam) (property wrapper) reads the installed sink
   for explicit event logging.
 - [`View.testLog(_:)`](#the-testlog-seam) (view modifier) installs the logging sink.
@@ -242,8 +244,8 @@ not require standing up an entire SwiftData stack. `@FocusState` becomes
 [`@TestFocusState`](#testfocusstate), a live instrument rather than a mock:
 `FocusState<T>.Binding` has no public initializer, and focus writes no-op
 outside a live view, so no mock is possible; the substitute retains a real
-`FocusState` and logs programmatic writes. `@AccessibilityFocusState` has no
-substitute and therefore follows the verbatim rule. The whitelist ends there —
+`FocusState` and logs programmatic writes. `@AccessibilityFocusState`, its
+exact clone, becomes `@TestAccessibilityFocusState` the same way. The whitelist ends there —
 the only wrappers this package really knows: each substitution buys a log, an
 injectable boundary, or a bare value.
 
@@ -280,6 +282,7 @@ inert or defaulted otherwise.
 |---|---|
 | `@State` | `@TestState` |
 | `@FocusState` | `@TestFocusState` |
+| `@AccessibilityFocusState` | `@TestAccessibilityFocusState` |
 | `@AppStorage` / `@SceneStorage` | `@Binding` |
 | `@Query` | `@QueryResult` |
 
@@ -771,6 +774,12 @@ struct DownloadButton: View {
 A drop-in `@FocusState` that logs every programmatic write — and what
 [`@Shell`](#shell) substitutes for `@FocusState` on `Core`, the same
 rename treatment as `@State → @TestState`:
+
+`@TestAccessibilityFocusState` is the same macro over `@AccessibilityFocusState`,
+which is an exact `@FocusState` clone: `$name` is the real
+`AccessibilityFocusState<T>.Binding` for `.accessibilityFocused(_:equals:)`,
+programmatic writes log, and `@Shell` substitutes it for a private
+`@AccessibilityFocusState` on `Core`.
 
 ```swift
 struct LoginScenario: View {

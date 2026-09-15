@@ -39,8 +39,8 @@ func renderShell(
         // copy (rule 2 below): @TestFocusState holds a REAL FocusState peer
         // (no mock exists: FocusState<T>.Binding has no public initializer,
         // verified directly), so hosted behavior stays live and every
-        // programmatic write logs. @AccessibilityFocusState is deliberately
-        // NOT here — same shape, no substitute macro yet; verbatim copy.
+        // programmatic write logs. @AccessibilityFocusState, its exact clone,
+        // gets the same treatment: @TestAccessibilityFocusState.
         if p.isExternalStorage {
             return "@Binding var \(p.name): \(p.type?.trimmedDescription ?? "")"
         }
@@ -59,14 +59,15 @@ func renderShell(
             assert(!p.varDecl.attributes.isEmpty, "plain private fields are refused at collection")
         }
         var copy = p.varDecl
-        // @State/@FocusState — the view's OWN state/focus — copy with just
-        // the wrapper renamed: @TestState (still private and defaulted) /
-        // @TestFocusState (still private, no default — @FocusState can't
-        // carry one), logging every programmatic mutation.
-        if p.isOwnState || p.isFocusState {
+        // @State/@FocusState/@AccessibilityFocusState — the view's OWN state/
+        // focus — copy with just the wrapper renamed: @TestState (still private
+        // and defaulted) / @TestFocusState / @TestAccessibilityFocusState (still
+        // private, no default — the focus wrappers can't carry one), logging
+        // every programmatic mutation.
+        if p.isOwnState || p.isFocusState || p.isAccessibilityFocusState {
             assert(p.isPrivate, "collection refuses non-private @State/@FocusState")
-            let (from, to) =
-                p.isOwnState ? ("State", "TestState") : ("FocusState", "TestFocusState")
+            let from = p.wrapperName ?? ""
+            let to = "Test" + from
             copy.attributes = AttributeListSyntax(
                 copy.attributes.map { element in
                     guard case var .attribute(a) = element,

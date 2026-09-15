@@ -16,6 +16,7 @@ extension TestScenario: View {
         case .testState: TestStateScenario()
         case .testAction: TestActionScenario()
         case .testFocusState: TestFocusStateScenario()
+        case .testAccessibilityFocusState: TestAccessibilityFocusStateScenario()
         case .gestureState: GestureStateScenario()
         case .viewModifierCore: ViewModifierCoreScenario()
         }

@@ -68,10 +68,10 @@ mode with strict concurrency. It supports swift-syntax
 
 | Target | Kind | Contents |
 |---|---|---|
-| `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift`, `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `UITestLogging.swift` (`uiTestLog(accessibilityIdentifier:)`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), and the `Experimental/` directory — the two implementation-dependent runtime techniques, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the memory-layout fabricator for Apple's sealed type; see the `QueryResult` section) |
+| `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift` — `@TestFocusState` + `@TestAccessibilityFocusState`, one shared expansion — `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `UITestLogging.swift` (`uiTestLog(accessibilityIdentifier:)`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), and the `Experimental/` directory — the two implementation-dependent runtime techniques, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the memory-layout fabricator for Apple's sealed type; see the `QueryResult` section) |
 | `CoreFlowUITesting` | library, UI-test bundles only | `UITestLog.swift`: the XCUITest end of `uiTestLog` — `XCUIApplication.uiTestLog(accessibilityIdentifier:)` (the element), `XCUIElement.logNames`/`logValues` (JSON-decoded label/value, empty when undecodable), `wait(for:toEqual:timeout:)` (an `XCTNSPredicateExpectation` poll). Imports XCTest, so it is its own product: an app target must never link it. Consumer: `CoreFlowHosted/UITests` |
-| `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro (`FlowableExpansionTests`, `ShellExpansionTests`, `CapabilityExpansionTests`, `PickExpansionTests`, `TestStateExpansionTests`, `TestActionExpansionTests`, `TestFocusStateExpansionTests`, `UnstructuredTaskExpansionTests`, `FlowUpExpansionTests`); depends on `CoreFlowMacros` + `SwiftSyntaxMacrosTestSupport`, never on the product |
+| `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro (`FlowableExpansionTests`, `ShellExpansionTests`, `CapabilityExpansionTests`, `PickExpansionTests`, `TestStateExpansionTests`, `TestActionExpansionTests`, `TestFocusStateExpansionTests`, `TestAccessibilityFocusStateExpansionTests`, `UnstructuredTaskExpansionTests`, `FlowUpExpansionTests`); depends on `CoreFlowMacros` + `SwiftSyntaxMacrosTestSupport`, never on the product |
 | `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`FlowableTests`, `ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
 
 Public machinery that only macro expansions name — `_TaskStorage`,
@@ -360,6 +360,11 @@ The other scenarios, each one UI test unless noted:
   (system focus through the real `FocusState.Binding`) changes the status
   and logs nothing (`[]`); the programmatic `isFocused.toggle()` logs
   `isFocused false` — the property logs, the projection wires.
+- `TestAccessibilityFocusStateScenario` / `TestAccessibilityFocusStateUITests`:
+  `@TestAccessibilityFocusState` hosted — the programmatic write logs
+  (`isFocused true`) over a real `AccessibilityFocusState` peer wired with
+  `.accessibilityFocused`. Assistive-technology focus is not exercisable on
+  the simulator; only the write is claimed.
 - `GestureStateScenario` / `GestureStateUITests`: `@GestureState(reset:)`
   copied verbatim onto a hosted `Core`, custom reset closure included — a
   drag ends, the reset fires (`resets 1`, `resetsSeen 1`).
@@ -629,6 +634,7 @@ syntax. Unknown wrappers are never guessed.
 |---|---|---|
 | private `@State` | private `@TestState`, inline default retained | Node-owned state stays sealed; writes become evidence. |
 | private `@FocusState` | private `@TestFocusState` | No public focus-binding initializer exists; instrument the real hosted peer. |
+| private `@AccessibilityFocusState` | private `@TestAccessibilityFocusState` | The same wrapper for assistive-technology focus; same treatment. |
 | private `@AppStorage` / `@SceneStorage` | `@Binding` | External storage becomes caller-supplied; persistence keys disappear because the twin does not persist. |
 | private `@Query` | `@QueryResult` | Fetched data becomes a bare supplied value without a SwiftData stack. |
 | every other declaration, wrapped or plain | verbatim copy, with `public` erased | Preserve caller data or runtime machinery where no designed substitution exists. |
@@ -673,10 +679,11 @@ check matches the `private` keyword regardless of its `(set)` detail, so
   outside a live view; both verified directly against the real interface) —
   but a live instrument: the substitute holds a REAL `FocusState` peer, so
   hosted behavior is unchanged and every programmatic write logs (see the
-  `@TestFocusState` section below). `@AccessibilityFocusState` is
-  deliberately NOT whitelisted — an exact `@FocusState` clone
-  interface-wise, but no substitute macro exists for it yet, so it rides
-  rule 2 verbatim.
+  `@TestFocusState` section below). `@AccessibilityFocusState` → `@TestAccessibilityFocusState`:
+  an exact `@FocusState` clone interface-wise (verified against the
+  swiftinterface: the same `init()` overloads, a `Binding` with a settable
+  `wrappedValue` and no public initializer, `.accessibilityFocused(_:equals:)`
+  demanding it), so the same macro over the other wrapper.
 - **The mapped source-of-truth wrappers must be private — enforced with a
   diagnostic, not accommodated.** `sourceOfTruthMustBePrivate`
   (`StoredProperty.swift`, checked in `collectStoredProperties`) rejects
@@ -1025,6 +1032,7 @@ twice. Never skip malformed input that could compile as unmanaged state.
 | `@TestAction` | stored closure `var` | closure peer | yes | arguments by arity | none |
 | `@UnstructuredTask` | computed optional task slot | `State<_TaskStorage<T>>` peer | no | `task` / `nil` | routed `Binding<T?>` |
 | `@TestFocusState` | computed focus slot | `FocusState<T>` peer | no | described programmatic write | native `FocusState<T>.Binding` |
+| `@TestAccessibilityFocusState` | computed focus slot | `AccessibilityFocusState<T>` peer | no | described programmatic write | native `AccessibilityFocusState<T>.Binding` |
 
 ### Shared logging seam
 
@@ -1183,6 +1191,16 @@ declaration in `TestSupport/TestFocusState.swift`) — a drop-in `@FocusState` t
 and `@Shell`'s substitution for `@FocusState` on `Core` (the `@State →
 @TestState` rename treatment exactly: wrapper token renamed on the host's
 own line, private required via `sourceOfTruthMustBePrivate`).
+
+`@TestAccessibilityFocusState` (`TestAccessibilityFocusStateMacro`, same
+file; declaration in `TestSupport/TestAccessibilityFocusState.swift`) is the
+same expansion over `AccessibilityFocusState` — one shared accessor/peer
+implementation parameterized by the wrapper name — and `@Shell`'s
+substitution for a private `@AccessibilityFocusState`. Locked by
+`TestAccessibilityFocusStateExpansionTests` and the Shell rename test; hosted
+by `TestAccessibilityFocusStateScenario` / `TestAccessibilityFocusStateUITests`
+(the programmatic write logs `isFocused true`; assistive-technology focus
+itself is not exercisable on the simulator, so nothing about it is claimed).
 
 - **Computed over a self-initialized REAL `FocusState<T>` peer** (`private
   let name_storage: FocusState<T> = FocusState()`) — accessor + peer like

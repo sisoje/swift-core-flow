@@ -27,20 +27,7 @@ public enum TestFocusStateMacro: AccessorMacro, PeerMacro {
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
         in _: some MacroExpansionContext
     ) throws -> [AccessorDeclSyntax] {
-        let (name, _) = try validated(declaration)
-        return [
-            """
-            get {
-                \(raw: name)_storage.wrappedValue
-            }
-            """,
-            """
-            nonmutating set {
-                log_\(raw: name).wrappedValue("\(raw: name)", String(describing: newValue))
-                \(raw: name)_storage.wrappedValue = newValue
-            }
-            """,
-        ]
+        try focusAccessors(declaration, attribute: "TestFocusState")
     }
 
     public static func expansion(
@@ -48,43 +35,94 @@ public enum TestFocusStateMacro: AccessorMacro, PeerMacro {
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in _: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
-        // The accessor role reports the error; throwing here too would
-        // duplicate it.
-        guard let (name, type) = try? validated(declaration) else { return [] }
-        let typeText = type.trimmedDescription
-        return [
-            "private let \(raw: name)_storage: FocusState<\(raw: typeText)> = FocusState()",
-            "private let log_\(raw: name) = TestLog()",
-            """
-            private var `$\(raw: name)`: FocusState<\(raw: typeText)>.Binding {
-                \(raw: name)_storage.projectedValue
-            }
-            """,
-        ]
+        focusPeers(declaration, attribute: "TestFocusState", wrapper: "FocusState")
+    }
+}
+
+/// `@TestAccessibilityFocusState` — the same expansion over
+/// `AccessibilityFocusState`, an exact `FocusState` clone interface-wise
+/// (verified against the SwiftUI swiftinterface: the same `init()`
+/// overloads for `Bool` and optionals, a `Binding` with a settable
+/// `wrappedValue` and no public initializer, and
+/// `.accessibilityFocused(_:equals:)` demanding that nominal binding).
+public enum TestAccessibilityFocusStateMacro: AccessorMacro, PeerMacro {
+    public static func expansion(
+        of _: AttributeSyntax,
+        providingAccessorsOf declaration: some DeclSyntaxProtocol,
+        in _: some MacroExpansionContext
+    ) throws -> [AccessorDeclSyntax] {
+        try focusAccessors(declaration, attribute: "TestAccessibilityFocusState")
     }
 
-    /// The `var`'s (name, type) — any other shape throws, a compile error
-    /// at the attribute stating the required shape.
-    /// `FocusState()` only exists for `Bool` and optional values — a
-    /// well-shaped property with any other annotation still fails in the
-    /// compiler's own words on the generated peer, exactly like the live
-    /// wrapper.
-    private static func validated(
-        _ declaration: some DeclSyntaxProtocol
-    ) throws -> (name: String, type: TypeSyntax) {
-        guard let varDecl = declaration.as(VariableDeclSyntax.self),
-              !isStatic(varDecl),
-              varDecl.bindingSpecifier.tokenKind == .keyword(.var),
-              varDecl.bindings.count == 1, let binding = varDecl.bindings.first,
-              let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
-              binding.accessorBlock == nil,
-              binding.initializer == nil,
-              let type = binding.typeAnnotation?.type
-        else {
-            throw MacroExpansionErrorMessage(
-                "@TestFocusState requires a stored instance 'var' with a type annotation (`Bool` or an optional) and no initial value."
-            )
-        }
-        return (pattern.identifier.text, type)
+    public static func expansion(
+        of _: AttributeSyntax,
+        providingPeersOf declaration: some DeclSyntaxProtocol,
+        in _: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+        focusPeers(
+            declaration, attribute: "TestAccessibilityFocusState", wrapper: "AccessibilityFocusState"
+        )
     }
+}
+
+private func focusAccessors(
+    _ declaration: some DeclSyntaxProtocol, attribute: String
+) throws -> [AccessorDeclSyntax] {
+    let (name, _) = try validatedFocus(declaration, attribute: attribute)
+    return [
+        """
+        get {
+            \(raw: name)_storage.wrappedValue
+        }
+        """,
+        """
+        nonmutating set {
+            log_\(raw: name).wrappedValue("\(raw: name)", String(describing: newValue))
+            \(raw: name)_storage.wrappedValue = newValue
+        }
+        """,
+    ]
+}
+
+private func focusPeers(
+    _ declaration: some DeclSyntaxProtocol, attribute: String, wrapper: String
+) -> [DeclSyntax] {
+    // The accessor role reports the error; throwing here too would
+    // duplicate it.
+    guard let (name, type) = try? validatedFocus(declaration, attribute: attribute) else { return [] }
+    let typeText = type.trimmedDescription
+    return [
+        "private let \(raw: name)_storage: \(raw: wrapper)<\(raw: typeText)> = \(raw: wrapper)()",
+        "private let log_\(raw: name) = TestLog()",
+        """
+        private var `$\(raw: name)`: \(raw: wrapper)<\(raw: typeText)>.Binding {
+            \(raw: name)_storage.projectedValue
+        }
+        """,
+    ]
+}
+
+/// The `var`'s (name, type) — any other shape throws, a compile error
+/// at the attribute stating the required shape.
+/// `FocusState()` only exists for `Bool` and optional values — a
+/// well-shaped property with any other annotation still fails in the
+/// compiler's own words on the generated peer, exactly like the live
+/// wrapper.
+private func validatedFocus(
+    _ declaration: some DeclSyntaxProtocol, attribute: String
+) throws -> (name: String, type: TypeSyntax) {
+    guard let varDecl = declaration.as(VariableDeclSyntax.self),
+          !isStatic(varDecl),
+          varDecl.bindingSpecifier.tokenKind == .keyword(.var),
+          varDecl.bindings.count == 1, let binding = varDecl.bindings.first,
+          let pattern = binding.pattern.as(IdentifierPatternSyntax.self),
+          binding.accessorBlock == nil,
+          binding.initializer == nil,
+          let type = binding.typeAnnotation?.type
+    else {
+        throw MacroExpansionErrorMessage(
+            "@\(attribute) requires a stored instance 'var' with a type annotation (`Bool` or an optional) and no initial value."
+        )
+    }
+    return (pattern.identifier.text, type)
 }

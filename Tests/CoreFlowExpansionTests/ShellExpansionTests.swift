@@ -93,7 +93,7 @@ final class ShellExpansionTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                    "'isFocused' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                    "'isFocused' must be private — @State/@FocusState/@AccessibilityFocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
                     line: 3, column: 21
                 ),
             ],
@@ -168,11 +168,10 @@ final class ShellExpansionTests: XCTestCase {
         )
     }
 
-    func testAccessibilityFocusStateStaysAnUnmappedVerbatimCopy() {
+    func testAccessibilityFocusStateIsRenamedToTestAccessibilityFocusStateOnCore() {
         // An exact @FocusState clone (verified directly against the real
-        // SwiftUI interface), but deliberately NOT whitelisted alongside it —
-        // no substitute macro yet, so it rides rule 2: private verbatim
-        // copy, sealed, out of the memberwise init.
+        // SwiftUI interface), whitelisted alongside it: the same rename
+        // treatment, private, sealed out of the memberwise init.
         assertMacroExpansion(
             """
             @Shell
@@ -187,7 +186,7 @@ final class ShellExpansionTests: XCTestCase {
                 let title: String
 
                 struct Core {
-                    @AccessibilityFocusState private var a11yFocused: Bool
+                    @TestAccessibilityFocusState private var a11yFocused: Bool
                     let title: String
                 }
             }
@@ -437,7 +436,7 @@ final class ShellExpansionTests: XCTestCase {
             diagnostics: [
                 DiagnosticSpec(
                     message:
-                    "'isOn' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+                    "'isOn' must be private — @State/@FocusState/@AccessibilityFocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
                     line: 3, column: 16
                 ),
             ],

@@ -13,6 +13,7 @@ enum TestScenario: Codable {
     case testState
     case testAction
     case testFocusState
+    case testAccessibilityFocusState
     case gestureState
     case viewModifierCore
 }

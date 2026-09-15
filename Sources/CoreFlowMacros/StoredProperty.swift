@@ -47,7 +47,7 @@ public struct StoredProperty {
     /// exactly the ones `sourceOfTruthMustBePrivate` requires private. Why
     /// exactly these and no others: `renderShell`'s rule-1 comment.
     public var isSubstitutedOnCore: Bool {
-        isOwnState || isFocusState || isExternalStorage || isQuery
+        isOwnState || isFocusState || isAccessibilityFocusState || isExternalStorage || isQuery
     }
 
     /// `@Query` → `@QueryResult` on `Core` (`QueryResult.swift` documents the
@@ -69,6 +69,13 @@ public struct StoredProperty {
     /// no `init(wrappedValue:)`, so a host line never has one.
     public var isFocusState: Bool {
         wrapperName == "FocusState"
+    }
+
+    /// Same treatment for the accessibility twin — `@TestAccessibilityFocusState`
+    /// on `Core`; `AccessibilityFocusState` is an exact `FocusState` clone
+    /// interface-wise (verified against the swiftinterface).
+    public var isAccessibilityFocusState: Bool {
+        wrapperName == "AccessibilityFocusState"
     }
 
     /// EXTERNAL storage — a dependency, injected as `@Binding` on `Core`:
@@ -356,7 +363,7 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
     {
         DataTypeMacroDiagnostic(
             message:
-            "'\(propertyName)' must be private — @State/@FocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
+            "'\(propertyName)' must be private — @State/@FocusState/@AccessibilityFocusState/@AppStorage/@SceneStorage/@Query are a view's own source of truth, not something a caller supplies (use @Binding for that).",
             id: "sourceOfTruthMustBePrivate"
         )
     }
