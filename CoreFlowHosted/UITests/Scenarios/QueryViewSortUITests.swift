@@ -19,7 +19,7 @@ final class QueryViewSortUITests: XCTestCase {
     }
 
     @MainActor
-    func testUngatedConstructsQueryOnEveryRender() {
+    func testNoIndexConstructsTheQueryOnce() {
         let app = launchApp(scenario: .queryViewUngated)
         XCTAssertTrue(app.buttons["unrelated"].waitForExistence(timeout: 5))
         for _ in 1 ... 3 {
@@ -27,13 +27,10 @@ final class QueryViewSortUITests: XCTestCase {
         }
         app.buttons["sort"].tap()
 
-        // No gate: every re-render constructs the query again. How many times
-        // the first appearance renders is build-dependent (2 on 27A5252f, 3 on
-        // the 27 beta 4 simulator), so only the tail after launch is exact.
-        let names = #""unrelated","query","unrelated","query","unrelated","query","sortDescending","query"]"#
-        let values = #""1","forward","2","forward","3","forward","true","reverse"]"#
-        XCTAssertTrue(app.log.label.hasPrefix(#"["query""#))
-        XCTAssertTrue(app.log.label.hasSuffix(names), app.log.label)
-        XCTAssertTrue((app.log.value as? String ?? "").hasSuffix(values))
+        // No index means no parameters: one construction, kept for good — even
+        // the sort write, which the expression reads, rebuilds nothing.
+        let names = #"["query","unrelated","unrelated","unrelated","sortDescending"]"#
+        XCTAssertTrue(app.log.wait(for: \.label, toEqual: names, timeout: 5), app.log.label)
+        XCTAssertEqual(app.log.logValues, ["forward", "1", "2", "3", "true"])
     }
 }

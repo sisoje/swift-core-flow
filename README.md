@@ -34,7 +34,7 @@ to a subtree.
   and tests alike. With `index:`, the query is rebuilt only when the index
   changes; the index is the query's parameter set and must cover every input
   of `query`.
-  The initializer without `index:` rebuilds the query on every render.
+  Without `index:` the query has no parameters and is built once.
 - [`@QueryResult`](#queryresult) (property wrapper) replaces `@Query` on
   Shell's generated `Core`, preserving the live query's read surface for
   fetched data, errors, and context. Tests supply the fetched value directly:
@@ -555,8 +555,8 @@ struct BookList: View {
   expression. `index` must cover every input of `query`: a value left out is
   a parameter change the query will not follow — aggregate multiple inputs
   into one `Equatable` key struct.
-  The init without `index:` is the ungated fallback,
-  re-evaluating the query every render.
+  Without `index:` the query has no parameters: built once and kept, so the
+  expression must not read state.
 - **Content receives a `QueryResult`, re-propertified by the `$` parameter**:
   `books` reads the fetched array directly (`ForEach(books)`,
   `books.isEmpty` — `@Query` ergonomics), `_books` reaches
