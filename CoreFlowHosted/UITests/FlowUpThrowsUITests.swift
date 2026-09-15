@@ -8,6 +8,6 @@ final class FlowUpThrowsUITests: XCTestCase {
         app.buttons["send"].tap()
 
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: #"["send","first","result"]"#, timeout: 5), app.log.label)
-        XCTAssertEqual(app.logValues, ["hi", "hi", "SaveFailure()"])
+        XCTAssertEqual(app.log.logValues, ["hi", "hi", "SaveFailure()"])
     }
 }

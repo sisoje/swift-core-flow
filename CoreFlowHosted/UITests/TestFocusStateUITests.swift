@@ -15,6 +15,6 @@ final class TestFocusStateUITests: XCTestCase {
         app.buttons["toggle focus"].tap()
         XCTAssertTrue(status.wait(for: \.label, toEqual: "unfocused", timeout: 5))
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: #"["isFocused"]"#, timeout: 5), app.log.label)
-        XCTAssertEqual(app.logValues, ["false"])
+        XCTAssertEqual(app.log.logValues, ["false"])
     }
 }

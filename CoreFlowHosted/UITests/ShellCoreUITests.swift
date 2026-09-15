@@ -14,6 +14,6 @@ final class ShellCoreUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["on"].exists)
         XCTAssertTrue(app.staticTexts["renamed"].exists)
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: #"["isOn","name","isFocused"]"#, timeout: 5), app.log.label)
-        XCTAssertEqual(app.logValues, ["true", "renamed", "true"])
+        XCTAssertEqual(app.log.logValues, ["true", "renamed", "true"])
     }
 }

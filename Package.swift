@@ -9,6 +9,8 @@ let package = Package(
     ],
     products: [
         .library(name: "CoreFlow", targets: ["CoreFlow"]),
+        // For UI-test bundles only: reads the element `uiTestLog` installs.
+        .library(name: "CoreFlowUITesting", targets: ["CoreFlowUITesting"]),
     ],
     dependencies: [
         // swift-syntax 6xx matches Swift 6.x toolchains (601 = 6.1, 602 = 6.2, ... 604 = 6.4).
@@ -45,6 +47,10 @@ let package = Package(
         // techniques (uninitialized-memory reflection, memory-layout
         // fabrication) kept apart on purpose.
         .target(name: "CoreFlow", dependencies: ["CoreFlowMacros"]),
+        // The XCUITest end of uiTestLog: the log element, its names/values
+        // decoded, a wait on its properties. Imports XCTest, so only a UI-test
+        // bundle links it; CoreFlowHosted is its consumer.
+        .target(name: "CoreFlowUITesting"),
         // Expansion tests — `assertMacroExpansion` snapshots + diagnostics, one
         // file per macro, against the plugin module itself.
         .testTarget(

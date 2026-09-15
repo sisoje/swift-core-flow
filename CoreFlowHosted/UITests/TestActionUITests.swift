@@ -10,6 +10,6 @@ final class TestActionUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["fetched 6"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: #"["save","fetch","fetched"]"#, timeout: 5), app.log.label)
-        XCTAssertEqual(app.logValues, ["draft", "3", "6"])
+        XCTAssertEqual(app.log.logValues, ["draft", "3", "6"])
     }
 }

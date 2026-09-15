@@ -30,6 +30,8 @@ targets:
     sources: [UITests, Shared]
     dependencies:
       - target: CoreFlowHostApp
+      - package: CoreFlow
+        product: CoreFlowUITesting
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

@@ -10,7 +10,7 @@ final class UnstructuredTaskUITests: XCTestCase {
 
         let names = #"["work","showWorker","cancelled"]"#
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: names, timeout: 5), app.log.label)
-        XCTAssertEqual(app.logValues, ["task", "false", "work"])
+        XCTAssertEqual(app.log.logValues, ["task", "false", "work"])
     }
 
     @MainActor
@@ -24,7 +24,7 @@ final class UnstructuredTaskUITests: XCTestCase {
         // One `cancelled`, from the clear — the reassignment cancelled nothing.
         let names = #"["work","work","work","cancelled"]"#
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: names, timeout: 5), app.log.label)
-        XCTAssertEqual(app.logValues, ["task", "task", "nil", "work"])
+        XCTAssertEqual(app.log.logValues, ["task", "task", "nil", "work"])
     }
 
     @MainActor
@@ -36,6 +36,6 @@ final class UnstructuredTaskUITests: XCTestCase {
 
         let names = #"["work","work","cancelled"]"#
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: names, timeout: 5), app.log.label)
-        XCTAssertEqual(app.logValues, ["task", "nil", "work"])
+        XCTAssertEqual(app.log.logValues, ["task", "nil", "work"])
     }
 }

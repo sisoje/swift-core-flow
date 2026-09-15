@@ -12,6 +12,6 @@ final class FlowUpUITests: XCTestCase {
 
         let names = #"["send","first","showSecond","send","first","second"]"#
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: names, timeout: 5), app.log.label)
-        XCTAssertEqual(app.logValues, ["hi", "hi", "true", "hi", "hi", "hi"])
+        XCTAssertEqual(app.log.logValues, ["hi", "hi", "true", "hi", "hi", "hi"])
     }
 }

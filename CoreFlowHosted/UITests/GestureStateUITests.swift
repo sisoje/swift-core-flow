@@ -14,6 +14,6 @@ final class GestureStateUITests: XCTestCase {
 
         XCTAssertTrue(resets.wait(for: \.label, toEqual: "resets 1", timeout: 5))
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: #"["resetsSeen"]"#, timeout: 5), app.log.label)
-        XCTAssertEqual(app.logValues, ["1"])
+        XCTAssertEqual(app.log.logValues, ["1"])
     }
 }

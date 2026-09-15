@@ -15,6 +15,6 @@ final class ViewModifierCoreUITests: XCTestCase {
         XCTAssertTrue(status.wait(for: \.label, toEqual: "bright", timeout: 5))
 
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: #"["isDimmed","isDimmed"]"#, timeout: 5), app.log.label)
-        XCTAssertEqual(app.logValues, ["true", "false"])
+        XCTAssertEqual(app.log.logValues, ["true", "false"])
     }
 }
