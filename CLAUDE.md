@@ -150,7 +150,11 @@ warm-snapshot technique): the first run pays the cold boot and saves the
 booted data directory (`test.sh` shuts the device down last so the snapshot
 is quiescent), later runs boot over it and skip first-boot initialization.
 Measured locally on 27.0: a fresh device is 1.0 GB after one boot, 440 MB
-compressed, 22 s to boot. CI timing pending the first cached run. Known trade-off, accepted: a cache entry is saved only when its key
+compressed, 22 s to boot. CI timing pending the first cached run. The workflow starts that boot
+fire-and-forget (`nohup xcrun simctl boot … &`) right after the cache
+restore, so it overlaps `brew install xcodegen` and `xcodegen generate`;
+`xcodebuild` still waits for whatever boot remains, and `test.sh`'s own
+`simctl boot || true` plus `bootstatus -b` is the join. Known trade-off, accepted: a cache entry is saved only when its key
 misses, so the derived data is refreshed only when the lock changes, and
 later runs rebuild the delta from that snapshot. The package REQUIRES Swift 6.4: verified on the
 `macos-latest` image (Xcode 26.6, Swift 6.3.3), the package builds but

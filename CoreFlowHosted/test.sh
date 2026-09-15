@@ -13,11 +13,12 @@ xcodebuild build-for-testing \
     -destination "generic/platform=iOS Simulator" \
     -enableCodeCoverage NO
 
-# Boot explicitly, after the build: on a cold runner the first launch through
-# xcodebuild timed out ("Timed out while launching application via Xcode",
-# 129 s), and a boot started in the background does not overlap anything —
-# xcodebuild blocks on CoreSimulator until the boot finishes (~200 s
-# measured, twice, whatever destination it was given).
+# Boot explicitly, never through the first app launch: on a cold runner that
+# timed out ("Timed out while launching application via Xcode", 129 s). CI
+# may already have the boot in flight (started before the build; `|| true`
+# covers "already booting"), bootstatus is the join. Booting DURING the build
+# gains nothing: xcodebuild blocks on CoreSimulator until the boot finishes
+# (~200 s measured, twice, whatever destination it was given).
 xcrun simctl boot "iPhone 17 Pro" 2>/dev/null || true
 xcrun simctl bootstatus "iPhone 17 Pro" -b
 
