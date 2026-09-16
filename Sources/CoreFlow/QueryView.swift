@@ -75,6 +75,29 @@ struct PropertyHostView<Property, Content: View>: View {
     }
 }
 
+/// A value memoized by a key: `value(for:build:)` runs `build` only when the
+/// key differs from the last one. A plain class meant to live in `@State` — a
+/// render-phase write to a plain object, no SwiftUI state write. `QueryView`
+/// keys the built `Query` by `index`, so an unchanged index never runs the
+/// autoclosure — our decision, not `.equatable()`'s (whose skipping a beta can
+/// flip); handing the same `Query` value to `PropertyHostView` each render is
+/// what any view holding a `@Query` does, so the installed property keeps
+/// updating.
+final class Memo<Key: Equatable, Value> {
+    private var key: Key?
+    private var value: Value?
+
+    func value(for key: Key, build: () -> Value) -> Value {
+        if let value, key == self.key {
+            return value
+        }
+        self.key = key
+        let built = build()
+        value = built
+        return built
+    }
+}
+
 public struct QueryView<Index: Equatable, Element: PersistentModel, Result, Content: View>: View {
     /// `index` is the query's parameter set: it must cover every input of
     /// `query`; a value left out is a parameter change the memoized query will
@@ -97,29 +120,8 @@ public struct QueryView<Index: Equatable, Element: PersistentModel, Result, Cont
         self.content = content
     }
 
-    /// The gate: the built `Query` memoized by index, so an unchanged index
-    /// never runs the autoclosure — our decision, not `.equatable()`'s (whose
-    /// skipping a beta can flip). A plain class in `@State`: a render-phase
-    /// write to a plain object, no SwiftUI state write. Handing the same
-    /// `Query` value to `PropertyHostView` each render is what any view holding
-    /// a `@Query` does, so the installed property keeps updating.
-    private final class Memo {
-        var index: Index?
-        var query: Query<Element, Result>?
-
-        func query(for index: Index, build: () -> Query<Element, Result>) -> Query<Element, Result> {
-            if let query, index == self.index {
-                return query
-            }
-            self.index = index
-            let built = build()
-            query = built
-            return built
-        }
-    }
-
     @Environment(\.queryTransform) private var queryTransform
-    @State private var memo = Memo()
+    @State private var memo = Memo<Index, Query<Element, Result>>()
     // nil means ungated: the Index == Never init cannot supply a value, and
     // body skips the memo — the query is rebuilt every render.
     var index: Index?
@@ -128,7 +130,7 @@ public struct QueryView<Index: Equatable, Element: PersistentModel, Result, Cont
 
     public var body: some View {
         if let index {
-            PropertyHostView(property: memo.query(for: index, build: query)) {
+            PropertyHostView(property: memo.value(for: index, build: query)) {
                 content(queryTransform.toResult($0))
             }
         } else {

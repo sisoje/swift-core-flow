@@ -1017,8 +1017,8 @@ Result>` — the call site spells the query expression bare,
 `content: (QueryResult<Result>) -> Content`. Internal `PropertyHostView` stores
 the built query as a view property — what makes SwiftUI install a
 `DynamicProperty`; passed into a closure it would never update. `index` is the query's
-parameter set, and the built `Query` is MEMOIZED by it: a private `Memo`
-class held in `@State` (a render-phase write to a plain object, the
+parameter set, and the built `Query` is MEMOIZED by it: `Memo<Key, Value>`
+(`QueryView.swift`, internal, reusable for any key and factory) held in `@State` (a render-phase write to a plain object, the
 `_FlowUpClosure` pattern) keeps the last index and query, and `body` asks it
 for the query every render — same index, the stored value is handed to
 `PropertyHostView` again (what any view holding a `@Query` does each render,
