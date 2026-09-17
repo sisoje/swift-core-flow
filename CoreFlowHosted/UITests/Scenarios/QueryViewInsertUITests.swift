@@ -32,4 +32,23 @@ final class QueryViewInsertUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Novel 6"].waitForExistence(timeout: 5))
         XCTAssertEqual(rows.count, 6)
     }
+
+    @MainActor
+    func testMemoizedQueryKeepsItsAnimationAcrossUnrelatedRenders() {
+        let app = launchApp(scenario: .queryViewInsert)
+        XCTAssertTrue(app.buttons["insert"].waitForExistence(timeout: 5))
+        app.buttons["insert"].tap()
+        XCTAssertTrue(app.staticTexts["Novel 1"].waitForExistence(timeout: 5))
+        app.buttons["unrelated"].tap()
+        XCTAssertTrue(app.staticTexts["unrelated 1"].waitForExistence(timeout: 5))
+        app.buttons["insert"].tap()
+        XCTAssertTrue(app.staticTexts["Novel 2"].waitForExistence(timeout: 5))
+
+        // Each insert reaches the content with the query's animation — also
+        // after the parent re-rendered and handed the memoized query back;
+        // the unrelated write itself carries none.
+        let names = #"["animated","unrelated","animated"]"#
+        XCTAssertTrue(app.log.wait(for: \.label, toEqual: names, timeout: 5), app.log.label)
+        XCTAssertEqual(app.log.logValues, ["1", "1", "2"])
+    }
 }

@@ -312,14 +312,19 @@ The other scenarios, each one UI test unless noted:
   value survives real SwiftUI consumption (sections, rows), not just `count`.
   Tests here are flat copy-paste by rule: readable like a book, no shared
   assertion helpers beyond `LaunchHelper.swift`.
-- `QueryViewInsertScenario` / `QueryViewInsertUITests` (two tests): an insert through
+- `QueryViewInsertScenario` / `QueryViewInsertUITests` (three tests): an insert through
   `$novels.modelContext` lands in the watched container and the list
   updates — `givenModelContext` seeding is the live context end to end. And
   the memoized `Query` is not a snapshot: five inserts, then an unrelated
   parent re-render hands `QueryView` the value it built over the EMPTY store —
   still five rows, and a sixth insert still lands. The results live in
   SwiftUI's storage for the installed `DynamicProperty`, not in the `Query`
-  struct the memo keeps.
+  struct the memo keeps. Neither is the animation lost: the scenario's
+  `Query(sort:animation:)` is watched by a `.transaction` modifier on the
+  content logging `animated` when an update arrives carrying one — pinned
+  `animated 1, unrelated 1, animated 2`: each insert animates, the second
+  after the memo handed the stored query back, and the unrelated write
+  carries none.
 - `FlowUpScenario` / `FlowUpUITests`: one collector over a caller
   (`@Environment(\.scenarioFlow)`, a `send` button logging `send hi` before
   calling) and `FlowLeaf(name:)` listeners logging `(name, payload)`, the
