@@ -69,10 +69,10 @@ mode with strict concurrency. It supports swift-syntax
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift` — `@TestFocusState` + `@TestAccessibilityFocusState`, one shared expansion — `TestEnvironmentMacro.swift`, `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `UITestLogging.swift` (`uiTestLog(accessibilityIdentifier:)`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam and `Memo`, container-seeding as the second mock path; see the `QueryResult` section), and the `Experimental/` directory — the two implementation-dependent runtime techniques, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the memory-layout fabricator for Apple's sealed type; see the `QueryResult` section) |
+| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `UITestLogging.swift` (`uiTestLog(accessibilityIdentifier:)`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), `MemoView.swift` (public `MemoView`, a value memoized by caller-listed dependencies, over the internal `Memo` class; `QueryView` is built on it; see `MemoView`), and the `Experimental/` directory — the two implementation-dependent runtime techniques, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the memory-layout fabricator for Apple's sealed type; see the `QueryResult` section) |
 | `CoreFlowUITesting` | library, UI-test bundles only | `UITestLog.swift`: the XCUITest end of `uiTestLog` — `XCUIApplication.uiTestLog(accessibilityIdentifier:)` (the element), `XCUIElement.logNames`/`logValues` (JSON-decoded label/value, empty when undecodable), `wait(for:toEqual:timeout:)` (an `XCTNSPredicateExpectation` poll). Imports XCTest, so it is its own product: an app target must never link it. Consumer: `CoreFlowHosted/UITests` |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro (`FlowableExpansionTests`, `ShellExpansionTests`, `CapabilityExpansionTests`, `PickExpansionTests`, `TestStateExpansionTests`, `TestActionExpansionTests`, `TestFocusStateExpansionTests`, `TestAccessibilityFocusStateExpansionTests`, `TestEnvironmentExpansionTests`, `UnstructuredTaskExpansionTests`, `FlowUpExpansionTests`); depends on `CoreFlowMacros` + `SwiftSyntaxMacrosTestSupport`, never on the product |
-| `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`FlowableTests`, `ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `TestEnvironmentTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
+| `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`FlowableTests`, `ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `MemoViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `TestEnvironmentTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
 
 Public machinery that only macro expansions name — `_TaskStorage`,
 `_CancellableTask`, `_FlowUpClosure`, `_FlowUpID` — is `_`-prefixed, Apple's
@@ -325,6 +325,10 @@ The other scenarios, each one UI test unless noted:
   `animated 1, unrelated 1, animated 2`: each insert animates, the second
   after the memo handed the stored query back, and the unrelated write
   carries none.
+- `MemoViewScenario` / `MemoViewUITests`: a parent value handed to a child
+  that builds an `@Observable` model from it — the `@State` child keeps the
+  first value, the `MemoView` child follows it and keeps its instance across
+  unrelated re-renders; see the `MemoView` section for the pinned log.
 - `FlowUpScenario` / `FlowUpUITests`: one collector over a caller
   (`@Environment(\.scenarioFlow)`, a `send` button logging `send hi` before
   calling) and `FlowLeaf(name:)` listeners logging `(name, payload)`, the
@@ -1039,8 +1043,12 @@ the built query as a view property — what makes SwiftUI install a
 are the values that take part in the `Query` init — THOSE AND ONLY THOSE:
 every property or call result the `query` expression reads, nothing else
 (never a literal, never state only `content` reads) — and the built `Query`
-is MEMOIZED by them: `Memo<Value>`
-(`QueryView.swift`, internal, reusable for any `[any Equatable]` key and factory) held in `@State` (a render-phase write to a plain object, the
+is MEMOIZED by them through `MemoView` (its own section below): `body` is
+`MemoView(query(), dependencies:) { PropertyHostView(property: $0) { … } }`,
+so the memo's `@State` lives one view below `QueryView` — hosted-verified to
+change nothing (dependency gating, built-once, live inserts, animation all
+unchanged through the extra layer). `Memo<Value>`
+(`MemoView.swift`, internal) held in `@State` (a render-phase write to a plain object, the
 `_FlowUpClosure` pattern) keeps the last dependencies and query, and `body` asks it
 for the query every render — same dependencies, the stored value is handed to
 `PropertyHostView` again (what any view holding a `@Query` does each render,
@@ -1121,6 +1129,39 @@ forms can go stale silently — a forgotten dependency by hand, a bare helper
 under the macro — so the macro bought one line (`let search = search` above a
 predicate) for ~170 lines and a spelling rule. Do not retry without a way to
 see the view's members.
+
+## `MemoView`
+
+`Sources/CoreFlow/MemoView.swift`: public `MemoView<Value, Content>` —
+`init(_ value: @autoclosure @escaping () -> Value, dependencies: [any
+Equatable] = [], @ViewBuilder content: (Value) -> Content)` — over the
+internal `Memo<Value>` class kept in the view's own `@State`; `body` is
+`content(memo.value(for: dependencies, build: value))`. React's `useMemo` as
+a view: same word, same argument order, the caller lists the dependencies —
+the values that take part in building the value, THOSE AND ONLY THOSE;
+`content` is not gated. Public as a VIEW on purpose: the raw `Memo` class was
+considered for `public` and refused — a plain class is only correct when the
+caller keeps it in `@State` and touches it during `body`, a contract nobody
+can see; the view owns its storage, so it cannot be held wrong. What it is
+FOR, and what the hosted scenario pins: a value that depends on an input.
+`@State` builds once at first appearance and ignores every later input;
+`.id(input)` repairs that by destroying the subtree's state.
+`MemoView` rebuilds the value when a dependency changes, keeps the SAME
+instance otherwise — an `@Observable` model's own state survives unrelated
+parent re-renders. The value is derived, not a source of truth: nothing
+writes it through `MemoView`. `MemoViewScenario` / `MemoViewUITests`: a
+parent `seed` handed to two children building `Doubler(seed:)`, an
+`@Observable` class — `StateChild` through `State(wrappedValue:)` in its
+`init`, `MemoChild` through `MemoView(build(), dependencies: [seed])`, the
+build logged. Pinned: `memo 2 taps 0`; a tap on the model → `taps 1`, still
+`taps 1` after an unrelated parent re-render (same instance); `seed` → 2 →
+`memo 4 taps 0` (a new instance) while the `@State` child still shows
+`state 2`; exact log `doubler 1, unrelated 1, seed 2, doubler 2` — one build
+per dependency value, none for the unrelated render. `MemoViewTests` owns the
+compiled surface (both call forms typecheck in a body). Limits: one closure
+level per memoized value (a property-wrapper form was discussed, not built);
+an `@Observable` instance listed as a dependency compares by whatever its
+`Equatable` says — list the inputs, not the model.
 
 ## Logged-property family
 
@@ -1879,7 +1920,7 @@ behavior.
 | overload resolution and tuple KeyPaths | compiled end-to-end test | `PickTests` |
 | wrapper SDK parity | pinned swiftinterface inspection plus compiled use | Shell/QueryResult evidence |
 | logging order, focus, environment installation | hosted scenario/UI test | `CoreFlowHosted` (`TestStateUITests`, `TestActionUITests`, `TestFocusStateUITests`, `TestAccessibilityFocusStateUITests`, `ShellCoreUITests`, `TestEnvironmentUITests`, `ViewModifierCoreUITests`) |
-| QueryView dependency gating, container-free `mockQuery`, sectioned live/mock rendering, live `modelContext`, FlowUp end to end, task teardown, hosted `Core` (`@TestState` + `@AppStorage`→`Binding` write-through), `@TestAction` logging, `@TestFocusState`, `@GestureState(reset:)` on `Core` | hosted scenario/UI test | `CoreFlowHosted` (one `*UITests` per scenario) |
+| MemoView rebuild-on-dependency and keep-otherwise, QueryView dependency gating, container-free `mockQuery`, sectioned live/mock rendering, live `modelContext`, FlowUp end to end, task teardown, hosted `Core` (`@TestState` + `@AppStorage`→`Binding` write-through), `@TestAction` logging, `@TestFocusState`, `@GestureState(reset:)` on `Core` | hosted scenario/UI test | `CoreFlowHosted` (one `*UITests` per scenario) |
 | binding write-through | compiled/runtime test | `ShellTests`, `ShellCoreUITests` |
 | task replacement and teardown | hosted scenario/UI test | `UnstructuredTaskUITests` (assign, clear-to-`nil` cancels, teardown cancels) — the box is never tested directly, only through its wrapper |
 | reflection labels | runtime test | `ReflectorTests` |
@@ -1899,6 +1940,8 @@ Exact API owners:
   `MockQueryTransform`'s registry hit plus both empty
   fallbacks (`mockTransformReturnsRegisteredThenEmptyFallback`); `mockQuery`
   hosted behavior is `MockQueryResultsUITests`/`QueryViewSectionedUITests` in `CoreFlowHosted`;
+  `MemoViewTests` owns the MemoView surface compiled, its behavior is
+  `MemoViewUITests`;
   `SectionedResultsMockTests` owns the sectioned-mock runtime behavior
   (caller order, title subscript, seeding a `QueryResult`).
 - `TestStateExpansionTests`/`TestActionExpansionTests`/`TestFocusStateExpansionTests`/`TestAccessibilityFocusStateExpansionTests`

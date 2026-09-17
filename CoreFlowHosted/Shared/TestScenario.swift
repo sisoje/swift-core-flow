@@ -6,6 +6,7 @@ nonisolated enum TestScenario: Codable {
     case queryViewSectionedLive
     case queryViewSectionedMocked
     case queryViewInsert
+    case memoView
     case flowUp
     case flowUpThrows
     case unstructuredTask

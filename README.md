@@ -43,6 +43,13 @@ to a subtree.
   (runtime utility) fabricates iOS 27 sectioned results for tests and previews,
   preserving caller order. Uses private runtime layout because Apple exposes no initializer.
 
+### Follow an input without resetting the subtree
+
+[`MemoView`](#memoview) (view) builds a value from the view's inputs, keeps
+it across renders, and rebuilds it only when its listed dependencies change —
+React's `useMemo`. What `@State(wrappedValue:)` in an `init` cannot do: the
+value follows the input.
+
 ### Record boundary events
 
 These tools provide the execution log used by Shell scenarios and can also
@@ -560,7 +567,7 @@ struct BookList: View {
 - **Against `init() { _books = Query(…) }`.** That pattern constructs a new
   `Query` every time the parent re-renders the child, whatever changed.
   `QueryView` constructs one only when `dependencies` change; on any other
-  re-render [the memo](#memo-pattern) hands SwiftUI the stored one — no
+  re-render [the memo](#memoview) hands SwiftUI the stored one — no
   new `Query`, no SQL (measured: ten re-renders, zero statements), still
   observing inserts.
 - **Against `.id(value)` on that child.** While the value is unchanged,
@@ -593,22 +600,6 @@ BookListScenario()
   container mocks them live, and `SectionedResults.mock` below fabricates
   one as plain data for direct unit construction.
 
-### Memo pattern
-
-How `QueryView` holds the query is React's
-[`useMemo`](https://react.dev/reference/react/useMemo): a value cached
-between renders, recomputed only when its dependencies change — same word,
-same argument order, same contract: the caller lists them. In SwiftUI it is a plain class kept in
-`@State`, storing the last dependencies and the `Query` built from them.
-`body` asks it on every render: same dependencies, the stored `Query` comes
-back; different, `query` runs once and the result replaces it. Writing to a
-plain object during `body` is not a state write, so nothing re-renders
-because of it. One difference from React: `useMemo` is documented as an
-optimization React may discard; here the cache is the semantics — a `Query`
-is rebuilt when its dependencies change and at no other time. SwiftUI's
-`.equatable()` could gate the same thing, but whether it skips is SwiftUI's
-decision; this one is ours.
-
 ### SectionedResults.mock — because Apple sealed plain data
 
 iOS 27's sectioned queries (`Query(sort:sectionBy:)`) return
@@ -633,6 +624,56 @@ built by memberwise-initializing
 their stored fields at runtime-reported offsets, matched by field name — so
 an OS that changes the private layout fails loudly instead of corrupting.
 Test/preview-only, and deletable the day Apple grants the initializers.
+
+---
+
+## MemoView
+
+A value built from the view's inputs, kept across renders, rebuilt only when
+its dependencies change — React's
+[`useMemo`](https://react.dev/reference/react/useMemo) as a view: same word,
+same argument order, same contract, the caller lists the dependencies.
+
+```swift
+struct Child: View {
+    let seed: Int // from the parent
+
+    var body: some View {
+        MemoView(Doubler(seed: seed), dependencies: [seed]) { doubler in
+            Text("\(doubler.doubled)")
+        }
+    }
+}
+```
+
+- **What it is for: a value that depends on an input.** `@State` builds its
+  value once, at first appearance, and ignores every later input:
+  `_doubler = State(wrappedValue: Doubler(seed: seed))` keeps showing the
+  first `seed` forever (the usual repair, `.id(seed)`, destroys the subtree's
+  state with it).
+  `MemoView` builds the value from the current inputs, keeps the same
+  instance while the dependencies are unchanged — an `@Observable` model's
+  own state survives unrelated parent re-renders — and builds a new one when
+  they change.
+- **`dependencies` are the values that take part in building the value,
+  those and only those.** The expression is deferred (an autoclosure) and
+  runs only when they change; leave one out and the value will not follow
+  it. Default `[]`: built once and kept. `[any Equatable]`, any mix of
+  `Equatable` values. `content` is not gated and reads whatever it wants.
+- **Derived, not a source of truth.** `MemoView` hands the value out; it does
+  not write it. State the value owns (an `@Observable` model's properties) is
+  the value's business and lasts as long as the instance does.
+- **How it works.** A plain class kept in `@State` stores the last
+  dependencies and the value built from them; `body` asks it on every render.
+  Writing to a plain object during `body` is not a state write, so nothing
+  re-renders because of it. One difference from React: `useMemo` is
+  documented as an optimization React may discard; here the cache is the
+  semantics — the value is rebuilt when its dependencies change and at no
+  other time. SwiftUI's `.equatable()` could gate the same thing, but whether
+  it skips is SwiftUI's decision; this one is ours.
+
+[`QueryView`](#queryview) is `MemoView` over a `Query`, plus the hosting that
+makes SwiftUI install it.
 
 ---
 
@@ -1736,7 +1777,7 @@ targets and one hosted test project:
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one file each: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift`, `UnstructuredTaskMacro.swift`, `FlowUpMacro.swift` — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `makeFlow(_:)`, and `InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — `View.testLog(_:)` and the `TestLog` dynamic property — `UITestLogging.swift`, `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, the two implementation-dependent techniques (uninitialized-memory reflection, memory-layout fabrication), kept apart on purpose |
+| `CoreFlow` | library | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — `View.testLog(_:)` and the `TestLog` dynamic property — `UITestLogging.swift`, `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, `MemoView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, the two implementation-dependent techniques (uninitialized-memory reflection, memory-layout fabrication), kept apart on purpose |
 | `CoreFlowUITesting` | library, UI-test bundles only | the XCUITest end of `uiTestLog`: `XCUIApplication.uiTestLog(accessibilityIdentifier:)`, `XCUIElement.logNames`/`logValues`, `wait(for:toEqual:timeout:)` — imports XCTest, so an app target never links it |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro, against the plugin module |
 | `CoreFlowTests` | test (XCTest + swift-testing) | every compiled and runtime suite, one file per API, against the product only |
@@ -1753,9 +1794,9 @@ The conceptual model, taught macro-free — the split these macros mechanize:
 - Lazar Otasevic — [SwiftUI Data Flow Masterclass](https://medium.com/@redhotbits/swiftui-data-flow-masterclass-099f0768f776) — nodes, waves, boundary events, the shell/core split, execution-log testing
 - Lazar Otasevic — [The (only) proper way to use SwiftData Query](https://medium.com/@redhotbits/the-only-proper-way-to-use-swiftdata-query-c48e66726c37) — a SOT with construction parameters demands dependency-keyed recreation; the pattern `QueryView` packages
 
-The memo behind `QueryView`:
+The memo behind `MemoView` and `QueryView`:
 
-- React — [`useMemo`](https://react.dev/reference/react/useMemo) — a value cached between renders, keyed by a caller-listed dependency array; the pattern `QueryView` applies to `Query`
+- React — [`useMemo`](https://react.dev/reference/react/useMemo) — a value cached between renders, keyed by a caller-listed dependency array; the pattern `MemoView` packages and `QueryView` applies to `Query`
 
 Data-flow programming and data coupling — the model behind the package as a
 whole: a SwiftUI app as nodes (views, view modifiers) coupled only by the

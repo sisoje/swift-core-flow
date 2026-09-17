@@ -44,7 +44,7 @@ let package = Package(
         // TestSupport/ directory: TestLog, UITestLogging, TestState, TestAction,
         // TestFocusState, TestAccessibilityFocusState, TestEnvironment), plus the
         // non-macro runtime: QueryResult.swift,
-        // QueryView.swift, and the Experimental/ directory — Reflector.swift and
+        // QueryView.swift, MemoView.swift, and the Experimental/ directory — Reflector.swift and
         // SectionedResults+Mock.swift, implementation-dependent runtime
         // techniques (uninitialized-memory reflection, memory-layout
         // fabrication) kept apart on purpose.
