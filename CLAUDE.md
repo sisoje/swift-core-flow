@@ -69,7 +69,7 @@ mode with strict concurrency. It supports swift-syntax
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift` — `@TestFocusState` + `@TestAccessibilityFocusState`, one shared expansion — `TestEnvironmentMacro.swift`, `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `UITestLogging.swift` (`uiTestLog(accessibilityIdentifier:)`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), and the `Experimental/` directory — the two implementation-dependent runtime techniques, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the memory-layout fabricator for Apple's sealed type; see the `QueryResult` section) |
+| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `UITestLogging.swift` (`uiTestLog(accessibilityIdentifier:)`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam and `Memo`, container-seeding as the second mock path; see the `QueryResult` section), and the `Experimental/` directory — the two implementation-dependent runtime techniques, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:)`, the memory-layout fabricator for Apple's sealed type; see the `QueryResult` section) |
 | `CoreFlowUITesting` | library, UI-test bundles only | `UITestLog.swift`: the XCUITest end of `uiTestLog` — `XCUIApplication.uiTestLog(accessibilityIdentifier:)` (the element), `XCUIElement.logNames`/`logValues` (JSON-decoded label/value, empty when undecodable), `wait(for:toEqual:timeout:)` (an `XCTNSPredicateExpectation` poll). Imports XCTest, so it is its own product: an app target must never link it. Consumer: `CoreFlowHosted/UITests` |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro (`FlowableExpansionTests`, `ShellExpansionTests`, `CapabilityExpansionTests`, `PickExpansionTests`, `TestStateExpansionTests`, `TestActionExpansionTests`, `TestFocusStateExpansionTests`, `TestAccessibilityFocusStateExpansionTests`, `TestEnvironmentExpansionTests`, `UnstructuredTaskExpansionTests`, `FlowUpExpansionTests`); depends on `CoreFlowMacros` + `SwiftSyntaxMacrosTestSupport`, never on the product |
 | `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`FlowableTests`, `ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `TestEnvironmentTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
@@ -228,9 +228,9 @@ observer, so an append re-renders the leaf and nothing else, with nothing
 to leak into the scenarios. The sink appends DEFERRED (`Task { … }` from the
 `@MainActor` sink — same actor, enqueue order held): a synchronous append
 from a render-phase event is a state write during a body evaluation
-("Modifying state during view update", both sort tests fail). Rejected, in
+("Modifying state during view update", the sort tests fail). Rejected, in
 order, all with evidence: a `@State` array on the ROOT (synchronous, then
-deferred) re-rendered the root on every event and looped the ungated
+deferred) re-rendered the root on every event and looped the then-ungated
 scenario on the beta-4 runner (~16 `query`/s); a `UIViewRepresentable`
 whose `UIView` overrode the accessibility getters (no state at all) worked
 everywhere and was dropped as UIKit in a SwiftUI package; `@State` items
@@ -245,37 +245,39 @@ Locked by `QueryViewSortUITests`. Gated: the EXACT log `query, unrelated,
 unrelated, unrelated, sortDescending, query` — the memo constructs once at
 first appearance whatever the build re-renders, three parent re-renders (the
 body reads `unrelated`, so each write re-renders) construct nothing, only the
-index write does. Ungated: the label's `["query"` prefix and an exact tail —
-the OPENING count is build-dependent. Ungated tail:
-`unrelated, query, unrelated, query, unrelated, query, sortDescending,
-query`; the first appearance constructs twice on 27A5252f and three times on
-the beta runners. It is not `.modelContainer(for:inMemory:)`'s
-setup: a pre-built container passed to `.modelContainer(_:)` still logged
-two (probed), so the test asserts the label's `["query"` prefix and its
-8-event suffix. The gated scenario absorbs those extra renders, which is
-the point. History of the gate: until 2026-09-16 it was
-`EquatableByParameterView.equatable()` (`@MainActor Equatable`, equality on
-`index` only — the correct conformance, SwiftUI compares views on the main
-actor; a `nonisolated ==` over `nonisolated(unsafe) let index` was tried and
-rejected). Beta 4 never skipped it (one construction per unrelated tap on
-CI, zero locally); beta 6 skipped it in some runs and not others (runs 44–51
-green, 52–53 one `query` per unrelated tap:
-`["query","query","query","query","unrelated","query","unrelated","query",…]`),
-with no change to the gate between. The memo replaced it so the skip no
-longer depends on `EquatableView`. No skip guard: an `XCTSkipIf` below `Version 27.0 (Build
-24A5423a)` was added for beta 4 and REMOVED — Apple build strings are not
-orderable across beta→release by string or by number (release `24A434`
-sorts below beta `24A5423a` either way), so on the 27.0 release it skipped
-the gated and both sectioned tests outright. On the release the gate skips
-exactly as on 27A5252f. Settled by a
-throwaway probe (two `.equatable()` gates logging their bodies, one
-`@MainActor Equatable`, one nonisolated; removed after the run): on
-27A5252f both run at launch, once more on the first parent re-render,
-then never; on beta 4 BOTH re-ran on every parent re-render — beta 4's
-`.equatable()` skips nothing regardless of conformance isolation. Apple's
-beta bug, not the isolated conformance. The earlier ~66/150 opening constructions on beta 4 were the
-root-state-backed log feeding renders (gone once the log left the root;
-FlowUp passed on CI the moment it did).
+dependency write does. Ungated (no `dependencies:`, the default `[]`, always equal): the EXACT
+log `query, unrelated, unrelated, unrelated, sortDescending` — built once at
+first appearance and kept, not even the sort write rebuilds it: a value left
+out of the dependencies is a change the query does not follow. Measured while the memo-less path existed (an initializer that bypassed the
+memo, removed 2026-09-17): without the memo every render
+constructed — `unrelated, query, unrelated, query, unrelated, query,
+sortDescending, query` — and the first appearance alone constructed twice on
+27A5252f and three times on the beta runners, not
+`.modelContainer(for:inMemory:)`'s setup (a pre-built container passed to
+`.modelContainer(_:)` still logged two, probed). The memo absorbs those extra renders, which is
+the point.
+
+Gate history, closed: until 2026-09-16 the skip was
+`EquatableByParameterView.equatable()` (`@MainActor Equatable` on its then `index` parameter
+alone — the correct conformance, SwiftUI compares views on the main actor; a
+`nonisolated ==` over `nonisolated(unsafe) let index` was tried and
+rejected), and the `xcode-27` runner honored it by build: beta 4 never
+skipped it (one construction per unrelated tap on CI, zero locally — settled
+by a throwaway probe of two `.equatable()` gates logging their bodies, one
+`@MainActor Equatable`, one nonisolated: on 27A5252f both ran at launch and
+once on the first parent re-render, then never; on beta 4 both re-ran on
+every parent re-render, so beta 4's `.equatable()` skips nothing regardless
+of conformance isolation — Apple's beta bug); beta 6 skipped it in some runs
+and not others (44–51 green, 52–53 one `query` per unrelated tap:
+`["query","query","query","query","unrelated","query","unrelated","query",…]`)
+with no change to the gate between. The memo replaced it; the skip is ours
+on any build. An `XCTSkipIf` below `Version 27.0 (Build 24A5423a)`, added
+for beta 4, was REMOVED: Apple build strings are not orderable across
+beta→release by string or by number (release `24A434` sorts below beta
+`24A5423a` either way), so on the 27.0 release it skipped the gated and both
+sectioned tests outright. The earlier ~66/150 opening constructions on beta
+4 were the root-state-backed log feeding renders (gone once the log left the
+root; FlowUp passed on CI the moment it did).
 
 swiftformat trap (0.62.1, probed): its `unusedArguments` rule does not
 count the `_items` backing spelling as a use of a `{ $items in … }` closure
@@ -310,9 +312,14 @@ The other scenarios, each one UI test unless noted:
   value survives real SwiftUI consumption (sections, rows), not just `count`.
   Tests here are flat copy-paste by rule: readable like a book, no shared
   assertion helpers beyond `LaunchHelper.swift`.
-- `QueryViewInsertScenario` / `QueryViewInsertUITests`: an insert through
+- `QueryViewInsertScenario` / `QueryViewInsertUITests` (two tests): an insert through
   `$novels.modelContext` lands in the watched container and the list
-  updates — `givenModelContext` seeding is the live context end to end.
+  updates — `givenModelContext` seeding is the live context end to end. And
+  the memoized `Query` is not a snapshot: five inserts, then an unrelated
+  parent re-render hands `QueryView` the value it built over the EMPTY store —
+  still five rows, and a sixth insert still lands. The results live in
+  SwiftUI's storage for the installed `DynamicProperty`, not in the `Query`
+  struct the memo keeps.
 - `FlowUpScenario` / `FlowUpUITests`: one collector over a caller
   (`@Environment(\.scenarioFlow)`, a `send` button logging `send hi` before
   calling) and `FlowLeaf(name:)` listeners logging `(name, payload)`, the
@@ -940,7 +947,7 @@ construction consequence and this pointer.
 
 `Sources/CoreFlow/QueryView.swift` is the live shell feeding a real `@Query`
 into `QueryResult`-consuming content, so components take `QueryResult` as plain
-data in both worlds. PUBLIC surface: `QueryView<Index, Element, Result,
+data in both worlds. PUBLIC surface: `QueryView<Element, Result,
 Content>` (`Result` passes through VERBATIM) and
 `View.mockQuery(_: repeat QueryResult<each R>)` — the one mock entry point,
 a variadic parameter-pack extension injecting the canned transform.
@@ -987,27 +994,34 @@ every variant taxed the production path to fix Apple's sealing. Ruling: no
 
 Sectioned MOCKING is `SectionedResults.mock(_: [(title:elements:)])` in
 `Sources/CoreFlow/Experimental/SectionedResults+Mock.swift` — non-throwing (`try!`
-inside; a mock failing has no recovery), fabricating the two init-less
-shells by memberwise-initializing their stored fields at runtime-reported
-offsets (the `swift_reflectionMirror_recursiveCount/ChildMetadata/
-ChildOffset` entry points Mirror uses; fields matched by NAME with a loud
-precondition, so a layout change fails instead of corrupting). Probed
-layouts (27.0): `SectionedResults` = `_sections: [ResultsSection]` +
-`_sectionsByTitle: [SectionTitle: Int]`; `ResultsSection` = `title` +
-`_fetchResults: FetchResultsCollection`; `FetchResultsCollection` =
-`elements: [Int: [FetchResultsCollectionElement]]` + `modelContext` +
-`batchSize` + `totalElements`. The inner content is genuine: per section
-the mock inserts the models into a throwaway in-memory `ModelContainer`,
-then fetches EACH element alone by `persistentModelID` with `batchSize: 1`
-(batched fetch requires `includePendingChanges = false`) and reassembles
-the single-element batch arrays at the caller's positions (`batchSize` 1,
-dict key = element index) — required because store order without a sort is
-UNSPECIFIED (observed both insertion-ordered and alphabetical). Batch
-arrays hold the internal wrapper type and are moved under an `[Element]`
-spelling — layout-compatible pointer moves only; writing a plain
-`[Element]` directly into `elements` is NOT bit-compatible and segfaults
-on element access (probed). Caller order and instance identity verified;
-models end up managed by the throwaway container. Reflector-class
+inside; a mock failing has no recovery), arbitrary titles, the caller's
+section and row order. Only the two init-less SHELLS are fabricated,
+by memberwise-initializing their stored fields at runtime-reported offsets
+(the `swift_reflectionMirror_recursiveCount/ChildMetadata/ChildOffset` entry
+points Mirror uses; fields matched by NAME with a loud precondition, so a
+layout change fails instead of corrupting): `SectionedResults` = `_sections:
+[ResultsSection]` + `_sectionsByTitle: [SectionTitle: Int]`; `ResultsSection`
+= `title` + `_fetchResults: FetchResultsCollection` (probed 27.0 and 27.2,
+unchanged). The `FetchResultsCollection` inside each section is SwiftData's
+OWN: per section the mock inserts the models into a throwaway in-memory
+`ModelContainer` — one `save()` per insert, so the store numbers rows in the
+caller's order — and takes the result of the public
+`context.fetch(_:batchSize:)` (`includePendingChanges = false`, which batched
+fetch requires; one batch the size of the section) as is. Row order rests on
+an unsorted fetch reading rows back in save order — observed on macOS and
+iOS 27.2, not documented by Apple; a single save of all inserts came back in
+unspecified order (insertion-ordered and alphabetical both seen). Caller
+order and instance identity verified; models end up managed by the throwaway
+container. REPLACED 2026-09-17: fabricating the fetch collection too — each
+element fetched alone, the single-element batch arrays moved under an
+`[Element]` spelling into a hand-initialized `FetchResultsCollection`
+(`elements`/`modelContext`/`batchSize`/`totalElements`). Verified on 27.0, it
+segfaulted on the iOS 27.2 simulator — `EXC_BAD_ACCESS` at `0x10` inside
+SwiftData under `ForEach.IDGenerator.makeID`, in `QueryViewSectionedUITests`
+and in the package's own `SectionedResultsMockTests` run on that simulator —
+with the field layout unchanged and macOS 27.2 still passing: the offsets
+held, the hand-built batch content did not. Do not fabricate the fetch
+collection again. Reflector-class
 implementation-dependent technique — test/preview-only, deletable the day
 Apple grants the initializers.
 
@@ -1016,29 +1030,91 @@ Result>` — the call site spells the query expression bare,
 `query: Query(sort: …)`, deferral preserved — and
 `content: (QueryResult<Result>) -> Content`. Internal `PropertyHostView` stores
 the built query as a view property — what makes SwiftUI install a
-`DynamicProperty`; passed into a closure it would never update. `index` is the query's
-parameter set, and the built `Query` is MEMOIZED by it: `Memo<Key, Value>`
-(`QueryView.swift`, internal, reusable for any key and factory) held in `@State` (a render-phase write to a plain object, the
-`_FlowUpClosure` pattern) keeps the last index and query, and `body` asks it
-for the query every render — same index, the stored value is handed to
+`DynamicProperty`; passed into a closure it would never update. `dependencies`
+are the values that take part in the `Query` init — THOSE AND ONLY THOSE:
+every property or call result the `query` expression reads, nothing else
+(never a literal, never state only `content` reads) — and the built `Query`
+is MEMOIZED by them: `Memo<Value>`
+(`QueryView.swift`, internal, reusable for any `[any Equatable]` key and factory) held in `@State` (a render-phase write to a plain object, the
+`_FlowUpClosure` pattern) keeps the last dependencies and query, and `body` asks it
+for the query every render — same dependencies, the stored value is handed to
 `PropertyHostView` again (what any view holding a `@Query` does each render,
 so the installed property keeps updating) and the autoclosure never runs;
-new index, one rebuild. The skip is OUR decision on any build; it replaced
+new dependencies, one rebuild. The skip is OUR decision on any build; it replaced
 `EquatableByParameterView.equatable()` (2026-09-16), which was the same idea
 through SwiftUI's `EquatableView` and which the `xcode-27` runner's betas
 honored inconsistently (record under `Hosted scenarios`). Cost: `content`
 re-runs on every parent render over already-fetched data. The caller's
-contract is that `index` covers every input of `query`; a value left out is
-a parameter change the query will not follow. The `Index == Never`
-initializer is the ungated fallback (`index` nil, `body` bypasses the memo),
-rebuilding the query every render.
+contract is that definition; a value left out is a change the query will not
+follow. `dependencies:` defaults to `[]` and is typed
+`[any Equatable]` — any mix of `Equatable` values, no `Index` generic, no
+`AnyHashable`: `Memo<Value>` takes the array as its key and compares it
+pairwise in two private static functions of its own (`isSame`; the element
+one is generic over the left value and takes the right as `Any`, `(other as?
+Element) == element`, so values of different types differ — typed `any
+Equatable` on the right it does not compile, probed) — an array of existentials is itself not `Equatable` (`type 'any
+Equatable' cannot conform to 'Equatable'`, probed), so the comparison lives
+in the memo. The default `[]` is a query with no inputs: built once and
+kept. Every path goes through the memo: rebuilding a `Query` on every render
+is never what a caller wants. What it competes with, both in the README: a
+child building `_items = Query(…)` in `init` from a parent value — `init`
+runs on every parent evaluation, so a new `Query` each time, the case Apple
+DTS confirms (forums thread 816936, a filtered `@Query` re-fetched per
+keystroke in the parent) — and `.id(value)` on that child, which changes
+nothing while the value is unchanged and destroys the subtree's `@State`
+when it changes. Measured hosted with `-com.apple.CoreData.SQLDebug 1` on a
+captured `simctl launch --console-pty` (the app's SQL goes to stderr, not
+the unified log; the UI test attaches with `XCUIApplication(bundleIdentifier:)
+.activate()`): ten unrelated parent re-renders through the memo add ZERO
+statements, the two logs identical (54 lines, 10 `SELECT`s, 3 on `ZNOVEL`).
 Verified live by
 `QueryViewSortScenario`: `QueryView` hosted over a real `Query` over a
 scenario-seeded in-memory `ModelContainer`, the sort write rebuilding the
 query. The gate's
-negative — an unchanged index skipping the query rebuild — and the ungated
-init's positive are verified live by `QueryViewSortScenario(gated:)` +
-`QueryViewSortUITests` in `CoreFlowHosted` (see `Hosted scenarios`).
+negative — unchanged dependencies skipping the query rebuild — and the
+empty list's built-once-and-kept are verified live by
+`QueryViewSortScenario(gated:)` + `QueryViewSortUITests` in `CoreFlowHosted`
+(see `Hosted scenarios`).
+
+Rejected (2026-09-16/17, all compiler-verified): a macro that writes the
+dependencies. (1) A `@Query`-shaped ATTACHED macro reading the view: attribute
+arguments (`@MemoQuery(order: self.sortDescending ? …)`), a stored-property
+initializer (`= self.flag ? 1 : 2`, even under an accessor macro turning the
+property into a getter), and a zero-parameter block argument (`{ self.flag ?
+1 : 2 }`) all fail with `cannot find 'self' in scope; did you mean to use it
+in a type or extension context?` — a stored property's attribute and
+initializer are type-checked where no instance exists, and no macro signature
+changes that; `{ flag ? 1 : 2 }` fails with `instance member 'flag' cannot be
+used on type`. Only a closure taking the instance (`{ (h: Self) in h.flag ? 1
+: 2 }`, too odd a spelling) or a hand-written computed property can spell
+`self`. (2) The computed-property design — `@MemoQuery private var books:
+Query<Book, [Book]> { Query(… self.x …) }` with a generated memoized peer —
+was built and dropped: a method and a property cannot share a name (`invalid
+redeclaration of 'books'`) and an accessor macro cannot replace a getter the
+user wrote, so the memoized value had to be a second name (`$books`, then
+`_books` → `books` under `names: arbitrary`) — the ergonomics that killed it.
+(3) A freestanding `#QueryView(Query(… self.x …)) { $books in … }`, built
+green with hosted proof and removed: it expanded to `{ let a = self.x; return
+QueryView(dependencies: [a], query: Query(… a …)) { … } }()`, the list being every
+`self.`-rooted chain of the query expression, each read into a local (the
+locals also made `self.x` legal inside `#Predicate`, which cannot read
+through `self`: `cannot convert value of type '…KeyPath<…Value<V>, Int>>' to
+closure result type 'any StandardPredicateExpression<Bool>'`, probed). What
+it cost against a hand-written `dependencies: [search, sortDescending]`: a
+syntax-only key cannot see members (`context.lexicalContext` carries the
+enclosing declarations without them, probed `members=[]`), so every input
+had to be spelled `self.` with a diagnostic for any bare identifier — and
+swiftformat's default `redundantSelf` strips exactly that outside closures
+(`--selfrequired Query` in a `.swiftformat` keeps it; `--selfrequired
+QueryView` does nothing); a bare CALLEE reading view state (`order:
+currentOrder()`) stayed silently unkeyed, indistinguishable from a global
+function; a `$name` projection had to be told apart from `$0`; locals,
+parameters and `ForEach` items had no spelling; and one `#QueryView` inside
+another's content is the compiler's `recursive expansion of macro`. Both
+forms can go stale silently — a forgotten dependency by hand, a bare helper
+under the macro — so the macro bought one line (`let search = search` above a
+predicate) for ~170 lines and a spelling rule. Do not retry without a way to
+see the view's members.
 
 ## Logged-property family
 
@@ -1797,7 +1873,7 @@ behavior.
 | overload resolution and tuple KeyPaths | compiled end-to-end test | `PickTests` |
 | wrapper SDK parity | pinned swiftinterface inspection plus compiled use | Shell/QueryResult evidence |
 | logging order, focus, environment installation | hosted scenario/UI test | `CoreFlowHosted` (`TestStateUITests`, `TestActionUITests`, `TestFocusStateUITests`, `TestAccessibilityFocusStateUITests`, `ShellCoreUITests`, `TestEnvironmentUITests`, `ViewModifierCoreUITests`) |
-| QueryView index gating, container-free `mockQuery`, sectioned live/mock rendering, live `modelContext`, FlowUp end to end, task teardown, hosted `Core` (`@TestState` + `@AppStorage`→`Binding` write-through), `@TestAction` logging, `@TestFocusState`, `@GestureState(reset:)` on `Core` | hosted scenario/UI test | `CoreFlowHosted` (one `*UITests` per scenario) |
+| QueryView dependency gating, container-free `mockQuery`, sectioned live/mock rendering, live `modelContext`, FlowUp end to end, task teardown, hosted `Core` (`@TestState` + `@AppStorage`→`Binding` write-through), `@TestAction` logging, `@TestFocusState`, `@GestureState(reset:)` on `Core` | hosted scenario/UI test | `CoreFlowHosted` (one `*UITests` per scenario) |
 | binding write-through | compiled/runtime test | `ShellTests`, `ShellCoreUITests` |
 | task replacement and teardown | hosted scenario/UI test | `UnstructuredTaskUITests` (assign, clear-to-`nil` cancels, teardown cancels) — the box is never tested directly, only through its wrapper |
 | reflection labels | runtime test | `ReflectorTests` |
@@ -1812,7 +1888,7 @@ Exact API owners:
   `InFlow` for the many- and one-field shapes.
 - `ShellExpansionTests` owns Shell expansion/diagnostics; `ShellTests` owns compiled
   Core behavior; `QueryResultTests` owns query parity and initialization;
-  `QueryViewTests` owns the QueryView surface compiled (both inits
+  `QueryViewTests` owns the QueryView surface compiled (the init
   typechecking in a body, `$` closure re-propertification) and
   `MockQueryTransform`'s registry hit plus both empty
   fallbacks (`mockTransformReturnsRegisteredThenEmptyFallback`); `mockQuery`

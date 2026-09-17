@@ -31,10 +31,8 @@ to a subtree.
 
 - [`QueryView`](#queryview) (view) owns the live query and hands content a
   `QueryResult` (`{ $books in … }`), so content reads plain data in production
-  and tests alike. With `index:`, the query is rebuilt only when the index
-  changes; the index is the query's parameter set and must cover every input
-  of `query`.
-  The initializer without `index:` rebuilds the query on every render.
+  and tests alike. The query is rebuilt only when `dependencies:` changes:
+  the values that take part in the `Query` init, those and only those.
 - [`@QueryResult`](#queryresult) (property wrapper) replaces `@Query` on
   Shell's generated `Core`, preserving the live query's read surface for
   fetched data, errors, and context. Tests supply the fetched value directly:
@@ -523,7 +521,9 @@ own the parameters as state, build the query from them, and rebuild it
 exactly when they change. Building it in a child's `init` off parent state
 (the common workaround) couples query creation to however often the parent
 happens to recompute — and `Query` construction is not a free struct
-assignment; it wires a real fetch pipeline. Dependency-keyed recreation
+assignment; it wires a real fetch pipeline (Apple DTS confirms the case: a
+filtered `@Query` in a child [re-fetched once per keystroke in the
+parent](https://developer.apple.com/forums/thread/816936)). Dependency-keyed recreation
 isn't a style preference, it's the only correct flow for this API —
 [the full argument, and the pattern QueryView packages, is in the Data
 Flow series](https://medium.com/@redhotbits/the-only-proper-way-to-use-swiftdata-query-c48e66726c37).
@@ -537,7 +537,7 @@ struct BookList: View {
 
     var body: some View {
         QueryView(
-            index: sortDescending,
+            dependencies: [sortDescending],
             query: Query(sort: \Book.title, order: sortDescending ? .reverse : .forward)
         ) { $books in
             List(books) { book in
@@ -548,15 +548,24 @@ struct BookList: View {
 }
 ```
 
-- **The `query:` expression is deferred (an autoclosure), evaluated only
-  when `index` changes** — `index` is the query's parameter set, and the
-  built query is memoized by it: toggling the flag makes a new query;
-  unrelated parent re-renders hand the stored one back and never reach the
-  expression. `index` must cover every input of `query`: a value left out is
-  a parameter change the query will not follow — aggregate multiple inputs
-  into one `Equatable` key struct.
-  The init without `index:` is the ungated fallback,
-  re-evaluating the query every render.
+- **`dependencies` are the values that take part in the `Query` init, those
+  and only those.** The `query:` expression is deferred and runs only when
+  they change; leave one out and the query will not follow it. Default `[]`:
+  built once and kept.
+- **Query creation is local.** `@Query` is configured in `init`, before
+  `@State` and `@Environment` can be read, so a query over the view's own
+  state needs a child whose `init` takes the value. `QueryView` builds it in
+  `body`, from that state; the child that existed only to hold the query is
+  gone.
+- **Against `init() { _books = Query(…) }`.** That pattern constructs a new
+  `Query` every time the parent re-renders the child, whatever changed.
+  `QueryView` constructs one only when `dependencies` change; on any other
+  re-render the memo hands SwiftUI the stored one — no new `Query`, no SQL
+  (measured: ten re-renders, zero statements), still observing inserts.
+- **Against `.id(value)` on that child.** While the value is unchanged,
+  `init` still runs on every parent re-render; when it changes, SwiftUI
+  destroys the child and every `@State` under it. The goal is a new query,
+  not a new subtree.
 - **Content receives a `QueryResult`, re-propertified by the `$` parameter**:
   `books` reads the fetched array directly (`ForEach(books)`,
   `books.isEmpty` — `@Query` ergonomics), `_books` reaches
@@ -600,9 +609,10 @@ let sectioned = SectionedResults<Book, String>.mock([
 ])
 ```
 
-The inner fetch collection is genuine (a throwaway in-memory container per
-section), element order is exactly the caller's, and instances come back
-identical. Only the two init-less shells are built by memberwise-initializing
+Each section's fetch collection is SwiftData's own — its elements go into a
+throwaway in-memory container and come back through the public batched fetch,
+in the caller's order, the same instances. Only the two init-less shells are
+built by memberwise-initializing
 their stored fields at runtime-reported offsets, matched by field name — so
 an OS that changes the private layout fails loudly instead of corrupting.
 Test/preview-only, and deletable the day Apple grants the initializers.

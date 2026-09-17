@@ -4,7 +4,7 @@ import SwiftUI
 import Testing
 
 // Real, compiled usage of the QueryView surface — no live view anywhere in
-// this file. Hosted behavior (installation, index gating, in-memory
+// this file. Hosted behavior (installation, dependency gating, in-memory
 // container mocking) is CoreFlowHosted's story.
 
 @Model
@@ -35,8 +35,13 @@ struct QueryViewTests {
 
     @Test func initsAndDollarParameterTypecheckInABody() {
         struct Probe: View {
+            var descending = false
+
             var body: some View {
-                QueryView(index: true, query: Query(sort: \Track.title)) { $tracks in
+                QueryView(
+                    dependencies: [descending],
+                    query: Query(sort: \Track.title, order: descending ? .reverse : .forward)
+                ) { $tracks in
                     Text(verbatim: "\(tracks.count)")
                 }
                 QueryView(query: Query(sort: \Track.title)) { result in

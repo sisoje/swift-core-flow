@@ -27,10 +27,12 @@ struct QueryViewSortScenario: View {
             // subtree whose content is `EmptyView`, so the query is never
             // even constructed.
             if gated {
-                QueryView(index: sortDescending, query: build()) { $books in
+                QueryView(dependencies: [sortDescending], query: build()) { $books in
                     List(books) { Text($0.title) }
                 }
             } else {
+                // No dependencies: always equal, so the query is built once
+                // and kept — it does not follow the sort write.
                 QueryView(query: build()) { $books in
                     List(books) { Text($0.title) }
                 }

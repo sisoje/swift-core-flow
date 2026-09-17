@@ -75,68 +75,65 @@ struct PropertyHostView<Property, Content: View>: View {
     }
 }
 
-/// A value memoized by a key: `value(for:build:)` runs `build` only when the
-/// key differs from the last one. A plain class meant to live in `@State` — a
+/// A value memoized by dependencies: `value(for:build:)` runs `build` only when
+/// they differ from the last ones. A plain class meant to live in `@State` — a
 /// render-phase write to a plain object, no SwiftUI state write. `QueryView`
-/// keys the built `Query` by `index`, so an unchanged index never runs the
+/// keys the built `Query` by `dependencies`, so unchanged ones never run the
 /// autoclosure — our decision, not `.equatable()`'s (whose skipping a beta can
 /// flip); handing the same `Query` value to `PropertyHostView` each render is
 /// what any view holding a `@Query` does, so the installed property keeps
 /// updating.
-final class Memo<Key: Equatable, Value> {
-    private var key: Key?
+final class Memo<Value> {
+    private var dependencies: [any Equatable] = []
     private var value: Value?
 
-    func value(for key: Key, build: () -> Value) -> Value {
-        if let value, key == self.key {
+    func value(for dependencies: [any Equatable], build: () -> Value) -> Value {
+        if let value, Self.isSame(dependencies, self.dependencies) {
             return value
         }
-        self.key = key
+        self.dependencies = dependencies
         let built = build()
         value = built
         return built
     }
+
+    /// Pairwise equality; two values of different types are different.
+    private static func isSame(_ lhs: [any Equatable], _ rhs: [any Equatable]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        for (element, other) in zip(lhs, rhs) where !isSame(element, other) {
+            return false
+        }
+        return true
+    }
+
+    private static func isSame<Element: Equatable>(_ element: Element, _ other: Any) -> Bool {
+        (other as? Element) == element
+    }
 }
 
-public struct QueryView<Index: Equatable, Element: PersistentModel, Result, Content: View>: View {
-    /// `index` is the query's parameter set: it must cover every input of
-    /// `query`; a value left out is a parameter change the memoized query will
+public struct QueryView<Element: PersistentModel, Result, Content: View>: View {
+    /// `dependencies` are the values that take part in the `Query` init, those
+    /// and only those; a value left out is a change the memoized query will
     /// not follow. `content` is not gated and reads whatever state it wants.
     public init(
-        index: Index,
+        dependencies: [any Equatable] = [],
         query: @autoclosure @escaping () -> Query<Element, Result>,
         @ViewBuilder content: @escaping (QueryResult<Result>) -> Content
     ) {
-        self.index = index
-        self.query = query
-        self.content = content
-    }
-
-    public init(
-        query: @autoclosure @escaping () -> Query<Element, Result>,
-        @ViewBuilder content: @escaping (QueryResult<Result>) -> Content
-    ) where Index == Never {
+        self.dependencies = dependencies
         self.query = query
         self.content = content
     }
 
     @Environment(\.queryTransform) private var queryTransform
-    @State private var memo = Memo<Index, Query<Element, Result>>()
-    // nil means ungated: the Index == Never init cannot supply a value, and
-    // body skips the memo — the query is rebuilt every render.
-    var index: Index?
+    @State private var memo = Memo<Query<Element, Result>>()
+    let dependencies: [any Equatable]
     let query: () -> Query<Element, Result>
     let content: (QueryResult<Result>) -> Content
 
     public var body: some View {
-        if let index {
-            PropertyHostView(property: memo.value(for: index, build: query)) {
-                content(queryTransform.toResult($0))
-            }
-        } else {
-            PropertyHostView(property: query()) {
-                content(queryTransform.toResult($0))
-            }
+        PropertyHostView(property: memo.value(for: dependencies, build: query)) {
+            content(queryTransform.toResult($0))
         }
     }
 }

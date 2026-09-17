@@ -72,10 +72,6 @@ public extension SectionedResults {
             of: "_fetchResults", in: ResultsSection<Element, SectionTitle>.self
         )
         let frcType = FetchResultsCollection<Element>.self
-        let elementsOffset = offset(of: "elements", in: frcType)
-        let contextOffset = offset(of: "modelContext", in: frcType)
-        let batchSizeOffset = offset(of: "batchSize", in: frcType)
-        let totalOffset = offset(of: "totalElements", in: frcType)
         var built: [ResultsSection<Element, SectionTitle>] = []
         for section in sections {
             let container = try! ModelContainer(
@@ -83,40 +79,18 @@ public extension SectionedResults {
                 configurations: ModelConfiguration(isStoredInMemoryOnly: true)
             )
             let context = ModelContext(container)
+            // One save per insert: the store numbers rows in save order, and
+            // an unsorted fetch reads them back in that order — the caller's.
             for element in section.elements {
                 context.insert(element)
+                try! context.save()
             }
-            try! context.save()
-            // Store order is unspecified, so caller order is enforced by
-            // fetching each element alone (batchSize 1 → its dict is
-            // [0: batch]) and reassembling the batches at the caller's
-            // positions. The batch arrays hold the internal element
-            // wrapper type; they are moved around under an [Element]
-            // spelling — layout-compatible pointer moves, never
-            // element-accessed under the wrong type.
-            var batches: [Int: [Element]] = [:]
-            for (position, element) in section.elements.enumerated() {
-                let id = element.persistentModelID
-                var descriptor = FetchDescriptor<Element>(
-                    predicate: #Predicate { $0.persistentModelID == id }
-                )
-                // Batched fetch refuses pending changes; everything is saved.
-                descriptor.includePendingChanges = false
-                let single = try! context.fetch(descriptor, batchSize: 1)
-                precondition(
-                    single.count == 1, "SectionedResults.mock: element fetch-back failed"
-                )
-                withUnsafeBytes(of: single) { rawSingle in
-                    batches[position] = (rawSingle.baseAddress! + elementsOffset)
-                        .load(as: [Int: [Element]].self)[0]!
-                }
-            }
-            let results: FetchResultsCollection<Element> = fabricate { raw in
-                (raw + elementsOffset).initializeMemory(as: [Int: [Element]].self, to: batches)
-                (raw + contextOffset).initializeMemory(as: ModelContext.self, to: context)
-                (raw + batchSizeOffset).initializeMemory(as: Int.self, to: 1)
-                (raw + totalOffset).initializeMemory(as: Int.self, to: section.elements.count)
-            }
+            // The fetch collection is SwiftData's own, from the public
+            // batched fetch; only the two init-less shells are fabricated.
+            var descriptor = FetchDescriptor<Element>()
+            // Batched fetch refuses pending changes; everything is saved.
+            descriptor.includePendingChanges = false
+            let results = try! context.fetch(descriptor, batchSize: Swift.max(section.elements.count, 1))
             built.append(
                 fabricate { raw in
                     (raw + titleOffset).initializeMemory(
