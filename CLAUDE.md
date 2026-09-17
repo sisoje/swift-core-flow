@@ -1051,7 +1051,8 @@ through SwiftUI's `EquatableView` and which the `xcode-27` runner's betas
 honored inconsistently (record under `Hosted scenarios`). Cost: `content`
 re-runs on every parent render over already-fetched data. The caller's
 contract is that definition; a value left out is a change the query will not
-follow. `dependencies:` defaults to `[]` and is typed
+follow. `dependencies:` comes AFTER `query:` — React's `useMemo(calculate,
+dependencies)` order, and Swift's defaulted-parameter-last — defaults to `[]` and is typed
 `[any Equatable]` — any mix of `Equatable` values, no `Index` generic, no
 `AnyHashable`: `Memo<Value>` takes the array as its key and compares it
 pairwise in two private static functions of its own (`isSame`; the element
@@ -1100,7 +1101,7 @@ user wrote, so the memoized value had to be a second name (`$books`, then
 `_books` → `books` under `names: arbitrary`) — the ergonomics that killed it.
 (3) A freestanding `#QueryView(Query(… self.x …)) { $books in … }`, built
 green with hosted proof and removed: it expanded to `{ let a = self.x; return
-QueryView(dependencies: [a], query: Query(… a …)) { … } }()`, the list being every
+QueryView(query: Query(… a …), dependencies: [a]) { … } }()`, the list being every
 `self.`-rooted chain of the query expression, each read into a local (the
 locals also made `self.x` legal inside `#Predicate`, which cannot read
 through `self`: `cannot convert value of type '…KeyPath<…Value<V>, Int>>' to

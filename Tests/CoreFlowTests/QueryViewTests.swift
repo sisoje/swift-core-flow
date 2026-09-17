@@ -39,8 +39,8 @@ struct QueryViewTests {
 
             var body: some View {
                 QueryView(
-                    dependencies: [descending],
-                    query: Query(sort: \Track.title, order: descending ? .reverse : .forward)
+                    query: Query(sort: \Track.title, order: descending ? .reverse : .forward),
+                    dependencies: [descending]
                 ) { $tracks in
                     Text(verbatim: "\(tracks.count)")
                 }

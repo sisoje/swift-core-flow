@@ -116,8 +116,8 @@ public struct QueryView<Element: PersistentModel, Result, Content: View>: View {
     /// and only those; a value left out is a change the memoized query will
     /// not follow. `content` is not gated and reads whatever state it wants.
     public init(
-        dependencies: [any Equatable] = [],
         query: @autoclosure @escaping () -> Query<Element, Result>,
+        dependencies: [any Equatable] = [],
         @ViewBuilder content: @escaping (QueryResult<Result>) -> Content
     ) {
         self.dependencies = dependencies

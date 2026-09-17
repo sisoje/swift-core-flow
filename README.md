@@ -537,8 +537,8 @@ struct BookList: View {
 
     var body: some View {
         QueryView(
-            dependencies: [sortDescending],
-            query: Query(sort: \Book.title, order: sortDescending ? .reverse : .forward)
+            query: Query(sort: \Book.title, order: sortDescending ? .reverse : .forward),
+            dependencies: [sortDescending]
         ) { $books in
             List(books) { book in
                 Text(book.title)
@@ -560,8 +560,9 @@ struct BookList: View {
 - **Against `init() { _books = Query(…) }`.** That pattern constructs a new
   `Query` every time the parent re-renders the child, whatever changed.
   `QueryView` constructs one only when `dependencies` change; on any other
-  re-render the memo hands SwiftUI the stored one — no new `Query`, no SQL
-  (measured: ten re-renders, zero statements), still observing inserts.
+  re-render [the memo](#memo-pattern) hands SwiftUI the stored one — no
+  new `Query`, no SQL (measured: ten re-renders, zero statements), still
+  observing inserts.
 - **Against `.id(value)` on that child.** While the value is unchanged,
   `init` still runs on every parent re-render; when it changes, SwiftUI
   destroys the child and every `@State` under it. The goal is a new query,
@@ -591,6 +592,22 @@ BookListScenario()
   `QueryResult<SectionedResults<…>>` and reads Apple's own surface; a seeded
   container mocks them live, and `SectionedResults.mock` below fabricates
   one as plain data for direct unit construction.
+
+### Memo pattern
+
+How `QueryView` holds the query is React's
+[`useMemo`](https://react.dev/reference/react/useMemo): a value cached
+between renders, recomputed only when its dependencies change — same word,
+same argument order, same contract: the caller lists them. In SwiftUI it is a plain class kept in
+`@State`, storing the last dependencies and the `Query` built from them.
+`body` asks it on every render: same dependencies, the stored `Query` comes
+back; different, `query` runs once and the result replaces it. Writing to a
+plain object during `body` is not a state write, so nothing re-renders
+because of it. One difference from React: `useMemo` is documented as an
+optimization React may discard; here the cache is the semantics — a `Query`
+is rebuilt when its dependencies change and at no other time. SwiftUI's
+`.equatable()` could gate the same thing, but whether it skips is SwiftUI's
+decision; this one is ours.
 
 ### SectionedResults.mock — because Apple sealed plain data
 
@@ -1735,6 +1752,10 @@ The conceptual model, taught macro-free — the split these macros mechanize:
 
 - Lazar Otasevic — [SwiftUI Data Flow Masterclass](https://medium.com/@redhotbits/swiftui-data-flow-masterclass-099f0768f776) — nodes, waves, boundary events, the shell/core split, execution-log testing
 - Lazar Otasevic — [The (only) proper way to use SwiftData Query](https://medium.com/@redhotbits/the-only-proper-way-to-use-swiftdata-query-c48e66726c37) — a SOT with construction parameters demands dependency-keyed recreation; the pattern `QueryView` packages
+
+The memo behind `QueryView`:
+
+- React — [`useMemo`](https://react.dev/reference/react/useMemo) — a value cached between renders, keyed by a caller-listed dependency array; the pattern `QueryView` applies to `Query`
 
 Data-flow programming and data coupling — the model behind the package as a
 whole: a SwiftUI app as nodes (views, view modifiers) coupled only by the
