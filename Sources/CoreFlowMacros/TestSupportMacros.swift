@@ -6,7 +6,7 @@ import SwiftSyntaxMacros
 // `@Environment` sugar). Required shape: a stored `var` with an initial
 // value; anything else THROWS from expansion — a compile error at the
 // attribute, never a silent skip (the family policy; rationale in
-// CLAUDE.md's @TestFocusState section).
+// AGENTS.md's @TestFocusState section).
 
 /// `@TestState private var count: Int = 0` — a drop-in `@State` that logs.
 /// The property reads/writes a generated `State` storage, so it stays LIVE
@@ -207,7 +207,7 @@ func functionType(of type: TypeSyntax) -> FunctionTypeSyntax? {
 /// wrapper captures two plain values, never `self` (the log value is
 /// `@Sendable`, and not dragging the whole view copy into the closure keeps it
 /// clean for `async`/`@Sendable` action types). Environment resolution happens
-/// at the view copy's install either way — see CLAUDE.md.
+/// at the view copy's install either way — see AGENTS.md.
 func wrapperClosure(name: String, function: FunctionTypeSyntax, isSendable: Bool)
     -> String
 {

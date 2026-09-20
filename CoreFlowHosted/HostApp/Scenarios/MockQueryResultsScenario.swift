@@ -4,7 +4,8 @@ import SwiftUI
 
 struct TagsUnavailable: Error {}
 
-/// No container anywhere: one canned result, one canned fetch error.
+/// No container anywhere: one canned result, one canned fetch error, and one
+/// shape nobody registered — it gets the query's own value, empty here.
 struct MockQueryResultsScenario: View {
     var body: some View {
         VStack {
@@ -16,6 +17,9 @@ struct MockQueryResultsScenario: View {
                 if let error = _tags.fetchError {
                     Text(verbatim: "\(error)")
                 }
+            }
+            QueryView(query: Query(sort: \Novel.genre, sectionBy: \Novel.genre)) { $sections in
+                Text(verbatim: "unregistered sections \(sections.count)")
             }
         }
         .mockQuery(

@@ -10,10 +10,9 @@ struct QueryViewSectionedScenario: View {
         if mocked {
             sections.mockQuery(
                 QueryResult(
-                    wrappedValue: SectionedResults<Novel, String>.mock([
-                        (title: "Sci-Fi", elements: [novel("Dune"), novel("Anathem")]),
-                        (title: "Horror", elements: [novel("It")]),
-                    ])
+                    wrappedValue: SectionedResults.mock(
+                        [novel("Dune"), novel("Anathem"), novel("It")], sectionBy: \.genre
+                    )
                 )
             )
         } else {

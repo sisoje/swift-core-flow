@@ -20,7 +20,7 @@ extension EnvironmentValues {
 
 /// The macros' generated log field (`private let log_x = TestLog()`) —
 /// explicit because macro-generated `@Environment` sugar crashes swiftc
-/// (see CLAUDE.md); the hand-written sugar in here is fine, and nested
+/// (see AGENTS.md); the hand-written sugar in here is fine, and nested
 /// DynamicProperties install by type, so injection stays reactive.
 @propertyWrapper
 public struct TestLog: DynamicProperty {

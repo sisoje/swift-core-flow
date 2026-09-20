@@ -45,9 +45,8 @@ let package = Package(
         // TestFocusState, TestAccessibilityFocusState, TestEnvironment), plus the
         // non-macro runtime: QueryResult.swift,
         // QueryView.swift, MemoView.swift, and the Experimental/ directory — Reflector.swift and
-        // SectionedResults+Mock.swift, implementation-dependent runtime
-        // techniques (uninitialized-memory reflection, memory-layout
-        // fabrication) kept apart on purpose.
+        // SectionedResults+Mock.swift (uninitialized-memory reflection; sectioned
+        // results over a throwaway container), kept apart on purpose.
         .target(name: "CoreFlow", dependencies: ["CoreFlowMacros"]),
         // The XCUITest end of uiTestLog: the log element, its names/values
         // decoded, a wait on its properties. Imports XCTest, so only a UI-test

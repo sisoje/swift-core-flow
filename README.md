@@ -40,8 +40,8 @@ to a subtree.
 - [`View.mockQuery(_:)`](#queryview) (view modifier) supplies canned results
   to a subtree, registered by result type; unregistered shapes receive empty results.
 - [`SectionedResults.mock`](#sectionedresultsmock--because-apple-sealed-plain-data)
-  (runtime utility) fabricates iOS 27 sectioned results for tests and previews,
-  preserving caller order. Uses private runtime layout because Apple exposes no initializer.
+  (runtime utility) makes iOS 27 sectioned results for tests and previews from
+  a flat list, through SwiftData's public `ResultsObserver` — Apple exposes no initializer.
 
 ### Follow an input without resetting the subtree
 
@@ -579,9 +579,9 @@ struct BookList: View {
   `books.isEmpty` — `@Query` ergonomics), `_books` reaches
   `fetchError`/`modelContext` exactly as on a live `@Query`.
 - **Two mock paths.** Can the results in one line — `.mockQuery` registers
-  typed `QueryResult` values per result type (an unregistered shape gets
-  the empty result of that shape — `[]`, or an empty
-  `SectionedResults` — so the subtree still renders) — or seed an in-memory container and let the REAL query run
+  typed `QueryResult` values per result type (an unregistered shape gets the
+  query's own value — empty when no container is installed — so the subtree
+  still renders) — or seed an in-memory container and let the REAL query run
   against your test data, so sorting, filtering, and sectioning are
   genuinely the query's own:
 
@@ -597,7 +597,7 @@ BookListScenario()
 
 - **Sectioned queries (iOS 27) pass through verbatim** — content receives
   `QueryResult<SectionedResults<…>>` and reads Apple's own surface; a seeded
-  container mocks them live, and `SectionedResults.mock` below fabricates
+  container mocks them live, and `SectionedResults.mock` below makes
   one as plain data for direct unit construction.
 
 ### SectionedResults.mock — because Apple sealed plain data
@@ -608,21 +608,17 @@ yet shipped with **no public initializer** on it or `ResultsSection`. A
 sectioned result can only come from a live fetch, so sectioned UI cannot be
 mocked in any test or preview by ordinary means. Reported to Apple as
 **FB24480699** (public initializers requested); until granted, CoreFlow
-fabricates the value:
+gets a genuine one from SwiftData itself:
 
 ```swift
-let sectioned = SectionedResults<Book, String>.mock([
-    (title: "Sci-Fi", elements: [dune, anathem]),
-    (title: "Horror", elements: [it]),
-])
+let sectioned = SectionedResults.mock([dune, anathem, it], sectionBy: \.genre)
 ```
 
-Each section's fetch collection is SwiftData's own — its elements go into a
-throwaway in-memory container and come back through the public batched fetch,
-in the caller's order, the same instances. Only the two init-less shells are
-built by memberwise-initializing
-their stored fields at runtime-reported offsets, matched by field name — so
-an OS that changes the private layout fails loudly instead of corrupting.
+The elements go into a throwaway in-memory container and SwiftData's public
+`ResultsObserver` sections them, exactly as a live `Query(sort:sectionBy:)`
+would: titles are the elements' own `sectionBy` values, sections and rows
+follow `sortBy:` (by default the section key path), and the caller's
+instances come back. Public API only — no private layout, nothing fabricated.
 Test/preview-only, and deletable the day Apple grants the initializers.
 
 ---
@@ -1777,7 +1773,7 @@ targets and one hosted test project:
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one file each: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift`, `UnstructuredTaskMacro.swift`, `FlowUpMacro.swift` — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `makeFlow(_:)`, and `InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — `View.testLog(_:)` and the `TestLog` dynamic property — `UITestLogging.swift`, `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, `MemoView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, the two implementation-dependent techniques (uninitialized-memory reflection, memory-layout fabrication), kept apart on purpose |
+| `CoreFlow` | library | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — `View.testLog(_:)` and the `TestLog` dynamic property — `UITestLogging.swift`, `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, `MemoView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection, implementation-dependent) and `SectionedResults+Mock.swift` (sectioned results over a throwaway container) |
 | `CoreFlowUITesting` | library, UI-test bundles only | the XCUITest end of `uiTestLog`: `XCUIApplication.uiTestLog(accessibilityIdentifier:)`, `XCUIElement.logNames`/`logValues`, `wait(for:toEqual:timeout:)` — imports XCTest, so an app target never links it |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro, against the plugin module |
 | `CoreFlowTests` | test (XCTest + swift-testing) | every compiled and runtime suite, one file per API, against the product only |

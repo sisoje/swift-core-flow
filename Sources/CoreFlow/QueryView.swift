@@ -18,8 +18,8 @@ struct DefaultQueryTransform: QueryTransforming {
 /// The canned test transform: a per-result-type registry, so ONE value
 /// serves a subtree with queries over any mix of model types, fully typed
 /// at the registration site. A registry hit is returned; an unregistered
-/// shape still succeeds with the empty result of the shape the query
-/// declared, so a mocked subtree renders whatever it wasn't seeded for.
+/// shape gets the query's own value — empty when no container is installed —
+/// so a mocked subtree renders whatever it wasn't seeded for.
 struct MockQueryTransform: QueryTransforming {
     var resmap: [ObjectIdentifier: Any]
 
@@ -36,20 +36,11 @@ struct MockQueryTransform: QueryTransforming {
         resmap[ObjectIdentifier(R.self)] = result
     }
 
-    func toResult<E: PersistentModel, R>(_: Query<E, R>) -> QueryResult<R> {
+    func toResult<E: PersistentModel, R>(_ q: Query<E, R>) -> QueryResult<R> {
         if let result = resmap[ObjectIdentifier(R.self)] as? QueryResult<R> {
             return result
         }
-        // `Query`'s initializers fix `Result` to exactly these two shapes.
-        if let empty = [E]() as? R {
-            return QueryResult(wrappedValue: empty)
-        }
-        if #available(iOS 27.0, macOS 27.0, tvOS 27.0, watchOS 27.0, visionOS 27.0, macCatalyst 27.0, *),
-           let empty = SectionedResults<E, String>.mock([]) as? R
-        {
-            return QueryResult(wrappedValue: empty)
-        }
-        fatalError("MockQueryTransform: no mock registered and no empty result for \(R.self)")
+        return QueryResult(wrappedValue: q.wrappedValue)
     }
 }
 
