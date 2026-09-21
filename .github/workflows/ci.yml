@@ -16,7 +16,7 @@ jobs:
   hosted:
     runs-on: xcode-27
     env:
-      SIMULATOR: iPhone 17 Pro
+      SIMULATOR: iPhone 17
     steps:
       - uses: actions/checkout@v4
       - name: Cache derived data
