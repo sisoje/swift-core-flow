@@ -117,9 +117,9 @@ the production view exactly as it is; the twin is the seam.
 
 State reaches SwiftUI through a source-of-truth declaration on exactly one
 node: a view, view modifier, `App`, or `Scene`. Values and bindings carry it to
-descendants, forming the dataflow network. CoreFlow attaches its seams at those
-declarations: the twin logs writes to node-owned state and turns external
-storage and fetched data into test boundaries.
+descendants, forming the dataflow network. CoreFlow attaches its seams at the
+view and view-modifier declarations: the twin logs writes to node-owned state
+and turns external storage and fetched data into test boundaries.
 
 This decides who the package is for. Plain SwiftUI is already in this shape, so
 you can adopt CoreFlow one view at a time, with no migration. Put a screen's
@@ -1653,19 +1653,6 @@ runs. `PickMacro` never asks "which mode is this" — its diagnostics (missing l
 `from:`, a source with no picks, a non-key-path token) all read the same flat list the
 same way regardless of how many sources are present.
 
-### Next steps if you keep going
-
-1. **Evolution revival post**: "Tuple element KeyPaths" — worth confirming what shipped,
-   where, and since when, on toolchains older than the one this was verified against.
-2. **Labeled parameter packs**: if Swift ever supports per-element labels on `repeat each V`,
-   every arity could return a genuinely labeled tuple instead of a positional one.
-3. **Same-overload nesting, if it ever matters**: `#pick(from: #pick(from: ...), ...)`
-   where both resolve to the exact same arity — a distinct declared overload (reachable via
-   a hidden internal alias, say) would dodge the recursion guard the same way nesting
-   across different arities already does, since the guard is keyed on declared-overload
-   identity, not implementation type. Not shipped; two-statement composition covers the
-   real need today.
-
 ---
 
 ## Reflector
@@ -1772,7 +1759,7 @@ targets and one hosted test project:
 
 | Target | Kind | Contents |
 |---|---|---|
-| `CoreFlowMacros` | macro plugin | every macro's implementation, one file each: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift`, `UnstructuredTaskMacro.swift`, `FlowUpMacro.swift` — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `makeFlow(_:)`, and `InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
+| `CoreFlowMacros` | macro plugin | every macro's implementation, one file each: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift`, `TestEnvironmentMacro.swift`, `UnstructuredTaskMacro.swift`, `FlowUpMacro.swift` — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `makeFlow(_:)`, and `InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
 | `CoreFlow` | library | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — `View.testLog(_:)` and the `TestLog` dynamic property — `UITestLogging.swift`, `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, `MemoView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection, implementation-dependent) and `SectionedResults+Mock.swift` (sectioned results over a throwaway container) |
 | `CoreFlowUITesting` | library, UI-test bundles only | the XCUITest end of `uiTestLog`: `XCUIApplication.uiTestLog(accessibilityIdentifier:)`, `XCUIElement.logNames`/`logValues`, `wait(for:toEqual:timeout:)` — imports XCTest, so an app target never links it |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro, against the plugin module |
