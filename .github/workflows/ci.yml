@@ -32,4 +32,13 @@ jobs:
       - name: Allow UI automation
         run: sudo automationmodetool enable-automationmode-without-authentication
       - name: Run the hosted UI tests
-        run: sh CoreFlowHosted/test.sh
+        run: |
+          set -o pipefail
+          sh CoreFlowHosted/test.sh 2>&1 | tee test.log
+      # The failing lines as one annotation: readable on the run page and
+      # through the API without opening the log.
+      - name: Report the failures
+        if: failure()
+        run: |
+          grep -E "error: |' failed \(|Testing failed|Executed [0-9]+ tests" test.log | sed -E 's|.*/UITests/||' | head -40 > failures.txt || true
+          echo "::error title=Hosted UI tests::$(awk '{printf "%s%%0A", $0}' failures.txt)"
