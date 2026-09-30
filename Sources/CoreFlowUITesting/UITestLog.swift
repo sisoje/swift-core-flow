@@ -22,24 +22,28 @@ public extension XCUIElement {
         Self.strings(value as? String)
     }
 
-    /// Polls until the property at `keyPath` equals `expected`; `false` on
-    /// timeout. The names assertion of a scenario is
-    /// `wait(for: \.label, toEqual: #"["count","isOn"]"#, timeout: 5)`:
-    /// names are fixed identifiers, so the raw JSON string compares exactly.
+    /// Reads the property at `keyPath` until it equals `expected`; `false` on
+    /// timeout. Returns the moment it matches, with no interval between reads
+    /// (each one is a query to the app). XCTest's own
+    /// `wait(for:toEqual:timeout:)` and `waitForExistence(timeout:)` wait
+    /// about a second before their first check; a method here named like
+    /// either would be shadowed by XCTest's. The names assertion of a
+    /// scenario is `waitUntil(\.label, equals: #"["count","isOn"]"#,
+    /// timeout: 5)`: names are fixed identifiers, so the raw JSON string
+    /// compares exactly.
     @discardableResult
-    func wait<Value: Equatable>(
-        for keyPath: KeyPath<XCUIElement, Value>,
-        toEqual expected: Value,
+    func waitUntil<Value: Equatable>(
+        _ keyPath: KeyPath<XCUIElement, Value>,
+        equals expected: Value,
         timeout: TimeInterval
     ) -> Bool {
-        let expectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate { element, _ in
-                guard let element = element as? XCUIElement else { return false }
-                return element[keyPath: keyPath] == expected
-            },
-            object: self
-        )
-        return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        while self[keyPath: keyPath] != expected {
+            if Date() >= deadline {
+                return false
+            }
+        }
+        return true
     }
 
     private static func strings(_ json: String?) -> [String] {

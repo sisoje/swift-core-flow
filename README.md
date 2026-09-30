@@ -74,7 +74,7 @@ hosts behave normally.
   element for XCUITest.
 - [`CoreFlowUITesting`](#the-testlog-seam) (product for UI-test bundles)
   reads that element: `app.uiTestLog(accessibilityIdentifier:)`, `logNames`,
-  `logValues`, and `wait(for:toEqual:timeout:)`.
+  `logValues`, and `waitUntil(_:equals:timeout:)`.
 
 ### Own a task's lifetime
 
@@ -774,7 +774,9 @@ evidence.**
   side ships as the `CoreFlowUITesting` product, for UI-test bundles only
   (it imports XCTest): `app.uiTestLog(accessibilityIdentifier:)` finds the
   element, `logNames` and `logValues` decode it, and
-  `wait(for: \.label, toEqual: …, timeout:)` polls any of its properties.
+  `waitUntil(\.label, equals: …, timeout:)` reads any of its properties until it
+  matches, returning at once — XCTest's own `wait(for:toEqual:timeout:)` and
+  `waitForExistence(timeout:)` wait about a second before their first check.
   That is how `CoreFlowHosted`, the package's own hosted test app, runs every
   scenario, its tests written against that product.
 
@@ -1764,7 +1766,7 @@ targets and one hosted test project:
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one file each: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift`, `TestEnvironmentMacro.swift`, `UnstructuredTaskMacro.swift`, `FlowUpMacro.swift` — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `makeFlow(_:)`, and `InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
 | `CoreFlow` | library | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — `View.testLog(_:)` and the `TestLog` dynamic property — `UITestLogging.swift`, `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, `MemoView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection, implementation-dependent) and `SectionedResults+Mock.swift` (sectioned results over a throwaway container) |
-| `CoreFlowUITesting` | library, UI-test bundles only | the XCUITest end of `uiTestLog`: `XCUIApplication.uiTestLog(accessibilityIdentifier:)`, `XCUIElement.logNames`/`logValues`, `wait(for:toEqual:timeout:)` — imports XCTest, so an app target never links it |
+| `CoreFlowUITesting` | library, UI-test bundles only | the XCUITest end of `uiTestLog`: `XCUIApplication.uiTestLog(accessibilityIdentifier:)`, `XCUIElement.logNames`/`logValues`, `waitUntil(_:equals:timeout:)` — imports XCTest, so an app target never links it |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro, against the plugin module |
 | `CoreFlowTests` | test (XCTest + swift-testing) | every compiled and runtime suite, one file per API, against the product only |
 | `CoreFlowHosted/` | xcodegen project, not a package target | the hosted scenarios and XCUITests — every claim that needs a live SwiftUI host (`cd CoreFlowHosted && sh build.sh && sh test.sh`, the app as Mac Catalyst); CI runs it alongside `swift test` |
