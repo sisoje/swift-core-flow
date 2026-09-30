@@ -36,7 +36,7 @@ mode with strict concurrency. It supports swift-syntax
   `swift format` is NOT the formatter and rewrites ~30 clean files)
 - Run the package's hosted scenarios (UI tests, the app as Mac Catalyst on
   this Mac — they click on the real desktop):
-  `sh CoreFlowHosted/test.sh` (generates, builds, tests); once per machine,
+  `cd CoreFlowHosted && sh build.sh && sh test.sh`; once per machine,
   `sudo automationmodetool enable-automationmode-without-authentication`
 
 ### Documentation and verification rules
@@ -130,8 +130,9 @@ do not collide, and it repeats collection and diagnostics for the same fields.
 ### Hosted scenarios: `CoreFlowHosted`
 
 `CoreFlowHosted` is the package's own xcodegen project for claims that need a
-live SwiftUI host: `project.yml` and `test.sh` (`xcodegen generate`, then ONE
-`xcodebuild test` on the destination `platform=macOS,variant=Mac Catalyst`) —
+live SwiftUI host: `project.yml`, `build.sh` (`xcodegen generate` +
+`build-for-testing`), `test.sh` (`test-without-building` from the built
+`.xctestrun`), both on the destination `platform=macOS,variant=Mac Catalyst` —
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
 switching on the `TestScenario` it decodes from a `TestPayload` in the
 `testPayloadEnvironmentKey` environment variable — optional: with no payload (previews,
@@ -155,7 +156,7 @@ the tests read `app.log.logValues` and `app.log.waitUntil(\.label, …)`, the
 product's API, nothing hosted-private beyond the identifier). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
 package stays free of scenario code. The hosted tests run the app as MAC CATALYST on the Mac itself — no
-simulator (since 2026-09-30). CI runs one step allowing UI
+simulator (since 2026-09-30). CI runs `build.sh`, one step allowing UI
 automation (`sudo automationmodetool
 enable-automationmode-without-authentication`), then `test.sh`, as named steps
 (coverage off; Xcode uses the scheme), in `.github/workflows/ci.yml`, jobs
@@ -221,17 +222,20 @@ readable on the run page and through the API's check-run annotations without
 auth. Timings on the runner: build 41–56 s, tests 183 s with XCTest's waits and
 102–107 s with `waitUntil`, no boot — about 3 minutes for the hosted job; the
 last simulator runs on the same image took 60–103 s to boot and 503–855 s to
-test. Build and test are ONE `xcodebuild test`, one script, one CI step:
-with Catalyst nothing has to happen between them (the simulator boot was the
-reason for the split). Split into `build-for-testing` and
-`test-without-building` through `-project`/`-scheme`, the test step loaded the
-project and resolved the packages a SECOND time ("Resolve Package Graph" in
-its log); running it from the built `.xctestrun` instead avoided that (one test
-locally: 3.7–4.0 s wall through the project, 2.0 s through the file) at the
-price of a second script and a lookup under DerivedData. The runner timings
-above (build 41–56 s, tests 102–107 s) are from the split; the merged step is
-unmeasured there. On a failed BUILD the report step posts the compile errors,
-there being no failed test.
+test. Build and test are SEPARATE steps and scripts. `test.sh` runs from the
+`.xctestrun` file `build.sh` produced (`-xctestrun`, the newest
+`CoreFlowHostApp_macosx*.xctestrun` under DerivedData), not from the project:
+through `-project`/`-scheme`, `test-without-building` loads the project and
+resolves the packages a SECOND time ("Resolve Package Graph" in the test step's
+log); through the file it does neither (one test locally: 3.7–4.0 s wall
+through the project, 2.0 s through the file). Coverage is decided at build
+time, so `test.sh` passes no coverage flag. Merged into one `xcodebuild test`
+(one script, run 36718581244) the single step took 194 s against 143–163 s for
+build plus tests in the two split runs before it — on a runner whose unchanged
+setup steps were also about 1.5× slower, so the merge itself is not shown to
+cost anything — and it was put back: the split shows build and test time
+apart. The runner timings above are from the split through the project; the
+`.xctestrun` test step is unmeasured there.
 The claims are Catalyst's — UIKit-backed SwiftUI,
 not an iPhone.
 

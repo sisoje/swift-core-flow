@@ -25,21 +25,21 @@ jobs:
           restore-keys: derived-
       - name: Install xcodegen
         run: brew install xcodegen
+      - name: Generate and build for testing
+        run: sh CoreFlowHosted/build.sh
       # The tests run the app as Mac Catalyst and click on the runner's own
       # desktop: no simulator to boot. macOS has to allow that.
       - name: Allow UI automation
         run: sudo automationmodetool enable-automationmode-without-authentication
-      - name: Build and run the hosted UI tests
+      - name: Run the hosted UI tests
         run: |
           set -o pipefail
           sh CoreFlowHosted/test.sh 2>&1 | tee test.log
-      # Each failed test's activity timeline and errors — or, when the build
-      # failed, its errors — as one annotation: readable on the run page and
-      # through the API without opening the log.
+      # Each failed test's activity timeline and errors as one annotation:
+      # readable on the run page and through the API without opening the log.
       - name: Report the failures
         if: failure()
         run: |
           awk '/^Test Case .* started\./{buf=""} {buf=buf $0 "\n"} /^Test Case .* failed \(/{printf "%s", buf}' test.log | grep -E "t = |error: |^Test Case" | sed -E 's|.*/UITests/||' | cut -c1-200 | head -150 > failures.txt || true
-          [ -s failures.txt ] || grep -E "error: |BUILD FAILED" test.log | cut -c1-300 | head -30 > failures.txt || true
           grep -E "Executed [0-9]+ tests" test.log | tail -1 >> failures.txt || true
           echo "::error title=Hosted UI tests::$(awk '{printf "%s%%0A", $0}' failures.txt)"
