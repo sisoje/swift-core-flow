@@ -780,6 +780,21 @@ evidence.**
   That is how `CoreFlowHosted`, the package's own hosted test app, runs every
   scenario, its tests written against that product.
 
+### Known issues in hosted UI tests
+
+Found running `CoreFlowHosted` as Mac Catalyst and on CI; none is in the
+package, all bite any XCUITest suite:
+
+- **`tap()` or `click()`, never both.** On Mac Catalyst `tap()` sends nothing
+  and `click()` works; on an iPhone simulator `click()` fails with "Pointer
+  events are not supported for this device". Choose at compile time with
+  `#if targetEnvironment(macCatalyst)`.
+- **A synthesized drag can be discarded whole on a CI runner** — nothing
+  reaches the app. Repeat a drag that changed nothing (see
+  [References](#references)).
+- **Mac Catalyst releases a removed view's storage on the app's next event**,
+  so a test waiting on a teardown sends one more event.
+
 ---
 
 ## UnstructuredTask
@@ -1769,7 +1784,7 @@ targets and one hosted test project:
 | `CoreFlowUITesting` | library, UI-test bundles only | the XCUITest end of `uiTestLog`: `XCUIApplication.uiTestLog(accessibilityIdentifier:)`, `XCUIElement.logNames`/`logValues`, `waitUntil(_:equals:timeout:)` — imports XCTest, so an app target never links it |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro, against the plugin module |
 | `CoreFlowTests` | test (XCTest + swift-testing) | every compiled and runtime suite, one file per API, against the product only |
-| `CoreFlowHosted/` | xcodegen project, not a package target | the hosted scenarios and XCUITests — every claim that needs a live SwiftUI host (`cd CoreFlowHosted && sh build.sh && sh test.sh`, the app as Mac Catalyst); CI runs it alongside `swift test` |
+| `CoreFlowHosted/` | xcodegen project, not a package target | the hosted scenarios and XCUITests — every claim that needs a live SwiftUI host (`sh CoreFlowHosted/test.sh`, the app as Mac Catalyst); CI runs it alongside `swift test` |
 
 Swift tools version 6.4, Swift 6 language mode (strict concurrency), swift-syntax `600.0.0..<700.0.0`.
 
@@ -1803,6 +1818,10 @@ When view storage is released — the timing `@UnstructuredTask`'s teardown canc
 
 - Apple — [Using Autorelease Pool Blocks](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/MemoryMgmt/Articles/mmAutoreleasePools.html) — AppKit and UIKit run each event-loop iteration inside an autorelease pool, so an object can outlive its view until the next event
 - Nicholas Clooney — [SwiftUI in the Wild: Memory, Concurrency, and the Gaps in the Docs](https://blog.nicholas.clooney.io/posts/swiftui-in-the-wild-memory-concurrency-and-the-gaps-in-the-docs/) — Apple documents no guarantee on when `@State` releases a reference-type object
+
+Synthesized drags dropped on CI — the known issue in hosted UI tests:
+
+- Georg Klock — [The reorder UI test's drag is discarded whole on the runner](https://github.com/Georg-Klock/Glow/issues/600) — the same failure in another project, and the repeat-the-drag remedy
 
 Capability-based design — the idea behind `@Capability`:
 

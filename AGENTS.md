@@ -36,7 +36,7 @@ mode with strict concurrency. It supports swift-syntax
   `swift format` is NOT the formatter and rewrites ~30 clean files)
 - Run the package's hosted scenarios (UI tests, the app as Mac Catalyst on
   this Mac — they click on the real desktop):
-  `cd CoreFlowHosted && sh build.sh && sh test.sh`; once per machine,
+  `sh CoreFlowHosted/test.sh` (generates, builds, tests); once per machine,
   `sudo automationmodetool enable-automationmode-without-authentication`
 
 ### Documentation and verification rules
@@ -130,9 +130,8 @@ do not collide, and it repeats collection and diagnostics for the same fields.
 ### Hosted scenarios: `CoreFlowHosted`
 
 `CoreFlowHosted` is the package's own xcodegen project for claims that need a
-live SwiftUI host: `project.yml`, `build.sh` (`xcodegen generate` +
-`build-for-testing`), `test.sh` (`test-without-building`), both on the
-destination `platform=macOS,variant=Mac Catalyst` —
+live SwiftUI host: `project.yml` and `test.sh` (`xcodegen generate`, then ONE
+`xcodebuild test` on the destination `platform=macOS,variant=Mac Catalyst`) —
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
 switching on the `TestScenario` it decodes from a `TestPayload` in the
 `testPayloadEnvironmentKey` environment variable — optional: with no payload (previews,
@@ -156,7 +155,7 @@ the tests read `app.log.logValues` and `app.log.waitUntil(\.label, …)`, the
 product's API, nothing hosted-private beyond the identifier). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
 package stays free of scenario code. The hosted tests run the app as MAC CATALYST on the Mac itself — no
-simulator (since 2026-09-30). CI runs `build.sh`, one step allowing UI
+simulator (since 2026-09-30). CI runs one step allowing UI
 automation (`sudo automationmodetool
 enable-automationmode-without-authentication`), then `test.sh`, as named steps
 (coverage off; Xcode uses the scheme), in `.github/workflows/ci.yml`, jobs
@@ -201,17 +200,38 @@ targetEnvironment(macCatalyst)` and a log-free `noop` button in the scenario
 both worked and were dropped for the button that was already there. For a Catalyst user the
 teardown cancel lands on the next mouse or key event. Verified locally on
 Catalyst (Xcode 27.2, macOS 27.0.1): all 23 tests, in batches, never as one
-run. On CI (2026-09-30): run 36710268481 failed the test step after 191 s
-(before the teardown test sent that event), run 36712394088 failed it after 176 s, and run
-36713037630 PASSED in 183 s — with the SAME test code as the failing run before
-it; only the workflow differed (the test output teed to `test.log`, a report
-step). So the second failure was intermittent and its cause is unknown: neither
-failing log was read. Since then a failing hosted job posts the failing
-assertions, the failed test names and the executed/failed count as one error
-annotation ("Report the failures"), readable on the run page and through the
-API's check-run annotations without auth. The green run's hosted job took about
-4.5 minutes end to end (build 56 s, tests 183 s, no boot); the last simulator
-runs on the same image took 60–103 s to boot and 503–855 s to test.
+run. On CI (2026-09-30), seven Catalyst runs: 36710268481 failed (before the
+teardown test sent that event), 36712394088 failed (log not read), 36713037630
+passed, 36714576837 failed, then 36715675947 and 36716971272 passed. The one
+failure that was read is `GestureStateUITests`: the synthesized drag was
+DISCARDED WHOLE — `resets` stayed 0, the log empty, the other 22 tests green —
+with no code change between it and the green runs around it. Not reproducible
+locally: 6 of 6 under CPU load (36 busy processes on 18 cores), 4 of 4 with a
+100 000 pt/s drag, 3 of 3 with the app's main thread stalled 0.8 s mid-drag, 3
+of 3 with Finder activated before the drag. Others report the same (Glow issue
+600: a synthesized drag "discarded whole" on CI in 2 of 5 runs, locally only
+above load ~250), and their remedy is the one used here: the test repeats the
+drag ONCE when the first changed nothing (`resets` still 0 after 5 s). The
+pinned log is unchanged — a drag that registers still resets exactly once — and
+the retry path is proven with a deliberately dud first drag (2 pt, under
+`DragGesture`'s minimum distance): green in 7.5 s against 1.9 s normally. A
+failing hosted job posts each failed test's activity timeline, its errors and
+the executed/failed count as one error annotation ("Report the failures"),
+readable on the run page and through the API's check-run annotations without
+auth. Timings on the runner: build 41–56 s, tests 183 s with XCTest's waits and
+102–107 s with `waitUntil`, no boot — about 3 minutes for the hosted job; the
+last simulator runs on the same image took 60–103 s to boot and 503–855 s to
+test. Build and test are ONE `xcodebuild test`, one script, one CI step:
+with Catalyst nothing has to happen between them (the simulator boot was the
+reason for the split). Split into `build-for-testing` and
+`test-without-building` through `-project`/`-scheme`, the test step loaded the
+project and resolved the packages a SECOND time ("Resolve Package Graph" in
+its log); running it from the built `.xctestrun` instead avoided that (one test
+locally: 3.7–4.0 s wall through the project, 2.0 s through the file) at the
+price of a second script and a lookup under DerivedData. The runner timings
+above (build 41–56 s, tests 102–107 s) are from the split; the merged step is
+unmeasured there. On a failed BUILD the report step posts the compile errors,
+there being no failed test.
 The claims are Catalyst's — UIKit-backed SwiftUI,
 not an iPhone.
 
