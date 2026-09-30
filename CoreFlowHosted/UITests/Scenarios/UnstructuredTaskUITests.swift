@@ -7,6 +7,7 @@ final class UnstructuredTaskUITests: XCTestCase {
         XCTAssertTrue(app.buttons["start"].waitForExistence(timeout: 5))
         app.buttons["start"].tapOrClick()
         app.buttons["hide"].tapOrClick()
+        app.movePointer()
 
         let names = #"["work","showWorker","cancelled"]"#
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: names, timeout: 5), app.log.label)

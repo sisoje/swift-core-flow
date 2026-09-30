@@ -810,6 +810,9 @@ struct DownloadButton: View {
   (`Task { … self.x … }`) holds the view copy, which holds the storage —
   a cycle that keeps the box alive until the task ends, so teardown can't
   cancel it. Use a capture list — `Task { [service] in … }` — instead.
+  When the storage is released is SwiftUI's timing, not the macro's: on Mac
+  Catalyst it is the app's next event after the view leaves, verified hosted
+  (see [References](#references)).
   The `willSet` is equality-guarded (`Task`'s `Equatable` is identity), so
   writing the task it already holds back into it — a binding round-trip, a
   defensive `x = x` — is not a cancel. The box is `@Observable`, so a `body`
@@ -1793,6 +1796,11 @@ Functional core, imperative shell — the pattern behind `@Shell`/`Core`:
 - Gary Bernhardt — [Boundaries](https://www.destroyallsoftware.com/talks/boundaries)
 - Scott Wlaschin — [Six approaches to dependency injection](https://fsharpforfunandprofit.com/posts/dependencies/) (pushing I/O to the edges)
 - Mark Seemann — [Impureim sandwich](https://blog.ploeh.dk/2020/03/02/impureim-sandwich/)
+
+When view storage is released — the timing `@UnstructuredTask`'s teardown cancel rides on:
+
+- Apple — [Using Autorelease Pool Blocks](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/MemoryMgmt/Articles/mmAutoreleasePools.html) — AppKit and UIKit run each event-loop iteration inside an autorelease pool, so an object can outlive its view until the next event
+- Nicholas Clooney — [SwiftUI in the Wild: Memory, Concurrency, and the Gaps in the Docs](https://blog.nicholas.clooney.io/posts/swiftui-in-the-wild-memory-concurrency-and-the-gaps-in-the-docs/) — Apple documents no guarantee on when `@State` releases a reference-type object
 
 Capability-based design — the idea behind `@Capability`:
 

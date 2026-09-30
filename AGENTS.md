@@ -186,12 +186,21 @@ are not supported for this device". With the wrappers `TestState` and
 2026-09-30); the scripts and CI use Catalyst, the simulator remains one
 `xcodebuild test -destination "platform=iOS Simulator,name=…"` away. macOS must allow UI automation or every
 click times out the same way. No scenario source or pinned log changed; the tests changed only
-`tap()` → `tapOrClick()`. Verified locally on Catalyst (Xcode 27.2, macOS 27.0.1): 11 of
-the 23 tests — `FlowUpThrows`, `FocusBinding` (typed text lands),
-`GestureState`, `TestEnvironment` (the doubled `isPresented false` holds),
-`TestFocusState`, `TestState`, both `QueryViewSort` exact logs,
-`MockQueryResults`, both `QueryViewSectioned`. The other 12 and the CI job
-are UNVERIFIED on Catalyst. The claims are Catalyst's — UIKit-backed SwiftUI,
+`tap()` → `tapOrClick()`. One behaviour DIFFERS on Catalyst, probed: a removed view's storage is
+released when the app handles its NEXT event, not when the view leaves — after
+`hide`, `UnstructuredTaskScenario`'s `_TaskStorage` box stayed alive 30 s in an
+idle test (no `cancelled`), and one pointer move released it at once (log still
+`work, showWorker` 3 s after the hide, `cancelled` right after a `hover()`).
+Consistent with AppKit draining its autorelease pool once per event-loop pass;
+not proven to be that pool. So `testHidingTheHostCancelsItsTask` calls
+`app.movePointer()` after the hide (`LaunchHelper.swift`, a `hover()` on
+Catalyst, nothing on an iPhone), 3 of 3 runs green. For a Catalyst user the
+teardown cancel lands on the next mouse or key event. Verified locally on
+Catalyst (Xcode 27.2, macOS 27.0.1): all 23 tests, in batches, never as one
+run. On CI the first Catalyst run (36710268481, 2026-09-30) built, passed
+"Allow UI automation", and failed the test step after 191 s — its log was not
+read; the teardown test is the one that failed locally before `movePointer`.
+The claims are Catalyst's — UIKit-backed SwiftUI,
 not an iPhone.
 
 Why not the simulator, measured on the runner before the switch: cold boot
