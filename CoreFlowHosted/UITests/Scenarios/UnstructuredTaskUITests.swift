@@ -7,11 +7,13 @@ final class UnstructuredTaskUITests: XCTestCase {
         XCTAssertTrue(app.buttons["start"].waitForExistence(timeout: 5))
         app.buttons["start"].tapOrClick()
         app.buttons["hide"].tapOrClick()
-        app.movePointer()
+        // Mac Catalyst releases the hidden view's storage on the app's next
+        // event, so a second press: it cancels, then logs its own write.
+        app.buttons["hide"].tapOrClick()
 
-        let names = #"["work","showWorker","cancelled"]"#
+        let names = #"["work","showWorker","cancelled","showWorker"]"#
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: names, timeout: 5), app.log.label)
-        XCTAssertEqual(app.log.logValues, ["task", "false", "work"])
+        XCTAssertEqual(app.log.logValues, ["task", "false", "work", "false"])
     }
 
     @MainActor

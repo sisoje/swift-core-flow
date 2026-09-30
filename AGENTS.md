@@ -192,14 +192,26 @@ released when the app handles its NEXT event, not when the view leaves — after
 idle test (no `cancelled`), and one pointer move released it at once (log still
 `work, showWorker` 3 s after the hide, `cancelled` right after a `hover()`).
 Consistent with AppKit draining its autorelease pool once per event-loop pass;
-not proven to be that pool. So `testHidingTheHostCancelsItsTask` calls
-`app.movePointer()` after the hide (`LaunchHelper.swift`, a `hover()` on
-Catalyst, nothing on an iPhone), 3 of 3 runs green. For a Catalyst user the
+not proven to be that pool. So `testHidingTheHostCancelsItsTask` presses `hide` a
+SECOND time: that event releases the box, and the pinned log is `work task,
+showWorker false, cancelled work, showWorker false` — `cancelled` lands before
+the second press's own write, identically on Catalyst (4 of 4 runs) and on the
+iPhone 17 simulator, so one log serves both. A `hover()` helper behind `#if
+targetEnvironment(macCatalyst)` and a log-free `noop` button in the scenario
+both worked and were dropped for the button that was already there. For a Catalyst user the
 teardown cancel lands on the next mouse or key event. Verified locally on
 Catalyst (Xcode 27.2, macOS 27.0.1): all 23 tests, in batches, never as one
-run. On CI the first Catalyst run (36710268481, 2026-09-30) built, passed
-"Allow UI automation", and failed the test step after 191 s — its log was not
-read; the teardown test is the one that failed locally before `movePointer`.
+run. On CI (2026-09-30): run 36710268481 failed the test step after 191 s
+(before the teardown test sent that event), run 36712394088 failed it after 176 s, and run
+36713037630 PASSED in 183 s — with the SAME test code as the failing run before
+it; only the workflow differed (the test output teed to `test.log`, a report
+step). So the second failure was intermittent and its cause is unknown: neither
+failing log was read. Since then a failing hosted job posts the failing
+assertions, the failed test names and the executed/failed count as one error
+annotation ("Report the failures"), readable on the run page and through the
+API's check-run annotations without auth. The green run's hosted job took about
+4.5 minutes end to end (build 56 s, tests 183 s, no boot); the last simulator
+runs on the same image took 60–103 s to boot and 503–855 s to test.
 The claims are Catalyst's — UIKit-backed SwiftUI,
 not an iPhone.
 
@@ -397,7 +409,8 @@ The other scenarios, each one UI test unless noted:
   log: `send hi, first hi, result SaveFailure()`; `second` never runs.
 - `UnstructuredTaskScenario` / `UnstructuredTaskUITests` (three tests): hiding
   the `Worker` cancels a task whose closure does NOT capture the view
-  (`Task { [log] in … }`) — `work task, showWorker false, cancelled work`;
+  (`Task { [log] in … }`) — `work task, showWorker false, cancelled work,
+  showWorker false` (`hide` pressed twice, see the Catalyst note above);
   and clearing the slot logs `nil` and cancels — `work task, work nil,
   cancelled work` (the cancelled task's resumption logs strictly after the
   clearing write); and reassigning the live task (`work = work`) logs
