@@ -9,9 +9,9 @@ final class ViewModifierCoreUITests: XCTestCase {
         XCTAssertEqual(status.label, "bright")
         XCTAssertTrue(app.staticTexts["content"].exists)
 
-        app.buttons["toggle dim"].tap()
+        app.buttons["toggle dim"].tapOrClick()
         XCTAssertTrue(status.wait(for: \.label, toEqual: "dimmed", timeout: 5))
-        app.buttons["toggle dim"].tap()
+        app.buttons["toggle dim"].tapOrClick()
         XCTAssertTrue(status.wait(for: \.label, toEqual: "bright", timeout: 5))
 
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: #"["isDimmed","isDimmed"]"#, timeout: 5), app.log.label)

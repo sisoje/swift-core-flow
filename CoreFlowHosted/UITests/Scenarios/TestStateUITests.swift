@@ -5,8 +5,8 @@ final class TestStateUITests: XCTestCase {
     func testDirectAndBindingWritesLogAndStayLive() {
         let app = launchApp(scenario: .testState)
         XCTAssertTrue(app.buttons["increment"].waitForExistence(timeout: 5))
-        app.buttons["increment"].tap()
-        app.switches["switch"].switches.firstMatch.tap()
+        app.buttons["increment"].tapOrClick()
+        app.switches["switch"].switches.firstMatch.tapOrClick()
 
         XCTAssertTrue(app.staticTexts["count 1"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["on"].exists)

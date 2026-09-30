@@ -6,9 +6,9 @@ final class QueryViewSortUITests: XCTestCase {
         let app = launchApp(scenario: .queryViewGated)
         XCTAssertTrue(app.buttons["unrelated"].waitForExistence(timeout: 5))
         for _ in 1 ... 3 {
-            app.buttons["unrelated"].tap()
+            app.buttons["unrelated"].tapOrClick()
         }
-        app.buttons["sort"].tap()
+        app.buttons["sort"].tapOrClick()
 
         // The memo constructs once at first appearance whatever the build
         // re-renders; three unrelated writes re-render the parent with no
@@ -23,9 +23,9 @@ final class QueryViewSortUITests: XCTestCase {
         let app = launchApp(scenario: .queryViewUngated)
         XCTAssertTrue(app.buttons["unrelated"].waitForExistence(timeout: 5))
         for _ in 1 ... 3 {
-            app.buttons["unrelated"].tap()
+            app.buttons["unrelated"].tapOrClick()
         }
-        app.buttons["sort"].tap()
+        app.buttons["sort"].tapOrClick()
 
         // No dependencies are always equal: one construction at first
         // appearance, none after — not even for the sort write the query

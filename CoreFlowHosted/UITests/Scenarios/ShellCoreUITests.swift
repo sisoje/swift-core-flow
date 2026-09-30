@@ -5,9 +5,9 @@ final class ShellCoreUITests: XCTestCase {
     func testHostedCoreSubstitutionsLogAndRender() {
         let app = launchApp(scenario: .shellCore)
         XCTAssertTrue(app.buttons["toggle"].waitForExistence(timeout: 5))
-        app.buttons["toggle"].tap()
-        app.buttons["rename"].tap()
-        app.buttons["focus"].tap()
+        app.buttons["toggle"].tapOrClick()
+        app.buttons["rename"].tapOrClick()
+        app.buttons["focus"].tapOrClick()
 
         XCTAssertTrue(app.staticTexts["mocked greeting"].exists)
         XCTAssertTrue(app.staticTexts["Dune"].exists)

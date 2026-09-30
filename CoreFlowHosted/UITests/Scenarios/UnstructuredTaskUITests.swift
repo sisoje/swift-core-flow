@@ -5,8 +5,8 @@ final class UnstructuredTaskUITests: XCTestCase {
     func testHidingTheHostCancelsItsTask() {
         let app = launchApp(scenario: .unstructuredTask)
         XCTAssertTrue(app.buttons["start"].waitForExistence(timeout: 5))
-        app.buttons["start"].tap()
-        app.buttons["hide"].tap()
+        app.buttons["start"].tapOrClick()
+        app.buttons["hide"].tapOrClick()
 
         let names = #"["work","showWorker","cancelled"]"#
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: names, timeout: 5), app.log.label)
@@ -17,9 +17,9 @@ final class UnstructuredTaskUITests: XCTestCase {
     func testReassigningTheSameTaskLogsButDoesNotCancel() {
         let app = launchApp(scenario: .unstructuredTask)
         XCTAssertTrue(app.buttons["start"].waitForExistence(timeout: 5))
-        app.buttons["start"].tap()
-        app.buttons["reassign"].tap()
-        app.buttons["clear"].tap()
+        app.buttons["start"].tapOrClick()
+        app.buttons["reassign"].tapOrClick()
+        app.buttons["clear"].tapOrClick()
 
         // One `cancelled`, from the clear — the reassignment cancelled nothing.
         let names = #"["work","work","work","cancelled"]"#
@@ -31,8 +31,8 @@ final class UnstructuredTaskUITests: XCTestCase {
     func testClearingTheSlotLogsNilAndCancelsTheTask() {
         let app = launchApp(scenario: .unstructuredTask)
         XCTAssertTrue(app.buttons["start"].waitForExistence(timeout: 5))
-        app.buttons["start"].tap()
-        app.buttons["clear"].tap()
+        app.buttons["start"].tapOrClick()
+        app.buttons["clear"].tapOrClick()
 
         let names = #"["work","work","cancelled"]"#
         XCTAssertTrue(app.log.wait(for: \.label, toEqual: names, timeout: 5), app.log.label)

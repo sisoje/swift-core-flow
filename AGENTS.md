@@ -34,9 +34,10 @@ mode with strict concurrency. It supports swift-syntax
   `swiftformat Sources Tests CoreFlowHosted` (nicklockwood's swiftformat,
   default rules — the committed tree is clean under it; Apple's
   `swift format` is NOT the formatter and rewrites ~30 clean files)
-- Run the package's hosted scenarios (UI tests on a simulator):
-  `cd CoreFlowHosted && sh build.sh && sh test.sh "iPhone 17"` (boot it
-  first or let `test-without-building` boot it)
+- Run the package's hosted scenarios (UI tests, the app as Mac Catalyst on
+  this Mac — they click on the real desktop):
+  `cd CoreFlowHosted && sh build.sh && sh test.sh`; once per machine,
+  `sudo automationmodetool enable-automationmode-without-authentication`
 
 ### Documentation and verification rules
 
@@ -130,9 +131,8 @@ do not collide, and it repeats collection and diagnostics for the same fields.
 
 `CoreFlowHosted` is the package's own xcodegen project for claims that need a
 live SwiftUI host: `project.yml`, `build.sh` (`xcodegen generate` +
-`build-for-testing`), `test.sh` (`test-without-building` on the simulator named by `$1`) — no
-simulator commands in either; the workflow's job-level `SIMULATOR` env names
-the device once, boots it, and passes it to `test.sh` —
+`build-for-testing`), `test.sh` (`test-without-building`), both on the
+destination `platform=macOS,variant=Mac Catalyst` —
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
 switching on the `TestScenario` it decodes from a `TestPayload` in the
 `testPayloadEnvironmentKey` environment variable — optional: with no payload (previews,
@@ -155,38 +155,59 @@ actor"), and they are pure data shared with the test bundle anyway; and `UITests
 the tests read `app.log.logValues` and `app.log.wait(for: \.label, …)`, the
 product's API, nothing hosted-private beyond the identifier). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
-package stays free of scenario code. CI runs `build.sh`, then one blocking boot step (`simctl create` + `boot` + `bootstatus -b`), then `test.sh`, as named steps (coverage off; Xcode uses the scheme): `build-for-testing` against `generic/platform=iOS Simulator`, the boot, `test-without-building` on the device. The boot cannot be overlapped with the build: started in the background, it makes `xcodebuild` block on CoreSimulator until the boot finishes before printing a line (208–230 s measured, twice, generic and concrete destinations alike). Measured: cold boot ~160 s, build 232 s cold / 95 s on a derived-data cache hit, 17 tests ~190–220 s (18 since `TestAccessibilityFocusStateUITests`, unmeasured)
-(`.github/workflows/ci.yml`, jobs `package` and `hosted` on the `xcode-27`
-label — GitHub's macOS 26 image with Xcode 27 beta as default, no
-`xcode-select`). `actions/cache` keeps the package job's `.build` and the
-hosted job's `~/Library/Developer/Xcode/DerivedData` — dependencies plus the
-previous build products, both keyed on `Package.resolved` with a prefix
-fallback. The job CREATES its device (`simctl create "$SIMULATOR" "iPhone
-17"`, `SIMULATOR: CoreFlow`) instead of booting one by name: run 35533736675
-(2026-09-20) failed at the boot with exit 148, `Invalid device or device
-pair`, when the label moved to an image without a device named "iPhone 17
-Pro" — a device TYPE ships with Xcode, a created device is the image's
-choice. The booted device's data is cached (`~/sim-cache`, keyed on the Xcode
-build number): a hit moves the cached `data` directory into the new device
-before the boot, a miss boots cold and a last step shuts the device down and
-moves its `data` into the cache path. Locally (Xcode 27.2, 2026-09-30): cold
-boot 21 s, boot over another device's moved data 2 s, 407 MB. ON THE RUNNER
-IT IS UNMEASURED, and the earlier record argues against it: tried and
-removed (runs 37–43, 2026-09-15), caching the image's own device's
-`CoreSimulator/Devices/<udid>/data` keyed on the runtime build, CircleCI's
-warm-snapshot technique — 1.1 GB entry, 20–37 s to restore, and the boot over
-it still took 134 s against ~160 s cold: the runner's cold cost is
-CoreSimulator's first use on a fresh VM, not first-boot indexing. Read the
-"Boot the simulator" step time of a cache-hit run: if it does not beat the
-cold boot by more than the restore, remove the cache again and keep
-`simctl create`. The boot is one blocking
-step (`simctl create` + `boot` + `bootstatus -b`) between `build.sh` and `test.sh`,
-serial on purpose: started fire-and-forget in the background it overlapped
-nothing profitably — the derived-data restore took 113 s behind it instead
-of 3–7 s before it, and `brew install xcodegen` 119 s instead of 9 s (runs
-38–41, 2026-09-15); the boot's first minutes own the disk, and `xcodebuild`
-blocks on CoreSimulatorService until the boot completes regardless. Do not
-background the boot again. Building with
+package stays free of scenario code. The hosted tests run the app as MAC CATALYST on the Mac itself — no
+simulator (since 2026-09-30). CI runs `build.sh`, one step allowing UI
+automation (`sudo automationmodetool
+enable-automationmode-without-authentication`), then `test.sh`, as named steps
+(coverage off; Xcode uses the scheme), in `.github/workflows/ci.yml`, jobs
+`package` and `hosted` on the `xcode-27` label, no `xcode-select`.
+`actions/cache` keeps the package job's `.build` and the hosted job's
+`~/Library/Developer/Xcode/DerivedData` — dependencies plus the previous build
+products, both keyed on `Package.resolved` with a prefix fallback. What
+Catalyst needs, each probed: `SUPPORTS_MACCATALYST: YES`;
+`MACOSX_DEPLOYMENT_TARGET: "27.0"` (unset it follows the SDK — "My Mac's macOS
+27.0.1 doesn't match CoreFlowHostUITests's macOS 27.2 deployment target");
+`ENABLE_HARDENED_RUNTIME: NO` (with it the runner refuses the test bundle:
+`code signature … not valid for use in process: mapping process and mapped
+file (non-platform)`); and ad-hoc signing, `CODE_SIGN_IDENTITY: "-"` on EACH
+TARGET — unsigned (`CODE_SIGNING_ALLOWED: NO`, fine on the simulator) the
+runner is killed, "Test crashed with signal kill before establishing
+connection", and set at project level xcodegen's target preset overrides it
+("Signing for "CoreFlowHostApp" requires a development team"). The tests
+call `tapOrClick()` (and `pressOrClick(forDuration:thenDragTo:)` for the one
+drag), two wrappers in `LaunchHelper.swift` chosen at compile time by `#if
+targetEnvironment(macCatalyst)`, because no one call works on both
+destinations, each probed: on Catalyst `tap()` and
+`press(forDuration:thenDragTo:)` compile and do nothing — "Synthesize event"
+takes 5 s and no event arrives — while `click()` works; on an iPhone
+simulator `click()` compiles (iOS 15+) and fails at run time, "Pointer events
+are not supported for this device". With the wrappers `TestState` and
+`GestureState` pass on both (Catalyst and the iPhone 17 simulator,
+2026-09-30); the scripts and CI use Catalyst, the simulator remains one
+`xcodebuild test -destination "platform=iOS Simulator,name=…"` away. macOS must allow UI automation or every
+click times out the same way. No scenario source or pinned log changed; the tests changed only
+`tap()` → `tapOrClick()`. Verified locally on Catalyst (Xcode 27.2, macOS 27.0.1): 11 of
+the 23 tests — `FlowUpThrows`, `FocusBinding` (typed text lands),
+`GestureState`, `TestEnvironment` (the doubled `isPresented false` holds),
+`TestFocusState`, `TestState`, both `QueryViewSort` exact logs,
+`MockQueryResults`, both `QueryViewSectioned`. The other 12 and the CI job
+are UNVERIFIED on Catalyst. The claims are Catalyst's — UIKit-backed SwiftUI,
+not an iPhone.
+
+Why not the simulator, measured on the runner before the switch: cold boot
+~160 s, and it cannot overlap the build — started in the background it made
+`xcodebuild` block on CoreSimulator until the boot finished (208–230 s, twice)
+and slowed the derived-data restore from 3–7 s to 113 s and `brew install
+xcodegen` from 9 s to 119 s (runs 38–41, 2026-09-15). Caching the booted
+device's `CoreSimulator/Devices/<udid>/data` (runs 37–43) was a 1.1 GB entry,
+20–37 s to restore, the boot over it still 134 s: the cold cost is
+CoreSimulator's first use on a fresh VM, not first-boot indexing. A device
+booted BY NAME broke when the label's image changed (run 35533736675,
+2026-09-20, exit 148 `Invalid device or device pair` for "iPhone 17 Pro"); a
+job that creates its own (`simctl create`) and moves a cached booted device's
+`data` into it worked locally (boot 21 s cold, 2 s over moved data, 407 MB)
+and was never measured on the runner. Simulator-era timings: build 232 s cold
+/ 95 s on a derived-data cache hit, 17 tests ~190–220 s. Building with
 `-sdk iphonesimulator` and no `-destination`, to skip the destination lookup
 that stalls, was tried locally and fails: `-sdk` applies to every target, so
 the macro plugin is built for the simulator SDK and swiftc reports
