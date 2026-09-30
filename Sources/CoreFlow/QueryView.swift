@@ -21,18 +21,13 @@ struct DefaultQueryTransform: QueryTransforming {
 /// shape gets the query's own value — empty when no container is installed —
 /// so a mocked subtree renders whatever it wasn't seeded for.
 struct MockQueryTransform: QueryTransforming {
-    var resmap: [ObjectIdentifier: Any]
-
-    init(resmap: [ObjectIdentifier: Any] = [:]) {
-        self.resmap = resmap
-    }
+    private var resmap: [ObjectIdentifier: Any] = [:]
 
     init<each R>(_ results: repeat QueryResult<each R>) {
-        resmap = [:]
         repeat insert(each results)
     }
 
-    mutating func insert<R>(_ result: QueryResult<R>) {
+    private mutating func insert<R>(_ result: QueryResult<R>) {
         resmap[ObjectIdentifier(R.self)] = result
     }
 

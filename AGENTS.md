@@ -166,10 +166,12 @@ enable-automationmode-without-authentication`), then `test.sh`, as named steps
 products, both keyed on `Package.resolved` with a prefix fallback. The hosted
 key is `derived-catalyst-…`: an entry is saved only when its key misses, and
 under the old `derived-…` key the snapshot still held simulator products, so
-the Catalyst app was compiled from scratch each run (41–64 s). Whether the new
-snapshot shortens the build is UNMEASURED — a fresh checkout gives every source
-a new timestamp — compare the build step against the package job's time over
-two runs. The report step runs only when `test.log` exists, so a failed build
+the Catalyst app was compiled from scratch each run (41–64 s). Measured on
+one commit run twice (36731469547): the attempt that saved the new snapshot
+built in 49 s, the attempt that restored it in 33 s — on the slower runner of
+the two (package tests 38 s against 33 s) — so the key is worth about a third
+of the build even though a fresh checkout gives every source a new timestamp.
+The report step runs only when `test.log` exists, so a failed build
 posts no empty report. What
 Catalyst needs, each probed: `SUPPORTS_MACCATALYST: YES`;
 `MACOSX_DEPLOYMENT_TARGET: "27.0"` (unset it follows the SDK — "My Mac's macOS
