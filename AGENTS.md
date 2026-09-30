@@ -35,7 +35,7 @@ mode with strict concurrency. It supports swift-syntax
   default rules — the committed tree is clean under it; Apple's
   `swift format` is NOT the formatter and rewrites ~30 clean files)
 - Run the package's hosted scenarios (UI tests on a simulator):
-  `cd CoreFlowHosted && sh build.sh && sh test.sh "iPhone 17 Pro"` (boot it
+  `cd CoreFlowHosted && sh build.sh && sh test.sh "iPhone 17"` (boot it
   first or let `test-without-building` boot it)
 
 ### Documentation and verification rules
@@ -155,19 +155,32 @@ actor"), and they are pure data shared with the test bundle anyway; and `UITests
 the tests read `app.log.logValues` and `app.log.wait(for: \.label, …)`, the
 product's API, nothing hosted-private beyond the identifier). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
-package stays free of scenario code. CI runs `build.sh`, then one blocking boot step (`simctl boot` + `bootstatus -b`), then `test.sh`, as named steps (coverage off; Xcode uses the scheme): `build-for-testing` against `generic/platform=iOS Simulator`, the boot, `test-without-building` on the device. The boot cannot be overlapped with the build: started in the background, it makes `xcodebuild` block on CoreSimulator until the boot finishes before printing a line (208–230 s measured, twice, generic and concrete destinations alike). Measured: cold boot ~160 s, build 232 s cold / 95 s on a derived-data cache hit, 17 tests ~190–220 s (18 since `TestAccessibilityFocusStateUITests`, unmeasured)
+package stays free of scenario code. CI runs `build.sh`, then one blocking boot step (`simctl create` + `boot` + `bootstatus -b`), then `test.sh`, as named steps (coverage off; Xcode uses the scheme): `build-for-testing` against `generic/platform=iOS Simulator`, the boot, `test-without-building` on the device. The boot cannot be overlapped with the build: started in the background, it makes `xcodebuild` block on CoreSimulator until the boot finishes before printing a line (208–230 s measured, twice, generic and concrete destinations alike). Measured: cold boot ~160 s, build 232 s cold / 95 s on a derived-data cache hit, 17 tests ~190–220 s (18 since `TestAccessibilityFocusStateUITests`, unmeasured)
 (`.github/workflows/ci.yml`, jobs `package` and `hosted` on the `xcode-27`
 label — GitHub's macOS 26 image with Xcode 27 beta as default, no
 `xcode-select`). `actions/cache` keeps the package job's `.build` and the
 hosted job's `~/Library/Developer/Xcode/DerivedData` — dependencies plus the
 previous build products, both keyed on `Package.resolved` with a prefix
-fallback. Tried and REMOVED (runs 37–43,
-2026-09-15): caching the booted device's `CoreSimulator/Devices/<udid>/data`
-keyed on the runtime build, CircleCI's warm-snapshot technique — 1.1 GB
-entry, 20–37 s to restore, and the boot over it still took 134 s against
-~160 s cold: the runner's cold cost is CoreSimulator's first use on a fresh
-VM, not first-boot indexing. Net loss; do not retry. The boot is one blocking
-step (`simctl boot` + `bootstatus -b`) between `build.sh` and `test.sh`,
+fallback. The job CREATES its device (`simctl create "$SIMULATOR" "iPhone
+17"`, `SIMULATOR: CoreFlow`) instead of booting one by name: run 35533736675
+(2026-09-20) failed at the boot with exit 148, `Invalid device or device
+pair`, when the label moved to an image without a device named "iPhone 17
+Pro" — a device TYPE ships with Xcode, a created device is the image's
+choice. The booted device's data is cached (`~/sim-cache`, keyed on the Xcode
+build number): a hit moves the cached `data` directory into the new device
+before the boot, a miss boots cold and a last step shuts the device down and
+moves its `data` into the cache path. Locally (Xcode 27.2, 2026-09-30): cold
+boot 21 s, boot over another device's moved data 2 s, 407 MB. ON THE RUNNER
+IT IS UNMEASURED, and the earlier record argues against it: tried and
+removed (runs 37–43, 2026-09-15), caching the image's own device's
+`CoreSimulator/Devices/<udid>/data` keyed on the runtime build, CircleCI's
+warm-snapshot technique — 1.1 GB entry, 20–37 s to restore, and the boot over
+it still took 134 s against ~160 s cold: the runner's cold cost is
+CoreSimulator's first use on a fresh VM, not first-boot indexing. Read the
+"Boot the simulator" step time of a cache-hit run: if it does not beat the
+cold boot by more than the restore, remove the cache again and keep
+`simctl create`. The boot is one blocking
+step (`simctl create` + `boot` + `bootstatus -b`) between `build.sh` and `test.sh`,
 serial on purpose: started fire-and-forget in the background it overlapped
 nothing profitably — the derived-data restore took 113 s behind it instead
 of 3–7 s before it, and `brew install xcodegen` 119 s instead of 9 s (runs

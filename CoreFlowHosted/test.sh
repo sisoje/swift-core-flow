@@ -3,7 +3,7 @@
 # coverage. Each test launches its own scenario (launchApp passes a
 # TestPayload per launch). No simulator commands here: CI boots that device
 # before this; standalone, xcodebuild boots it itself.
-#   sh test.sh "iPhone 17 Pro"
+#   sh test.sh "iPhone 17"
 set -eu
 cd "$(dirname "$0")"
 
