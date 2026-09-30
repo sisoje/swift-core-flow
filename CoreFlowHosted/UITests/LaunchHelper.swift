@@ -13,30 +13,6 @@ func launchApp(scenario: TestScenario) -> XCUIApplication {
 
 extension XCUIApplication {
     var log: XCUIElement {
-        uiTestLog(accessibilityIdentifier: TestPayload.logAccessibilityIdentifier)
-    }
-}
-
-extension XCUIElement {
-    /// One spelling for both destinations: on Mac Catalyst `tap()` sends
-    /// nothing, on an iPhone `click()` fails ("Pointer events are not
-    /// supported for this device").
-    func tapOrClick() {
-        #if targetEnvironment(macCatalyst)
-            click()
-        #else
-            tap()
-        #endif
-    }
-}
-
-extension XCUICoordinate {
-    /// The drag, under the same split as `tapOrClick()`.
-    func pressOrClick(forDuration duration: TimeInterval, thenDragTo other: XCUICoordinate) {
-        #if targetEnvironment(macCatalyst)
-            click(forDuration: duration, thenDragTo: other)
-        #else
-            press(forDuration: duration, thenDragTo: other)
-        #endif
+        otherElements[TestPayload.logAccessibilityIdentifier]
     }
 }

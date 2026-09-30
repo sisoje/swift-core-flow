@@ -1,14 +1,9 @@
 import XCTest
 
 /// The XCUITest end of `View.uiTestLog(accessibilityIdentifier:)`: the
-/// element it installs, its names (JSON in `label`) and values (JSON in
-/// `value`) decoded, and a wait on any of its properties.
-public extension XCUIApplication {
-    func uiTestLog(accessibilityIdentifier: String) -> XCUIElement {
-        otherElements[accessibilityIdentifier]
-    }
-}
-
+/// element it installs is `app.otherElements[accessibilityIdentifier]`; its
+/// names (JSON in `label`) and values (JSON in `value`) decoded, and a wait
+/// on any of its properties.
 public extension XCUIElement {
     /// The logged names, decoded from the element's label; empty when the
     /// label is not a JSON string array.
@@ -46,9 +41,31 @@ public extension XCUIElement {
         return true
     }
 
+    /// One spelling for both destinations: on Mac Catalyst `tap()` sends
+    /// nothing, on an iPhone `click()` fails ("Pointer events are not
+    /// supported for this device").
+    func tapOrClick() {
+        #if targetEnvironment(macCatalyst)
+            click()
+        #else
+            tap()
+        #endif
+    }
+
     private static func strings(_ json: String?) -> [String] {
         guard let json, let values = try? JSONDecoder().decode([String].self, from: Data(json.utf8))
         else { return [] }
         return values
+    }
+}
+
+public extension XCUICoordinate {
+    /// The drag, under the same split as `tapOrClick()`.
+    func pressOrClick(forDuration duration: TimeInterval, thenDragTo other: XCUICoordinate) {
+        #if targetEnvironment(macCatalyst)
+            click(forDuration: duration, thenDragTo: other)
+        #else
+            press(forDuration: duration, thenDragTo: other)
+        #endif
     }
 }
