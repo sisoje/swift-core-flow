@@ -35,10 +35,11 @@ jobs:
         run: |
           set -o pipefail
           sh CoreFlowHosted/test.sh 2>&1 | tee test.log
-      # The failing lines as one annotation: readable on the run page and
-      # through the API without opening the log.
+      # Each failed test's activity timeline and errors as one annotation:
+      # readable on the run page and through the API without opening the log.
       - name: Report the failures
         if: failure()
         run: |
-          grep -E "error: |' failed \(|Testing failed|Executed [0-9]+ tests" test.log | sed -E 's|.*/UITests/||' | head -40 > failures.txt || true
+          awk '/^Test Case .* started\./{buf=""} {buf=buf $0 "\n"} /^Test Case .* failed \(/{printf "%s", buf}' test.log | grep -E "t = |error: |^Test Case" | sed -E 's|.*/UITests/||' | cut -c1-200 | head -150 > failures.txt || true
+          grep -E "Executed [0-9]+ tests" test.log | tail -1 >> failures.txt || true
           echo "::error title=Hosted UI tests::$(awk '{printf "%s%%0A", $0}' failures.txt)"
