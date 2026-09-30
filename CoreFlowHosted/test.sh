@@ -7,11 +7,9 @@
 set -eu
 cd "$(dirname "$0")"
 
-# From the .xctestrun build.sh produced, not from the project: xcodebuild
-# then loads no project and does not resolve the packages a second time.
-xctestrun=$(ls -t ~/Library/Developer/Xcode/DerivedData/CoreFlowHosted-*/Build/Products/CoreFlowHostApp_macosx*.xctestrun | head -1)
-
 xcodebuild test-without-building \
-    -xctestrun "$xctestrun" \
+    -project CoreFlowHosted.xcodeproj \
+    -scheme CoreFlowHostApp \
     -destination "platform=macOS,variant=Mac Catalyst" \
-    -collect-test-diagnostics never
+    -collect-test-diagnostics never \
+    -enableCodeCoverage NO

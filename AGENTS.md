@@ -131,8 +131,8 @@ do not collide, and it repeats collection and diagnostics for the same fields.
 
 `CoreFlowHosted` is the package's own xcodegen project for claims that need a
 live SwiftUI host: `project.yml`, `build.sh` (`xcodegen generate` +
-`build-for-testing`), `test.sh` (`test-without-building` from the built
-`.xctestrun`), both on the destination `platform=macOS,variant=Mac Catalyst` —
+`build-for-testing`), `test.sh` (`test-without-building`), both on the
+destination `platform=macOS,variant=Mac Catalyst` —
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
 switching on the `TestScenario` it decodes from a `TestPayload` in the
 `testPayloadEnvironmentKey` environment variable — optional: with no payload (previews,
@@ -222,20 +222,20 @@ readable on the run page and through the API's check-run annotations without
 auth. Timings on the runner: build 41–56 s, tests 183 s with XCTest's waits and
 102–107 s with `waitUntil`, no boot — about 3 minutes for the hosted job; the
 last simulator runs on the same image took 60–103 s to boot and 503–855 s to
-test. Build and test are SEPARATE steps and scripts. `test.sh` runs from the
-`.xctestrun` file `build.sh` produced (`-xctestrun`, the newest
-`CoreFlowHostApp_macosx*.xctestrun` under DerivedData), not from the project:
-through `-project`/`-scheme`, `test-without-building` loads the project and
-resolves the packages a SECOND time ("Resolve Package Graph" in the test step's
-log); through the file it does neither (one test locally: 3.7–4.0 s wall
-through the project, 2.0 s through the file). Coverage is decided at build
-time, so `test.sh` passes no coverage flag. Merged into one `xcodebuild test`
-(one script, run 36718581244) the single step took 194 s against 143–163 s for
-build plus tests in the two split runs before it — on a runner whose unchanged
-setup steps were also about 1.5× slower, so the merge itself is not shown to
-cost anything — and it was put back: the split shows build and test time
-apart. The runner timings above are from the split through the project; the
-`.xctestrun` test step is unmeasured there.
+test. Build and test are SEPARATE steps and scripts, both through
+`-project`/`-scheme` — exactly what the fastest runs executed (36715675947 and
+36716971272: build 41–43 s, tests 102–107 s, job 159–169 s). Two variants were
+tried after them and put back, neither shown faster on the runner, whose speed
+swings by about 50% between runs (the unchanged build step took 41–73 s):
+(1) ONE `xcodebuild test`, one script (36718581244, two attempts): 194 s and
+211 s for the combined step against 143–150 s split; (2) `test.sh` running
+`test-without-building` from the built `.xctestrun` (`-xctestrun`), which
+loads no project and skips the second "Resolve Package Graph" that the
+through-project test step performs — locally 2.0 s against 3.7–4.0 s wall for
+one test, on the runner tests 124 s (about 108 s net of a failing test's
+timeouts, build 54 s) and 136 s (build 64 s): no gain visible through the
+noise. A variant is only worth keeping if it beats 102–107 s at a build time
+near 41–43 s.
 The claims are Catalyst's — UIKit-backed SwiftUI,
 not an iPhone.
 
