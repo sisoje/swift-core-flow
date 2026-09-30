@@ -10,6 +10,7 @@ final class GestureStateUITests: XCTestCase {
 
         let box = app.otherElements["box"]
         let start = box.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let before = box.frame
         let drag = { start.pressOrClick(forDuration: 0.2, thenDragTo: start.withOffset(CGVector(dx: 80, dy: -40))) }
         drag()
         // A CI runner sometimes discards a synthesized drag whole — nothing
@@ -18,7 +19,10 @@ final class GestureStateUITests: XCTestCase {
             drag()
         }
 
-        XCTAssertTrue(resets.waitUntil(\.label, equals: "resets 1", timeout: 5), resets.label)
+        XCTAssertTrue(
+            resets.waitUntil(\.label, equals: "resets 1", timeout: 5),
+            "\(resets.label), box \(before) -> \(box.frame), window \(app.windows.firstMatch.frame), log \(app.log.label)"
+        )
         XCTAssertTrue(app.log.waitUntil(\.label, equals: #"["resetsSeen"]"#, timeout: 5), app.log.label)
         XCTAssertEqual(app.log.logValues, ["1"])
     }
