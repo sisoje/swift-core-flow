@@ -13,8 +13,8 @@ import SwiftUI
 /// The live wrapper has **no `projectedValue`**; ours is a deliberate
 /// superset (copied bodies never spell `$x`, so parity holds): projecting
 /// `self` with `init(projectedValue:)` is what lets an SE-0293 `$` closure
-/// parameter re-propertify the value — `QueryView { $books in
-/// ForEach(books) … } `, `@Query` ergonomics without the wrapper.
+/// parameter re-propertify the value — `QueryView(query: …) { $books in
+/// ForEach(books) … }`, `@Query` ergonomics without the wrapper.
 ///
 /// `modelContext` resolves seeded-then-environment
 /// (`givenModelContext ?? defaultModelContext`): a live transform seeds
