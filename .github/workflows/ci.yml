@@ -4,9 +4,9 @@ jobs:
   package:
     runs-on: xcode-27
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Cache SwiftPM build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .build
           key: spm-${{ hashFiles('Package.resolved') }}
@@ -16,12 +16,12 @@ jobs:
   hosted:
     runs-on: xcode-27
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Cache derived data
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: derived-${{ hashFiles('Package.resolved') }}
+          key: derived-catalyst-${{ hashFiles('Package.resolved') }}
           restore-keys: derived-
       - name: Install xcodegen
         run: brew install xcodegen
@@ -35,11 +35,14 @@ jobs:
         run: |
           set -o pipefail
           sh CoreFlowHosted/test.sh 2>&1 | tee test.log
-      # Each failed test's activity timeline and errors as one annotation:
-      # readable on the run page and through the API without opening the log.
+      # Each failed test's activity timeline and errors, then every window on
+      # the runner's screen, as one annotation: readable on the run page and
+      # through the API without opening the log.
       - name: Report the failures
-        if: failure()
+        if: failure() && hashFiles('test.log') != ''
         run: |
           awk '/^Test Case .* started\./{buf=""} {buf=buf $0 "\n"} /^Test Case .* failed \(/{printf "%s", buf}' test.log | grep -E "t = |error: |^Test Case" | sed -E 's|.*/UITests/||' | awk '{k=$0; sub(/t = +[0-9.]+s/,"",k)} k==prev {n++; next} {if (n) print "        (repeated " n " more times)"; n=0; print; prev=k}' | cut -c1-300 | head -150 > failures.txt || true
           grep -E "Executed [0-9]+ tests" test.log | tail -1 >> failures.txt || true
+          echo "On screen, front to back:" >> failures.txt
+          swift -e 'import CoreGraphics; import Foundation; for w in (CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []) { let b = w["kCGWindowBounds"] as? [String: Any] ?? [:]; print(w["kCGWindowOwnerName"] ?? "?", "layer", w["kCGWindowLayer"] ?? "?", "x", b["X"] ?? "?", "y", b["Y"] ?? "?", "w", b["Width"] ?? "?", "h", b["Height"] ?? "?") }' | head -30 >> failures.txt || true
           echo "::error title=Hosted UI tests::$(awk '{printf "%s%%0A", $0}' failures.txt)"

@@ -26,11 +26,9 @@ struct DragBox: View {
                     }
                 )
                 .accessibilityIdentifier("box")
-        }
-        .onChange(of: dragOffset) { _, new in
-            if new == .zero {
-                resetsSeen = ResetProbe.count
-            }
+            // Read on demand, not observed through `dragOffset`: that needs
+            // a render between the drag and its reset.
+            Button("read") { resetsSeen = ResetProbe.count }
         }
     }
 }

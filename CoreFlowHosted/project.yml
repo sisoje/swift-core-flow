@@ -16,8 +16,8 @@ settings:
     ENABLE_HARDENED_RUNTIME: NO
     MACOSX_DEPLOYMENT_TARGET: "27.0"
 targets:
-  # One file: `@testable import CoreFlow` reaches the package's internal
-  # scenarios; SCENARIO picks one.
+  # The scenarios live here, not in the package; each launch picks one from
+  # the TestPayload in its environment.
   CoreFlowHostApp:
     type: application
     platform: iOS

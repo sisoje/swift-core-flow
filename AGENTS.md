@@ -131,8 +131,8 @@ do not collide, and it repeats collection and diagnostics for the same fields.
 
 `CoreFlowHosted` is the package's own xcodegen project for claims that need a
 live SwiftUI host: `project.yml`, `build.sh` (`xcodegen generate` +
-`build-for-testing`), `test.sh` (`test-without-building`), both on the
-destination `platform=macOS,variant=Mac Catalyst` —
+`build-for-testing`), `test.sh` (`test-without-building` from the built
+`.xctestrun`), both on the destination `platform=macOS,variant=Mac Catalyst` —
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
 switching on the `TestScenario` it decodes from a `TestPayload` in the
 `testPayloadEnvironmentKey` environment variable — optional: with no payload (previews,
@@ -163,7 +163,14 @@ enable-automationmode-without-authentication`), then `test.sh`, as named steps
 `package` and `hosted` on the `xcode-27` label, no `xcode-select`.
 `actions/cache` keeps the package job's `.build` and the hosted job's
 `~/Library/Developer/Xcode/DerivedData` — dependencies plus the previous build
-products, both keyed on `Package.resolved` with a prefix fallback. What
+products, both keyed on `Package.resolved` with a prefix fallback. The hosted
+key is `derived-catalyst-…`: an entry is saved only when its key misses, and
+under the old `derived-…` key the snapshot still held simulator products, so
+the Catalyst app was compiled from scratch each run (41–64 s). Whether the new
+snapshot shortens the build is UNMEASURED — a fresh checkout gives every source
+a new timestamp — compare the build step against the package job's time over
+two runs. The report step runs only when `test.log` exists, so a failed build
+posts no empty report. What
 Catalyst needs, each probed: `SUPPORTS_MACCATALYST: YES`;
 `MACOSX_DEPLOYMENT_TARGET: "27.0"` (unset it follows the SDK — "My Mac's macOS
 27.0.1 doesn't match CoreFlowHostUITests's macOS 27.2 deployment target");
@@ -196,46 +203,57 @@ not proven to be that pool. So `testHidingTheHostCancelsItsTask` presses `hide` 
 SECOND time: that event releases the box, and the pinned log is `work task,
 showWorker false, cancelled work, showWorker false` — `cancelled` lands before
 the second press's own write, identically on Catalyst (4 of 4 runs) and on the
-iPhone 17 simulator, so one log serves both. A `hover()` helper behind `#if
-targetEnvironment(macCatalyst)` and a log-free `noop` button in the scenario
-both worked and were dropped for the button that was already there. For a Catalyst user the
+iPhone 17 simulator, so one log serves both. For a Catalyst user the
 teardown cancel lands on the next mouse or key event. Verified locally on
 Catalyst (Xcode 27.2, macOS 27.0.1): all 23 tests, in batches, never as one
-run. On CI (2026-09-30), seven Catalyst runs: 36710268481 failed (before the
-teardown test sent that event), 36712394088 failed (log not read), 36713037630
-passed, 36714576837 failed, then 36715675947 and 36716971272 passed. The one
-failure that was read is `GestureStateUITests`: the synthesized drag was
-DISCARDED WHOLE — `resets` stayed 0, the log empty, the other 22 tests green —
-with no code change between it and the green runs around it. Not reproducible
-locally: 6 of 6 under CPU load (36 busy processes on 18 cores), 4 of 4 with a
-100 000 pt/s drag, 3 of 3 with the app's main thread stalled 0.8 s mid-drag, 3
-of 3 with Finder activated before the drag. Others report the same (Glow issue
-600: a synthesized drag "discarded whole" on CI in 2 of 5 runs, locally only
-above load ~250), and their remedy is the one used here: the test repeats the
-drag ONCE when the first changed nothing (`resets` still 0 after 5 s). The
-pinned log is unchanged — a drag that registers still resets exactly once — and
-the retry path is proven with a deliberately dud first drag (2 pt, under
-`DragGesture`'s minimum distance): green in 7.5 s against 1.9 s normally. A
-failing hosted job posts each failed test's activity timeline, its errors and
-the executed/failed count as one error annotation ("Report the failures"),
-readable on the run page and through the API's check-run annotations without
-auth. Timings on the runner: build 41–56 s, tests 183 s with XCTest's waits and
-102–107 s with `waitUntil`, no boot — about 3 minutes for the hosted job; the
-last simulator runs on the same image took 60–103 s to boot and 503–855 s to
-test. Build and test are SEPARATE steps and scripts, both through
-`-project`/`-scheme` — exactly what the fastest runs executed (36715675947 and
-36716971272: build 41–43 s, tests 102–107 s, job 159–169 s). Two variants were
-tried after them and put back, neither shown faster on the runner, whose speed
-swings by about 50% between runs (the unchanged build step took 41–73 s):
-(1) ONE `xcodebuild test`, one script (36718581244, two attempts): 194 s and
-211 s for the combined step against 143–150 s split; (2) `test.sh` running
-`test-without-building` from the built `.xctestrun` (`-xctestrun`), which
-loads no project and skips the second "Resolve Package Graph" that the
-through-project test step performs — locally 2.0 s against 3.7–4.0 s wall for
-one test, on the runner tests 124 s (about 108 s net of a failing test's
-timeouts, build 54 s) and 136 s (build 64 s): no gain visible through the
-noise. A variant is only worth keeping if it beats 102–107 s at a build time
-near 41–43 s.
+run. On CI (2026-09-30) the Catalyst suite is green except for ONE unresolved
+intermittent failure, `GestureStateUITests`: on the runner the synthesized drag
+is DISCARDED WHOLE — `resets` stays 0, the log empty, the other 22 tests green
+— in about one runner run in three (for example 36727847306), with no code
+change that explains it. What a failing run's annotation shows: the same
+XCUITest steps as locally ("Click and drag … with velocity of 500.00 pixels
+per second", about 0.9 s of "Synthesize event"), the box on screen at (473.55,
+359.79, 77, 77) — 77 points because Catalyst scales the iPad interface to 77%
+— in a window filling the runner's 1024-point screen (0, 31, 1024, 674), and
+nothing arriving in the app. Repeating the drag does not help: a second one
+6 s later in the same app instance does nothing either, so it is not random
+loss — that instance ignores drags while every click in the other tests lands.
+Not reproducible locally. Ruled out, each probed green: CPU load, a very fast
+drag, the main thread stalled mid-drag, the app deactivated, running right
+after `FocusBindingUITests`, and another app's window over the box (XCUITest
+activates the app under test first). Untested suspicion: a window above the
+app that activation does not dislodge on the runner (the keystroke in
+`FocusBindingUITests`, the test before it and the only one that types, is the
+first from XCUITest's virtual keyboard on a fresh VM; macOS's Keyboard Setup
+Assistant opens mid-screen for an unidentified keyboard). To settle it, a
+failing hosted job posts ONE error annotation ("Report the failures", readable
+on the run page and through the API's check-run annotations without auth):
+each failed test's activity timeline with consecutive repeats collapsed
+(`waitUntil` reads back to back, about 25 lines a second), its errors, the
+executed/failed count, and EVERY WINDOW ON THE RUNNER'S SCREEN front to back
+(owner, layer, bounds, from `CGWindowListCopyWindowInfo` through `swift -e`).
+Read that list on the next failure before trying anything else: the test
+presses the scenario's `read` button before and after the drag (see the
+scenario list), so if `resets` is STILL 0 the reset closure never ran and the
+drag never reached the gesture, and a `KeyboardSetupAssistant` owner in the
+list would confirm the suspicion. A probe that starts another app must use
+`activate()` on an app that is NOT running: `launch()` on TextEdit tried to
+terminate the user's open TextEdit (macOS refused).
+
+Runner speed swings by about 50% between runs: the package job's unchanged
+`swift test` step took 22–46 s. Compare a hosted run only against its own
+package-job time. At the fast end the hosted job is about 160 s (build about
+42 s, tests about 105 s; 183 s before `waitUntil`); the last simulator runs on
+the same image took 60–103 s to boot and 503–855 s to test. Build and test are
+SEPARATE steps and scripts, and `test.sh` runs from the `.xctestrun` file
+`build.sh` produced (`-xctestrun`, the newest
+`CoreFlowHostApp_macosx*.xctestrun` under DerivedData), so the test step loads
+no project and does not resolve the packages again (through
+`-project`/`-scheme` it does both: "Resolve Package Graph" in its log; one
+test locally 3.7–4.0 s wall against 2.0 s). Coverage is decided at build time,
+so `test.sh` passes no coverage flag. Running the test step through the
+project, or build and test as one merged `xcodebuild test`, was not measurably
+different on the runner.
 The claims are Catalyst's — UIKit-backed SwiftUI,
 not an iPhone.
 
@@ -250,8 +268,9 @@ CoreSimulator's first use on a fresh VM, not first-boot indexing. A device
 booted BY NAME broke when the label's image changed (run 35533736675,
 2026-09-20, exit 148 `Invalid device or device pair` for "iPhone 17 Pro"); a
 job that creates its own (`simctl create`) and moves a cached booted device's
-`data` into it worked locally (boot 21 s cold, 2 s over moved data, 407 MB)
-and was never measured on the runner. Simulator-era timings: build 232 s cold
+`data` into it worked locally (boot 21 s cold, 2 s over moved data, 407 MB),
+and on the runner a cache hit took 24 s to restore plus 48 s to boot against
+60–103 s cold: no gain. Simulator-era timings: build 232 s cold
 / 95 s on a derived-data cache hit, 17 tests ~190–220 s. Building with
 `-sdk iphonesimulator` and no `-destination`, to skip the destination lookup
 that stalls, was tried locally and fails: `-sdk` applies to every target, so
@@ -482,7 +501,12 @@ The other scenarios, each one UI test unless noted:
   close button gone: the call logged, the REAL `DismissAction` run.
 - `GestureStateScenario` / `GestureStateUITests`: `@GestureState(reset:)`
   copied verbatim onto a hosted `Core`, custom reset closure included — a
-  drag ends, the reset fires (`resets 1`, `resetsSeen 1`).
+  drag ends, the reset fires. The scenario's `read` button copies the reset
+  count into `resetsSeen`, pressed before and after the drag: pinned log
+  `resetsSeen 0, resetsSeen 1`, label `resets 1`. Read on demand, not observed
+  through `onChange(of: dragOffset)` as before: that needs a render between
+  the drag and its reset, and the press before the drag gives the app a
+  pointer event ahead of it.
 - `ViewModifierCoreScenario` / `ViewModifierCoreUITests`: a `ViewModifier`
   host's `Core` hosted through `.modifier(Dimmer.Core())` — the copied
   `body(content:)` wraps real content and its `@State` logs (`isDimmed

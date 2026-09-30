@@ -790,8 +790,9 @@ package, all bite any XCUITest suite:
   events are not supported for this device". Choose at compile time with
   `#if targetEnvironment(macCatalyst)`.
 - **A synthesized drag can be discarded whole on a CI runner** — nothing
-  reaches the app. Repeat a drag that changed nothing (see
-  [References](#references)).
+  reaches the app, and repeating the drag does not help. `CoreFlowHosted`'s
+  one drag test fails there in roughly one run in three, cause not yet
+  established (another project's report is in [References](#references)).
 - **Mac Catalyst releases a removed view's storage on the app's next event**,
   so a test waiting on a teardown sends one more event.
 
@@ -1821,7 +1822,7 @@ When view storage is released — the timing `@UnstructuredTask`'s teardown canc
 
 Synthesized drags dropped on CI — the known issue in hosted UI tests:
 
-- Georg Klock — [The reorder UI test's drag is discarded whole on the runner](https://github.com/Georg-Klock/Glow/issues/600) — the same failure in another project, and the repeat-the-drag remedy
+- Georg Klock — [The reorder UI test's drag is discarded whole on the runner](https://github.com/Georg-Klock/Glow/issues/600) — the same failure in another project
 
 Capability-based design — the idea behind `@Capability`:
 
