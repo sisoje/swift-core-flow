@@ -16,7 +16,7 @@ jobs:
   hosted:
     runs-on: xcode-27
     env:
-      SIMULATOR: iPhone 17
+      SIMULATOR: CoreFlow
     steps:
       - uses: actions/checkout@v4
       - name: Cache derived data
@@ -36,9 +36,34 @@ jobs:
       # completes anyway. Booting explicitly, never through the first app
       # launch: on a cold runner that timed out ("Timed out while launching
       # application via Xcode", 129 s).
+      - name: Simulator cache key
+        id: simkey
+        run: echo "key=sim-$(xcodebuild -version | awk 'END {print $NF}')" >> "$GITHUB_OUTPUT"
+      - name: Cache the booted simulator
+        id: simcache
+        uses: actions/cache@v4
+        with:
+          path: ~/sim-cache
+          key: ${{ steps.simkey.outputs.key }}
+      # The job creates its own device, so no image has to ship one by name.
+      # A cached run moves the data of an already-booted device into it; with
+      # no cache it boots cold.
       - name: Boot the simulator
         run: |
-          xcrun simctl boot "$SIMULATOR"
-          xcrun simctl bootstatus "$SIMULATOR" -b
+          UDID=$(xcrun simctl create "$SIMULATOR" "iPhone 17")
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          DATA=~/Library/Developer/CoreSimulator/Devices/$UDID/data
+          if [ -d ~/sim-cache/data ]; then
+            rm -rf "$DATA"
+            mv ~/sim-cache/data "$DATA"
+          fi
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
       - name: Run the hosted UI tests
         run: sh CoreFlowHosted/test.sh "$SIMULATOR"
+      - name: Keep the booted simulator for the next run
+        if: steps.simcache.outputs.cache-hit != 'true'
+        run: |
+          xcrun simctl shutdown "$UDID"
+          mkdir -p ~/sim-cache
+          mv ~/Library/Developer/CoreSimulator/Devices/$UDID/data ~/sim-cache/data
