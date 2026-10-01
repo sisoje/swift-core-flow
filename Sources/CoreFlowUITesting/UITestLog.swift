@@ -45,7 +45,7 @@ public extension XCUIElement {
     /// nothing, on an iPhone `click()` fails ("Pointer events are not
     /// supported for this device").
     func tapOrClick() {
-        #if targetEnvironment(macCatalyst)
+        #if os(macOS) || targetEnvironment(macCatalyst)
             click()
         #else
             tap()
@@ -62,7 +62,7 @@ public extension XCUIElement {
 public extension XCUICoordinate {
     /// The drag, under the same split as `tapOrClick()`.
     func pressOrClick(forDuration duration: TimeInterval, thenDragTo other: XCUICoordinate) {
-        #if targetEnvironment(macCatalyst)
+        #if os(macOS) || targetEnvironment(macCatalyst)
             click(forDuration: duration, thenDragTo: other)
         #else
             press(forDuration: duration, thenDragTo: other)
