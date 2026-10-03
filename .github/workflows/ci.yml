@@ -23,8 +23,10 @@ jobs:
           path: ~/Library/Developer/Xcode/DerivedData
           key: derived-catalyst-${{ hashFiles('Package.resolved') }}
           restore-keys: derived-
-      - name: Install xcodegen
-        run: brew install xcodegen
+      - name: Install Tuist
+        uses: jdx/mise-action@v5
+        with:
+          working_directory: CoreFlowHosted
       - name: Generate and build for testing
         run: sh CoreFlowHosted/build.sh
       # The tests run the app as Mac Catalyst and click on the runner's own

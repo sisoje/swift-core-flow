@@ -37,7 +37,8 @@ mode with strict concurrency. It supports swift-syntax
 - Run the package's hosted scenarios (UI tests, the app as Mac Catalyst on
   this Mac — they click on the real desktop):
   `cd CoreFlowHosted && sh build.sh && sh test.sh`; once per machine,
-  `sudo automationmodetool enable-automationmode-without-authentication`
+  `sudo automationmodetool enable-automationmode-without-authentication`,
+  and `brew install mise` + `mise install` for the pinned Tuist
 
 ### Documentation and verification rules
 
@@ -129,9 +130,11 @@ do not collide, and it repeats collection and diagnostics for the same fields.
 
 ### Hosted scenarios: `CoreFlowHosted`
 
-`CoreFlowHosted` is the package's own xcodegen project for claims that need a
-live SwiftUI host: `project.yml`, `build.sh` (`xcodegen generate` +
-`build-for-testing`), `test.sh` (`test-without-building` from the built
+`CoreFlowHosted` is the package's own Tuist project for claims that need a
+live SwiftUI host: `Project.swift` (Tuist 4.210.0, pinned in its own
+`mise.toml`; `mise install` there gets it, `jdx/mise-action` with
+`working_directory: CoreFlowHosted` on CI), `build.sh`
+(`tuist generate --no-open` + `build-for-testing`), `test.sh` (`test-without-building` from the built
 `.xctestrun`), both on the destination `platform=macOS,variant=Mac Catalyst` —
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
 switching on the `TestScenario` it decodes from a `TestPayload` in the
@@ -155,7 +158,11 @@ actor"), and they are pure data shared with the test bundle anyway; and `UITests
 the tests read `app.log.logValues` and `app.log.waitUntil(\.label, …)`, the
 product's API, nothing hosted-private beyond the identifier). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
-package stays free of scenario code. The hosted tests run the app as MAC CATALYST on the Mac itself — no
+package stays free of scenario code. Tuist replaced xcodegen on 2026-10-04
+(xcodegen's support for Xcode 27.2's JSON project format sat in an unmerged
+pull request); `Project.swift` carries the reason for each of its two
+non-default settings in a comment. JSON projects are an opt-in not taken:
+`Tuist.swift` with `generationOptions: .options(projectFormat: .xcproj)`. The hosted tests run the app as MAC CATALYST on the Mac itself — no
 simulator (since 2026-09-30). CI runs `build.sh`, one step allowing UI
 automation (`sudo automationmodetool
 enable-automationmode-without-authentication`), then `test.sh`, as named steps

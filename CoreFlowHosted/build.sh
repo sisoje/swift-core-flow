@@ -4,7 +4,7 @@
 set -eu
 cd "$(dirname "$0")"
 
-xcodegen generate
+tuist generate --no-open
 
 xcodebuild build-for-testing \
     -project CoreFlowHosted.xcodeproj \

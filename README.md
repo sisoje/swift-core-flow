@@ -1788,7 +1788,7 @@ targets and one hosted test project:
 | `CoreFlowUITesting` | library, UI-test bundles only | the XCUITest end of `uiTestLog` (the element is `app.otherElements[identifier]`): `XCUIElement.logNames`/`logValues`, `waitUntil(_:equals:timeout:)`, `tapOrClick()`, `XCUICoordinate.pressOrClick(forDuration:thenDragTo:)` — imports XCTest, so an app target never links it |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro, against the plugin module |
 | `CoreFlowTests` | test (XCTest + swift-testing) | every compiled and runtime suite, one file per API, against the product only |
-| `CoreFlowHosted/` | xcodegen project, not a package target | the hosted scenarios and XCUITests — every claim that needs a live SwiftUI host (`cd CoreFlowHosted && sh build.sh && sh test.sh`, the app as Mac Catalyst); CI runs it alongside `swift test` |
+| `CoreFlowHosted/` | Tuist project, not a package target | the hosted scenarios and XCUITests — every claim that needs a live SwiftUI host (`cd CoreFlowHosted && sh build.sh && sh test.sh`, the app as Mac Catalyst); CI runs it alongside `swift test` |
 
 Swift tools version 6.4, Swift 6 language mode (strict concurrency), swift-syntax `600.0.0..<700.0.0`.
 
