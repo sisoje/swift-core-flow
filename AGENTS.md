@@ -311,14 +311,19 @@ build were removed once Xcode 27 shipped. As of 2026-09-14 the label ships beta 
 log design — see the log paragraph below for the beta-6 flake record. Locally verified on the
 iPhone 17 Pro simulator, Xcode 27.0 release (27A266a, runtime 24A434) and
 earlier the 27A5252f beta — 8/8, zero skips. Coverage: the scheme gathers it for
-ALL targets (`gatherCoverageData: true`, no `coverageTargets`) — verified
-directly, listing only `package: CoreFlow/CoreFlow` as the coverage target
-sets `onlyGenerateCoverageForSpecifiedTargets` and yields an EMPTY report
-under UI tests (coverage recorded, zero targets); with all targets the
-package's sources report normally. Read it with `xcrun xccov view --report`
-on the report object exported from the result bundle (`xcresulttool export
-object --legacy --id <reportRef>`); `xccov view --report <bundle>` fails on
-this bundle ("Failed to load coverage archive", no `archiveRef`).
+ALL targets (`coverage: true`, no `codeCoverageTargets`), read with `xcrun
+xccov view --report --only-targets <bundle>`. The two package-product rows
+(`CoreFlow`, `CoreFlowUITesting`) are INTERMITTENT on Xcode 27.2 (probed
+2026-10-04, one UI test on the simulator, nine runs): the app and test-bundle
+rows never fail, each package row comes and goes at random, and a run that
+lost one has no files of that product in its coverage archive — never
+collected, not mis-attributed. Same with the xcodegen project, through the
+workspace, and with `DEAD_CODE_STRIPPING=NO`; the build is identical every
+time (`CoreFlow.o` instrumented, its 10 code files mapped — the other 8 are
+macro declarations). Listing targets explicitly is worse: the package alone
+gives an empty report, all four listed lost `CoreFlow` in 3 of 3 runs (and
+Tuist cannot name a package product there anyway). When a row is missing,
+re-run.
 
 Every boundary event is log evidence, the package's own way: `@TestState`
 writes log themselves, and `QueryViewSortScenario.build()` logs `("query",
