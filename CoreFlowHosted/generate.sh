@@ -1,5 +1,6 @@
 #!/bin/sh
-# Writes the hosted project from scratch with Xcode 27.2's `xcodeproj` tool.
+# Rewrites the committed hosted project from scratch with the `xcodeproj` tool
+# of Xcode 27.2 beta 3 or later.
 set -e
 cd "$(dirname "$0")"
 project=CoreFlowHosted.xcodeproj

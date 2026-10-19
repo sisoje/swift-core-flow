@@ -2,6 +2,7 @@
 .swiftpm/
 .DS_Store
 *.xcodeproj
+!CoreFlowHosted/CoreFlowHosted.xcodeproj
 *.xcworkspace
 CoreFlowHosted/Derived/
 xcuserdata/

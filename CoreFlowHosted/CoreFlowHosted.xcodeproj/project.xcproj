@@ -1,0 +1,93 @@
+{
+  "default-configuration": "Release",
+  "configurations": [
+    "Debug",
+    "Release",
+  ],
+  "localizations": {
+    "development": "en",
+    "supported": [
+      "Base",
+    ],
+  },
+  "packages": [
+    {
+      "kind": "local",
+      "path": "..",
+    },
+  ],
+  "files": [
+    {
+      "kind": "group",
+      "name": "Products",
+      "children": [
+        { "path": "<PRODUCTS>/CoreFlowHostApp.app", "id": "7EA53191308624F30020477C", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/CoreFlowHostUITests.xctest", "id": "7EA60C2B308624F400A3E9E0", "type": "wrapper.cfbundle", "index": false },
+      ],
+    },
+    { "kind": "folder", "path": "HostApp", "target-membership": [ "CoreFlowHostApp" ] },
+    { "kind": "folder", "path": "Shared", "target-membership": [ "CoreFlowHostApp", "CoreFlowHostUITests" ] },
+    { "kind": "folder", "path": "UITests", "target-membership": [ "CoreFlowHostUITests" ] },
+  ],
+  "targets": [
+    {
+      "name": "CoreFlowHostApp",
+      "id": "7EA53190308624F30020477C",
+      "product": "Products/CoreFlowHostApp.app",
+      "product-type": "application",
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+      ],
+      "package-product-members": [
+        {
+          "package": "..",
+          "product-name": "CoreFlow",
+          "build-phase": { "build-phase": "frameworks" },
+        },
+      ],
+      "build-settings": {
+        "GENERATE_INFOPLIST_FILE": "YES",
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.coreflow.hosted.CoreFlowHostApp",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "SWIFT_DEFAULT_ACTOR_ISOLATION": "MainActor",
+      },
+    }, {
+      "name": "CoreFlowHostUITests",
+      "id": "7EA60C2A308624F400A3E9E0",
+      "product": "Products/CoreFlowHostUITests.xctest",
+      "product-type": "bundle.ui-testing",
+      "test-host-target": "CoreFlowHostApp",
+      "dependencies": [
+        "CoreFlowHostApp",
+      ],
+      "build-phases": [
+        "compile-sources",
+        "frameworks",
+      ],
+      "package-product-members": [
+        {
+          "package": "..",
+          "product-name": "CoreFlowUITesting",
+          "build-phase": { "build-phase": "frameworks" },
+        },
+      ],
+      "build-settings": {
+        "GENERATE_INFOPLIST_FILE": "YES",
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.coreflow.hosted.CoreFlowHostUITests",
+        "PRODUCT_NAME": "$(TARGET_NAME)",
+        "TEST_TARGET_NAME": "CoreFlowHostApp",
+      },
+    },
+  ],
+  "build-settings": {
+    "CODE_SIGN_IDENTITY": "-",
+    "ENABLE_HARDENED_RUNTIME": "NO",
+    "IPHONEOS_DEPLOYMENT_TARGET": "27.0",
+    "MACOSX_DEPLOYMENT_TARGET": "27.0",
+    "SDKROOT": "iphoneos",
+    "SUPPORTS_MACCATALYST": "YES",
+    "SWIFT_VERSION": "6.0",
+    "TARGETED_DEVICE_FAMILY": "1,2",
+  },
+}
