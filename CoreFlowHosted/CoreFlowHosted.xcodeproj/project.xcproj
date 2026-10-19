@@ -57,7 +57,6 @@
       "id": "7EA60C2A308624F400A3E9E0",
       "product": "Products/CoreFlowHostUITests.xctest",
       "product-type": "bundle.ui-testing",
-      "test-host-target": "CoreFlowHostApp",
       "dependencies": [
         "CoreFlowHostApp",
       ],

@@ -136,12 +136,11 @@ rewrites it from nothing with the `xcodeproj` tool of Xcode 27.2 beta 3+
 (beta 2's has no `init`, probed on CI image 20261012, which is why the file
 is committed rather than generated there; a regeneration gives the targets
 new random ids, so its diff is noisy). The source folders are synchronized
-with disk, so a new file needs no project change. No scheme:
-`test-host-target` on the UI-test target, the one field the tool cannot set
-so a `sed` adds it, makes Xcode's auto-created app scheme run the UI tests;
-without it the xctestrun has no test bundle. `build.sh`
-(`build-for-testing`), `test.sh` (`test-without-building` from the built
-`.xctestrun`), both on the destination `platform=macOS,variant=Mac Catalyst` —
+with disk, so a new file needs no project change. No scheme file: the
+scripts use the UI-test target's auto-created scheme, which builds the app
+as its dependency (the app's own carries no test bundle). `build.sh`
+(`build-for-testing`), `test.sh` (`test-without-building`), both on the
+destination `platform=macOS,variant=Mac Catalyst` —
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
 switching on the `TestScenario` it decodes from a `TestPayload` in the
 `testPayloadEnvironmentKey` environment variable — optional: with no payload (previews,
@@ -258,15 +257,9 @@ Runner speed swings by about 50% between runs: the package job's unchanged
 package-job time. At the fast end the hosted job is about 160 s (build about
 42 s, tests about 105 s; 183 s before `waitUntil`); the last simulator runs on
 the same image took 60–103 s to boot and 503–855 s to test. Build and test are
-SEPARATE steps and scripts, and `test.sh` runs from the `.xctestrun` file
-`build.sh` produced (`-xctestrun`, the newest
-`CoreFlowHostApp*_macosx*.xctestrun` under DerivedData — the auto scheme names it `CoreFlowHostApp_CoreFlowHostApp_macosx…`), so the test step loads
-no project and does not resolve the packages again (through
-`-project`/`-scheme` it does both: "Resolve Package Graph" in its log; one
-test locally 3.7–4.0 s wall against 2.0 s). Coverage is decided at build time,
-so `test.sh` passes no coverage flag. Running the test step through the
-project, or build and test as one merged `xcodebuild test`, was not measurably
-different on the runner.
+SEPARATE steps and scripts. Coverage is decided at build time, so `test.sh`
+passes no coverage flag. Running from the `.xctestrun`, or build and test as
+one merged `xcodebuild test`, was not measurably different on the runner.
 The claims are Catalyst's — UIKit-backed SwiftUI,
 not an iPhone.
 

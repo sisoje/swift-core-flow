@@ -6,6 +6,6 @@ cd "$(dirname "$0")"
 
 xcodebuild build-for-testing \
     -project CoreFlowHosted.xcodeproj \
-    -scheme CoreFlowHostApp \
+    -scheme CoreFlowHostUITests \
     -destination "platform=macOS,variant=Mac Catalyst" \
     -enableCodeCoverage NO

@@ -37,7 +37,3 @@ x group include --group UITests --target CoreFlowHostUITests
 x pkg add-local .. --product CoreFlow --target CoreFlowHostApp
 x pkg link CoreFlowUITesting --package CoreFlow --target CoreFlowHostUITests
 
-# The one field the tool cannot set: the app is the test host, so Xcode's
-# auto-created scheme for the app also builds and runs the UI tests.
-sed -i '' 's|"product-type": "bundle.ui-testing",|&\
-      "test-host-target": "CoreFlowHostApp",|' "$project/project.xcproj"
