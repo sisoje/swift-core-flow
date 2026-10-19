@@ -9,7 +9,7 @@ cd "$(dirname "$0")"
 
 # From the .xctestrun build.sh produced, not from the project: xcodebuild
 # then loads no project and does not resolve the packages a second time.
-xctestrun=$(ls -t ~/Library/Developer/Xcode/DerivedData/CoreFlowHosted-*/Build/Products/CoreFlowHostApp_macosx*.xctestrun | head -1)
+xctestrun=$(ls -t ~/Library/Developer/Xcode/DerivedData/CoreFlowHosted-*/Build/Products/CoreFlowHostApp*_macosx*.xctestrun | head -1)
 
 xcodebuild test-without-building \
     -xctestrun "$xctestrun" \

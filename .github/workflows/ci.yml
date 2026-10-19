@@ -23,11 +23,12 @@ jobs:
           path: ~/Library/Developer/Xcode/DerivedData
           key: derived-catalyst-${{ hashFiles('Package.resolved') }}
           restore-keys: derived-
-      - name: Install Tuist
-        uses: jdx/mise-action@v5
-        with:
-          working_directory: CoreFlowHosted
-      - name: Generate and build for testing
+      # The generator is the `xcodeproj` tool, shipped since Xcode 27.2.
+      - name: Select Xcode 27.2
+        run: sudo xcode-select -s /Applications/Xcode_27.2.app
+      - name: Generate the project
+        run: sh CoreFlowHosted/generate.sh
+      - name: Build for testing
         run: sh CoreFlowHosted/build.sh
       # The tests run the app as Mac Catalyst and click on the runner's own
       # desktop: no simulator to boot. macOS has to allow that.

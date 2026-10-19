@@ -36,9 +36,8 @@ mode with strict concurrency. It supports swift-syntax
   `swift format` is NOT the formatter and rewrites ~30 clean files)
 - Run the package's hosted scenarios (UI tests, the app as Mac Catalyst on
   this Mac — they click on the real desktop):
-  `cd CoreFlowHosted && sh build.sh && sh test.sh`; once per machine,
-  `sudo automationmodetool enable-automationmode-without-authentication`,
-  and `brew install mise` + `mise install` for the pinned Tuist
+  `cd CoreFlowHosted && sh generate.sh && sh build.sh && sh test.sh`; once per machine,
+  `sudo automationmodetool enable-automationmode-without-authentication`
 
 ### Documentation and verification rules
 
@@ -130,11 +129,13 @@ do not collide, and it repeats collection and diagnostics for the same fields.
 
 ### Hosted scenarios: `CoreFlowHosted`
 
-`CoreFlowHosted` is the package's own Tuist project for claims that need a
-live SwiftUI host: `Project.swift` (Tuist 4.210.0, pinned in its own
-`mise.toml`; `mise install` there gets it, `jdx/mise-action` with
-`working_directory: CoreFlowHosted` on CI), `build.sh`
-(`tuist generate --no-open` + `build-for-testing`), `test.sh` (`test-without-building` from the built
+`CoreFlowHosted` is the package's own Xcode project for claims that need a
+live SwiftUI host: `generate.sh` writes it from nothing with Xcode 27.2's
+`xcodeproj` tool (JSON format, the source folders synchronized with disk,
+no scheme — `test-host-target` on the UI-test target, the one field the tool
+cannot set so a `sed` adds it, makes Xcode's auto-created app scheme run the
+UI tests; without it the xctestrun has no test bundle), `build.sh`
+(`build-for-testing`), `test.sh` (`test-without-building` from the built
 `.xctestrun`), both on the destination `platform=macOS,variant=Mac Catalyst` —
 `HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
 switching on the `TestScenario` it decodes from a `TestPayload` in the
@@ -158,16 +159,16 @@ actor"), and they are pure data shared with the test bundle anyway; and `UITests
 the tests read `app.log.logValues` and `app.log.waitUntil(\.label, …)`, the
 product's API, nothing hosted-private beyond the identifier). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
-package stays free of scenario code. Tuist replaced xcodegen on 2026-10-04
-(xcodegen's support for Xcode 27.2's JSON project format sat in an unmerged
-pull request); `Project.swift` carries the reason for each of its two
-non-default settings in a comment. JSON projects are an opt-in not taken:
-`Tuist.swift` with `generationOptions: .options(projectFormat: .xcproj)`. The hosted tests run the app as MAC CATALYST on the Mac itself — no
-simulator (since 2026-09-30). CI runs `build.sh`, one step allowing UI
+package stays free of scenario code. Generators before: xcodegen until
+2026-10-04 (no JSON-format support), Tuist under mise until 2026-10-19;
+Xcode's own tool needs nothing installed. The hosted tests run the app as MAC CATALYST on the Mac itself — no
+simulator (since 2026-09-30). CI runs `generate.sh`, `build.sh`, one step allowing UI
 automation (`sudo automationmodetool
 enable-automationmode-without-authentication`), then `test.sh`, as named steps
 (coverage off; Xcode uses the scheme), in `.github/workflows/ci.yml`, jobs
-`package` and `hosted` on the `xcode-27` label, no `xcode-select`.
+`package` and `hosted` on the `xcode-27` label; `hosted` first selects
+`/Applications/Xcode_27.2.app`, the runner's symlink to its 27.2 beta, which
+ships the tool.
 `actions/cache` keeps the package job's `.build` and the hosted job's
 `~/Library/Developer/Xcode/DerivedData` — dependencies plus the previous build
 products, both keyed on `Package.resolved` with a prefix fallback. The hosted
@@ -256,7 +257,7 @@ package-job time. At the fast end the hosted job is about 160 s (build about
 the same image took 60–103 s to boot and 503–855 s to test. Build and test are
 SEPARATE steps and scripts, and `test.sh` runs from the `.xctestrun` file
 `build.sh` produced (`-xctestrun`, the newest
-`CoreFlowHostApp_macosx*.xctestrun` under DerivedData), so the test step loads
+`CoreFlowHostApp*_macosx*.xctestrun` under DerivedData — the auto scheme names it `CoreFlowHostApp_CoreFlowHostApp_macosx…`), so the test step loads
 no project and does not resolve the packages again (through
 `-project`/`-scheme` it does both: "Resolve Package Graph" in its log; one
 test locally 3.7–4.0 s wall against 2.0 s). Coverage is decided at build time,

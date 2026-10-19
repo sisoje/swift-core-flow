@@ -1,10 +1,8 @@
 #!/bin/sh
-# Generate the project and build the hosted app + UI-test bundle for Mac
-# Catalyst, no coverage. Xcode uses the scheme.
+# Build the hosted app + UI-test bundle for Mac Catalyst, no coverage. Xcode
+# uses the scheme. The project comes from generate.sh.
 set -eu
 cd "$(dirname "$0")"
-
-tuist generate --no-open
 
 xcodebuild build-for-testing \
     -project CoreFlowHosted.xcodeproj \
