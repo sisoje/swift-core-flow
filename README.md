@@ -129,6 +129,38 @@ to substitute: the source of truth and its write sites live outside the
 network, so the twin inherits the same opaque reference instead of an
 observable boundary.
 
+## Adopt it one view at a time
+
+CoreFlow does not ask you to choose it. Nothing has to be migrated: a plain
+SwiftUI view, however it is written, becomes testable the moment `@Shell` is
+attached — that is the whole step. Take the next view when it earns it, leave
+the rest alone. Testability, like refactoring, arrives gradually.
+
+A **scenario** is a preview that a test can also launch: an ordinary view
+constructing `Card.Core(…)` with mocked inputs, ending in `#Preview`. It lives
+next to your views, in the app target, exactly where previews live.
+
+**Do not wrap scenarios or previews in `#if DEBUG`.** Previews already sit in
+the production target: Apple [compiles them alongside the rest of the app
+code](https://developer.apple.com/videos/play/wwdc2023/10252/), and Xcode's
+templates [stopped wrapping them in `#if DEBUG` with Xcode 11](https://forums.swift.org/t/swiftui-previewprovider-no-longer-surrounded-with-if-debug-endif-what-does-this-mean/29943),
+because the compiler removes unreferenced types from release builds — Apple's
+Developer Tools Engineers confirm previews
+["tend to get dead code stripped when building for release"](https://developer.apple.com/forums/thread/747085)
+and that [`#if DEBUG` is unnecessary for them](https://developer.apple.com/forums/thread/656802).
+A scenario is one more
+such type, and `Core` is internal: in a release build it is eliminated with
+code, metadata and conformance record, verified against the binary (see
+[Why `Core` is always internal](#why-core-is-always-internal-with-no-init-of-its-own)).
+
+What a release build does contain is the library itself, linked like any
+other: about 200 KB of type metadata and conformance records, measured on an
+app that references nothing in it. That is the cost of the dependency, not
+of your scenarios, and the production parts of the package — `QueryView`,
+`MemoView`, `@FlowUp`, `@UnstructuredTask` — are meant to be used there.
+
+---
+
 ## Installation
 
 ```swift
@@ -1817,6 +1849,13 @@ Functional core, imperative shell — the pattern behind `@Shell`/`Core`:
 - Gary Bernhardt — [Boundaries](https://www.destroyallsoftware.com/talks/boundaries)
 - Scott Wlaschin — [Six approaches to dependency injection](https://fsharpforfunandprofit.com/posts/dependencies/) (pushing I/O to the edges)
 - Mark Seemann — [Impureim sandwich](https://blog.ploeh.dk/2020/03/02/impureim-sandwich/)
+
+Previews ship in the app target and are stripped by the compiler — why scenarios need no `#if DEBUG`:
+
+- Apple, WWDC23 — [Build programmatic UI with Xcode Previews](https://developer.apple.com/videos/play/wwdc2023/10252/) — previews are compiled into the app alongside the rest of its code
+- Apple Developer Forums — [Does the compiler remove Preview providers?](https://developer.apple.com/forums/thread/656802) — Developer Tools Engineer: unused types, preview providers included, are removed from the release binary, so `#if DEBUG` and Development Assets are unnecessary for them
+- Apple Developer Forums — [Archive build requires Preview Content](https://developer.apple.com/forums/thread/747085) — Developer Tools Engineer: `#Preview` and `PreviewProvider` are dead-code stripped for release unless a lingering reference keeps them
+- Swift Forums — [PreviewProvider no longer surrounded with `#if DEBUG`](https://forums.swift.org/t/swiftui-previewprovider-no-longer-surrounded-with-if-debug-endif-what-does-this-mean/29943) — the Xcode 11 templates dropped the guard; the removal happens during optimization
 
 When view storage is released — the timing `@UnstructuredTask`'s teardown cancel rides on:
 
