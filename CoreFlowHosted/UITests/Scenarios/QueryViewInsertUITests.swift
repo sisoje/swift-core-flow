@@ -14,7 +14,7 @@ final class QueryViewInsertUITests: XCTestCase {
     func testMemoizedQueryKeepsItsLiveResultsAcrossUnrelatedRenders() {
         let app = launchApp(scenario: .queryViewInsert)
         XCTAssertTrue(app.buttons["insert"].waitUntil(\.exists, equals: true, timeout: 5))
-        let rows = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Novel '"))
+        let rows = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Novel ' OR value BEGINSWITH 'Novel '"))
         for _ in 1 ... 5 {
             app.buttons["insert"].tapOrClick()
         }

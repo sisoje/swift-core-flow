@@ -13,6 +13,6 @@ func launchApp(scenario: TestScenario) -> XCUIApplication {
 
 extension XCUIApplication {
     var log: XCUIElement {
-        otherElements[TestPayload.logAccessibilityIdentifier]
+        descendants(matching: .any)[TestPayload.logAccessibilityIdentifier]
     }
 }

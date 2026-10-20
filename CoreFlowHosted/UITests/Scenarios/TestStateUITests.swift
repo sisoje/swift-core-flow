@@ -6,7 +6,7 @@ final class TestStateUITests: XCTestCase {
         let app = launchApp(scenario: .testState)
         XCTAssertTrue(app.buttons["increment"].waitUntil(\.exists, equals: true, timeout: 5))
         app.buttons["increment"].tapOrClick()
-        app.switches["switch"].switches.firstMatch.tapOrClick()
+        app.toggle("switch").tapOrClick()
 
         XCTAssertTrue(app.staticTexts["count 1"].waitUntil(\.exists, equals: true, timeout: 5))
         XCTAssertTrue(app.staticTexts["on"].exists)

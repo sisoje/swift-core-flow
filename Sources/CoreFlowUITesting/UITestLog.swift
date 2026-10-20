@@ -1,7 +1,7 @@
 import XCTest
 
 /// The XCUITest end of `View.uiTestLog(accessibilityIdentifier:)`: the
-/// element it installs is `app.otherElements[accessibilityIdentifier]`; its
+/// element it installs is the one with that identifier, any type; its
 /// names (JSON in `label`) and values (JSON in `value`) decoded, and a wait
 /// on any of its properties.
 public extension XCUIElement {
@@ -9,6 +9,16 @@ public extension XCUIElement {
     /// label is not a JSON string array.
     var logNames: [String] {
         Self.strings(label)
+    }
+
+    /// A `Text`'s content: its label on iOS and Mac Catalyst, its value on
+    /// macOS.
+    var text: String {
+        #if os(macOS)
+            value as? String ?? ""
+        #else
+            label
+        #endif
     }
 
     /// The logged values, decoded from the element's value; empty when the
@@ -41,11 +51,14 @@ public extension XCUIElement {
         return true
     }
 
-    /// One spelling for both destinations: on Mac Catalyst `tap()` sends
+    /// One spelling for every destination: on macOS `click()` can miss a
+    /// button that a click at its centre hits, on Mac Catalyst `tap()` sends
     /// nothing, on an iPhone `click()` fails ("Pointer events are not
     /// supported for this device").
     func tapOrClick() {
-        #if os(macOS) || targetEnvironment(macCatalyst)
+        #if os(macOS)
+            coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
+        #elseif targetEnvironment(macCatalyst)
             click()
         #else
             tap()
@@ -56,6 +69,18 @@ public extension XCUIElement {
         guard let json, let values = try? JSONDecoder().decode([String].self, from: Data(json.utf8))
         else { return [] }
         return values
+    }
+}
+
+public extension XCUIApplication {
+    /// A `Toggle`'s control: a checkbox on macOS, elsewhere the switch inside
+    /// the labeled switch element.
+    func toggle(_ identifier: String) -> XCUIElement {
+        #if os(macOS)
+            checkBoxes[identifier]
+        #else
+            switches[identifier].switches.firstMatch
+        #endif
     }
 }
 

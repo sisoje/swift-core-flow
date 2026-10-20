@@ -10,10 +10,15 @@ final class TestEnvironmentUITests: XCTestCase {
 
         app.buttons["close"].tapOrClick()
         // The real DismissAction ran: SwiftUI writes the sheet binding back
-        // through the scenario's @TestState — twice, as the sheet finishes.
-        let names = #"["isPresented","dismiss","isPresented","isPresented"]"#
-        XCTAssertTrue(app.log.waitUntil(\.label, equals: names, timeout: 5), app.log.label)
-        XCTAssertEqual(app.log.logValues, ["true", "", "false", "false"])
+        // through the scenario's @TestState.
+        #if os(macOS)
+            XCTAssertTrue(app.log.waitUntil(\.label, equals: #"["isPresented","dismiss","isPresented"]"#, timeout: 5), app.log.label)
+            XCTAssertEqual(app.log.logValues, ["true", "", "false"])
+        #else
+            // Twice on UIKit, as the sheet finishes.
+            XCTAssertTrue(app.log.waitUntil(\.label, equals: #"["isPresented","dismiss","isPresented","isPresented"]"#, timeout: 5), app.log.label)
+            XCTAssertEqual(app.log.logValues, ["true", "", "false", "false"])
+        #endif
         XCTAssertFalse(app.buttons["close"].exists)
     }
 }

@@ -25,8 +25,8 @@ jobs:
           restore-keys: derived-
       - name: Build for testing
         run: sh CoreFlowHosted/build.sh
-      # The tests run the app as Mac Catalyst and click on the runner's own
-      # desktop: no simulator to boot. macOS has to allow that.
+      # The tests run the app on the runner's own desktop and click on it: no
+      # simulator to boot. macOS has to allow that.
       - name: Allow UI automation
         run: sudo automationmodetool enable-automationmode-without-authentication
       - name: Run the hosted UI tests
