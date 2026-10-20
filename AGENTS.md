@@ -177,9 +177,7 @@ one commit run twice (36731469547): the attempt that saved the new snapshot
 built in 49 s, the attempt that restored it in 33 s — on the slower runner of
 the two (package tests 38 s against 33 s) — so the key is worth about a third
 of the build even though a fresh checkout gives every source a new timestamp.
-The report step runs only when `test.log` exists, so a failed build
-posts no empty report. What
-Catalyst needs, each probed: `SUPPORTS_MACCATALYST: YES`;
+What Catalyst needs, each probed: `SUPPORTS_MACCATALYST: YES`;
 `MACOSX_DEPLOYMENT_TARGET: "27.0"` (unset it follows the SDK — "My Mac's macOS
 27.0.1 doesn't match CoreFlowHostUITests's macOS 27.2 deployment target");
 `ENABLE_HARDENED_RUNTIME: NO` (with it the runner refuses the test bundle:
@@ -218,33 +216,17 @@ run. On CI (2026-09-30) the Catalyst suite is green except for ONE unresolved
 intermittent failure, `GestureStateUITests`: on the runner the synthesized drag
 is DISCARDED WHOLE — `resets` stays 0, the log empty, the other 22 tests green
 — in about one runner run in three (for example 36727847306), with no code
-change that explains it. What a failing run's annotation shows: the same
-XCUITest steps as locally ("Click and drag … with velocity of 500.00 pixels
-per second", about 0.9 s of "Synthesize event"), the box on screen at (473.55,
-359.79, 77, 77) — 77 points because Catalyst scales the iPad interface to 77%
-— in a window filling the runner's 1024-point screen (0, 31, 1024, 674), and
-nothing arriving in the app. Repeating the drag does not help: a second one
-6 s later in the same app instance does nothing either, so it is not random
-loss — that instance ignores drags while every click in the other tests lands.
-Not reproducible locally. Ruled out, each probed green: CPU load, a very fast
-drag, the main thread stalled mid-drag, the app deactivated, running right
-after `FocusBindingUITests`, and another app's window over the box (XCUITest
-activates the app under test first). Untested suspicion: a window above the
-app that activation does not dislodge on the runner (the keystroke in
-`FocusBindingUITests`, the test before it and the only one that types, is the
-first from XCUITest's virtual keyboard on a fresh VM; macOS's Keyboard Setup
-Assistant opens mid-screen for an unidentified keyboard). To settle it, a
-failing hosted job posts ONE error annotation ("Report the failures", readable
-on the run page and through the API's check-run annotations without auth):
-each failed test's activity timeline with consecutive repeats collapsed
-(`waitUntil` reads back to back, about 25 lines a second), its errors, the
-executed/failed count, and EVERY WINDOW ON THE RUNNER'S SCREEN front to back
-(owner, layer, bounds, from `CGWindowListCopyWindowInfo` through `swift -e`).
-Read that list on the next failure before trying anything else: the test
-presses the scenario's `read` button before and after the drag (see the
-scenario list), so if `resets` is STILL 0 the reset closure never ran and the
-drag never reached the gesture, and a `KeyboardSetupAssistant` owner in the
-list would confirm the suspicion. A probe that starts another app must use
+change that explains it. The failing run shows the same XCUITest steps as
+locally, the box on screen, and nothing arriving in the app; a second drag
+6 s later in the same instance does nothing either, so that instance ignores
+drags while every click in the other tests lands. Not reproducible locally.
+Ruled out, each probed green: CPU load, a very fast drag, the main thread
+stalled mid-drag, the app deactivated, running right after
+`FocusBindingUITests`, and another app's window over the box. Untested
+suspicion: a window above the app that activation does not dislodge on the
+runner (the keystroke in `FocusBindingUITests` is the first from XCUITest's
+virtual keyboard on a fresh VM; macOS's Keyboard Setup Assistant opens
+mid-screen for an unidentified keyboard). A probe that starts another app must use
 `activate()` on an app that is NOT running: `launch()` on TextEdit tried to
 terminate the user's open TextEdit (macOS refused).
 
