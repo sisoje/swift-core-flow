@@ -27,10 +27,8 @@ struct UITestLogging: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(Leaf(store: store, logIdentifier: logIdentifier))
-            // Deferred: some events fire mid-render, and a synchronous append
-            // there is a state write during a body evaluation.
             .testLog { property, value in
-                Task { store.items.append((property, value)) }
+                store.items.append((property, value))
             }
     }
 

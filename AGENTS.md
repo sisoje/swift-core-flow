@@ -330,10 +330,9 @@ public so any hosted test app has it), holds the log in an `@Observable`
 `accessibilityElement`/`accessibilityIdentifier`/`accessibilityLabel`/
 `accessibilityValue` (JSON of the names/values) — is the store's only
 observer, so an append re-renders the leaf and nothing else, with nothing
-to leak into the scenarios. The sink appends DEFERRED (`Task { … }` from the
-`@MainActor` sink — same actor, enqueue order held): a synchronous append
-from a render-phase event is a state write during a body evaluation
-("Modifying state during view update", the sort tests fail). Rejected, in
+to leak into the scenarios. The sink appends synchronously: the class is
+not the rendering view's state, so a render-phase append is no state write
+during a body evaluation. Rejected, in
 order, all with evidence: a `@State` array on the ROOT (synchronous, then
 deferred) re-rendered the root on every event and looped the then-ungated
 scenario on the beta-4 runner (~16 `query`/s); a `UIViewRepresentable`
