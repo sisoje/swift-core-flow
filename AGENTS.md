@@ -1307,8 +1307,8 @@ twice. Never skip malformed input that could compile as unmanaged state.
 
 ### Shared logging seam
 
-`testLog` is an internal `@Entry`; its `ComparableLog` value is an always-equal
-struct rather than a bare closure entry that would warn about invalidation.
+`testLog` is an internal `@Entry`; its `TestLogSink` value is a struct around
+the closure, because a bare closure entry warns about invalidation.
 `TestLog` is a `DynamicProperty` wrapping the hand-written environment read, and
 its `wrappedValue` is the `@MainActor (String, String) -> Void` sink. Global-
 actor function values are implicitly Sendable, so all events serialize on the
