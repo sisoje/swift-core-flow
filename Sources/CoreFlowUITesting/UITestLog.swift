@@ -13,7 +13,7 @@ public extension XCUIElement {
 
     /// A `Text`'s content: its label on iOS and Mac Catalyst, its value on
     /// macOS.
-    var text: String {
+    var valueOrLabel: String {
         #if os(macOS)
             value as? String ?? ""
         #else
@@ -75,7 +75,7 @@ public extension XCUIElement {
 public extension XCUIApplication {
     /// A `Toggle`'s control: a checkbox on macOS, elsewhere the switch inside
     /// the labeled switch element.
-    func toggle(_ identifier: String) -> XCUIElement {
+    func switchOrCheckBox(_ identifier: String) -> XCUIElement {
         #if os(macOS)
             checkBoxes[identifier]
         #else
