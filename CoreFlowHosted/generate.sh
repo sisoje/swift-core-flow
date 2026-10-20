@@ -1,39 +1,43 @@
 #!/bin/sh
 # Rewrites the committed hosted project from scratch with the `xcodeproj` tool
-# of Xcode 27.2 beta 3 or later.
+# of Xcode 27.2 beta 3 or later. The tool finds the one project in this folder.
 set -e
 cd "$(dirname "$0")"
-project=CoreFlowHosted.xcodeproj
-x() { xcrun xcodeproj "$@" -P "$project"; }
-rm -rf "$project"
-xcrun xcodeproj init "$project"
+rm -rf CoreFlowHosted.xcodeproj
+xcrun xcodeproj init CoreFlowHosted.xcodeproj
 
-# Mac Catalyst: a macOS process, so it is signed (ad hoc) without the hardened
+# Project: Mac Catalyst, a macOS process signed ad hoc without the hardened
 # runtime, in the iPad idiom (device family 1,2).
-for kv in SDKROOT=iphoneos IPHONEOS_DEPLOYMENT_TARGET=27.0 TARGETED_DEVICE_FAMILY=1,2 SUPPORTS_MACCATALYST=YES MACOSX_DEPLOYMENT_TARGET=27.0 ENABLE_HARDENED_RUNTIME=NO CODE_SIGN_IDENTITY=- SWIFT_VERSION=6.0; do
-    x setting set "${kv%%=*}" "${kv#*=}"
-done
+xcrun xcodeproj setting set SDKROOT iphoneos
+xcrun xcodeproj setting set IPHONEOS_DEPLOYMENT_TARGET 27.0
+xcrun xcodeproj setting set TARGETED_DEVICE_FAMILY 1,2
+xcrun xcodeproj setting set SUPPORTS_MACCATALYST YES
+xcrun xcodeproj setting set MACOSX_DEPLOYMENT_TARGET 27.0
+xcrun xcodeproj setting set ENABLE_HARDENED_RUNTIME NO
+xcrun xcodeproj setting set CODE_SIGN_IDENTITY -
+xcrun xcodeproj setting set SWIFT_VERSION 6.0
+xcrun xcodeproj setting set PRODUCT_BUNDLE_IDENTIFIER 'com.coreflow.hosted.$(TARGET_NAME)'
 
-x target add CoreFlowHostApp --product-type application
-x target add CoreFlowHostUITests --product-type ui-test-bundle
-x target add-dependency CoreFlowHostUITests CoreFlowHostApp
-for t in CoreFlowHostApp CoreFlowHostUITests; do
-    for p in sources frameworks; do x target phase add --target $t $p; done
-done
-x setting set PRODUCT_BUNDLE_IDENTIFIER com.coreflow.hosted.CoreFlowHostApp --target CoreFlowHostApp
-x setting set SWIFT_DEFAULT_ACTOR_ISOLATION MainActor --target CoreFlowHostApp
-x setting set PRODUCT_BUNDLE_IDENTIFIER com.coreflow.hosted.CoreFlowHostUITests --target CoreFlowHostUITests
-x setting set TEST_TARGET_NAME CoreFlowHostApp --target CoreFlowHostUITests
+# App: HostApp/ and Shared/ synchronized with disk, linking CoreFlow.
+xcrun xcodeproj target add CoreFlowHostApp --product-type application
+xcrun xcodeproj target phase add sources --target CoreFlowHostApp
+xcrun xcodeproj target phase add frameworks --target CoreFlowHostApp
+xcrun xcodeproj group add HostApp --filesystem-path HostApp
+xcrun xcodeproj group add Shared --filesystem-path Shared
+xcrun xcodeproj group include --group HostApp --target CoreFlowHostApp
+xcrun xcodeproj group include --group Shared --target CoreFlowHostApp
+xcrun xcodeproj pkg add-local .. --product CoreFlow --target CoreFlowHostApp
 
-# Folders synchronized with disk: every file in them belongs to the target.
-x group add HostApp --filesystem-path HostApp
-x group add Shared --filesystem-path Shared
-x group add UITests --filesystem-path UITests
-x group include --group HostApp --target CoreFlowHostApp
-x group include --group Shared --target CoreFlowHostApp
-x group include --group Shared --target CoreFlowHostUITests
-x group include --group UITests --target CoreFlowHostUITests
+# UI tests: UITests/ and Shared/, run against the app, linking the log reader.
+xcrun xcodeproj target add CoreFlowHostUITests --product-type ui-test-bundle
+xcrun xcodeproj target phase add sources --target CoreFlowHostUITests
+xcrun xcodeproj target phase add frameworks --target CoreFlowHostUITests
+xcrun xcodeproj target add-dependency CoreFlowHostUITests CoreFlowHostApp
+xcrun xcodeproj setting set TEST_TARGET_NAME CoreFlowHostApp --target CoreFlowHostUITests
+xcrun xcodeproj group add UITests --filesystem-path UITests
+xcrun xcodeproj group include --group UITests --target CoreFlowHostUITests
+xcrun xcodeproj group include --group Shared --target CoreFlowHostUITests
+xcrun xcodeproj pkg link CoreFlowUITesting --package CoreFlow --target CoreFlowHostUITests
 
-x pkg add-local .. --product CoreFlow --target CoreFlowHostApp
-x pkg link CoreFlowUITesting --package CoreFlow --target CoreFlowHostUITests
-
+# Predictable ids: each target's id is its name; product references need none.
+perl -0pi -e 's/"name": "(\w+)",(\s*)"id": "[0-9A-F]{24}"/"name": "$1",$2"id": "$1"/g; s/ "id": "[0-9A-F]{24}",//g' CoreFlowHosted.xcodeproj/project.xcproj

@@ -134,8 +134,8 @@ live SwiftUI host: `CoreFlowHosted.xcodeproj` is COMMITTED (one file,
 `project.xcproj`, the JSON format; Xcode 27.0+ opens it) and `generate.sh`
 rewrites it from nothing with the `xcodeproj` tool of Xcode 27.2 beta 3+
 (beta 2's has no `init`, probed on CI image 20261012, which is why the file
-is committed rather than generated there; a regeneration gives the targets
-new random ids, so its diff is noisy). The source folders are synchronized
+is committed rather than generated there; the script's last line makes the
+ids predictable, so a regeneration is byte-identical). The source folders are synchronized
 with disk, so a new file needs no project change. No scheme file: the
 scripts use the UI-test target's auto-created scheme, which builds the app
 as its dependency (the app's own carries no test bundle). `build.sh`
@@ -151,11 +151,7 @@ file per claim, each ending in its `#Preview`; `Shared/` — compiled into
 BOTH targets (`sources: [HostApp, Shared]` / `[UITests, Shared]`) —
 holding `TestScenario.swift` (the enum) and `TestPayload.swift` (`testPayloadEnvironmentKey`,
 `logAccessibilityIdentifier`, `try!` JSON encode/decode — the one place the key, the
-element name, and the scenario set are spelled), both types `nonisolated`: the
-app target defaults to `MainActor` isolation, under which `TestPayload.decode`
-and the synthesized `Codable` conformance are actor-isolated and cannot be
-passed point-free to `Optional.map` ("converting function value … loses global
-actor"), and they are pure data shared with the test bundle anyway; and `UITests/` (`UITests/Scenarios/`, one
+element name, and the scenario set are spelled); and `UITests/` (`UITests/Scenarios/`, one
 `XCTestCase` per scenario, plus `LaunchHelper.swift` at the root, whose
 `launchApp(scenario: TestScenario)` encodes the payload into
 `launchEnvironment` and whose `app.log` is

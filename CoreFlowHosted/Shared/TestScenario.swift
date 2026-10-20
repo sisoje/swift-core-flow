@@ -1,5 +1,5 @@
 /// Every hosted scenario the app can show, one case per scenario view.
-nonisolated enum TestScenario: Codable {
+enum TestScenario: Codable {
     case queryViewGated
     case queryViewUngated
     case mockQueryResults
