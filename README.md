@@ -649,9 +649,9 @@ let sectioned = SectionedResults.mock([dune, anathem, it], sectionBy: \.genre)
 
 The elements go into a throwaway in-memory container and SwiftData's public
 `ResultsObserver` sections them, exactly as a live `Query(sort:sectionBy:)`
-would: titles are the elements' own `sectionBy` values, sections and rows
-follow `sortBy:` (by default the section key path), and the caller's
-instances come back. Public API only — no private layout, nothing fabricated.
+would: titles are the elements' own `sectionBy` values (`String` or
+`String?`), sections and rows follow `sortBy:` (without it, title order),
+and the caller's instances come back. Public API only — no private layout, nothing fabricated.
 Test/preview-only, and deletable the day Apple grants the initializers.
 
 ---

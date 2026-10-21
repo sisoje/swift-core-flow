@@ -1101,14 +1101,15 @@ every variant taxed the production path to fix Apple's sealing. Ruling: no
 `map` in the pipeline; do not retry.
 
 Sectioned MOCKING is `SectionedResults.mock(_ elements:sectionBy:sortBy:)`
-(`SectionTitle == String`, `@MainActor`) in
+(`SectionTitle == String`, `@MainActor`; key path `String` or `String?`, a nil
+title the empty section, first) in
 `Sources/CoreFlow/Experimental/SectionedResults+Mock.swift` — a GENUINE value
 from PUBLIC API, nothing fabricated: the elements are inserted into a
 throwaway in-memory `ModelContainer`'s context, one `save()`, and a public
 `ResultsObserver<Element, String>(sortBy:sectionBy:modelContext:)` sections
 them; the mock returns its `sections`. Titles are the elements' own
-`sectionBy` values, sections and rows follow `sortBy` (default
-`[SortDescriptor(sectionBy)]`, which is why the key path is `& Sendable`);
+`sectionBy` values, sections and rows follow `sortBy` (nil: title order,
+probed);
 the value outlives the observer and the container, and the caller's
 instances come back — the observer is built over the SAME context the
 elements were inserted into; built over the container it fetches copies
@@ -2036,7 +2037,7 @@ Exact API owners:
   `QueryViewTests` owns the QueryView surface compiled (the init
   typechecking in a body, `$` closure re-propertification) and
   `MockQueryTransform`'s registry hit plus both empty
-  fallbacks (`mockTransformReturnsRegisteredThenEmptyFallback`); `mockQuery`
+  fallbacks; `mockQuery`
   hosted behavior is `MockQueryResultsUITests`/`QueryViewSectionedUITests` in `CoreFlowHosted`;
   `MemoViewTests` owns the MemoView surface compiled, its behavior is
   `MemoViewUITests`;

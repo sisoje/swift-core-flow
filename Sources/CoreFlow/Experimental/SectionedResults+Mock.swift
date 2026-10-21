@@ -10,15 +10,37 @@ public extension SectionedResults where SectionTitle == String {
     /// itself: the elements go into a throwaway in-memory container and a
     /// public `ResultsObserver` sections them, exactly as a live
     /// `Query(sort:sectionBy:)` would. Titles are the elements' own
-    /// `sectionBy` values; sections and rows follow `sortBy` (by default the
-    /// section key path). The caller's instances come back, managed by that
+    /// `sectionBy` values; sections and rows follow `sortBy` (without it,
+    /// title order). The caller's instances come back, managed by that
     /// throwaway container.
     @MainActor
     static func mock(
         _ elements: [Element],
-        sectionBy: KeyPath<Element, String> & Sendable,
+        sectionBy: KeyPath<Element, String>,
         sortBy: [SortDescriptor<Element>]? = nil
     ) -> SectionedResults<Element, String> {
+        let observer = try! ResultsObserver<Element, String>(
+            sortBy: sortBy, sectionBy: sectionBy, modelContext: seeded(elements)
+        )
+        return observer.sections!
+    }
+
+    /// The same over an optional title, as `Query` takes one.
+    @MainActor
+    static func mock(
+        _ elements: [Element],
+        sectionBy: KeyPath<Element, String?>,
+        sortBy: [SortDescriptor<Element>]? = nil
+    ) -> SectionedResults<Element, String> {
+        let observer = try! ResultsObserver<Element, String>(
+            sortBy: sortBy, sectionBy: sectionBy, modelContext: seeded(elements)
+        )
+        return observer.sections!
+    }
+
+    /// The elements in a throwaway in-memory container.
+    @MainActor
+    private static func seeded(_ elements: [Element]) -> ModelContext {
         let container = try! ModelContainer(
             for: Element.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
@@ -27,9 +49,6 @@ public extension SectionedResults where SectionTitle == String {
             context.insert(element)
         }
         try! context.save()
-        let observer = try! ResultsObserver<Element, String>(
-            sortBy: sortBy ?? [SortDescriptor(sectionBy)], sectionBy: sectionBy, modelContext: context
-        )
-        return observer.sections!
+        return context
     }
 }
