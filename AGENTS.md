@@ -306,8 +306,9 @@ time. Render-time events shape the log, pure SwiftUI by rule:
 public so any hosted test app has it), holds the log in an `@Observable`
 `Store` CLASS kept in its own `@State` and never reads the items itself; a
 `Leaf` in the content's `.background` — `Color.clear` with
-`accessibilityElement`, the `isStaticText` trait (on macOS an element of
-any other role has no value, probed), `accessibilityIdentifier`/
+`accessibilityElement`, on macOS only the `isStaticText` trait (there an
+element of any other role has no value; on UIKit the trait empties the
+label of an empty log, both probed), `accessibilityIdentifier`/
 `accessibilityLabel`/`accessibilityValue` (JSON of the names/values) — is the store's only
 observer, so an append re-renders the leaf and nothing else, with nothing
 to leak into the scenarios. The sink appends synchronously: the class is
