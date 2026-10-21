@@ -609,9 +609,8 @@ struct BookList: View {
   `books.isEmpty` — `@Query` ergonomics), `_books` reaches
   `fetchError`/`modelContext` exactly as on a live `@Query`.
 - **Two mock paths.** Can the results in one line — `.mockQuery` registers
-  typed `QueryResult` values per result type (an unregistered shape gets the
-  query's own value — empty when no container is installed — so the subtree
-  still renders) — or seed an in-memory container and let the REAL query run
+  typed `QueryResult` values per result type (an unregistered shape is
+  empty, so the subtree still renders) — or seed an in-memory container and let the REAL query run
   against your test data, so sorting, filtering, and sectioning are
   genuinely the query's own:
 

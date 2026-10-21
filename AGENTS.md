@@ -176,7 +176,8 @@ is a matrix of four destinations — `macos`, `catalyst`, `ios` (iPhone 18 Pro
 simulator), `visionos` (Apple Vision Pro simulator) — each running `build.sh` and `test.sh` with its destination,
 with one step between allowing UI automation (`sudo automationmodetool
 enable-automationmode-without-authentication`); fail-fast by default,
-30-minute timeout. Run 39565787952, 23 green on each: the test step took
+45-minute timeout (run 39572117554's visionOS entry was killed at 30 min,
+and GitHub keeps no log of a timed-out job). Run 39565787952, 23 green on each: the test step took
 118 s on macOS, 129 s on Catalyst, 481 s on iOS, 1151 s on visionOS (733 s
 of tests after the boot).
 `actions/cache` keeps the package and build jobs' `.build` (`spm-…`, `build-<platform>-…`) and each hosted entry's
@@ -397,10 +398,10 @@ The other scenarios, each one UI test unless noted:
   with NO container anywhere — the canned `[Novel]` renders, a canned
   `fetchError` on the `[Tag]` result renders through `$tags.fetchError`, and
   a third, UNREGISTERED sectioned query renders the query's own empty value
-  (`unregistered sections 0`).
-  Verified fact: a
-  `Query` installed by `PropertyHostView` does not trap without a
-  `modelContainer`; the mock path is genuinely container-free.
+  (`unregistered sections 0`), with no SwiftData runtime issue: `.mockQuery`
+  installs an empty in-memory container, because a `Query` read without one
+  logs "Set a .modelContext in view's environment to use Query" (seen on the
+  iPhone 18 Pro simulator, 2026-10-21; it returned empty, no trap).
 - `QueryViewSectionedScenario(mocked:)` / `QueryViewSectionedUITests` (two tests, 27+): the
   same `ForEach(sections, id: \.title) { Section(title) { ForEach(section) } }`
   content over a real `Query(sort:sectionBy:)` on a seeded container, and
@@ -1071,13 +1072,14 @@ INTERNAL by design (mock only through `mockQuery`): `QueryTransforming`
 `[ObjectIdentifier: Any]` registry keyed on `R.self` — `R` alone
 determines `E`, so one non-generic value serves a subtree mixing
 query/model types; a registry hit is returned, an unregistered shape
-gets the QUERY'S OWN value, `QueryResult(wrappedValue: q.wrappedValue)` —
-empty when no container is installed, which is the mock's case, and no trap
-either hosted (`MockQueryResultsUITests`, `unregistered sections 0`) or
-uninstalled in a unit test (probed: a sectioned `Query` read unhosted
-returns `count 0`); with a container present it is the live result. No
-shape switch, no `fatalError`: the mock succeeds as much as possible, a
-subtree it was not seeded for renders what the query has). Rejected along the way,
+gets the QUERY'S OWN value, `QueryResult(wrappedValue: q.wrappedValue)`,
+read against the empty in-memory container `mockQuery` installs, so it is
+empty, hosted (`MockQueryResultsUITests`) or unhosted (a unit test reads a
+sectioned `Query` uninstalled, `count 0`). The container is there for the
+read: without one SwiftData logs a runtime issue, and it shadows any
+container above the mocked subtree, which is the contract — under
+`.mockQuery` nothing is live. No shape switch, no `fatalError`: a subtree
+the mock was not seeded for renders empty). Rejected along the way,
 all built green: per-Element payload enums (cannot satisfy the generic),
 public transforms, a `View.mockContainer`
 seeding helper (the native `.modelContainer(for:inMemory:onSetup:)` is

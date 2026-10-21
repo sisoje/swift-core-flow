@@ -46,6 +46,9 @@ extension EnvironmentValues {
 public extension View {
     func mockQuery<each R>(_ results: repeat QueryResult<each R>) -> some View {
         environment(\.queryTransform, MockQueryTransform(repeat each results))
+            // Empty: an unregistered query reads it and finds nothing. Without
+            // a container SwiftData logs a runtime issue on that read.
+            .modelContainer(for: [], inMemory: true)
     }
 }
 
