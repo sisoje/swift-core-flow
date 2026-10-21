@@ -83,9 +83,10 @@
     "MACOSX_DEPLOYMENT_TARGET": "27.0",
     "PRODUCT_BUNDLE_IDENTIFIER": "com.coreflow.hosted.$(TARGET_NAME)",
     "SDKROOT": "auto",
-    "SUPPORTED_PLATFORMS": "macosx iphoneos iphonesimulator",
+    "SUPPORTED_PLATFORMS": "macosx iphoneos iphonesimulator xros xrsimulator",
     "SUPPORTS_MACCATALYST": "YES",
     "SWIFT_VERSION": "6.0",
     "TARGETED_DEVICE_FAMILY": "1,2",
+    "XROS_DEPLOYMENT_TARGET": "27.0",
   },
 }

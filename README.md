@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml)
 ![Swift 6.4](https://img.shields.io/badge/Swift-6.4-blue?logo=swift&logoColor=white)
-![UI tests on iOS, macOS, Mac Catalyst](https://img.shields.io/badge/UI%20tests-iOS%20%7C%20macOS%20%7C%20Mac%20Catalyst-blue)
+![UI tests on iOS, visionOS, macOS, Mac Catalyst](https://img.shields.io/badge/UI%20tests-iOS%20%7C%20visionOS%20%7C%20macOS%20%7C%20Mac%20Catalyst-blue)
 
 > **Make any SwiftUI project testable. One line, one macro is all you need.**
 >
@@ -76,7 +76,7 @@ hosts behave normally.
 - [`CoreFlowUITesting`](#the-testlog-seam) (product for UI-test bundles)
   reads that element (`app.descendants(matching: .any)[identifier]`): `logNames`,
   `logValues`, `valueOrLabel`, `waitUntil(_:equals:timeout:)`, `switchOrCheckBox(_:)`, and `tapOrClick()` /
-  `pressOrClick(forDuration:thenDragTo:)` for macOS, Mac Catalyst and iOS alike.
+  `pressOrClick(forDuration:thenDragTo:)`, one spelling for every destination.
 
 ### Own a task's lifetime
 

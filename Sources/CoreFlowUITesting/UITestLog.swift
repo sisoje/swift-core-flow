@@ -73,11 +73,13 @@ public extension XCUIElement {
 }
 
 public extension XCUIApplication {
-    /// A `Toggle`'s control: a checkbox on macOS, elsewhere the switch inside
-    /// the labeled switch element.
+    /// A `Toggle`'s control: a checkbox on macOS, one switch on visionOS,
+    /// elsewhere the switch inside the labeled switch element.
     func switchOrCheckBox(_ identifier: String) -> XCUIElement {
         #if os(macOS)
             checkBoxes[identifier]
+        #elseif os(visionOS)
+            switches[identifier]
         #else
             switches[identifier].switches.firstMatch
         #endif

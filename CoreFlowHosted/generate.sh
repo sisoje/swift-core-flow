@@ -6,10 +6,11 @@ cd "$(dirname "$0")"
 rm -rf CoreFlowHosted.xcodeproj
 xcrun xcodeproj init CoreFlowHosted.xcodeproj
 
-# Project: native macOS, Mac Catalyst, or iOS by destination; ad hoc signing,
+# Project: native macOS, Mac Catalyst, iOS, or visionOS by destination; ad hoc signing,
 # no hardened runtime, iPad idiom (device family 1,2).
 xcrun xcodeproj setting set SDKROOT auto
-xcrun xcodeproj setting set SUPPORTED_PLATFORMS "macosx iphoneos iphonesimulator"
+xcrun xcodeproj setting set SUPPORTED_PLATFORMS "macosx iphoneos iphonesimulator xros xrsimulator"
+xcrun xcodeproj setting set XROS_DEPLOYMENT_TARGET 27.0
 xcrun xcodeproj setting set IPHONEOS_DEPLOYMENT_TARGET 27.0
 xcrun xcodeproj setting set TARGETED_DEVICE_FAMILY 1,2
 xcrun xcodeproj setting set SUPPORTS_MACCATALYST YES

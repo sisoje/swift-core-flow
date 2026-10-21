@@ -24,6 +24,8 @@ jobs:
             destination: platform=macOS,variant=Mac Catalyst
           - name: ios
             destination: platform=iOS Simulator,name=iPhone 18 Pro
+          - name: visionos
+            destination: platform=visionOS Simulator,name=Apple Vision Pro
     steps:
       - uses: actions/checkout@v5
       - name: Cache derived data
