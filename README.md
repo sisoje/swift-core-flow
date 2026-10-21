@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml)
 ![Swift 6.4](https://img.shields.io/badge/Swift-6.4-F05138?logo=swift&logoColor=white)
+![UI tests on iOS, macOS, Mac Catalyst](https://img.shields.io/badge/UI%20tests-iOS%20%7C%20macOS%20%7C%20Mac%20Catalyst-blue)
 
 > **Make any SwiftUI project testable. One line, one macro is all you need.**
 >
