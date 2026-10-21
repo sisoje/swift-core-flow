@@ -166,12 +166,17 @@ package stays free of scenario code. Generators before: xcodegen until
 2026-10-04 (no JSON-format support), Tuist under mise until 2026-10-19;
 Xcode's own tool needs nothing installed. The hosted tests run the app ON THE MAC ITSELF — no
 simulator (since 2026-09-30); natively since 2026-10-21, as Mac Catalyst before. CI (`.github/workflows/ci.yml`, label
-`xcode-27`, no `xcode-select`): job `package` runs `swift test`; job `hosted`
+`xcode-27`, no `xcode-select`): job `package` runs `swift test`; job `build`
+compiles the package for tvOS and watchOS (`swift build --triple
+arm64-apple-tvos`, no SDK flag needed, prebuilt swift-syntax, seconds),
+which nothing else compiles for — on tvOS `CoreFlowUITesting` has no `pressOrClick`
+(`XCUICoordinate` does not exist there) and `tapOrClick()` fails the test
+("tvOS has no tap"), since tvOS input is `XCUIRemote`; job `hosted`
 is a matrix of four destinations — `macos`, `catalyst`, `ios` (iPhone 18 Pro
 simulator), `visionos` (Apple Vision Pro simulator) — each running `build.sh` and `test.sh` with its destination,
 with one step between allowing UI automation (`sudo automationmodetool
 enable-automationmode-without-authentication`); fail-fast by default.
-`actions/cache` keeps the package job's `.build` and each matrix entry's
+`actions/cache` keeps the package and build jobs' `.build` (`spm-…`, `build-<platform>-…`) and each hosted entry's
 `~/Library/Developer/Xcode/DerivedData`, keyed on the package inputs
 (`Package.swift`, `Package.resolved`, `Sources/**/*.swift`) with a per-entry
 prefix fallback: an entry is saved only when its key misses, so the snapshot

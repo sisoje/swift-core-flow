@@ -60,6 +60,8 @@ public extension XCUIElement {
             coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).click()
         #elseif targetEnvironment(macCatalyst)
             click()
+        #elseif os(tvOS)
+            XCTFail("tvOS has no tap; move focus with XCUIRemote and press select")
         #else
             tap()
         #endif
@@ -86,13 +88,15 @@ public extension XCUIApplication {
     }
 }
 
-public extension XCUICoordinate {
-    /// The drag, under the same split as `tapOrClick()`.
-    func pressOrClick(forDuration duration: TimeInterval, thenDragTo other: XCUICoordinate) {
-        #if os(macOS) || targetEnvironment(macCatalyst)
-            click(forDuration: duration, thenDragTo: other)
-        #else
-            press(forDuration: duration, thenDragTo: other)
-        #endif
+#if !os(tvOS)
+    public extension XCUICoordinate {
+        /// The drag, under the same split as `tapOrClick()`.
+        func pressOrClick(forDuration duration: TimeInterval, thenDragTo other: XCUICoordinate) {
+            #if os(macOS) || targetEnvironment(macCatalyst)
+                click(forDuration: duration, thenDragTo: other)
+            #else
+                press(forDuration: duration, thenDragTo: other)
+            #endif
+        }
     }
-}
+#endif

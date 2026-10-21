@@ -2,6 +2,7 @@ name: CI
 on: [push, pull_request]
 jobs:
   package:
+    name: Unit tests
     runs-on: xcode-27
     steps:
       - uses: actions/checkout@v5
@@ -13,7 +14,24 @@ jobs:
           restore-keys: spm-
       - name: Test the package
         run: swift test
+  build:
+    name: Build for ${{ matrix.platform }}
+    runs-on: xcode-27
+    strategy:
+      matrix:
+        platform: [tvos, watchos]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Cache SwiftPM build
+        uses: actions/cache@v5
+        with:
+          path: .build
+          key: build-${{ matrix.platform }}-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**/*.swift') }}
+          restore-keys: build-${{ matrix.platform }}-
+      - name: Build the package
+        run: swift build --triple arm64-apple-${{ matrix.platform }}
   hosted:
+    name: UI tests on ${{ matrix.name }}
     runs-on: xcode-27
     strategy:
       matrix:
