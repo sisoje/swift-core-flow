@@ -164,21 +164,19 @@ in the package: they are preview views that double as test hosts, and the
 package stays free of scenario code. Generators before: xcodegen until
 2026-10-04 (no JSON-format support), Tuist under mise until 2026-10-19;
 Xcode's own tool needs nothing installed. The hosted tests run the app ON THE MAC ITSELF — no
-simulator (since 2026-09-30); natively since 2026-10-21, as Mac Catalyst before. CI runs `build.sh`, one step allowing UI
-automation (`sudo automationmodetool
-enable-automationmode-without-authentication`), then `test.sh`, as named steps
-(coverage off; Xcode uses the scheme), in `.github/workflows/ci.yml`, jobs
-`package` and `hosted` on the `xcode-27` label, no `xcode-select`.
-`actions/cache` keeps the package job's `.build` and the hosted job's
-`~/Library/Developer/Xcode/DerivedData` — dependencies plus the previous build
-products, both keyed on `Package.resolved` with a prefix fallback. The hosted
-key is `derived-catalyst-…`: an entry is saved only when its key misses, and
-under the old `derived-…` key the snapshot still held simulator products, so
-the Catalyst app was compiled from scratch each run (41–64 s). Measured on
-one commit run twice (36731469547): the attempt that saved the new snapshot
-built in 49 s, the attempt that restored it in 33 s — on the slower runner of
-the two (package tests 38 s against 33 s) — so the key is worth about a third
-of the build even though a fresh checkout gives every source a new timestamp.
+simulator (since 2026-09-30); natively since 2026-10-21, as Mac Catalyst before. CI (`.github/workflows/ci.yml`, label
+`xcode-27`, no `xcode-select`): job `package` runs `swift test`; job `hosted`
+is a matrix of three destinations — `macos`, `catalyst`, `ios` (iPhone 18 Pro
+simulator) — each running `build.sh` and `test.sh` with its destination,
+with one step between allowing UI automation (`sudo automationmodetool
+enable-automationmode-without-authentication`); fail-fast by default.
+`actions/cache` keeps the package job's `.build` and each matrix entry's
+`~/Library/Developer/Xcode/DerivedData`, keyed on the package inputs
+(`Package.swift`, `Package.resolved`, `Sources/**/*.swift`) with a per-entry
+prefix fallback: an entry is saved only when its key misses, so the snapshot
+is refreshed when the package changes and a hosted-only commit rebuilds the
+hosted targets alone. A snapshot was measured worth about a third of the
+hosted build (49 s saving it, 33 s restoring it, run 36731469547).
 What Catalyst needs, each probed: `SUPPORTS_MACCATALYST: YES`;
 `MACOSX_DEPLOYMENT_TARGET: "27.0"` (unset it follows the SDK — "My Mac's macOS
 27.0.1 doesn't match CoreFlowHostUITests's macOS 27.2 deployment target");
@@ -198,8 +196,7 @@ takes 5 s and no event arrives — while `click()` works; on an iPhone
 simulator `click()` compiles (iOS 15+) and fails at run time, "Pointer events
 are not supported for this device". With the wrappers `TestState` and
 `GestureState` pass on both (Catalyst and the iPhone 17 simulator,
-2026-09-30); the scripts and CI use Catalyst, the simulator remains one
-`xcodebuild test -destination "platform=iOS Simulator,name=…"` away. macOS must allow UI automation or every
+2026-09-30). macOS must allow UI automation or every
 click times out the same way. No scenario source or pinned log changed; the tests changed only
 `tap()` → `tapOrClick()`. One behaviour DIFFERS on Catalyst, probed: a removed view's storage is
 released when the app handles its NEXT event, not when the view leaves — after
@@ -263,9 +260,7 @@ that stalls, was tried locally and fails: `-sdk` applies to every target, so
 the macro plugin is built for the simulator SDK and swiftc reports
 "external macro implementation type … produced malformed response" at every
 `@FlowUp`; it also builds fat (`arm64-x86_64`). `-destination` is what lets
-the macro host build for macOS. Do not retry. Known trade-off, accepted: a cache entry is saved only when its key
-misses, so the derived data is refreshed only when the lock changes, and
-later runs rebuild the delta from that snapshot. The package REQUIRES Swift 6.4: verified on the
+the macro host build for macOS. Do not retry. The package REQUIRES Swift 6.4: verified on the
 `macos-latest` image (Xcode 26.6, Swift 6.3.3), the package builds but
 every direct construction fails — `'StatefulCard.Core' initializer is
 inaccessible due to 'private' protection level` in `ShellTests`, and

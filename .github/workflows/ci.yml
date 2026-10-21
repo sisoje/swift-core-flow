@@ -9,25 +9,33 @@ jobs:
         uses: actions/cache@v5
         with:
           path: .build
-          key: spm-${{ hashFiles('Package.resolved') }}
+          key: spm-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**/*.swift') }}
           restore-keys: spm-
       - name: Test the package
         run: swift test
   hosted:
     runs-on: xcode-27
+    strategy:
+      matrix:
+        include:
+          - name: macos
+            destination: platform=macOS
+          - name: catalyst
+            destination: platform=macOS,variant=Mac Catalyst
+          - name: ios
+            destination: platform=iOS Simulator,name=iPhone 18 Pro
     steps:
       - uses: actions/checkout@v5
       - name: Cache derived data
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: derived-catalyst-${{ hashFiles('Package.resolved') }}
-          restore-keys: derived-
+          key: derived-${{ matrix.name }}-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**/*.swift') }}
+          restore-keys: derived-${{ matrix.name }}-
       - name: Build for testing
-        run: sh CoreFlowHosted/build.sh
-      # The tests run the app on the runner's own desktop and click on it: no
-      # simulator to boot. macOS has to allow that.
+        run: sh CoreFlowHosted/build.sh "${{ matrix.destination }}"
+      # The tests click on the runner's own desktop. macOS has to allow that.
       - name: Allow UI automation
         run: sudo automationmodetool enable-automationmode-without-authentication
       - name: Run the hosted UI tests
-        run: sh CoreFlowHosted/test.sh
+        run: sh CoreFlowHosted/test.sh "${{ matrix.destination }}"
