@@ -10,6 +10,12 @@
 >
 > **Dynamic SwiftData queries? One view — and mocking them is one line too.**
 
+Start today, in the code you have: one view, one component, one feature,
+then the next. Adopting it is cheap: nothing is rewritten and nothing is
+decided once and for all.
+MVVM and the other architectures ask for all or nothing, and all is
+expensive; CoreFlow never asks for more than the next piece.
+
 ## What's inside
 
 CoreFlow is a small, growing collection of independent Swift macros, all
@@ -129,38 +135,6 @@ state in an `ObservableObject` ViewModel, however, and there is no node boundary
 to substitute: the source of truth and its write sites live outside the
 network, so the twin inherits the same opaque reference instead of an
 observable boundary.
-
-## Adopt it one view at a time
-
-CoreFlow does not ask you to choose it. Nothing has to be migrated: a plain
-SwiftUI view, however it is written, becomes testable the moment `@Shell` is
-attached — that is the whole step. Take the next view when it earns it, leave
-the rest alone. Testability, like refactoring, arrives gradually.
-
-A **scenario** is a preview that a test can also launch: an ordinary view
-constructing `Card.Core(…)` with mocked inputs, ending in `#Preview`. It lives
-next to your views, in the app target, exactly where previews live.
-
-**Do not wrap scenarios or previews in `#if DEBUG`.** Previews already sit in
-the production target: Apple [compiles them alongside the rest of the app
-code](https://developer.apple.com/videos/play/wwdc2023/10252/), and Xcode's
-templates [stopped wrapping them in `#if DEBUG` with Xcode 11](https://forums.swift.org/t/swiftui-previewprovider-no-longer-surrounded-with-if-debug-endif-what-does-this-mean/29943),
-because the compiler removes unreferenced types from release builds — Apple's
-Developer Tools Engineers confirm previews
-["tend to get dead code stripped when building for release"](https://developer.apple.com/forums/thread/747085)
-and that [`#if DEBUG` is unnecessary for them](https://developer.apple.com/forums/thread/656802).
-A scenario is one more
-such type, and `Core` is internal: in a release build it is eliminated with
-code, metadata and conformance record, verified against the binary (see
-[Why `Core` is always internal](#why-core-is-always-internal-with-no-init-of-its-own)).
-
-What a release build does contain is the library itself, linked like any
-other: about 200 KB of type metadata and conformance records, measured on an
-app that references nothing in it. That is the cost of the dependency, not
-of your scenarios, and the production parts of the package — `QueryView`,
-`MemoView`, `@FlowUp`, `@UnstructuredTask` — are meant to be used there.
-
----
 
 ## Installation
 
@@ -443,6 +417,28 @@ substituted set is always private, with no "what if it's also public" case
 to reason about. Unknown wrappers carry no privacy rule — private or not,
 their declaration is copied verbatim, and a non-private one stays a
 memberwise-init parameter like any other non-private field.
+
+### Scenarios are automated previews
+
+A **scenario** is a preview a test also drives: a view constructing
+`Card.Core(…)` with mocked inputs, ending in `#Preview`. It lives in the app
+target, like every preview.
+
+So scenarios ship with the app, and that is fine. Do not wrap them, or any
+preview, in `#if DEBUG`: Apple [compiles previews with the app](https://developer.apple.com/videos/play/wwdc2023/10252/),
+Xcode's templates [dropped the guard in Xcode 11](https://forums.swift.org/t/swiftui-previewprovider-no-longer-surrounded-with-if-debug-endif-what-does-this-mean/29943),
+and Apple's Developer Tools Engineers confirm previews
+["tend to get dead code stripped when building for release"](https://developer.apple.com/forums/thread/747085)
+and that [`#if DEBUG` is unnecessary](https://developer.apple.com/forums/thread/656802).
+A scenario is one more such type, and `Core` is internal: a release build
+drops both, code, metadata and conformance record, as the section above
+verifies against the binary.
+
+What a release build keeps is the library itself, linked like any other:
+about 200 KB of metadata and conformance records, measured on an app that
+references nothing in it. That is the dependency's cost, not the scenarios',
+and `QueryView`, `MemoView`, `@FlowUp`, `@UnstructuredTask` are production
+code meant to be used there.
 
 ### Two verbatim edge cases
 

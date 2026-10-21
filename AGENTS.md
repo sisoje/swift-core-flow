@@ -175,7 +175,10 @@ which nothing else compiles for — on tvOS `CoreFlowUITesting` has no `pressOrC
 is a matrix of four destinations — `macos`, `catalyst`, `ios` (iPhone 18 Pro
 simulator), `visionos` (Apple Vision Pro simulator) — each running `build.sh` and `test.sh` with its destination,
 with one step between allowing UI automation (`sudo automationmodetool
-enable-automationmode-without-authentication`); fail-fast by default.
+enable-automationmode-without-authentication`); fail-fast by default,
+30-minute timeout. Run 39565787952, 23 green on each: the test step took
+118 s on macOS, 129 s on Catalyst, 481 s on iOS, 1151 s on visionOS (733 s
+of tests after the boot).
 `actions/cache` keeps the package and build jobs' `.build` (`spm-…`, `build-<platform>-…`) and each hosted entry's
 `~/Library/Developer/Xcode/DerivedData`, keyed on the package inputs
 (`Package.swift`, `Package.resolved`, `Sources/**/*.swift`) with a per-entry
