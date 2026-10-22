@@ -1,4 +1,4 @@
-# CoreFlow
+# CoreFlow — the architecture you never knew existed
 
 [![CI](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/sisoje/swift-core-flow/graph/badge.svg?flag=coreflow)](https://codecov.io/gh/sisoje/swift-core-flow)
