@@ -184,7 +184,14 @@ enable-automationmode-without-authentication`); fail-fast by default,
 45-minute timeout (run 39572117554's visionOS entry was killed at 30 min,
 and GitHub keeps no log of a timed-out job). Run 39565787952, 23 green on each: the test step took
 118 s on macOS, 129 s on Catalyst, 481 s on iOS, 1151 s on visionOS (733 s
-of tests after the boot).
+of tests after the boot). One iOS flake on record: run 39758365121's first
+attempt failed `ViewModifierCoreUITests` inside `launch()`, at the terminate
+of the app instance the previous test left (`Failed to terminate
+com.coreflow.hosted.CoreFlowHostApp:<pid>: … :0`, 67 s), on an attempt where
+the 23 tests took 440 s against 268–290 s; the re-run was green, none of the
+eight earlier iOS jobs has the line, and the terminate itself took about 2 s
+in every other launch. A known XCUITest relaunch race on slow simulators;
+`-retry-tests-on-failure -test-iterations 2` is the usual answer, not applied.
 `actions/cache` keeps the package and build jobs' `.build` (`spm-…`, `build-<platform>-…`) and each hosted entry's
 `~/Library/Developer/Xcode/DerivedData`, keyed on the package inputs
 (`Package.swift`, `Package.resolved`, `Sources/**/*.swift`) with a per-entry
