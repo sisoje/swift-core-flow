@@ -15,7 +15,7 @@ jobs:
       - name: Test the package
         run: swift test --enable-code-coverage
       - name: Keep the coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-package
           path: .build/debug/codecov/
@@ -61,7 +61,7 @@ jobs:
         run: sh test.sh "${{ matrix.destination }}"
       - name: Keep the result bundle
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: CoreFlow-${{ matrix.name }}.xcresult
           path: CoreFlow.xcresult
