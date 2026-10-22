@@ -1,0 +1,6 @@
+ignore:
+  - Tests
+  - CoreFlowHosted
+  - Sources/CoreFlowUITestHost
+  - Sources/CoreFlowUITestShared
+  - Sources/CoreFlowUITesting

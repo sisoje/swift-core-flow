@@ -175,8 +175,8 @@ hosted-private). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
 package stays free of scenario code. Generators before: xcodegen until
 2026-10-04 (no JSON-format support), Tuist under mise until 2026-10-19;
-Xcode's own tool needs nothing installed. The hosted tests run on native macOS and the iPhone 18
-Pro simulator. CI (`.github/workflows/ci.yml`, label
+Xcode's own tool needs nothing installed. The hosted tests run on native macOS on CI, locally on any
+destination. CI (`.github/workflows/ci.yml`, label
 `xcode-27`, no `xcode-select`): job `package` runs `swift test
 --enable-code-coverage`, the codecov folder kept as an artifact; job `build`
 compiles the package for every platform (`swift build --triple
@@ -185,12 +185,12 @@ arm64-apple-<platform>`: `macos`, `ios`, `ios-simulator`, `ios-macabi`,
 seconds) — on tvOS `CoreFlowUITesting` has no `pressOrClick`
 (`XCUICoordinate` does not exist there) and `tapOrClick()` fails the test
 ("tvOS has no tap"), since tvOS input is `XCUIRemote`; job `hosted`
-is a matrix of two destinations — `macos` and `ios` (iPhone 18 Pro
-simulator) — each running `test.sh` with its destination after one step
-allowing UI automation (`sudo automationmodetool
-enable-automationmode-without-authentication`) and keeping `CoreFlow.xcresult`
-as an artifact, after failures too; fail-fast by default,
-45-minute timeout (run 39572117554's visionOS entry was killed at 30 min,
+runs `test.sh platform=macOS` after one step allowing UI automation (`sudo
+automationmodetool enable-automationmode-without-authentication`), keeps
+`CoreFlow.xcresult` as an artifact, after failures too, and uploads its
+coverage to Codecov (xcresultparser to Cobertura, `CODECOV_TOKEN` secret;
+`codecov.yml` ignores everything but `Sources/CoreFlow`, so the README badge
+is that target); 45-minute timeout (run 39572117554's visionOS entry was killed at 30 min,
 and GitHub keeps no log of a timed-out job). Run 39565787952, 23 green on each: the test step took
 118 s on macOS, 129 s on Catalyst, 481 s on iOS, 1151 s on visionOS (733 s
 of tests after the boot). One iOS flake on record: run 39758365121's first

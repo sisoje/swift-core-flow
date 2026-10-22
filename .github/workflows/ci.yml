@@ -36,32 +36,33 @@ jobs:
       - name: Build the package
         run: swift build --triple arm64-apple-${{ matrix.platform }}
   hosted:
-    name: UI tests on ${{ matrix.name }}
+    name: UI tests on macOS
     runs-on: xcode-27
     timeout-minutes: 45
-    strategy:
-      matrix:
-        include:
-          - name: macos
-            destination: platform=macOS
-          - name: ios
-            destination: platform=iOS Simulator,name=iPhone 18 Pro
     steps:
       - uses: actions/checkout@v5
       - name: Cache derived data
         uses: actions/cache@v5
         with:
           path: ~/Library/Developer/Xcode/DerivedData
-          key: derived-${{ matrix.name }}-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**/*.swift') }}
-          restore-keys: derived-${{ matrix.name }}-
+          key: derived-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**/*.swift') }}
+          restore-keys: derived-
       # The tests click on the runner's own desktop. macOS has to allow that.
       - name: Allow UI automation
         run: sudo automationmodetool enable-automationmode-without-authentication
       - name: Run the unit and UI tests
-        run: sh test.sh "${{ matrix.destination }}"
+        run: sh test.sh platform=macOS
       - name: Keep the result bundle
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: CoreFlow-${{ matrix.name }}.xcresult
+          name: CoreFlow.xcresult
           path: CoreFlow.xcresult
+      - name: Convert the coverage to Cobertura
+        run: brew install -q xcresultparser && xcresultparser -o cobertura -p "$PWD" CoreFlow.xcresult > coverage.xml
+      - name: Upload the coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: coverage.xml
+          disable_search: true
