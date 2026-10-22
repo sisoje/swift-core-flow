@@ -172,9 +172,10 @@ package stays free of scenario code. Generators before: xcodegen until
 Xcode's own tool needs nothing installed. The hosted tests run on native macOS, Mac Catalyst, and
 the iPhone 18 Pro simulator. CI (`.github/workflows/ci.yml`, label
 `xcode-27`, no `xcode-select`): job `package` runs `swift test`; job `build`
-compiles the package for tvOS and watchOS (`swift build --triple
-arm64-apple-tvos`, no SDK flag needed, prebuilt swift-syntax, seconds),
-which nothing else compiles for — on tvOS `CoreFlowUITesting` has no `pressOrClick`
+compiles the package for tvOS, watchOS, and visionOS (`swift build --triple
+arm64-apple-tvos`, `arm64-apple-visionos` accepted for visionOS, no SDK flag
+needed, prebuilt swift-syntax, seconds), which nothing else compiles for — on
+tvOS `CoreFlowUITesting` has no `pressOrClick`
 (`XCUICoordinate` does not exist there) and `tapOrClick()` fails the test
 ("tvOS has no tap"), since tvOS input is `XCUIRemote`; job `hosted`
 is a matrix of three destinations — `macos`, `catalyst`, `ios` (iPhone 18 Pro
