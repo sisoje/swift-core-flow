@@ -51,8 +51,6 @@ jobs:
           path: ~/Library/Developer/Xcode/DerivedData
           key: derived-${{ matrix.name }}-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**/*.swift') }}
           restore-keys: derived-${{ matrix.name }}-
-      - name: Build for testing
-        run: sh CoreFlowHosted/build.sh "${{ matrix.destination }}"
       # The tests click on the runner's own desktop. macOS has to allow that.
       - name: Allow UI automation
         run: sudo automationmodetool enable-automationmode-without-authentication

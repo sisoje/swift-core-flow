@@ -37,10 +37,12 @@ mode with strict concurrency. It supports swift-syntax
   `swiftformat Sources Tests CoreFlowHosted` (nicklockwood's swiftformat,
   default rules — the committed tree is clean under it; Apple's
   `swift format` is NOT the formatter and rewrites ~30 clean files)
-- Run the package's hosted scenarios (UI tests, the app natively on this
-  Mac — they click on the real desktop):
-  `cd CoreFlowHosted && sh build.sh && sh test.sh`; once per machine,
+- Hosted UI tests: `sh CoreFlowHosted/test.sh [destination]`, default the
+  iPhone 18 Pro simulator; result bundle
+  `CoreFlowHosted/CoreFlowHostUITests.xcresult`, with coverage. A macOS
+  destination clicks on the real desktop; once per machine,
   `sudo automationmodetool enable-automationmode-without-authentication`
+- Regenerate the hosted project: `sh CoreFlowHosted/generate.sh`
 
 ### Documentation and verification rules
 
@@ -146,14 +148,13 @@ is committed rather than generated there; the script's last line makes the
 ids predictable, so a regeneration is byte-identical — Xcode writes product
 ids back whenever it saves the project, so regenerate after it had the
 project open). The source folders are synchronized
-with disk, so a new file needs no project change. No scheme file: the
-scripts use the UI-test target's auto-created scheme, which builds the app
-as its dependency (the app's own carries no test bundle). `build.sh`
-(`build-for-testing`), `test.sh` (`test-without-building`), both on the
-destination in `$1`, default `platform=macOS` (native; Mac Catalyst is
-`platform=macOS,variant=Mac Catalyst`, the simulators `platform=iOS
-Simulator,name=…` and `platform=visionOS Simulator,name=Apple Vision Pro`;
-one project, `SDKROOT auto` and `SUPPORTED_PLATFORMS`) —
+with disk, so a new file needs no project change. No scheme file: `test.sh` is
+one `xcodebuild test` on the UI-test target's auto-created scheme, which
+builds the app as its dependency (the app's own carries no test bundle), on
+the destination in `$1`, default `platform=iOS Simulator,name=iPhone 18 Pro`
+(`platform=macOS`, `platform=macOS,variant=Mac Catalyst`, `platform=visionOS
+Simulator,name=Apple Vision Pro`; one project, `SDKROOT auto` and
+`SUPPORTED_PLATFORMS`) —
 `HostApp/` (`main.swift`, one line, `HostApp<TestScenario>.main()`,
 `CoreFlowUITestHost`'s `App`; `Models.swift`;
 and `TestScenario+View.swift`, the switch) with `HostApp/Scenarios/`, one
@@ -168,17 +169,17 @@ hosted-private). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
 package stays free of scenario code. Generators before: xcodegen until
 2026-10-04 (no JSON-format support), Tuist under mise until 2026-10-19;
-Xcode's own tool needs nothing installed. The hosted tests run the app ON THE MAC ITSELF — no
-simulator (since 2026-09-30); natively since 2026-10-21, as Mac Catalyst before. CI (`.github/workflows/ci.yml`, label
+Xcode's own tool needs nothing installed. The hosted tests run on native macOS, Mac Catalyst, and
+the iPhone 18 Pro simulator. CI (`.github/workflows/ci.yml`, label
 `xcode-27`, no `xcode-select`): job `package` runs `swift test`; job `build`
 compiles the package for tvOS and watchOS (`swift build --triple
 arm64-apple-tvos`, no SDK flag needed, prebuilt swift-syntax, seconds),
 which nothing else compiles for — on tvOS `CoreFlowUITesting` has no `pressOrClick`
 (`XCUICoordinate` does not exist there) and `tapOrClick()` fails the test
 ("tvOS has no tap"), since tvOS input is `XCUIRemote`; job `hosted`
-is a matrix of four destinations — `macos`, `catalyst`, `ios` (iPhone 18 Pro
-simulator), `visionos` (Apple Vision Pro simulator) — each running `build.sh` and `test.sh` with its destination,
-with one step between allowing UI automation (`sudo automationmodetool
+is a matrix of three destinations — `macos`, `catalyst`, `ios` (iPhone 18 Pro
+simulator) — each running `test.sh` with its destination after one step
+allowing UI automation (`sudo automationmodetool
 enable-automationmode-without-authentication`); fail-fast by default,
 45-minute timeout (run 39572117554's visionOS entry was killed at 30 min,
 and GitHub keeps no log of a timed-out job). Run 39565787952, 23 green on each: the test step took
@@ -248,13 +249,15 @@ Runner speed swings by about 50% between runs: the package job's unchanged
 package-job time. At the fast end the hosted job is about 160 s (build about
 42 s, tests about 105 s; 183 s before `waitUntil`); the last simulator runs on
 the same image took 60–103 s to boot and 503–855 s to test. Build and test are
-SEPARATE steps and scripts. Coverage is decided at build time, so `test.sh`
-passes no coverage flag. Running from the `.xctestrun`, or build and test as
-one merged `xcodebuild test`, was not measurably different on the runner.
-The claims are Catalyst's — UIKit-backed SwiftUI,
-not an iPhone.
+one `xcodebuild test`: split, or run from the `.xctestrun`, was not
+measurably different on the runner, and coverage is decided at build time.
+The merged form prints `Resolve Package Graph` at every test's app launch
+(the scheme computes the launch parameters through the project; the
+`.xctestrun` form does not): a cached load, no measurable cost.
+The same pinned logs pass on all three destinations (run 39565787952),
+AppKit- and UIKit-backed alike.
 
-Why not the simulator, measured on the runner before the switch: cold boot
+What the simulator costs on the runner, measured: cold boot
 ~160 s, and it cannot overlap the build — started in the background it made
 `xcodebuild` block on CoreSimulator until the boot finished (208–230 s, twice)
 and slowed the derived-data restore from 3–7 s to 113 s and `brew install
@@ -267,7 +270,7 @@ booted BY NAME broke when the label's image changed (run 35533736675,
 job that creates its own (`simctl create`) and moves a cached booted device's
 `data` into it worked locally (boot 21 s cold, 2 s over moved data, 407 MB),
 and on the runner a cache hit took 24 s to restore plus 48 s to boot against
-60–103 s cold: no gain. Simulator-era timings: build 232 s cold
+60–103 s cold: no gain. Earlier simulator timings: build 232 s cold
 / 95 s on a derived-data cache hit, 17 tests ~190–220 s. Building with
 `-sdk iphonesimulator` and no `-destination`, to skip the destination lookup
 that stalls, was tried locally and fails: `-sdk` applies to every target, so
@@ -296,12 +299,13 @@ build were removed once Xcode 27 shipped. As of 2026-09-14 the label ships beta 
 `hosted` 8/8 on 2026-09-14 (run 34835172613) with the since-replaced gated
 log design — see the log paragraph below for the beta-6 flake record. Locally verified on the
 iPhone 17 Pro simulator, Xcode 27.0 release (27A266a, runtime 24A434) and
-earlier the 27A5252f beta — 8/8, zero skips. Coverage: the scheme gathers it for
-ALL targets (`coverage: true`, no `codeCoverageTargets`), read with `xcrun
-xccov view --report --only-targets <bundle>`. The two package-product rows
-(`CoreFlow`, `CoreFlowUITesting`) are INTERMITTENT on Xcode 27.2 (probed
-2026-10-04, one UI test on the simulator, nine runs): the app and test-bundle
-rows never fail, each package row comes and goes at random, and a run that
+earlier the 27A5252f beta — 8/8, zero skips. Coverage: `-enableCodeCoverage YES` in
+`test.sh`, read with `xcrun xccov view --report --only-targets <bundle>`.
+The package-product rows (`CoreFlow`, `CoreFlowUITesting`,
+`CoreFlowUITestHost`) are INTERMITTENT on Xcode 27.2 (probed 2026-10-04, one
+UI test on the simulator, nine runs, before `CoreFlowUITestHost` existed; on
+2026-10-22 one run lacked `CoreFlow` alone): the app and test-bundle rows
+never fail, each package row comes and goes at random, and a run that
 lost one has no files of that product in its coverage archive — never
 collected, not mis-attributed. Same with the xcodegen project, through the
 workspace, and with `DEAD_CODE_STRIPPING=NO`; the build is identical every
