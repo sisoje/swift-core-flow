@@ -1,7 +1,7 @@
 # CoreFlow
 
 [![CI](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/sisoje/swift-core-flow/graph/badge.svg)](https://codecov.io/gh/sisoje/swift-core-flow)
+[![codecov](https://codecov.io/gh/sisoje/swift-core-flow/graph/badge.svg?flag=coreflow)](https://codecov.io/gh/sisoje/swift-core-flow)
 ![Swift 6.4](https://img.shields.io/badge/Swift-6.4-blue?logo=swift&logoColor=white)
 ![UI tests on iOS, visionOS, macOS, Mac Catalyst](https://img.shields.io/badge/UI%20tests-iOS%20%7C%20visionOS%20%7C%20macOS%20%7C%20Mac%20Catalyst-blue)
 

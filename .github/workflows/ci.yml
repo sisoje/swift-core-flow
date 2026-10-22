@@ -65,4 +65,5 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
+          flags: coreflow
           disable_search: true

@@ -188,9 +188,9 @@ seconds) — on tvOS `CoreFlowUITesting` has no `pressOrClick`
 runs `test.sh platform=macOS` after one step allowing UI automation (`sudo
 automationmodetool enable-automationmode-without-authentication`), keeps
 `CoreFlow.xcresult` as an artifact, after failures too, and uploads its
-coverage to Codecov (xcresultparser to Cobertura, `CODECOV_TOKEN` secret;
-`codecov.yml` ignores everything but `Sources/CoreFlow`, so the README badge
-is that target); 45-minute timeout (run 39572117554's visionOS entry was killed at 30 min,
+coverage to Codecov (xcresultparser to Cobertura, `CODECOV_TOKEN` secret,
+flag `coreflow`, which `codecov.yml` limits to `Sources/CoreFlow/`; the
+README badge shows that flag); 45-minute timeout (run 39572117554's visionOS entry was killed at 30 min,
 and GitHub keeps no log of a timed-out job). Run 39565787952, 23 green on each: the test step took
 118 s on macOS, 129 s on Catalyst, 481 s on iOS, 1151 s on visionOS (733 s
 of tests after the boot). One iOS flake on record: run 39758365121's first
