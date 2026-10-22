@@ -179,10 +179,10 @@ Xcode's own tool needs nothing installed. The hosted tests run on native macOS a
 Pro simulator. CI (`.github/workflows/ci.yml`, label
 `xcode-27`, no `xcode-select`): job `package` runs `swift test
 --enable-code-coverage`, the codecov folder kept as an artifact; job `build`
-compiles the package for tvOS, watchOS, visionOS, and Mac Catalyst (`swift
-build --triple arm64-apple-tvos`, `arm64-apple-visionos`,
-`arm64-apple-ios-macabi`, no SDK flag needed, prebuilt swift-syntax, seconds),
-which nothing else compiles for — on tvOS `CoreFlowUITesting` has no `pressOrClick`
+compiles the package for every platform (`swift build --triple
+arm64-apple-<platform>`: `macos`, `ios`, `ios-simulator`, `ios-macabi`,
+`tvos`, `watchos`, `visionos`; no SDK flag needed, prebuilt swift-syntax,
+seconds) — on tvOS `CoreFlowUITesting` has no `pressOrClick`
 (`XCUICoordinate` does not exist there) and `tapOrClick()` fails the test
 ("tvOS has no tap"), since tvOS input is `XCUIRemote`; job `hosted`
 is a matrix of two destinations — `macos` and `ios` (iPhone 18 Pro

@@ -24,7 +24,7 @@ jobs:
     runs-on: xcode-27
     strategy:
       matrix:
-        platform: [tvos, watchos, visionos, ios-macabi]
+        platform: [macos, ios, ios-simulator, ios-macabi, tvos, watchos, visionos]
     steps:
       - uses: actions/checkout@v5
       - name: Cache SwiftPM build
