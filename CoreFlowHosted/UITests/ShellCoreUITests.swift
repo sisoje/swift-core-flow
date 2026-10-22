@@ -1,9 +1,10 @@
+import CoreFlowUITesting
 import XCTest
 
 final class ShellCoreUITests: XCTestCase {
     @MainActor
     func testHostedCoreSubstitutionsLogAndRender() {
-        let app = launchApp(scenario: .shellCore)
+        let app = XCUIApplication.launch(TestScenario.shellCore)
         XCTAssertTrue(app.buttons["toggle"].waitUntil(\.exists, equals: true, timeout: 5))
         app.buttons["toggle"].tapOrClick()
         app.buttons["rename"].tapOrClick()
@@ -13,7 +14,7 @@ final class ShellCoreUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Dune"].exists)
         XCTAssertTrue(app.staticTexts["on"].exists)
         XCTAssertTrue(app.staticTexts["renamed"].exists)
-        XCTAssertTrue(app.log.waitUntil(\.label, equals: #"["isOn","name","isFocused"]"#, timeout: 5), app.log.label)
-        XCTAssertEqual(app.log.logValues, ["true", "renamed", "true"])
+        XCTAssertTrue(app.logElement.waitUntil(\.label, equals: #"["isOn","name","isFocused"]"#, timeout: 5), app.logElement.label)
+        XCTAssertEqual(app.logElement.logValues, ["true", "renamed", "true"])
     }
 }

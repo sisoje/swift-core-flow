@@ -1,9 +1,10 @@
+import CoreFlowUITesting
 import XCTest
 
 final class GestureStateUITests: XCTestCase {
     @MainActor
     func testCustomResetFiresOnCoreWhenTheGestureEnds() {
-        let app = launchApp(scenario: .gestureState)
+        let app = XCUIApplication.launch(TestScenario.gestureState)
         let resets = app.staticTexts["resets"]
         XCTAssertTrue(resets.waitUntil(\.exists, equals: true, timeout: 5))
         XCTAssertEqual(resets.valueOrLabel, "resets 0")
@@ -15,7 +16,7 @@ final class GestureStateUITests: XCTestCase {
         app.buttons["read"].tapOrClick()
 
         XCTAssertTrue(resets.waitUntil(\.valueOrLabel, equals: "resets 1", timeout: 5), resets.valueOrLabel)
-        XCTAssertTrue(app.log.waitUntil(\.label, equals: #"["resetsSeen","resetsSeen"]"#, timeout: 5), app.log.label)
-        XCTAssertEqual(app.log.logValues, ["0", "1"])
+        XCTAssertTrue(app.logElement.waitUntil(\.label, equals: #"["resetsSeen","resetsSeen"]"#, timeout: 5), app.logElement.label)
+        XCTAssertEqual(app.logElement.logValues, ["0", "1"])
     }
 }

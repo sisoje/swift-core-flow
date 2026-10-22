@@ -1,9 +1,10 @@
+import CoreFlowUITesting
 import XCTest
 
 final class QueryViewInsertUITests: XCTestCase {
     @MainActor
     func testInsertThroughTheQueryContextUpdatesTheList() {
-        let app = launchApp(scenario: .queryViewInsert)
+        let app = XCUIApplication.launch(TestScenario.queryViewInsert)
         XCTAssertTrue(app.buttons["insert"].waitUntil(\.exists, equals: true, timeout: 5))
         XCTAssertFalse(app.staticTexts["Novel 1"].exists)
         app.buttons["insert"].tapOrClick()
@@ -12,7 +13,7 @@ final class QueryViewInsertUITests: XCTestCase {
 
     @MainActor
     func testMemoizedQueryKeepsItsLiveResultsAcrossUnrelatedRenders() {
-        let app = launchApp(scenario: .queryViewInsert)
+        let app = XCUIApplication.launch(TestScenario.queryViewInsert)
         XCTAssertTrue(app.buttons["insert"].waitUntil(\.exists, equals: true, timeout: 5))
         let rows = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Novel ' OR value BEGINSWITH 'Novel '"))
         for _ in 1 ... 5 {
@@ -35,7 +36,7 @@ final class QueryViewInsertUITests: XCTestCase {
 
     @MainActor
     func testMemoizedQueryKeepsItsAnimationAcrossUnrelatedRenders() {
-        let app = launchApp(scenario: .queryViewInsert)
+        let app = XCUIApplication.launch(TestScenario.queryViewInsert)
         XCTAssertTrue(app.buttons["insert"].waitUntil(\.exists, equals: true, timeout: 5))
         app.buttons["insert"].tapOrClick()
         XCTAssertTrue(app.staticTexts["Novel 1"].waitUntil(\.exists, equals: true, timeout: 5))
@@ -48,7 +49,7 @@ final class QueryViewInsertUITests: XCTestCase {
         // after the parent re-rendered and handed the memoized query back;
         // the unrelated write itself carries none.
         let names = #"["animated","unrelated","animated"]"#
-        XCTAssertTrue(app.log.waitUntil(\.label, equals: names, timeout: 5), app.log.label)
-        XCTAssertEqual(app.log.logValues, ["1", "1", "2"])
+        XCTAssertTrue(app.logElement.waitUntil(\.label, equals: names, timeout: 5), app.logElement.label)
+        XCTAssertEqual(app.logElement.logValues, ["1", "1", "2"])
     }
 }

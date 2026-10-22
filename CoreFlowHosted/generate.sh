@@ -20,7 +20,7 @@ xcrun xcodeproj setting set CODE_SIGN_IDENTITY -
 xcrun xcodeproj setting set SWIFT_VERSION 6.0
 xcrun xcodeproj setting set PRODUCT_BUNDLE_IDENTIFIER 'com.coreflow.hosted.$(TARGET_NAME)'
 
-# App: HostApp/ and Shared/ synchronized with disk, linking CoreFlow.
+# App: HostApp/ and Shared/ synchronized with disk, linking CoreFlow and the host product.
 xcrun xcodeproj target add CoreFlowHostApp --product-type application
 xcrun xcodeproj target phase add sources --target CoreFlowHostApp
 xcrun xcodeproj target phase add frameworks --target CoreFlowHostApp
@@ -29,8 +29,9 @@ xcrun xcodeproj group add Shared --filesystem-path Shared
 xcrun xcodeproj group include --group HostApp --target CoreFlowHostApp
 xcrun xcodeproj group include --group Shared --target CoreFlowHostApp
 xcrun xcodeproj pkg add-local .. --product CoreFlow --target CoreFlowHostApp
+xcrun xcodeproj pkg link CoreFlowUITestHost --package CoreFlow --target CoreFlowHostApp
 
-# UI tests: UITests/ and Shared/, run against the app, linking the log reader.
+# UI tests: UITests/ and Shared/, run against the app, linking the testing product.
 xcrun xcodeproj target add CoreFlowHostUITests --product-type ui-test-bundle
 xcrun xcodeproj target phase add sources --target CoreFlowHostUITests
 xcrun xcodeproj target phase add frameworks --target CoreFlowHostUITests

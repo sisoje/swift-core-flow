@@ -44,6 +44,10 @@
           "package": "..",
           "product-name": "CoreFlow",
           "build-phase": { "build-phase": "frameworks" },
+        }, {
+          "package": "..",
+          "product-name": "CoreFlowUITestHost",
+          "build-phase": { "build-phase": "frameworks" },
         },
       ],
       "build-settings": {

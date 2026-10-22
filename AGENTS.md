@@ -1,7 +1,8 @@
 # CoreFlow maintainer context
 
 CoreFlow is one Swift package with one macro-plugin target and one library
-product for apps, plus `CoreFlowUITesting` for UI-test bundles. It ships independent Swift macros alongside runtime utilities and
+product for apps, plus `CoreFlowUITestHost` for test-only host apps and
+`CoreFlowUITesting` for UI-test bundles. It ships independent Swift macros alongside runtime utilities and
 test support; consumers add one dependency and receive the whole package.
 
 ## Session contract
@@ -13,7 +14,9 @@ Consumer dependency:
 ```swift
 .package(url: "https://github.com/sisoje/swift-core-flow.git", from: "1.0.0")
 .product(name: "CoreFlow", package: "swift-core-flow")
-// UI-test bundles only: the reader for uiTestLog
+// test-only host apps: HostApp, uiTestLog
+.product(name: "CoreFlowUITestHost", package: "swift-core-flow")
+// UI-test bundles: launch, logElement, the XCUI helpers
 .product(name: "CoreFlowUITesting", package: "swift-core-flow")
 ```
 
@@ -70,8 +73,10 @@ mode with strict concurrency. It supports swift-syntax
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift` — `@TestFocusState` + `@TestAccessibilityFocusState`, one shared expansion — `TestEnvironmentMacro.swift`, `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `UITestLogging.swift` (`uiTestLog(accessibilityIdentifier:)`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), `MemoView.swift` (public `MemoView`, a value memoized by caller-listed dependencies, over the internal `Memo` class; `QueryView` is built on it; see `MemoView`), and the `Experimental/` directory — kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection, the one implementation-dependent technique; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:sectionBy:sortBy:)`, a genuine value of Apple's sealed type from a throwaway container and the public `ResultsObserver`; see the `QueryResult` section) |
-| `CoreFlowUITesting` | library, UI-test bundles only | `UITestLog.swift`: the XCUITest end of `uiTestLog` (the element is `app.descendants(matching: .any)[identifier]`, no wrapper) — `XCUIElement.logNames`/`logValues` (JSON-decoded label/value, empty when undecodable), `valueOrLabel` (a `Text`'s content: `label` on UIKit, `value` on macOS, where a text's label is empty), `waitUntil(_:equals:timeout:)` (reads the property back to back until it matches, no interval — NOT named `wait(for:toEqual:timeout:)`: XCUIAutomation ships a method with that exact signature, which shadowed the package's, so the tests had been running Apple's; Apple's and `waitForExistence(timeout:)` sit ~1.03–1.06 s before their first check even when the condition already holds (timeline-probed), 63 waits in the suite. With `waitUntil` for every wait, existence included (`waitUntil(\.exists, equals: true, …)`), a 10-test sample on Catalyst went from 80 s to 44 s — `FocusBinding` 11.6 → 4.0 s, `MemoView` 9.1 → 3.9 s, 2026-09-30). `XCUIApplication.switchOrCheckBox(_:)`, `XCUIElement.tapOrClick()` and `XCUICoordinate.pressOrClick(forDuration:thenDragTo:)` (a `Toggle` lookup, a tap and a drag, one spelling for every destination, chosen at compile time by `#if`). Imports XCTest, so it is its own product: an app target must never link it. Consumer: `CoreFlowHosted/UITests` |
+| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), `MemoView.swift` (public `MemoView`, a value memoized by caller-listed dependencies, over the internal `Memo` class; `QueryView` is built on it; see `MemoView`), and the `Experimental/` directory — kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection, the one implementation-dependent technique; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:sectionBy:sortBy:)`, a genuine value of Apple's sealed type from a throwaway container and the public `ResultsObserver`; see the `QueryResult` section) |
+| `CoreFlowUITestHost` | library, test-only host apps | `HostApp.swift`: `HostApp<Scenario: Decodable & View>`, an `App` whose one window shows the scenario decoded from the launch environment under `uiTestLog`, nothing without a payload; the host's `main.swift` is `HostApp<MyScenario>.main()`, since a generic type cannot be `@main`. `View+UITestLog.swift`: `View.uiTestLog()`, the sink's UI-test end (design record under `Hosted scenarios`). Imports `CoreFlow`, `CoreFlowUITestShared` and SwiftUI, never XCTest, so the host app links it like any library. Consumer: `CoreFlowHosted/HostApp` |
+| `CoreFlowUITestShared` | target, no product | `UITestNames.swift` and `JsonUtils.swift`, `package` access: the environment variable, the log element's identifier, and JSON encode/decode — the agreement between the host and its tests, which both products depend on and no consumer can import |
+| `CoreFlowUITesting` | library, UI-test bundles only | `XCUIApplication+Launch.swift`: `launch(_ payload:)`, the test's launcher. `XCUIElement+Log.swift`: `XCUIApplication.logElement` (any type) and `XCUIElement.logNames`/`logValues`. `XCUIElement+Platforms.swift`, one spelling for every destination, chosen at compile time: `valueOrLabel` (a `Text`'s content: `label` on UIKit, `value` on macOS, where a text's label is empty), `tapOrClick()` (on macOS a click at the element's centre, since `click()` missed a button; `click()` on Catalyst; `tap()` on iOS and visionOS; on tvOS it fails the test, tvOS input is `XCUIRemote`), `XCUIApplication.switchOrCheckBox(_:)` (a `Toggle`'s control: a checkbox on macOS, one switch on visionOS, elsewhere the switch inside the labeled switch element), and `XCUICoordinate.pressOrClick(forDuration:thenDragTo:)` (the drag under the same split, absent on tvOS: `XCUICoordinate` is not declared there). `XCUIElement+Wait.swift`: `waitUntil(_:equals:timeout:)` (reads the property back to back until it matches, no interval — NOT named `wait(for:toEqual:timeout:)`: XCUIAutomation ships a method with that exact signature, which shadowed the package's, so the tests had been running Apple's; Apple's and `waitForExistence(timeout:)` sit ~1.03–1.06 s before their first check even when the condition already holds (timeline-probed), 63 waits in the suite. With `waitUntil` for every wait, existence included (`waitUntil(\.exists, equals: true, …)`), a 10-test sample on Catalyst went from 80 s to 44 s — `FocusBinding` 11.6 → 4.0 s, `MemoView` 9.1 → 3.9 s, 2026-09-30). Imports XCTest, so it is its own product, and `CoreFlowUITestShared`. Consumer: `CoreFlowHosted/UITests` |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro (`FlowableExpansionTests`, `ShellExpansionTests`, `CapabilityExpansionTests`, `PickExpansionTests`, `TestStateExpansionTests`, `TestActionExpansionTests`, `TestFocusStateExpansionTests`, `TestAccessibilityFocusStateExpansionTests`, `TestEnvironmentExpansionTests`, `UnstructuredTaskExpansionTests`, `FlowUpExpansionTests`); depends on `CoreFlowMacros` + `SwiftSyntaxMacrosTestSupport`, never on the product |
 | `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`FlowableTests`, `ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `MemoViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `TestEnvironmentTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
 
@@ -84,9 +89,12 @@ never should. `TestLog` is the exception: hand-written `@TestLog` is API.
 Per-macro target/product sets were considered and rejected. Their ceremony is
 not worth dependency granularity no consumer needs. Adding a macro means adding
 files and registrations inside the existing target pair, not adding products or
-targets. The one second product, `CoreFlowUITesting`, exists because it imports
-XCTest, which the app-side library cannot link; that is the only reason a
-product is split off.
+targets. The two other products exist for process boundaries, the only
+reason a product is split off: `CoreFlowUITestHost` holds what a test-only
+host app runs, which a shipping app must not contain; `CoreFlowUITesting`
+imports XCTest, which no app can link. What the two agree on, the names and
+the JSON, is `CoreFlowUITestShared`, a target without a product: both depend
+on it, neither on the other, and no consumer can import it.
 
 ### Shared implementation and adding a macro
 
@@ -135,7 +143,9 @@ live SwiftUI host: `CoreFlowHosted.xcodeproj` is COMMITTED (one file,
 rewrites it from nothing with the `xcodeproj` tool of Xcode 27.2 beta 3+
 (beta 2's has no `init`, probed on CI image 20261012, which is why the file
 is committed rather than generated there; the script's last line makes the
-ids predictable, so a regeneration is byte-identical). The source folders are synchronized
+ids predictable, so a regeneration is byte-identical — Xcode writes product
+ids back whenever it saves the project, so regenerate after it had the
+project open). The source folders are synchronized
 with disk, so a new file needs no project change. No scheme file: the
 scripts use the UI-test target's auto-created scheme, which builds the app
 as its dependency (the app's own carries no test bundle). `build.sh`
@@ -144,23 +154,17 @@ destination in `$1`, default `platform=macOS` (native; Mac Catalyst is
 `platform=macOS,variant=Mac Catalyst`, the simulators `platform=iOS
 Simulator,name=…` and `platform=visionOS Simulator,name=Apple Vision Pro`;
 one project, `SDKROOT auto` and `SUPPORTED_PLATFORMS`) —
-`HostApp/` (the app — a plain `import CoreFlow`, nothing internal is needed —
-switching on the `TestScenario` it decodes from a `TestPayload` in the
-`testPayloadEnvironmentKey` environment variable — optional: with no payload (previews,
-Cmd-R) the window shows nothing — hosting the log
-element: names JSON in `label`, values JSON in `value`; `Models.swift`; and
-`TestScenario+View.swift`, the switch) with `HostApp/Scenarios/`, one scenario
-file per claim, each ending in its `#Preview`; `Shared/` — compiled into
-BOTH targets (`sources: [HostApp, Shared]` / `[UITests, Shared]`) —
-holding `TestScenario.swift` (the enum) and `TestPayload.swift` (`testPayloadEnvironmentKey`,
-`logAccessibilityIdentifier`, `try!` JSON encode/decode — the one place the key, the
-element name, and the scenario set are spelled); and `UITests/` (`UITests/Scenarios/`, one
-`XCTestCase` per scenario, plus `LaunchHelper.swift` at the root, whose
-`launchApp(scenario: TestScenario)` encodes the payload into
-`launchEnvironment` and whose `app.log` is
-`descendants(matching: .any)[TestPayload.logAccessibilityIdentifier]` —
-the tests read `app.log.logValues` and `app.log.waitUntil(\.label, …)`, the
-product's API, nothing hosted-private beyond the identifier). ALL scenarios live in the host app, none
+`HostApp/` (`main.swift`, one line, `HostApp<TestScenario>.main()`,
+`CoreFlowUITestHost`'s `App`; `Models.swift`;
+and `TestScenario+View.swift`, the switch) with `HostApp/Scenarios/`, one
+scenario file per claim, each ending in its `#Preview`; `Shared/` — compiled
+into BOTH targets — holding `TestScenario.swift`, the enum, the one thing the
+app and the tests share; and `UITests/` (one
+`XCTestCase` per scenario, each importing `CoreFlowUITesting` and starting
+with `XCUIApplication.launch(TestScenario.name)` — the enum named, since the
+parameter is `some Encodable` — then reading `app.logElement.logValues` and
+`app.logElement.waitUntil(\.label, …)`, the product's API, nothing
+hosted-private). ALL scenarios live in the host app, none
 in the package: they are preview views that double as test hosts, and the
 package stays free of scenario code. Generators before: xcodegen until
 2026-10-04 (no JSON-format support), Tuist under mise until 2026-10-19;
@@ -311,11 +315,10 @@ Every boundary event is log evidence, the package's own way: `@TestState`
 writes log themselves, and `QueryViewSortScenario.build()` logs `("query",
 order)` through `@TestLog` from inside the `query` autoclosure — at render
 time. Render-time events shape the log, pure SwiftUI by rule:
-`UITestLogging`, the package's `ViewModifier` behind
-`View.uiTestLog(accessibilityIdentifier:)` (`TestSupport/UITestLogging.swift`,
-public so any hosted test app has it), holds the log in an `@Observable`
+`UITestLog`, the `ViewModifier` behind
+`View.uiTestLog()` (`CoreFlowUITestHost`), holds the log in an `@Observable`
 `Store` CLASS kept in its own `@State` and never reads the items itself; a
-`Leaf` in the content's `.background` — `Color.clear` with
+`LogElement` in the content's `.background` — `Color.clear` with
 `accessibilityElement`, on macOS only the `isStaticText` trait (there an
 element of any other role has no value; on UIKit the trait empties the
 label of an empty log, both probed), `accessibilityIdentifier`/
@@ -408,7 +411,7 @@ The other scenarios, each one UI test unless noted:
   over `SectionedResults.mock` canned through `mockQuery` — the mocked
   value survives real SwiftUI consumption (sections, rows), not just `count`.
   Tests here are flat copy-paste by rule: readable like a book, no shared
-  assertion helpers beyond `LaunchHelper.swift`.
+  helpers.
 - `QueryViewInsertScenario` / `QueryViewInsertUITests` (three tests): an insert through
   `$novels.modelContext` lands in the watched container and the list
   updates — `givenModelContext` seeding is the live context end to end. And
@@ -1299,17 +1302,16 @@ twice. Never skip malformed input that could compile as unmanaged state.
 
 ### Shared logging seam
 
-`testLog` is an internal `@Entry`; its `TestLogSink` value is a struct around
+`testLog` is a `package` `@Entry`; its `TestLogSink` value is a struct around
 the closure, because a bare closure entry warns about invalidation.
 `TestLog` is a `DynamicProperty` wrapping the hand-written environment read, and
 its `wrappedValue` is the `@MainActor (String, String) -> Void` sink. Global-
 actor function values are implicitly Sendable, so all events serialize on the
-main actor. The public `View.uiTestLog(accessibilityIdentifier:)`
-(`TestSupport/UITestLogging.swift`) is
-the sink's UI-test end: internal `UITestLogging` installs the sink and exposes
-the log as an accessibility element — design record and evidence under
-`Hosted scenarios`. Its reader is the `CoreFlowUITesting` product
-(`Sources/CoreFlowUITesting/UITestLog.swift`), see the targets table.
+main actor. `View.uiTestLog()` in `CoreFlowUITestHost`
+is the sink's UI-test end: it writes the `package` entry `\.testLog` and
+exposes the log as an accessibility element — design
+record and evidence under `Hosted scenarios`; its reader is
+`CoreFlowUITesting`, see the targets table.
 
 Payloads are `String`, not `Any`: an `Any` containing a class can fail region
 isolation inside a generated `@Sendable async` closure, where the caller cannot
@@ -1508,8 +1510,8 @@ itself is not exercisable on the simulator, so nothing about it is claimed).
   `Rejected designs and dead ends` for the sealed-setter evidence.
 - **Unhosted, reads return the wrapper's reset value and writes no-op**
   like the live wrapper's own — and the setter's sink call reaches only
-  `\.testLog`'s no-op default, since the one installer is the
-  `View.testLog(_:)` modifier: asserting focus intent through the log
+  `\.testLog`'s no-op default, since the one installer is
+  `uiTestLog()` in `CoreFlowUITestHost`: asserting focus intent through the log
   requires a hosted scenario with the sink installed, like every other
   logged event. Package tests stop at the lifecycle
   boundary — no unit test evaluates unhosted wrapper behavior; what's

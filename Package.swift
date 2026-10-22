@@ -9,7 +9,9 @@ let package = Package(
     ],
     products: [
         .library(name: "CoreFlow", targets: ["CoreFlow"]),
-        // For UI-test bundles only: reads the element `uiTestLog` installs.
+        // Test-only host apps: HostApp, uiTestLog.
+        .library(name: "CoreFlowUITestHost", targets: ["CoreFlowUITestHost"]),
+        // UI-test bundles: launch, logElement, the XCUI helpers.
         .library(name: "CoreFlowUITesting", targets: ["CoreFlowUITesting"]),
     ],
     dependencies: [
@@ -48,10 +50,10 @@ let package = Package(
         // SectionedResults+Mock.swift (uninitialized-memory reflection; sectioned
         // results over a throwaway container), kept apart on purpose.
         .target(name: "CoreFlow", dependencies: ["CoreFlowMacros"]),
-        // The XCUITest end of uiTestLog: the log element, its names/values
-        // decoded, a wait on its properties. Imports XCTest, so only a UI-test
-        // bundle links it; CoreFlowHosted is its consumer.
-        .target(name: "CoreFlowUITesting"),
+        // The names and the JSON the host and its tests agree on; no product.
+        .target(name: "CoreFlowUITestShared"),
+        .target(name: "CoreFlowUITestHost", dependencies: ["CoreFlow", "CoreFlowUITestShared"]),
+        .target(name: "CoreFlowUITesting", dependencies: ["CoreFlowUITestShared"]),
         // Expansion tests — `assertMacroExpansion` snapshots + diagnostics, one
         // file per macro, against the plugin module itself.
         .testTarget(

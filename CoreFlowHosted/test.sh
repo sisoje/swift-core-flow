@@ -1,7 +1,7 @@
 #!/bin/sh
 # Run the UI tests built by build.sh for the destination in $1 (default native
-# macOS), no coverage. Each test launches its own scenario (launchApp passes a
-# TestPayload per launch). The tests click on the real desktop, and macOS
+# macOS), no coverage. Each test launches the app on its own scenario. The
+# tests click on the real desktop, and macOS
 # must allow it once:
 #   sudo automationmodetool enable-automationmode-without-authentication
 set -eu

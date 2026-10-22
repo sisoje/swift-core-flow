@@ -1,9 +1,10 @@
+import CoreFlowUITesting
 import XCTest
 
 final class MemoViewUITests: XCTestCase {
     @MainActor
     func testMemoizedModelFollowsItsInputAndIsKeptOtherwise() {
-        let app = launchApp(scenario: .memoView)
+        let app = XCUIApplication.launch(TestScenario.memoView)
         XCTAssertTrue(app.staticTexts["memo 2 taps 0"].waitUntil(\.exists, equals: true, timeout: 5))
         XCTAssertTrue(app.staticTexts["state 2"].exists)
 
@@ -22,7 +23,7 @@ final class MemoViewUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["state 2"].exists)
 
         let names = #"["doubler","unrelated","seed","doubler"]"#
-        XCTAssertTrue(app.log.waitUntil(\.label, equals: names, timeout: 5), app.log.label)
-        XCTAssertEqual(app.log.logValues, ["1", "1", "2", "2"])
+        XCTAssertTrue(app.logElement.waitUntil(\.label, equals: names, timeout: 5), app.logElement.label)
+        XCTAssertEqual(app.logElement.logValues, ["1", "1", "2", "2"])
     }
 }

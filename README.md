@@ -75,13 +75,15 @@ hosts behave normally.
   a sealed environment action — `\.dismiss`, `\.openURL` — then runs the real one.
 - [`@TestLog`](#the-testlog-seam) (property wrapper) reads the installed sink
   for explicit event logging.
-- [`View.testLog(_:)`](#the-testlog-seam) (view modifier) installs the logging sink.
-- [`View.uiTestLog(accessibilityIdentifier:)`](#the-testlog-seam) (view modifier)
-  installs the sink through `testLog` and exposes the log as one accessibility
-  element for XCUITest.
-- [`CoreFlowUITesting`](#the-testlog-seam) (product for UI-test bundles)
-  reads that element (`app.descendants(matching: .any)[identifier]`): `logNames`,
-  `logValues`, `valueOrLabel`, `waitUntil(_:equals:timeout:)`, `switchOrCheckBox(_:)`, and `tapOrClick()` /
+- [`CoreFlowUITestHost`](#the-testlog-seam) (product for test-only host
+  apps): `HostApp<Scenario>` is the host app, showing the launched scenario
+  under `View.uiTestLog()`, which installs the sink through `testLog` and
+  exposes the log as one accessibility element.
+- [`CoreFlowUITesting`](#the-testlog-seam) (product for UI-test bundles):
+  `XCUIApplication.launch(_:)` launches the host on a scenario; the test
+  reads the log as `app.logElement` (`logNames`, `logValues`) and drives the
+  app with `waitUntil(_:equals:timeout:)`, `valueOrLabel`,
+  `switchOrCheckBox(_:)`, `tapOrClick()` and
   `pressOrClick(forDuration:thenDragTo:)`, one spelling for every destination.
 
 ### Own a task's lifetime
@@ -145,7 +147,10 @@ observable boundary.
 // target dependency
 .product(name: "CoreFlow", package: "swift-core-flow"),
 
-// UI-test bundle dependency: the reader for `uiTestLog`
+// test-only host apps: HostApp, uiTestLog
+.product(name: "CoreFlowUITestHost", package: "swift-core-flow"),
+
+// UI-test bundles: launch, logElement, the XCUI helpers
 .product(name: "CoreFlowUITesting", package: "swift-core-flow"),
 ```
 
@@ -237,8 +242,8 @@ no side effects beyond the component's boundaries.** Inside those boundaries, ta
 focus, gestures, and owned state are real; at them, every boundary event —
 instrumented state writes and action calls — enters the log instead of crossing
 into an effect. The package's own hosted suite (`CoreFlowHosted`) follows
-this model: a JSON `TestPayload` in the `testPayloadEnvironmentKey` launch
-variable selects the scenario, and XCUITest asserts the log.
+this model: `XCUIApplication.launch(_:)` hands `HostApp` the scenario as JSON
+in the launch environment, and XCUITest asserts the log.
 
 ### Wrapper mapping reference
 
@@ -791,25 +796,25 @@ evidence.**
   assertion. A test that needs "was this read?" uses a use-site spy binding
   instead.
 
-- **`uiTestLog(accessibilityIdentifier: "log")` is the UI-test end of the
+- **`uiTestLog()`, in `CoreFlowUITestHost`, is the UI-test end of the
   seam.** One modifier at the root installs the sink and exposes the
-  accumulated log as an accessibility element under the identifier you pass
-  — names JSON in `label`, values JSON in `value` — so an XCUITest launches a
-  scenario, waits for the label to equal the expected name sequence, then
-  asserts the decoded values. Appends are deferred off the render phase.
-  An `@Observable` store holds the log, and only the accessibility leaf reads
-  its entries, so appending re-renders that leaf without re-rendering the
-  scenario it observes — even from an event fired mid-render. The XCUITest
-  side ships as the `CoreFlowUITesting` product, for UI-test bundles only
-  (it imports XCTest): the element is `app.descendants(matching: .any)[identifier]`,
-  `logNames` and `logValues` decode it, and
-  `waitUntil(\.label, equals: …, timeout:)` reads any of its properties until it
-  matches, returning at once — XCTest's own `wait(for:toEqual:timeout:)` and
-  `waitForExistence(timeout:)` wait about a second before their first check.
-  `tapOrClick()` and `pressOrClick(forDuration:thenDragTo:)` are the one
-  spelling of a tap and a drag that works on Mac Catalyst and iOS alike.
-  That is how `CoreFlowHosted`, the package's own hosted test app, runs every
-  scenario, its tests written against that product.
+  accumulated log as one accessibility element — names JSON in `label`,
+  values JSON in `value` — so an XCUITest launches a scenario, waits for the
+  label to equal the expected name sequence, then asserts the decoded
+  values. An `@Observable` store holds the log, and only the accessibility
+  leaf reads its entries, so appending re-renders that leaf without
+  re-rendering the scenario it observes — even from an event fired
+  mid-render. `CoreFlowUITestHost` is linked by the test-only host app,
+  never by a shipping app; `CoreFlowUITesting` imports XCTest and is linked
+  by the UI-test bundle. The test side: the element is `app.logElement`, `logNames` and
+  `logValues` decode it, and `waitUntil(\.label, equals: …, timeout:)` reads
+  any of its properties until it matches, returning at once — XCTest's own
+  `wait(for:toEqual:timeout:)` and `waitForExistence(timeout:)` wait about a
+  second before their first check. `tapOrClick()`, `pressOrClick(forDuration:thenDragTo:)`,
+  `switchOrCheckBox(_:)` and `valueOrLabel` are the one spelling of a tap, a
+  drag, a toggle and a text that works on every destination. That is how
+  `CoreFlowHosted`, the package's own hosted test app, runs every scenario:
+  `HostApp<TestScenario>.main()` is its whole `main.swift`.
 
 ### Known issues in hosted UI tests
 
@@ -946,8 +951,8 @@ Assigning `.password` logs
   all log.
 - **Unhosted** (a directly constructed `Core`), reads return the reset
   value and writes no-op, exactly like the live wrapper — and the setter's
-  sink call reaches only the no-op default, since `View.testLog(_:)` is
-  the one installer: asserting focus intent through the log needs a hosted
+  sink call reaches only the no-op default, since `uiTestLog()` in
+  `CoreFlowUITestHost` is the one installer: asserting focus intent through the log needs a hosted
   scenario with the sink installed, like every other logged event.
 - Required shape: a stored instance `var` with a type annotation (`Bool`
   or an optional, the values `@FocusState` itself accepts) and no initial
@@ -1812,8 +1817,10 @@ targets and one hosted test project:
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one file each: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift`, `TestEnvironmentMacro.swift`, `UnstructuredTaskMacro.swift`, `FlowUpMacro.swift` — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `makeFlow(_:)`, and `InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — `View.testLog(_:)` and the `TestLog` dynamic property — `UITestLogging.swift`, `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, `MemoView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection, implementation-dependent) and `SectionedResults+Mock.swift` (sectioned results over a throwaway container) |
-| `CoreFlowUITesting` | library, UI-test bundles only | the XCUITest end of `uiTestLog` (the element is `app.descendants(matching: .any)[identifier]`): `XCUIElement.logNames`/`logValues`/`valueOrLabel`, `waitUntil(_:equals:timeout:)`, `XCUIApplication.switchOrCheckBox(_:)`, `tapOrClick()`, `XCUICoordinate.pressOrClick(forDuration:thenDragTo:)` — imports XCTest, so an app target never links it |
+| `CoreFlow` | library | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — the `TestLog` dynamic property and the `package` entry it reads — `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, `MemoView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection, implementation-dependent) and `SectionedResults+Mock.swift` (sectioned results over a throwaway container) |
+| `CoreFlowUITestHost` | library, test-only host apps | `HostApp<Scenario>` (the host app, one line of `main.swift`) and `View.uiTestLog()` — imports `CoreFlow` and SwiftUI, never XCTest |
+| `CoreFlowUITestShared` | target, no product | the names and the JSON the host and its tests agree on |
+| `CoreFlowUITesting` | library, UI-test bundles only | `XCUIApplication.launch(_:)`, `logElement`, `XCUIElement.logNames`/`logValues`/`valueOrLabel`, `waitUntil(_:equals:timeout:)`, `XCUIApplication.switchOrCheckBox(_:)`, `tapOrClick()`, `XCUICoordinate.pressOrClick(forDuration:thenDragTo:)` — imports XCTest, so an app never links it |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro, against the plugin module |
 | `CoreFlowTests` | test (XCTest + swift-testing) | every compiled and runtime suite, one file per API, against the product only |
 | `CoreFlowHosted/` | an Xcode project (JSON format, regenerated by `generate.sh`), not a package target | the hosted scenarios and XCUITests — every claim that needs a live SwiftUI host (`cd CoreFlowHosted && sh build.sh && sh test.sh`, the app natively on the Mac); CI runs it alongside `swift test` |

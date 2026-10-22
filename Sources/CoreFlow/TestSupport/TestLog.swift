@@ -5,11 +5,15 @@ import SwiftUI
 /// (without it a `@Sendable async` action wrapper would call it off the main
 /// actor — a data race for any sink touching @State) and takes `String`s, so
 /// nothing non-Sendable rides through.
-struct TestLogSink {
-    var sink: @MainActor (_ name: String, _ value: String) -> Void = { _, _ in }
+package struct TestLogSink {
+    package var sink: @MainActor (_ name: String, _ value: String) -> Void
+
+    package init(sink: @escaping @MainActor (_ name: String, _ value: String) -> Void = { _, _ in }) {
+        self.sink = sink
+    }
 }
 
-extension EnvironmentValues {
+package extension EnvironmentValues {
     @Entry var testLog = TestLogSink()
 }
 
@@ -25,13 +29,5 @@ public struct TestLog: DynamicProperty {
 
     public var wrappedValue: @MainActor (_ name: String, _ value: String) -> Void {
         entry.sink
-    }
-}
-
-public extension View {
-    func testLog(
-        _ sink: @escaping @MainActor (_ name: String, _ value: String) -> Void
-    ) -> some View {
-        environment(\.testLog, TestLogSink(sink: sink))
     }
 }

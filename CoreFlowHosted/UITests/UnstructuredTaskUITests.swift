@@ -1,9 +1,10 @@
+import CoreFlowUITesting
 import XCTest
 
 final class UnstructuredTaskUITests: XCTestCase {
     @MainActor
     func testHidingTheHostCancelsItsTask() {
-        let app = launchApp(scenario: .unstructuredTask)
+        let app = XCUIApplication.launch(TestScenario.unstructuredTask)
         XCTAssertTrue(app.buttons["start"].waitUntil(\.exists, equals: true, timeout: 5))
         app.buttons["start"].tapOrClick()
         app.buttons["hide"].tapOrClick()
@@ -12,13 +13,13 @@ final class UnstructuredTaskUITests: XCTestCase {
         app.buttons["hide"].tapOrClick()
 
         let names = #"["work","showWorker","cancelled","showWorker"]"#
-        XCTAssertTrue(app.log.waitUntil(\.label, equals: names, timeout: 5), app.log.label)
-        XCTAssertEqual(app.log.logValues, ["task", "false", "work", "false"])
+        XCTAssertTrue(app.logElement.waitUntil(\.label, equals: names, timeout: 5), app.logElement.label)
+        XCTAssertEqual(app.logElement.logValues, ["task", "false", "work", "false"])
     }
 
     @MainActor
     func testReassigningTheSameTaskLogsButDoesNotCancel() {
-        let app = launchApp(scenario: .unstructuredTask)
+        let app = XCUIApplication.launch(TestScenario.unstructuredTask)
         XCTAssertTrue(app.buttons["start"].waitUntil(\.exists, equals: true, timeout: 5))
         app.buttons["start"].tapOrClick()
         app.buttons["reassign"].tapOrClick()
@@ -26,19 +27,19 @@ final class UnstructuredTaskUITests: XCTestCase {
 
         // One `cancelled`, from the clear — the reassignment cancelled nothing.
         let names = #"["work","work","work","cancelled"]"#
-        XCTAssertTrue(app.log.waitUntil(\.label, equals: names, timeout: 5), app.log.label)
-        XCTAssertEqual(app.log.logValues, ["task", "task", "nil", "work"])
+        XCTAssertTrue(app.logElement.waitUntil(\.label, equals: names, timeout: 5), app.logElement.label)
+        XCTAssertEqual(app.logElement.logValues, ["task", "task", "nil", "work"])
     }
 
     @MainActor
     func testClearingTheSlotLogsNilAndCancelsTheTask() {
-        let app = launchApp(scenario: .unstructuredTask)
+        let app = XCUIApplication.launch(TestScenario.unstructuredTask)
         XCTAssertTrue(app.buttons["start"].waitUntil(\.exists, equals: true, timeout: 5))
         app.buttons["start"].tapOrClick()
         app.buttons["clear"].tapOrClick()
 
         let names = #"["work","work","cancelled"]"#
-        XCTAssertTrue(app.log.waitUntil(\.label, equals: names, timeout: 5), app.log.label)
-        XCTAssertEqual(app.log.logValues, ["task", "nil", "work"])
+        XCTAssertTrue(app.logElement.waitUntil(\.label, equals: names, timeout: 5), app.logElement.label)
+        XCTAssertEqual(app.logElement.logValues, ["task", "nil", "work"])
     }
 }
