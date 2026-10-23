@@ -41,6 +41,12 @@ struct PickTests {
         #expect(picked.1 == [1, 2])
     }
 
+    @Test func renameOperatorReturnsItsKeyPathUnchanged() {
+        // Inside #pick `=>` is only type-checked, never called; outside it
+        // hands back its left operand, which is what lets the rename type.
+        #expect((\Store.limit => "total") == \Store.limit)
+    }
+
     @Test func pickWorksDirectlyOnABareTupleValueNoBridgingNeeded() {
         // Verified separately (see README) that this toolchain actually
         // implements tuple KeyPaths — so #pick needs no bridging through a
