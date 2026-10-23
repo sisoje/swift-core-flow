@@ -1,4 +1,6 @@
-# CoreFlow — the architecture you never knew existed
+# CoreFlow
+
+### The architecture you never knew existed
 
 [![CI](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/sisoje/swift-core-flow/graph/badge.svg?flag=coreflow)](https://codecov.io/gh/sisoje/swift-core-flow)
@@ -7,7 +9,7 @@
 [![Release](https://img.shields.io/github/v/tag/sisoje/swift-core-flow?label=Release)](https://github.com/sisoje/swift-core-flow/tags)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
-> **Make any SwiftUI project testable. One line, one macro is all you need.**
+> **Make any SwiftUI project testable and modular. One line, one macro is all you need.**
 >
 > **Need a deeplinking system? Also one line, one macro — done.**
 >
