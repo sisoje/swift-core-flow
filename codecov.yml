@@ -1,4 +1,0 @@
-flags:
-  coreflow:
-    paths:
-      - Sources/CoreFlow/

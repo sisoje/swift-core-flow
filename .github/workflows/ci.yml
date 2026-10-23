@@ -58,12 +58,9 @@ jobs:
         with:
           name: CoreFlow.xcresult
           path: CoreFlow.xcresult
-      - name: Convert the coverage to Cobertura
-        run: brew install -q xcresultparser && xcresultparser -o cobertura -p "$PWD" CoreFlow.xcresult > coverage.xml
       - name: Upload the coverage to Codecov
         uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: coverage.xml
-          flags: coreflow
+          files: CoreFlow.lcov
           disable_search: true

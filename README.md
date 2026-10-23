@@ -3,7 +3,7 @@
 ### The architecture you never knew existed
 
 [![CI](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml/badge.svg)](https://github.com/sisoje/swift-core-flow/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/sisoje/swift-core-flow/graph/badge.svg?flag=coreflow)](https://codecov.io/gh/sisoje/swift-core-flow)
+[![codecov](https://codecov.io/gh/sisoje/swift-core-flow/graph/badge.svg)](https://codecov.io/gh/sisoje/swift-core-flow)
 ![Swift 6.4](https://img.shields.io/badge/Swift-6.4-blue?logo=swift&logoColor=white)
 ![Platforms](https://img.shields.io/badge/Platforms-iOS%2017%2B%20%7C%20macOS%2014%2B%20%7C%20tvOS%2017%2B%20%7C%20watchOS%2010%2B%20%7C%20visionOS%201%2B-blue)
 [![Release](https://img.shields.io/github/v/tag/sisoje/swift-core-flow?label=Release)](https://github.com/sisoje/swift-core-flow/tags)

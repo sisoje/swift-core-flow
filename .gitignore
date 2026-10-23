@@ -7,3 +7,5 @@
 CoreFlowHosted/Derived/
 xcuserdata/
 *.xcresult
+/*.profdata
+/CoreFlow.lcov

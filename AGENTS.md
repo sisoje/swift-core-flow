@@ -39,7 +39,8 @@ mode with strict concurrency. It supports swift-syntax
   default rules — the committed tree is clean under it; Apple's
   `swift format` is NOT the formatter and rewrites ~30 clean files)
 - Unit and UI tests on a destination: `sh test.sh [destination]`, default the
-  iPhone 18 Pro simulator, into `CoreFlow.xcresult` with coverage. macOS clicks
+  iPhone 18 Pro simulator, into `CoreFlow.xcresult`, and CoreFlow's coverage
+  into `CoreFlow.lcov` (see `Hosted scenarios`). macOS clicks
   on the real desktop; once per machine,
   `sudo automationmodetool enable-automationmode-without-authentication`
 - Regenerate the hosted project: `sh CoreFlowHosted/generate.sh`
@@ -187,10 +188,10 @@ seconds) — on tvOS `CoreFlowUITesting` has no `pressOrClick`
 ("tvOS has no tap"), since tvOS input is `XCUIRemote`; job `hosted`
 runs `test.sh platform=macOS` after one step allowing UI automation (`sudo
 automationmodetool enable-automationmode-without-authentication`), keeps
-`CoreFlow.xcresult` as an artifact, after failures too, and uploads its
-coverage to Codecov (xcresultparser to Cobertura, `CODECOV_TOKEN` secret,
-flag `coreflow`, which `codecov.yml` limits to `Sources/CoreFlow/`; the
-README badge shows that flag); 45-minute timeout (run 39572117554's visionOS entry was killed at 30 min,
+`CoreFlow.xcresult` as an artifact, after failures too, and uploads
+`CoreFlow.lcov` to Codecov (`CODECOV_TOKEN` secret; the only upload, and
+already `Sources/CoreFlow` only, so no flag and no `codecov.yml` — the
+README badge is the plain project one); 45-minute timeout (run 39572117554's visionOS entry was killed at 30 min,
 and GitHub keeps no log of a timed-out job). Run 39565787952, 23 green on each: the test step took
 118 s on macOS, 129 s on Catalyst, 481 s on iOS, 1151 s on visionOS (733 s
 of tests after the boot). One iOS flake on record: run 39758365121's first
@@ -201,7 +202,7 @@ the 23 tests took 440 s against 268–290 s; the re-run was green, none of the
 eight earlier iOS jobs has the line, and the terminate itself took about 2 s
 in every other launch. A known XCUITest relaunch race on slow simulators;
 `-retry-tests-on-failure -test-iterations 2` is the usual answer, not applied.
-`actions/cache` keeps the package and build jobs' `.build` (`spm-…`, `build-<platform>-…`) and each hosted entry's
+`actions/cache` keeps the package and build jobs' `.build` (`spm-…`, `build-<platform>-…`) and the hosted job's
 `~/Library/Developer/Xcode/DerivedData`, keyed on the package inputs
 (`Package.swift`, `Package.resolved`, `Sources/**/*.swift`) with a per-entry
 prefix fallback: an entry is saved only when its key misses, so the snapshot
@@ -316,20 +317,34 @@ build were removed once Xcode 27 shipped. As of 2026-09-14 the label ships beta 
 log design — see the log paragraph below for the beta-6 flake record. Locally verified on the
 iPhone 17 Pro simulator, Xcode 27.0 release (27A266a, runtime 24A434) and
 earlier the 27A5252f beta — 8/8, zero skips. Coverage: `-enableCodeCoverage YES` on both
-`test.sh` runs, read with `xcrun xccov view --report --only-targets <bundle>`.
-The package-product rows (`CoreFlow`, `CoreFlowUITesting`,
-`CoreFlowUITestHost`) are INTERMITTENT on Xcode 27.2 (probed 2026-10-04, one
-UI test on the simulator, nine runs, before `CoreFlowUITestHost` existed; on
-2026-10-22 one run lacked `CoreFlow` alone): the app and test-bundle rows
-never fail, each package row comes and goes at random, and a run that
-lost one has no files of that product in its coverage archive — never
-collected, not mis-attributed. Same with the xcodegen project, through the
-workspace, and with `DEAD_CODE_STRIPPING=NO`; the build is identical every
-time (`CoreFlow.o` instrumented, its 10 code files mapped — the other 8 are
-macro declarations). Listing targets explicitly is worse: the package alone
-gives an empty report, all four listed lost `CoreFlow` in 3 of 3 runs (and
-Tuist cannot name a package product there anyway). When a row is missing,
-re-run.
+`test.sh` runs; `test.sh` reads it from Xcode's own `Coverage.profdata`
+with `llvm-cov`, `-sources Sources/CoreFlow`, into `CoreFlow.lcov`,
+Codecov's input (every `DerivedData/*/Build/ProfileData` wiped first, so
+the two left are the runs' own; the package and the project build in
+separate folders) — never from the xcresult, whose package-product rows
+(`CoreFlow`, `CoreFlowUITesting`, `CoreFlowUITestHost`) are INTERMITTENT on
+Xcode 27.2 (probed 2026-10-04, nine runs; on 2026-10-22 one run lacked
+`CoreFlow` alone; a CI bundle listed `CoreFlowUITestHost` with 0 source
+files): the app and test-bundle rows never fail, each package row comes and
+goes at random, and a run that lost one has no files of that product in its
+archive. Not collection or flushing — the package is linked statically, the
+profdata of kept runs had every `Sources/CoreFlow` file (a failing run's
+own not caught yet), and a file list comes from the binary's
+`__llvm_covmap`, not from runtime data — but Xcode's profdata →
+xccovarchive attribution of a static package's files. Same with the
+xcodegen project, through the workspace, and with `DEAD_CODE_STRIPPING=NO`;
+listing targets explicitly is worse (the package alone gives an empty
+report, all four listed lost `CoreFlow` in 3 of 3 runs). Others since
+Xcode 16: Apple forums 806951 (FB13204866), 133517 (FB7724987), a known
+issue. Two facts the script rests on: `llvm-cov` IGNORES a `-sources` path
+matching no compiled file and exports the whole binary (probed), hence the
+guard failing on any `SF:` outside `Sources/CoreFlow/`; and every
+`CoreFlowTests`/`CoreFlowHostApp` binary in the runs' `Products` is passed
+— locally one per destination tested — a function present in two is loaded
+once (no `#if` in `Sources/CoreFlow`), a platform-only one would read as
+zero from the other platform's run. Verified 2026-10-23 on the iPhone 18
+Pro simulator: exactly the 9 code files (the other 8 are macro
+declarations), 23 UI tests green.
 
 Every boundary event is log evidence, the package's own way: `@TestState`
 writes log themselves, and `QueryViewSortScenario.build()` logs `("query",
