@@ -63,4 +63,5 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: CoreFlow.lcov
+          plugins: noop
           disable_search: true
