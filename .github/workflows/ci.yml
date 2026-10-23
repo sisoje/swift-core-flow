@@ -36,7 +36,7 @@ jobs:
       - name: Build the package
         run: swift build --triple arm64-apple-${{ matrix.platform }}
   hosted:
-    name: UI tests on macOS
+    name: Tests on macOS
     runs-on: xcode-27
     timeout-minutes: 45
     steps:
