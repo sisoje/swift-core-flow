@@ -71,6 +71,14 @@ mode with strict concurrency. It supports swift-syntax
 
 ## Repository map
 
+`skill/SKILL.md` is the agent skill for adopting the library inside the
+hypermodular method (sisoje/hypermodular, the `data-coupling` skill is
+the doctrine it mechanizes). It is read verbatim by agents, so it is
+kept in step with the README and written plainly, no em dashes, no
+restating what Apple's docs already say. `skill/comprehension-prompt.md`
+is its cold-read test: hand it to a model that has not read the skill
+and fix every sentence it misreads.
+
 ### Package targets
 
 | Target | Kind | Contents |

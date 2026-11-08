@@ -1,0 +1,203 @@
+---
+name: swift-core-flow
+description: >
+  Adopting swift-core-flow inside the hypermodular method: the @Shell cut
+  that generates a testable Core, @TestState and @TestAction logging at
+  the write site, QueryView and @QueryResult for SwiftData, scenarios,
+  the HostApp test host, and the CoreFlowUITesting bundle that asserts
+  the execution log. Use when writing or reviewing code that mentions
+  @Shell, Core, @TestState, @TestAction, @TestLog, QueryView,
+  @QueryResult, HostApp, uiTestLog, logElement, or when adding
+  swift-core-flow to a package or an Xcode project. The README beside
+  this file is the per-macro reference. The data-coupling skill in
+  sisoje/hypermodular is the doctrine this mechanizes.
+---
+
+# swift-core-flow: the method, mechanized
+
+The data-coupling skill says how a SwiftUI node is written, cut into
+shell and core, and tested by its execution log. This library does the
+cut and the log as macros. `@Shell` generates the core, the test
+wrappers log every write and call at the site, `HostApp` renders a
+scenario, and `CoreFlowUITesting` asserts the log. The README is the
+API. This file is the order of work and what the README does not say.
+
+## Install
+
+```swift
+// swift-tools-version: 6.4
+.package(url: "https://github.com/sisoje/swift-core-flow.git", from: "1.2.1"),
+.product(name: "CoreFlow", package: "swift-core-flow"),            // the app and the test host
+.product(name: "CoreFlowUITestHost", package: "swift-core-flow"),  // the test host only
+.product(name: "CoreFlowUITesting", package: "swift-core-flow"),   // the UI-test bundle only
+```
+
+In an Xcode project the app target links `CoreFlow`, the test host
+links `CoreFlow` and `CoreFlowUITestHost`, the UI-test bundle links
+`CoreFlowUITesting`. `SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor` goes on
+the app and the test host and never on the bundle. The first build compiles
+swift-syntax and takes minutes once.
+
+## The rule, the macro
+
+| Rule in the data-coupling skill | Here |
+|---|---|
+| the cut, with own state logging at the write site | `@Shell` generates `Core`; `@TestState`, `@TestAction`, `@TestFocusState`, `@TestEnvironment` |
+| the scenario as a hosted UI test | `HostApp<Scenario>`, `uiTestLog()`, `CoreFlowUITesting` |
+| `@Query` as input: one shell owns the live query, content reads plain data | `QueryView` with `dependencies:`, `@QueryResult`, `.mockQuery` |
+| a value derived from inputs, kept across renders, never `@State(wrappedValue:)` in an `init` | `MemoView` |
+| a view-owned task that cancels on replacement and on teardown | `@UnstructuredTask` |
+| capabilities: hand a consumer only the operations it needs, as a tuple | `@Capability` over a type or an extension |
+| slices: a tuple of the fields a node reads, from one or more sources | `#pick(from:)` |
+| the memberwise `init` a data package needs public, and construction inputs as a tuple | `@Flowable` generates `init`, `InFlow`, `makeFlow(_:)` |
+| events up the tree and one closure back down the environment | `@FlowUp` with `.collectFlow` and `.onFlow` |
+
+## The cut
+
+`@Shell` goes on a node that has a live wrapper. With the library
+present it is the cut; a hand-written shell and core pair is for a
+project without it. It generates a nested,
+internal `Core` with the same `body`, substituting the wrappers it knows
+and copying everything else verbatim: `@State` becomes `@TestState`,
+`@AppStorage` and `@SceneStorage` become `@Binding`, `@Query` becomes
+`@QueryResult`, `@FocusState` becomes `@TestFocusState`, `\.dismiss` and
+`\.openURL` become `@TestEnvironment`, which logs the call under its
+own name, `dismiss`, then runs the real action, so a test asserts that
+the sheet really closed by its log. A scenario constructs
+`Node.Core(...)` through the memberwise initializer, which takes the
+copied `let`s, a `Binding` where the host had `@AppStorage` or
+`@SceneStorage`, and a bare array where it had `@Query`. `@TestState` properties are sealed out of it and
+keep their defaults.
+
+- Mapped wrappers are private on the host. `@Environment` properties
+  are copied verbatim, the two sealed actions excepted, and carry an
+  explicit type, `@Environment(\.dbService) private var dbService:
+  DbService`, or the macro rejects them. The scenario sets them with
+  `.environment(...)`; a contract it does not set runs its `@Entry`
+  no-op. A contract is a struct of closures with no-op defaults and an
+  `@Entry`, the data-coupling skill's layer.
+- What the core owns is what its evidence declares. Every private
+  `@State` logs, so a draft no criterion names, the text a field is
+  still editing, lives below the core in a furniture view, a form or a
+  row that is no node on the map, and hands the value back through a
+  plain closure.
+- A view made only of `let`s, bindings, environment reads, and closures
+  is already a core. `@Shell` adds nothing to it; the scenario
+  constructs the node itself.
+
+## SwiftData
+
+On a `@Shell` node `@Query` becomes `@QueryResult` and the scenario
+hands the array. When the query's sort or filter depends on state, the
+shell owns a `QueryView(query:dependencies:) { $books in … }` and the
+content reads plain data; `dependencies` are exactly the values the
+`Query` init reads. `.mockQuery(QueryResult(wrappedValue: [dune]))` on
+a subtree hands its `QueryView`s canned results. A `@Model` class
+carries what SwiftData gives it and nothing added. The integration
+test of a query seeds a real in-memory container with literals,
+`.modelContainer(for:inMemory:) { try! $0.get().mainContext.insert(…) }`,
+lets the shell's `QueryView` run, and logs the delivered order from a
+user action, a snapshot button calling `log("books",
+"\(books.map(\.title))")`, so the real sort is asserted at the shell's
+edge and never from the render schedule. The query expression is a
+static function on the shell, `Library.query(sortByAuthor:)`, so the
+test runs the very expression the shell runs; the shell's own wiring of
+it into its `QueryView` is read, not tested, since the delivered array
+is inside the node and no contract line exposes it.
+
+## Scenario
+
+One per core, with the app, never under `#if DEBUG`. A view that holds
+the boundaries, `@TestState private var sortByAuthor = false` for a
+binding the host takes, typed by its annotation or by a bare `Bool`,
+`Int`, or `String` literal and annotated otherwise, `@TestAction private var onDelete: (Book) ->
+Void = { _ in }` for a closure, `@TestLog` for a payload logged by
+hand, constructs the core from literals, sets its contracts with
+`.environment(...)`, and ends in `#Preview`. Its givens are its
+parameters.
+
+```swift
+struct LibraryScenario: View {
+    @TestState private var sortByAuthor = false
+    @TestLog private var log
+
+    var body: some View {
+        Library.Core(books: [Book(title: "Dune", author: "Herbert")],
+                     sortByAuthor: $sortByAuthor)
+            .environment(\.dbService, DbService(deleteBook: { log("deleteBook", $0.title) }))
+    }
+}
+```
+
+The log is two arrays, names and values. `@TestState` and `@TestAction`
+log `String(describing:)` of the value, a tuple for several arguments,
+so an optional reads `Optional("cover")` and a model reads its
+description. The names are the contract. A value is asserted as the
+test's author sees fit. A scenario sets loggers for the node's own
+boundaries. A child under it shares the environment, so a contract both
+name logs the child's calls too; the block drives the node, no deeper.
+A child with `@Query` is handed `.mockQuery`. Where a payload needs the spelling the
+criterion uses, a title and not a description, the scenario logs that
+one boundary with `@TestLog`, as above, instead of `@TestAction`. One
+or the other per boundary, never both.
+
+## Host
+
+`TestScenario` is a `nonisolated enum TestScenario: Codable` with one
+case per scenario; `nonisolated` because a UI-test bundle has no
+main-actor default and must decode it. In an Xcode project it lives in
+a `Shared/` folder compiled into both the host and the bundle, and the
+host target adds `TestScenario+View.swift`, an `extension TestScenario:
+View` with the switch. In a package, `Core` and the scenarios are
+internal to the library, so the enum and its `View` conformance live
+public in the library beside the scenarios, and the host target only
+imports it. Either way the host's whole `main.swift` is
+`HostApp<TestScenario>.main()`.
+The host renders the launched case under `uiTestLog()`, which exposes
+the log as one accessibility element.
+
+## UI test
+
+One `@MainActor` test class per node, one test method per evidence
+block, the log a hypermodular map declares for one acceptance
+criterion. A criterion that names an effect, "persists the star", is
+proven by the request leaving the node with the right payload; what
+the contract does with it is its own boundary's test. `XCUIApplication.launch(TestScenario.library)` starts the host
+on the case and returns the app. Drive with `tapOrClick()`,
+`switchOrCheckBox(_:)`, `pressOrClick(forDuration:thenDragTo:)`, one
+spelling for every destination. Then wait for the names and assert:
+
+```swift
+let names = ["sortByAuthor", "deleteBook"]
+let log = app.logElement
+XCTAssertTrue(log.waitUntil(\.label, equals: String(decoding: try JSONEncoder().encode(names), as: UTF8.self), timeout: 10))
+XCTAssertEqual(log.logNames, names)
+XCTAssertEqual(log.logValues, ["true", "Dune"])
+```
+
+The names whole and in order, the values as the author sees fit.
+Nothing is read off the screen after the log. The README's known issues hold: tap or click, never both; a
+synthesized drag can be dropped on a CI runner; Mac Catalyst frees a
+removed view on the next event; a tap right after a fresh build may not
+register once, so a first failure reruns that test before it is read,
+and a second failure is real.
+
+## Do not
+
+- **Log by hand where a macro logs.** A `Binding(get:set:)` that appends
+  to an array next to `@TestState`, or `@TestLog` beside `@TestAction`
+  on the same boundary, is two spellings of one seam.
+- **Keep a draft in a `@Shell` core.** Its keystrokes become the node's
+  evidence. Move it below the core.
+- **`@StateObject` or `@ObservedObject`.** Unmapped on purpose; nothing
+  value-shaped to substitute.
+
+## References
+
+- `README.md` beside this file, the per-macro reference: Shell and its
+  wrapper mapping, QueryView, TestState and TestAction, the testLog
+  seam, known issues in hosted UI tests.
+- `CoreFlowHosted/`, the package's own hosted suite, the layout to copy.
+- [sisoje/hypermodular](https://github.com/sisoje/hypermodular),
+  `data-coupling/SKILL.md` for the doctrine and `hypermodular/SKILL.md`
+  for the maps whose evidence blocks these tests assert.
