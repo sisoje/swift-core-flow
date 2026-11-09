@@ -836,6 +836,14 @@ package, all bite any XCUITest suite:
   established (another project's report is in [References](#references)).
 - **Mac Catalyst releases a removed view's storage on the app's next event**,
   so a test waiting on a teardown sends one more event.
+- **On macOS the log element's `label` is cut at 512 characters.** The names
+  array travels in `accessibilityLabel`, the values array in
+  `accessibilityValue`; measured on macOS 14, the label came back at exactly
+  512 characters mid-array while the value arrived whole at over 2000, so
+  `logNames` cannot decode a log past roughly sixty entries and `JsonUtils`
+  traps on it. A form typed letter by letter gets there. Keep a block's log
+  short, or drop no-change writes at the interception; the transport is
+  unchanged for now.
 
 ---
 

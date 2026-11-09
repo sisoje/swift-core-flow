@@ -32,10 +32,16 @@ API. This file is the order of work and what the README does not say.
 .product(name: "CoreFlowUITesting", package: "swift-core-flow"),   // the UI-test bundle only
 ```
 
-In an Xcode project the app target links `CoreFlow`, the test host
+With a path dependency, `.package(path: "../CoreFlow")`, the package
+name in `.product(name:package:)` is the directory's, `CoreFlow`, not
+`swift-core-flow`. In an Xcode project the app target links `CoreFlow`, or the features
+package that does, the test host
 links `CoreFlow` and `CoreFlowUITestHost`, the UI-test bundle links
 `CoreFlowUITesting`. `SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor` goes on
-the app and the test host and never on the bundle. The first build compiles
+the app and the test host and never on the UI-test bundle; in a package the
+same is `swiftSettings: [.defaultIsolation(MainActor.self)]` on the
+library as well, or a contract's async closure trips a sending error
+at the call. The first build compiles
 swift-syntax and takes minutes once.
 
 ## The rule, the macro
@@ -46,7 +52,7 @@ swift-syntax and takes minutes once.
 | the scenario as a hosted UI test | `HostApp<Scenario>`, `uiTestLog()`, `CoreFlowUITesting` |
 | `@Query` as input: one shell owns the live query, content reads plain data | `QueryView` with `dependencies:`, `@QueryResult`, `.mockQuery` |
 | a value derived from inputs, kept across renders, never `@State(wrappedValue:)` in an `init` | `MemoView` |
-| a view-owned task that cancels on replacement and on teardown | `@UnstructuredTask` |
+| a view-owned task that cancels on replacement and on teardown | `@UnstructuredTask`; each assignment logs under the property's name with the value `task`, and the block declares it; inside the task, write state through a `$binding` taken into the capture list, never through `self` |
 | capabilities: hand a consumer only the operations it needs, as a tuple | `@Capability` over a type or an extension |
 | slices: a tuple of the fields a node reads, from one or more sources | `#pick(from:)` |
 | the memberwise `init` a data package needs public, and construction inputs as a tuple | `@Flowable` generates `init`, `InFlow`, `makeFlow(_:)` |
@@ -59,17 +65,21 @@ present it is the cut; a hand-written shell and core pair is for a
 project without it. It generates a nested,
 internal `Core` with the same `body`, substituting the wrappers it knows
 and copying everything else verbatim: `@State` becomes `@TestState`,
-`@AppStorage` and `@SceneStorage` become `@Binding`, `@Query` becomes
+`@SceneStorage` becomes `@Binding` (`@AppStorage` too, though the method
+keeps it at the root, which is never cut), `@Query` becomes
 `@QueryResult`, `@FocusState` becomes `@TestFocusState`, `\.dismiss` and
 `\.openURL` become `@TestEnvironment`, which logs the call under its
 own name, `dismiss`, then runs the real action, so a test asserts that
 the sheet really closed by its log. A scenario constructs
 `Node.Core(...)` through the memberwise initializer, which takes the
 copied `let`s, a `Binding` where the host had `@AppStorage` or
-`@SceneStorage`, and a bare array where it had `@Query`. `@TestState` properties are sealed out of it and
-keep their defaults.
+`@SceneStorage`, and a bare array where it had `@Query`. A `@TestState`
+is `@State` that logs, with `@State`'s own rules, so the Core's private
+ones are out of the init and keep their defaults.
 
-- Mapped wrappers are private on the host. `@Environment` properties
+- Mapped wrappers are private on the host and carry an explicit type,
+  `@State private var street: String = ""`, or the macro
+  rejects them. `@Environment` properties
   are copied verbatim, the two sealed actions excepted, and carry an
   explicit type, `@Environment(\.dbService) private var dbService:
   DbService`, or the macro rejects them. The scenario sets them with
@@ -80,10 +90,32 @@ keep their defaults.
   `@State` logs, so a draft no criterion names, the text a field is
   still editing, lives below the core in a furniture view, a form or a
   row that is no node on the map, and hands the value back through a
-  plain closure.
+  plain closure. The rules never move down with it. A form's node owns
+  one `String` per field and one `String?` error per field as
+  `@State`, loose, never a model and never an errors struct, and
+  assembles the model only when Save hands it on; it intercepts each
+  field's binding
+  to store the text and write the error, and the fields view is
+  bindings and labels.
 - A view made only of `let`s, bindings, environment reads, and closures
   is already a core. `@Shell` adds nothing to it; the scenario
   constructs the node itself.
+
+## Transformers
+
+A transformer is a struct whose stored properties are `@Binding`s, the
+node's raw state, and whose computed properties and methods are the
+intercepted bindings and labels a view needs, a form's fields and their
+errors, a `judge()` for Save. It holds no state, and a plain test
+constructs it over local variables and writes through an output
+binding. `@Capability` on it bundles every computed property and method
+into one `Capability` tuple and a `capability` property, so the view is
+handed `fields.capability`, the smart bindings and the labels as plain
+values, and nothing else. Stored `@Binding`s are not collected, so a
+label is a computed re-export, `streetMessage`, and an output binding
+takes a name of its own, `streetField`. Computed properties need
+explicit types, and the tuple is rebuilt on each `body`, so a label
+read from it is current.
 
 ## SwiftData
 
@@ -114,7 +146,10 @@ binding the host takes, typed by its annotation or by a bare `Bool`,
 Void = { _ in }` for a closure, `@TestLog` for a payload logged by
 hand, constructs the core from literals, sets its contracts with
 `.environment(...)`, and ends in `#Preview`. Its givens are its
-parameters.
+parameters. A given that would have to set the core's own state says
+the truth is above the core; it is a `@TestState` on the scenario,
+handed down as a binding, and a different given is another scenario
+or another parameter, since a scenario is cheap.
 
 ```swift
 struct LibraryScenario: View {
@@ -134,11 +169,14 @@ log `String(describing:)` of the value, a tuple for several arguments,
 so an optional reads `Optional("cover")` and a model reads its
 description. The names are the contract. A value is asserted as the
 test's author sees fit. A scenario sets loggers for the node's own
-boundaries. A child under it shares the environment, so a contract both
-name logs the child's calls too; the block drives the node, no deeper.
+boundaries. A child under it is the child's host, not its `Core`, so
+its own state stays silent; it shares the environment, so a contract
+both name logs the child's calls too; the block drives the node, no
+deeper.
 A child with `@Query` is handed `.mockQuery`. Where a payload needs the spelling the
-criterion uses, a title and not a description, the scenario logs that
-one boundary with `@TestLog`, as above, instead of `@TestAction`. One
+criterion uses, a title and not a description, or where the logger
+must read a scenario parameter, a given, the scenario logs that one
+boundary with `@TestLog`, as above, instead of `@TestAction`. One
 or the other per boundary, never both.
 
 ## Host
@@ -146,9 +184,10 @@ or the other per boundary, never both.
 `TestScenario` is a `nonisolated enum TestScenario: Codable` with one
 case per scenario; `nonisolated` because a UI-test bundle has no
 main-actor default and must decode it. In an Xcode project it lives in
-a `Shared/` folder compiled into both the host and the bundle, and the
-host target adds `TestScenario+View.swift`, an `extension TestScenario:
-View` with the switch. In a package, `Core` and the scenarios are
+a `Shared/` folder compiled into both the host and the bundle, or in
+the host target alone when there is no bundle, and the host target
+adds `TestScenario+View.swift`, an `extension TestScenario: View` with
+the switch. In a package, `Core` and the scenarios are
 internal to the library, so the enum and its `View` conformance live
 public in the library beside the scenarios, and the host target only
 imports it. Either way the host's whole `main.swift` is
@@ -179,16 +218,20 @@ The names whole and in order, the values as the author sees fit.
 Nothing is read off the screen after the log. The README's known issues hold: tap or click, never both; a
 synthesized drag can be dropped on a CI runner; Mac Catalyst frees a
 removed view on the next event; a tap right after a fresh build may not
-register once, so a first failure reruns that test before it is read,
-and a second failure is real.
+register once, the one known flake, so a failure that repeats on a
+rerun is the real one; on macOS the log element's `label`, the
+names array, is cut at 512 characters, so a block's log stays under
+about sixty entries.
 
 ## Do not
 
 - **Log by hand where a macro logs.** A `Binding(get:set:)` that appends
   to an array next to `@TestState`, or `@TestLog` beside `@TestAction`
   on the same boundary, is two spellings of one seam.
-- **Keep a draft in a `@Shell` core.** Its keystrokes become the node's
-  evidence. Move it below the core.
+- **Keep a draft no criterion names in a `@Shell` core.** Its
+  keystrokes become the node's evidence. Move it below the core. A
+  form's fields, which its criteria name, stay in the core behind a
+  transformer.
 - **`@StateObject` or `@ObservedObject`.** Unmapped on purpose; nothing
   value-shaped to substitute.
 
