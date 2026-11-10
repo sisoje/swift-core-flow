@@ -153,7 +153,9 @@ is inside the node and no contract line exposes it.
 
 ## Scenario
 
-One per core, with the app, never under `#if DEBUG`. A view that holds
+One per core, with the app, never under `#if DEBUG`. The preview
+chain, the scenario and the `#Preview` that shows it, lives in one
+file with the view that is there. A view that holds
 the boundaries, `@TestState private var sortByAuthor = false` for a
 binding the host takes, typed by its annotation or by a bare `Bool`,
 `Int`, or `String` literal and annotated otherwise, `@TestAction private var onDelete: (Book) ->
