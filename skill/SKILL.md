@@ -52,7 +52,7 @@ swift-syntax and takes minutes once.
 | the scenario as a hosted UI test | `HostApp<Scenario>`, `uiTestLog()`, `CoreFlowUITesting` |
 | `@Query` as input: one shell owns the live query, content reads plain data | `QueryView` with `dependencies:`, `@QueryResult`, `.mockQuery` |
 | a value derived from inputs, kept across renders, never `@State(wrappedValue:)` in an `init` | `MemoView` |
-| a view-owned task that cancels on replacement and on teardown | `@UnstructuredTask`; each assignment logs under the property's name with the value `task`, and the block declares it; inside the task, write state through a `$binding` taken into the capture list, never through `self` |
+| work an event starts is a task the node holds, never a `Task` nobody holds; it cancels on replacement and on node removal | `@UnstructuredTask`; each assignment logs under the property's name with the value `task`, and the block declares it; a child that starts the work is handed `$download`, and its write cancels and logs the same; inside the task, write state through a `$binding` taken into the capture list, never through `self` |
 | capabilities: hand a consumer only the operations it needs, as a tuple | `@Capability` over a type or an extension |
 | slices: a tuple of the fields a node reads, from one or more sources | `#pick(from:)` |
 | the memberwise `init` a data package needs public, and construction inputs as a tuple | `@Flowable` generates `init`, `InFlow`, `makeFlow(_:)` |
@@ -60,9 +60,19 @@ swift-syntax and takes minutes once.
 
 ## The cut
 
-`@Shell` goes on a node that has a live wrapper. With the library
-present it is the cut; a hand-written shell and core pair is for a
-project without it. It generates a nested,
+`@Shell` goes on a node that has a live wrapper. Whether a view is cut
+with it or by hand is judged per view, as the work goes, and neither is
+the default. The macro was made for a view that already exists. One
+attribute makes a legacy screen testable with nothing rewritten, so a
+project gains tests one view at a time. It is also the practical cut
+wherever the state and the `body` that uses it are tested together, in
+one log. A new screen modeled from the design is a core written by
+hand, which owns no wrapper and is never cut, and the shell written
+above it carries `@Shell` when the shell itself is to be tested. The
+two cuts mix and cascade, a `@Shell` node above a hand-written core, a
+hand-written core whose child is another `@Shell` node. The data-coupling
+skill's `references/shell-core.md`, "When to split", has the cases.
+The macro generates a nested,
 internal `Core` with the same `body`, substituting the wrappers it knows
 and copying everything else verbatim: `@State` becomes `@TestState`,
 `@SceneStorage` becomes `@Binding` (`@AppStorage` too, though the method
@@ -95,11 +105,15 @@ ones are out of the init and keep their defaults.
   `@State`, loose, never a model and never an errors struct, and
   assembles the model only when Save hands it on; it intercepts each
   field's binding
-  to store the text and write the error, and the fields view is
-  bindings and labels.
+  to store the text and write the error. The fields view is a core
+  written by hand, read off the screen, a `@Binding` per field, a `let`
+  per error label, a closure per button. It never decides whether a
+  field is wrong, and what the design says the screen does with an
+  error it was handed is its own logic.
 - A view made only of `let`s, bindings, environment reads, and closures
-  is already a core. `@Shell` adds nothing to it; the scenario
-  constructs the node itself.
+  is already a core, a core read off the screen included. `@Shell` adds
+  nothing to it; the scenario constructs the node itself, and
+  `#Preview` may construct it directly with literals.
 
 ## Transformers
 
@@ -145,8 +159,10 @@ binding the host takes, typed by its annotation or by a bare `Bool`,
 `Int`, or `String` literal and annotated otherwise, `@TestAction private var onDelete: (Book) ->
 Void = { _ in }` for a closure, `@TestLog` for a payload logged by
 hand, constructs the core from literals, sets its contracts with
-`.environment(...)`, and ends in `#Preview`. Its givens are its
-parameters. A given that would have to set the core's own state says
+`.environment(...)`, and ends in `#Preview`. A `@Shell` node is
+previewed only through its scenario, since `#Preview` cannot name the
+generated `Core` and the host owns live state. The scenario's givens
+are its parameters. A given that would have to set the core's own state says
 the truth is above the core; it is a `@TestState` on the scenario,
 handed down as a binding, and a different given is another scenario
 or another parameter, since a scenario is cheap.
@@ -224,6 +240,9 @@ names array, is cut at 512 characters, so a block's log stays under
 about sixty entries.
 
 ## Do not
+
+Any rule here may be broken whenever breaking it saves time or is the
+more practical thing to do.
 
 - **Log by hand where a macro logs.** A `Binding(get:set:)` that appends
   to an array next to `@TestState`, or `@TestLog` beside `@TestAction`
