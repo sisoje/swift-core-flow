@@ -206,7 +206,8 @@ adds `TestScenario+View.swift`, an `extension TestScenario: View` with
 the switch. In a package, `Core` and the scenarios are
 internal to the library, so the enum and its `View` conformance live
 public in the library beside the scenarios, and the host target only
-imports it. Either way the host's whole `main.swift` is
+imports it. A UI-test bundle beside such a package links the same
+library, next to `CoreFlowUITesting`, to name the cases it launches. Either way the host's whole `main.swift` is
 `HostApp<TestScenario>.main()`.
 The host renders the launched case under `uiTestLog()`, which exposes
 the log as one accessibility element.
