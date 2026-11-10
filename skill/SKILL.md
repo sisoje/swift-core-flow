@@ -44,6 +44,12 @@ library as well, or a contract's async closure trips a sending error
 at the call. The first build compiles
 swift-syntax and takes minutes once.
 
+Inside the hypermodular layout one package lists the library, the
+data coupling layer, and it re-exports it with `@_exported import
+CoreFlow`. The features package re-exports the layer the same way.
+A feature file then sees the layer and the macros and imports neither
+by name, and a dependency that imports the layer has the macros too.
+
 ## The rule, the macro
 
 | Rule in the data-coupling skill | Here |
