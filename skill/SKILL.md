@@ -165,14 +165,14 @@ is inside the node and no contract line exposes it.
 
 ## Scenario
 
-One per core, with the app, not under `#if DEBUG`. The preview
-chain, the scenario and the `#Preview` that shows it, lives in one
-file with the view that is there. A view that holds
+One per core, with the app, not under `#if DEBUG`. A scenario is a
+file of its own beside the view it stages, and the `#Preview` that
+shows it is in the view's file. A view that holds
 the boundaries, `@TestState private var sortByAuthor = false` for a
 binding the host takes, typed by its annotation or by a bare `Bool`,
 `Int`, or `String` literal and annotated otherwise, `@TestAction private var onDelete: (Book) ->
 Void = { _ in }` for a closure, constructs the core from literals, sets its contracts with
-`.environment(...)`, and ends in `#Preview`. A `@Shell` node is
+`.environment(...)`, and is shown by a `#Preview` in the view's file. A `@Shell` node is
 previewed only through its scenario, since `#Preview` cannot name the
 generated `Core` and the host owns live state. The scenario's givens
 are its parameters. A given that would have to set the core's own state says
