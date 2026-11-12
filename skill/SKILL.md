@@ -123,6 +123,12 @@ ones are out of the init and keep their defaults.
 
 ## Transformers
 
+A view is the runtime's node. Its capability is `body`, fixed by the
+protocol, and the runtime is what calls it. A transformer is our node.
+The runtime does not know it and keeps nothing for it, so its
+capability has no protocol to fix it and has to be declared.
+`@Capability` declares it.
+
 A transformer is a struct whose stored properties are `@Binding`s, the
 node's raw state, and whose computed properties and methods are the
 intercepted bindings and labels a view needs, a form's fields and their
