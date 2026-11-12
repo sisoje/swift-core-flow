@@ -246,6 +246,13 @@ XCTAssertEqual(log.logValues, ["true", "Dune"])
 ```
 
 The names whole and in order, the values as the author sees fit.
+`waitUntil` takes any key path of the element whose value is
+`Equatable`, so a test can wait on `\.label`, on `\.value`, or on a
+count. A block that ends in a silence has nothing more to wait for.
+The test waits for the names the block does expect and then compares
+the whole log, so an entry that should not be there fails it. Where
+the criterion names no order, both sides are sorted by name and then
+by value before they are compared.
 Nothing is read off the screen after the log. The README's known issues hold: tap or click, never both; a
 synthesized drag can be dropped on a CI runner; Mac Catalyst frees a
 removed view on the next event; a tap right after a fresh build may not
