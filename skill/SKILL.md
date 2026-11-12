@@ -38,7 +38,7 @@ name in `.product(name:package:)` is the directory's, `CoreFlow`, not
 package that does, the test host
 links `CoreFlow` and `CoreFlowUITestHost`, the UI-test bundle links
 `CoreFlowUITesting`. `SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor` goes on
-the app and the test host and never on the UI-test bundle; in a package the
+the app and the test host and not on the UI-test bundle; in a package the
 same is `swiftSettings: [.defaultIsolation(MainActor.self)]` on the
 library as well, or a contract's async closure trips a sending error
 at the call. The first build compiles
@@ -57,8 +57,8 @@ by name, and a dependency that imports the layer has the macros too.
 | the cut, with own state logging at the write site | `@Shell` generates `Core`; `@TestState`, `@TestAction`, `@TestFocusState`, `@TestEnvironment` |
 | the scenario as a hosted UI test | `HostApp<Scenario>`, `uiTestLog()`, `CoreFlowUITesting` |
 | `@Query` as input: one shell owns the live query, content reads plain data | `QueryView` with `dependencies:`, `@QueryResult`, `.mockQuery` |
-| a value derived from inputs, kept across renders, never `@State(wrappedValue:)` in an `init` | `MemoView` |
-| work an event starts is a task the node holds, never a `Task` nobody holds; it cancels on replacement and on node removal | `@UnstructuredTask`; each assignment logs under the property's name with the value `task`, and the block declares it; a child that starts the work is handed `$download`, and its write cancels and logs the same; inside the task, write state through a `$binding` taken into the capture list, never through `self` |
+| a value derived from inputs, kept across renders, not `@State(wrappedValue:)` in an `init` | `MemoView` |
+| work an event starts is a task the node holds, not a `Task` nobody holds; it cancels on replacement and on node removal | `@UnstructuredTask`; each assignment logs under the property's name with the value `task`, and the block declares it; a child that starts the work is handed `$download`, and its write cancels and logs the same; inside the task, write state through a `$binding` taken into the capture list, not through `self` |
 | capabilities: hand a consumer only the operations it needs, as a tuple | `@Capability` over a type or an extension |
 | slices: a tuple of the fields a node reads, from one or more sources | `#pick(from:)` |
 | the memberwise `init` a data package needs public, and construction inputs as a tuple | `@Flowable` generates `init`, `InFlow`, `makeFlow(_:)` |
@@ -73,7 +73,7 @@ attribute makes a legacy screen testable with nothing rewritten, so a
 project gains tests one view at a time. It is also the practical cut
 wherever the state and the `body` that uses it are tested together, in
 one log. A new screen modeled from the design is a core written by
-hand, which owns no wrapper and is never cut, and the shell written
+hand, which owns no wrapper and is not cut, and the shell written
 above it carries `@Shell` when the shell itself is to be tested. The
 two cuts mix and cascade, a `@Shell` node above a hand-written core, a
 hand-written core whose child is another `@Shell` node. The data-coupling
@@ -82,7 +82,7 @@ The macro generates a nested,
 internal `Core` with the same `body`, substituting the wrappers it knows
 and copying everything else verbatim: `@State` becomes `@TestState`,
 `@SceneStorage` becomes `@Binding` (`@AppStorage` too, though the method
-keeps it at the root, which is never cut), `@Query` becomes
+keeps it at the root, which is not cut), `@Query` becomes
 `@QueryResult`, `@FocusState` becomes `@TestFocusState`, `\.dismiss` and
 `\.openURL` become `@TestEnvironment`, which logs the call under its
 own name, `dismiss`, then runs the real action, so a test asserts that
@@ -106,14 +106,14 @@ ones are out of the init and keep their defaults.
   `@State` logs, so a draft no criterion names, the text a field is
   still editing, lives below the core in a furniture view, a form or a
   row that is no node on the map, and hands the value back through a
-  plain closure. The rules never move down with it. A form's node owns
+  plain closure. The rules do not move down with it. A form's node owns
   one `String` per field and one `String?` error per field as
-  `@State`, loose, never a model and never an errors struct, and
+  `@State`, loose, not a model and not an errors struct, and
   assembles the model only when Save hands it on; it intercepts each
   field's binding
   to store the text and write the error. The fields view is a core
   written by hand, read off the screen, a `@Binding` per field, a `let`
-  per error label, a closure per button. It never decides whether a
+  per error label, a closure per button. It does not decide whether a
   field is wrong, and what the design says the screen does with an
   error it was handed is its own logic.
 - A view made only of `let`s, bindings, environment reads, and closures
@@ -157,7 +157,7 @@ test of a query seeds a real in-memory container with literals,
 lets the shell's `QueryView` run, and logs the delivered order from a
 user action, a snapshot button calling `log("books",
 "\(books.map(\.title))")`, so the real sort is asserted at the shell's
-edge and never from the render schedule. The query expression is a
+edge and not from the render schedule. The query expression is a
 static function on the shell, `Library.query(sortByAuthor:)`, so the
 test runs the very expression the shell runs; the shell's own wiring of
 it into its `QueryView` is read, not tested, since the delivered array
@@ -165,7 +165,7 @@ is inside the node and no contract line exposes it.
 
 ## Scenario
 
-One per core, with the app, never under `#if DEBUG`. The preview
+One per core, with the app, not under `#if DEBUG`. The preview
 chain, the scenario and the `#Preview` that shows it, lives in one
 file with the view that is there. A view that holds
 the boundaries, `@TestState private var sortByAuthor = false` for a
@@ -207,7 +207,7 @@ A child with `@Query` is handed `.mockQuery`. Where a payload needs the spelling
 criterion uses, a title and not a description, or where the logger
 must read a scenario parameter, a given, the scenario logs that one
 boundary with `@TestLog`, as above, instead of `@TestAction`. One
-or the other per boundary, never both.
+or the other per boundary, not both.
 
 ## Host
 
@@ -253,7 +253,7 @@ The test waits for the names the block does expect and then compares
 the whole log, so an entry that should not be there fails it. Where
 the criterion names no order, both sides are sorted by name and then
 by value before they are compared.
-Nothing is read off the screen after the log. The README's known issues hold: tap or click, never both; a
+Nothing is read off the screen after the log. The README's known issues hold: tap or click, not both; a
 synthesized drag can be dropped on a CI runner; Mac Catalyst frees a
 removed view on the next event; a tap right after a fresh build may not
 register once, the one known flake, so a failure that repeats on a
