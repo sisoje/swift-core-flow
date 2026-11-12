@@ -232,6 +232,11 @@ reads like the evidence block. This is what a scenario does not hold:
 }))
 ```
 
+A subscription is stubbed the same way. Its `@TestAction` default
+returns a stream that yields the events the block gives and then
+finishes, so the call logs once and each event arrives as the system's
+stimulus.
+
 A default cannot read a scenario's parameter. A different answer, a
 save that throws, is another scenario with another default, and a
 scenario is cheap. `@TestLog` is the seam the wrappers are built on.
