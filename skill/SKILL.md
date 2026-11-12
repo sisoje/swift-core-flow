@@ -36,7 +36,7 @@ With a path dependency, `.package(path: "../CoreFlow")`, the package
 name in `.product(name:package:)` is the directory's, `CoreFlow`, not
 `swift-core-flow`. In an Xcode project the app target links `CoreFlow`, or the features
 package that does, the test host
-links `CoreFlow` and `CoreFlowUITestHost`, the UI-test bundle links
+links the same and `CoreFlowUITestHost`, the UI-test bundle links
 `CoreFlowUITesting`. `SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor` goes on
 the app and the test host and not on the UI-test bundle; in a package the
 same is `swiftSettings: [.defaultIsolation(MainActor.self)]` on the
@@ -95,7 +95,9 @@ ones are out of the init and keep their defaults.
 
 - Mapped wrappers are private on the host and carry an explicit type,
   `@State private var street: String = ""`, or the macro
-  rejects them. `@Environment` properties
+  rejects them. A `@State` carries an inline default too, an optional
+  included, `@State private var streetError: String? = nil`, since the
+  macro copies the default onto `Core`. `@Environment` properties
   are copied verbatim, the two sealed actions excepted, and carry an
   explicit type, `@Environment(\.dbService) private var dbService:
   DbService`, or the macro rejects them. The scenario sets them with
@@ -149,7 +151,9 @@ On a `@Shell` node `@Query` becomes `@QueryResult` and the scenario
 hands the array. When the query's sort or filter depends on state, the
 shell owns a `QueryView(query:dependencies:) { $books in … }` and the
 content reads plain data; `dependencies` are exactly the values the
-`Query` init reads. `.mockQuery(QueryResult(wrappedValue: [dune]))` on
+`Query` init reads. A value it reads and the list leaves out is a
+change the query does not follow, and the list goes stale with no
+error. `.mockQuery(QueryResult(wrappedValue: [dune]))` on
 a subtree hands its `QueryView`s canned results. A `@Model` class
 carries what SwiftData gives it and nothing added. The integration
 test of a query seeds a real in-memory container with literals,
