@@ -171,8 +171,7 @@ file with the view that is there. A view that holds
 the boundaries, `@TestState private var sortByAuthor = false` for a
 binding the host takes, typed by its annotation or by a bare `Bool`,
 `Int`, or `String` literal and annotated otherwise, `@TestAction private var onDelete: (Book) ->
-Void = { _ in }` for a closure, `@TestLog` for a payload logged by
-hand, constructs the core from literals, sets its contracts with
+Void = { _ in }` for a closure, constructs the core from literals, sets its contracts with
 `.environment(...)`, and ends in `#Preview`. A `@Shell` node is
 previewed only through its scenario, since `#Preview` cannot name the
 generated `Core` and the host owns live state. The scenario's givens
@@ -184,12 +183,12 @@ or another parameter, since a scenario is cheap.
 ```swift
 struct LibraryScenario: View {
     @TestState private var sortByAuthor = false
-    @TestLog private var log
+    @TestAction private var deleteBook: (Book) -> Void = { _ in }
 
     var body: some View {
         Library.Core(books: [Book(title: "Dune", author: "Herbert")],
                      sortByAuthor: $sortByAuthor)
-            .environment(\.dbService, DbService(deleteBook: { log("deleteBook", $0.title) }))
+            .environment(\.dbService, DbService(deleteBook: deleteBook))
     }
 }
 ```
@@ -203,11 +202,41 @@ boundaries. A child under it is the child's host, not its `Core`, so
 its own state stays silent; it shares the environment, so a contract
 both name logs the child's calls too; the block drives the node, no
 deeper.
-A child with `@Query` is handed `.mockQuery`. Where a payload needs the spelling the
-criterion uses, a title and not a description, or where the logger
-must read a scenario parameter, a given, the scenario logs that one
-boundary with `@TestLog`, as above, instead of `@TestAction`. One
-or the other per boundary, not both.
+A child with `@Query` is handed `.mockQuery`.
+
+A closure of a contract is a `@TestAction` too. That is what the
+wrapper was made for, so that no scenario writes a logger by hand. The
+scenario declares it with the stub's answer as its default and hands
+it to the contract.
+
+```swift
+struct AddressScreenScenario: View {
+    @TestAction private var save: (Address) throws -> String = { _ in "/tmp/address.json" }
+
+    var body: some View {
+        AddressScreen.Core()
+            .environment(\.addressService, AddressService(save: save))
+    }
+}
+```
+
+The call logs under the property's name, `save`, with the description
+of its argument, and the test asserts that description, or the part of
+it the criterion names. No scenario formats a payload so that the log
+reads like the evidence block. This is what a scenario does not hold:
+
+```swift
+.environment(\.addressService, AddressService(save: { address in
+    log("save", "\(address.street), \(address.city), \(address.postalCode), \(address.country)")
+    return "/tmp/address.json"
+}))
+```
+
+A default cannot read a scenario's parameter. A different answer, a
+save that throws, is another scenario with another default, and a
+scenario is cheap. `@TestLog` is the seam the wrappers are built on.
+A scenario reaches for it only where no wrapper can carry the
+boundary, and then not on a boundary a wrapper already logs.
 
 ## Host
 
@@ -267,8 +296,10 @@ Any rule here may be broken whenever breaking it saves time or is the
 more practical thing to do.
 
 - **Log by hand where a macro logs.** A `Binding(get:set:)` that appends
-  to an array next to `@TestState`, or `@TestLog` beside `@TestAction`
-  on the same boundary, is two spellings of one seam.
+  to an array next to `@TestState`, a `log("save", ...)` call written
+  inside a contract's closure where a `@TestAction` could be handed in,
+  or `@TestLog` beside `@TestAction` on the same boundary. Each is a
+  second spelling of a seam the wrappers already are.
 - **Keep a draft no criterion names in a `@Shell` core.** Its
   keystrokes become the node's evidence. Move it below the core. A
   form's fields, which its criteria name, stay in the core behind a
