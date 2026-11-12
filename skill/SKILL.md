@@ -267,9 +267,10 @@ block, the log a hypermodular map declares for one acceptance
 criterion. A criterion that names an effect, "persists the star", is
 proven by the request leaving the node with the right payload; what
 the contract does with it is its own boundary's test. `XCUIApplication.launch(TestScenario.library)` starts the host
-on the case and returns the app. Drive with `tapOrClick()`,
-`switchOrCheckBox(_:)`, `pressOrClick(forDuration:thenDragTo:)`, one
-spelling for every destination. Then wait for the names and assert:
+on the case and returns the app. Drive with `tapOrClick()` and
+`pressOrClick(forDuration:thenDragTo:)` on an element, and
+`app.switchOrCheckBox(_:)` on the app, which takes the identifier and
+returns the element, one spelling for every destination. Then wait for the names and assert:
 
 ```swift
 let names = ["sortByAuthor", "deleteBook"]
