@@ -242,7 +242,7 @@ boundary, and then not on a boundary a wrapper already logs.
 
 `TestScenario` is a `nonisolated enum TestScenario: Codable` with one
 case per scenario; `nonisolated` because a UI-test bundle has no
-main-actor default and must decode it. In an Xcode project it lives in
+main-actor default and has to decode it. In an Xcode project it lives in
 a `Shared/` folder compiled into both the host and the bundle, or in
 the host target alone when there is no bundle, and the host target
 adds `TestScenario+View.swift`, an `extension TestScenario: View` with
