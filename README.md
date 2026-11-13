@@ -697,7 +697,9 @@ struct Child: View {
   `Equatable` values. `content` is not gated and reads whatever it wants.
 - **Derived, not a source of truth.** `MemoView` hands the value out; it does
   not write it. State the value owns (an `@Observable` model's properties) is
-  the value's business and lasts as long as the instance does.
+  the value's business and lasts as long as the instance does. A changed
+  dependency replaces the whole value, so state that is to survive a change
+  of the input does not belong in it.
 - **How it works.** A plain class kept in `@State` stores the last
   dependencies and the value built from them; `body` asks it on every render.
   Writing to a plain object during `body` is not a state write, so nothing

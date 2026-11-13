@@ -1313,7 +1313,9 @@ per dependency value, none for the unrelated render. `MemoViewTests` owns the
 compiled surface (both call forms typecheck in a body). Limits: one closure
 level per memoized value (a property-wrapper form was discussed, not built);
 an `@Observable` instance listed as a dependency compares by whatever its
-`Equatable` says — list the inputs, not the model.
+`Equatable` says — list the inputs, not the model; a changed dependency
+replaces the whole value (the pinned `taps 0` after `seed` → 2), so state
+that is to survive a change of the input does not belong in it.
 
 ## Logged-property family
 

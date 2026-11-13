@@ -57,7 +57,7 @@ by name, and a dependency that imports the layer has the macros too.
 | the cut, with own state logging at the write site | `@Shell` generates `Core`; `@TestState`, `@TestAction`, `@TestFocusState`, `@TestEnvironment` |
 | the scenario as a hosted UI test | `HostApp<Scenario>`, `uiTestLog()`, `CoreFlowUITesting` |
 | `@Query` as input: one shell owns the live query, content reads plain data | `QueryView` with `dependencies:`, `@QueryResult`, `.mockQuery` |
-| a value derived from inputs, kept across renders, not `@State(wrappedValue:)` in an `init` | `MemoView` |
+| a value derived from inputs, kept across renders, not `@State(wrappedValue:)` in an `init` | `MemoView` with `dependencies:`; a changed dependency replaces the whole value, so state that is to survive a change of the input stays out of it; a value the build reads and `dependencies:` leaves out is not followed |
 | work an event starts is a task the node holds, not a `Task` nobody holds; it cancels on replacement and on node removal | `@UnstructuredTask`; each assignment logs under the property's name with the value `task`, and the block declares it; a child that starts the work is handed `$download`, and its write cancels and logs the same; inside the task, write state through a `$binding` taken into the capture list, not through `self` |
 | capabilities: hand a consumer only the operations it needs, as a tuple | `@Capability` over a type or an extension |
 | slices: a tuple of the fields a node reads, from one or more sources | `#pick(from:)` |
