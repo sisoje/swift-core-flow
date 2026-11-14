@@ -62,7 +62,7 @@ by name, and a dependency that imports the layer has the macros too.
 | capabilities: hand a consumer only the operations it needs, as a tuple | `@Capability` over a type or an extension |
 | slices: a tuple of the fields a node reads, from one or more sources | `#pick(from:)` |
 | the memberwise `init` a data package needs public, and construction inputs as a tuple | `@Flowable` generates `init`, `InFlow`, `makeFlow(_:)` |
-| events up the tree and one closure back down the environment | `@FlowUp` with `.collectFlow` and `.onFlow`; the rule is general: when the event or the data behind a modifier comes from outside the app, the node that carries the modifier is a shell, whether or not a test could fake the source; `.onOpenURL`, `.onContinueUserActivity`, and `.onChange(of: scenePhase)` are examples; declare a flow, keep the system's modifier as one line in a root modifier that calls the flow, write the handling as a view that listens with `.onFlow`, and give its scenario a control that calls the flow |
+| events up the tree and one closure back down the environment | `@FlowUp` with `.collectFlow` and `.onFlow`; in a package the declaration is `@FlowUp public var`, in an extension that is not itself marked `public`; the rule is general: when the event or the data behind a modifier comes from outside the app, the node that carries the modifier is a shell, whether or not a test could fake the source; `.onOpenURL`, `.onContinueUserActivity`, and `.onChange(of: scenePhase)` are examples; declare a flow, keep the system's modifier as one line in a root modifier that calls the flow, write the handling as a view that listens with `.onFlow`, and give its scenario a control that calls the flow |
 
 ## The cut
 
