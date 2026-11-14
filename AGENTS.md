@@ -1028,7 +1028,7 @@ Both are Combine-era `ObservableObject` wrappers: ViewModel-shaped shared
 references whose aliases can mutate state around `Core`'s boundary, exactly the
 model this package's plain-data flow avoids. They are copied verbatim and receive
 no stand-in; model testable state with the mapped wrappers instead. See the
-`swiftui-mv-architecture` skill for the broader argument.
+`data-coupling` skill in sisoje/hypermodular for the broader argument.
 
 ### Verification
 
