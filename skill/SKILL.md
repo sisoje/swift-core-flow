@@ -85,8 +85,8 @@ and copying everything else verbatim: `@State` becomes `@TestState`,
 keeps it at the root, which is not cut), `@Query` becomes
 `@QueryResult`, `@FocusState` becomes `@TestFocusState`, `\.dismiss` and
 `\.openURL` become `@TestEnvironment`, which logs the call under its
-own name, `dismiss`, then runs the real action, so a test asserts that
-the sheet really closed by its log. A scenario constructs
+own name, `dismiss`, then runs the real action, so the log proves that
+the node asked to be dismissed. A scenario constructs
 `Node.Core(...)` through the memberwise initializer, which takes the
 copied `let`s, a `Binding` where the host had `@AppStorage` or
 `@SceneStorage`, and a bare array where it had `@Query`. A `@TestState`
@@ -281,10 +281,12 @@ let names = ["sortByAuthor", "deleteBook"]
 let log = app.logElement
 XCTAssertTrue(log.waitUntil(\.label, equals: String(decoding: try JSONEncoder().encode(names), as: UTF8.self), timeout: 10))
 XCTAssertEqual(log.logNames, names)
-XCTAssertEqual(log.logValues, ["true", "Dune"])
+XCTAssertEqual(log.logValues.first, "true")
 ```
 
-The names whole and in order, the values as the author sees fit.
+The names whole and in order. A value is asserted where it can be
+read, the flag here. A model logs as its type name, so its entry is
+asserted by its name alone.
 `waitUntil` takes any key path of the element whose value is
 `Equatable`, so a test can wait on `\.label`, on `\.value`, or on a
 count. A block that ends in a silence has nothing more to wait for.
