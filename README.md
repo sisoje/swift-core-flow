@@ -1136,6 +1136,43 @@ call on the main actor. The scoping is the feature: a `.collectFlow` for
 everything at the app root is the global bus you were supposed to be
 avoiding.
 
+### System events: one shell line, a tested core
+
+`.onOpenURL` and a change of `scenePhase` are fired by the system alone, so
+the modifier that hears one is a shell no test can drive. Keep it to one line
+in one place, a modifier at the root, below the accumulators, that only
+forwards:
+
+```swift
+extension EnvironmentValues {
+    @FlowUp var deeplink: (URL) -> Void
+    @FlowUp var scenePhaseChanged: (ScenePhase) -> Void
+}
+
+struct SystemEvents: ViewModifier {
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.scenePhaseChanged) private var scenePhaseChanged
+    @Environment(\.deeplink) private var deeplink
+
+    func body(content: Content) -> some View {
+        content
+            .onOpenURL { deeplink($0) }
+            .onChange(of: scenePhase) { _, phase in scenePhaseChanged(phase) }
+    }
+}
+
+ContentStack()
+    .modifier(SystemEvents())
+    .collectFlow(\.deeplink)
+    .collectFlow(\.scenePhaseChanged)
+```
+
+What the app does about the event is a view below that listens with
+`.onFlow`. Its scenario stands in for the system with a button that calls the
+flow, so the handling is tested and the forwarding line is not. A listener
+hears the event for as long as it is in the graph, covered by a pushed screen
+or sitting in an unselected tab included.
+
 ---
 
 ## Flowable

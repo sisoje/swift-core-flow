@@ -1710,7 +1710,16 @@ behavior is hosted: `FlowUpUITests` (order, a late listener, and isolation —
 a same-shaped second flow whose `other` leaf stays silent) and
 `FlowUpThrowsUITests` (the first listener logs and throws, the second is
 never called — first-throw-aborts and, by the same evidence, sequential
-execution). Payload-read-at-call-time is a design fact (the registration
+execution). Measured once in a scratch hosted app on the iOS 27.2
+simulator, not locked in `CoreFlowHosted`: a listener in a
+`NavigationStack`'s first screen is called by an emit from a screen pushed
+over it, a listener in the first `TabView` tab by an emit from the second,
+and a root modifier `.onChange(of: scenePhase) { scenePhaseChanged($1) }`
+below the accumulator delivered `active, inactive, background, inactive,
+active` to a listener across a Home press and return. The README's "System
+events" section rests on these: one forwarding modifier at the root for
+`.onOpenURL` and `scenePhase`, the handling in a listener a scenario can
+drive. Payload-read-at-call-time is a design fact (the registration
 refreshes its payload each body), not locked. Consumers reading the flow
 re-render on every collector render (closure value, never equal); see
 `Hosted scenarios` for what is and is not measurable.

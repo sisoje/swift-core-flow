@@ -62,7 +62,7 @@ by name, and a dependency that imports the layer has the macros too.
 | capabilities: hand a consumer only the operations it needs, as a tuple | `@Capability` over a type or an extension |
 | slices: a tuple of the fields a node reads, from one or more sources | `#pick(from:)` |
 | the memberwise `init` a data package needs public, and construction inputs as a tuple | `@Flowable` generates `init`, `InFlow`, `makeFlow(_:)` |
-| events up the tree and one closure back down the environment | `@FlowUp` with `.collectFlow` and `.onFlow` |
+| events up the tree and one closure back down the environment | `@FlowUp` with `.collectFlow` and `.onFlow`; a modifier only the system fires, `.onOpenURL`, `.onChange(of: scenePhase)`, is one line in a root modifier that forwards into a flow, the handling is a view that listens with `.onFlow`, and its scenario emits the flow with a control |
 
 ## The cut
 
