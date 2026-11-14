@@ -1716,7 +1716,9 @@ simulator, not locked in `CoreFlowHosted`: a listener in a
 over it, a listener in the first `TabView` tab by an emit from the second,
 and a root modifier `.onChange(of: scenePhase) { scenePhaseChanged($1) }`
 below the accumulator delivered `active, inactive, background, inactive,
-active` to a listener across a Home press and return. The README's "System
+active` to a listener across a Home press and return, and `.onOpenURL {
+deeplink($0) }` in the same modifier delivered a link the system opened, with
+the app running and from a cold launch. The README's "System
 events" section rests on these: one forwarding modifier at the root for
 `.onOpenURL` and `scenePhase`, the handling in a listener a scenario can
 drive. Payload-read-at-call-time is a design fact (the registration

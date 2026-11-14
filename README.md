@@ -1138,10 +1138,12 @@ avoiding.
 
 ### System events: one shell line, a tested core
 
-`.onOpenURL` and a change of `scenePhase` are fired by the system alone, so
-the modifier that hears one is a shell no test can drive. Keep it to one line
-in one place, a modifier at the root, below the accumulators, that only
-forwards:
+When the event or the data behind a modifier comes from outside the app, the
+view that carries the modifier is a shell, and its handling waits on the
+system. `.onOpenURL` and a change of `scenePhase` are two such sources, and
+any other is treated the same. Keep the system's own modifier to one line in
+one place, inside a `ViewModifier` at the root that is applied before the
+accumulators, so it sits inside them, and that only forwards:
 
 ```swift
 extension EnvironmentValues {
@@ -1170,8 +1172,9 @@ ContentStack()
 What the app does about the event is a view below that listens with
 `.onFlow`. Its scenario stands in for the system with a button that calls the
 flow, so the handling is tested and the forwarding line is not. A listener
-hears the event for as long as it is in the graph, covered by a pushed screen
-or sitting in an unselected tab included.
+hears the event for as long as it is in the graph. That includes a view
+covered by a pushed screen and one in an unselected tab, and a link that
+launches the app reaches a listener in the first screen.
 
 ---
 
