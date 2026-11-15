@@ -1134,7 +1134,8 @@ wins); subscription is view identity itself, so unmounting unregisters and
 nothing leaks; one typed channel per declared flow; delivery is a plain
 call on the main actor. The scoping is the feature: a `.collectFlow` for
 everything at the app root is the global bus you were supposed to be
-avoiding.
+avoiding. Collecting one flow twice on the same branch is the app's
+responsibility: the library does not check for it and no test covers it.
 
 ### System events: one shell line, a tested core
 

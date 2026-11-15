@@ -1691,6 +1691,10 @@ sets its own caller again on every pass.
   appearing no longer changes the environment value. Whether the readers
   of a flow are recomputed less for it was not measured. Zero listeners,
   or no accumulator installed, is the no-op.
+- Nested collectors of one flow are the user's responsibility (owner,
+  2026-11-15). The README states the intent, nesting shadows and the
+  nearest wins; nothing checks it and no test covers it, before the
+  caller object or after, on purpose.
 - Non-`Void` returns are diagnosed (no single combined result); first
   thrown error aborts remaining listeners; `async` runs sequentially in
   registration order; sibling order is preference-traversal order,
