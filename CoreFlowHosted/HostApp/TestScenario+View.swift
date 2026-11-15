@@ -12,6 +12,7 @@ extension TestScenario: View {
         case .memoView: MemoViewScenario()
         case .flowUp: FlowUpScenario()
         case .flowUpThrows: FlowUpThrowsScenario()
+        case .flowUpHeld: FlowUpHeldScenario()
         case .unstructuredTask: UnstructuredTaskScenario()
         case .shellCore: ShellCoreScenario()
         case .testState: TestStateScenario()

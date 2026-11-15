@@ -9,6 +9,7 @@ enum TestScenario: Codable {
     case memoView
     case flowUp
     case flowUpThrows
+    case flowUpHeld
     case unstructuredTask
     case shellCore
     case testState

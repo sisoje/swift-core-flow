@@ -493,6 +493,15 @@ The other scenarios, each one UI test unless noted:
   with two leaves — `first` logs then throws `SaveFailure`, `second` logs —
   and a caller that awaits the combined closure and logs the result. Pinned
   log: `send hi, first hi, result SaveFailure()`; `second` never runs.
+- `FlowUpHeldScenario` / `FlowUpHeldUITests`: a closure held longer than
+  one pass. The sender's `.task` takes the flow's closure once, before any
+  listener has registered, and calls it for each value its button yields
+  into an `AsyncStream`; two leaves sit behind a `@TestState` flag a
+  toggle flips. Pinned log: `send hi, first hi, second hi, shown false,
+  send hi, shown true, send hi, first hi, second hi` — both listeners,
+  then none while they are out of the tree, then the two that came back.
+  Run once against the code before the caller object: the log was `send,
+  shown, send, shown, send`, no listener ever reached.
 - `UnstructuredTaskScenario` / `UnstructuredTaskUITests` (three tests): hiding
   the `Worker` cancels a task whose closure does NOT capture the view
   (`Task { [log] in … }`) — `work task, showWorker false, cancelled work,
@@ -1677,10 +1686,11 @@ sets its own caller again on every pass.
   app, a `.task` created on the first pass emitted to nobody. Measured
   with the caller, same app: that task is heard, from a cold launch too;
   listeners removed and put back twice, the held closure reached each new
-  set and nothing while there was none. The caller is one object for the
-  collector's life, so a registration appearing no longer changes the
-  environment and the readers of a flow are not recomputed for it. Zero
-  listeners, or no accumulator installed, is the no-op.
+  set and nothing while there was none; `FlowUpHeldUITests` pins it. The
+  caller is one object for the collector's life, so a registration
+  appearing no longer changes the environment value. Whether the readers
+  of a flow are recomputed less for it was not measured. Zero listeners,
+  or no accumulator installed, is the no-op.
 - Non-`Void` returns are diagnosed (no single combined result); first
   thrown error aborts remaining listeners; `async` runs sequentially in
   registration order; sibling order is preference-traversal order,
@@ -1731,7 +1741,9 @@ behavior is hosted: `FlowUpUITests` (order, a late listener, and isolation —
 a same-shaped second flow whose `other` leaf stays silent) and
 `FlowUpThrowsUITests` (the first listener logs and throws, the second is
 never called — first-throw-aborts and, by the same evidence, sequential
-execution). Measured once in a scratch hosted app on the iOS 27.2
+execution), and `FlowUpHeldUITests` (a closure a `.task` holds from its
+first pass reaches the listeners that are there when it calls, through
+their removal and return). Measured once in a scratch hosted app on the iOS 27.2
 simulator, not locked in `CoreFlowHosted`: a listener in a
 `NavigationStack`'s first screen is called by an emit from a screen pushed
 over it, a listener in the first `TabView` tab by an emit from the second,
@@ -2139,7 +2151,7 @@ Exact API owners:
   `UnstructuredTaskTests` owns task-macro and Shell re-expansion;
   `FlowUpExpansionTests` owns FlowUp expansion and diagnostics; `FlowUpTests`
   owns the public surface compiled (empty defaults, typechecking); behavior
-  is `FlowUpUITests`/`FlowUpThrowsUITests`.
+  is `FlowUpUITests`/`FlowUpThrowsUITests`/`FlowUpHeldUITests`.
 - `CapabilityExpansionTests` owns Capability expansion and diagnostics;
   `CapabilityTests` (compiled) owns the runtime shape: computed values
   freeze at capture, method closures stay live on a class.
