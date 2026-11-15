@@ -25,9 +25,9 @@ final class FlowUpExpansionTests: XCTestCase {
             extension EnvironmentValues {
                 var handleUrl: (URL) async throws -> Void {
                     get {
-                        let wrappers = self.handleUrl_closures
+                        let caller = self.handleUrl_closures
                         return { a0 in
-                            for wrapper in wrappers {
+                            for wrapper in caller.wrappers {
                                 for closure in wrapper.closures {
                                     try await closure(a0)
                                 }
@@ -37,12 +37,10 @@ final class FlowUpExpansionTests: XCTestCase {
                 }
 
                 enum handleUrl_Key: EnvironmentKey {
-                    static var defaultValue: [_FlowUpClosure<(URL) async throws -> Void>] {
-                        []
-                    }
+                    static let defaultValue = _FlowUpCaller<(URL) async throws -> Void>()
                 }
 
-                fileprivate var handleUrl_closures: [_FlowUpClosure<(URL) async throws -> Void>] {
+                fileprivate var handleUrl_closures: _FlowUpCaller<(URL) async throws -> Void> {
                     get {
                         self[handleUrl_Key.self]
                     }
@@ -72,9 +70,9 @@ final class FlowUpExpansionTests: XCTestCase {
             extension EnvironmentValues {
                 var refresh: () -> Void {
                     get {
-                        let wrappers = self.refresh_closures
+                        let caller = self.refresh_closures
                         return {
-                            for wrapper in wrappers {
+                            for wrapper in caller.wrappers {
                                 for closure in wrapper.closures {
                                     closure()
                                 }
@@ -84,12 +82,10 @@ final class FlowUpExpansionTests: XCTestCase {
                 }
 
                 enum refresh_Key: EnvironmentKey {
-                    static var defaultValue: [_FlowUpClosure<() -> Void>] {
-                        []
-                    }
+                    static let defaultValue = _FlowUpCaller<() -> Void>()
                 }
 
-                fileprivate var refresh_closures: [_FlowUpClosure<() -> Void>] {
+                fileprivate var refresh_closures: _FlowUpCaller<() -> Void> {
                     get {
                         self[refresh_Key.self]
                     }
@@ -120,9 +116,9 @@ final class FlowUpExpansionTests: XCTestCase {
             extension EnvironmentValues {
                 public var shared: (Int, String) -> Void {
                     get {
-                        let wrappers = self.shared_closures
+                        let caller = self.shared_closures
                         return { a0, a1 in
-                            for wrapper in wrappers {
+                            for wrapper in caller.wrappers {
                                 for closure in wrapper.closures {
                                     closure(a0, a1)
                                 }
@@ -132,12 +128,10 @@ final class FlowUpExpansionTests: XCTestCase {
                 }
 
                 public enum shared_Key: EnvironmentKey {
-                    public static var defaultValue: [_FlowUpClosure<(Int, String) -> Void>] {
-                        []
-                    }
+                    public static let defaultValue = _FlowUpCaller<(Int, String) -> Void>()
                 }
 
-                fileprivate var shared_closures: [_FlowUpClosure<(Int, String) -> Void>] {
+                fileprivate var shared_closures: _FlowUpCaller<(Int, String) -> Void> {
                     get {
                         self[shared_Key.self]
                     }
@@ -167,9 +161,9 @@ final class FlowUpExpansionTests: XCTestCase {
             extension EnvironmentValues {
                 var ping: @MainActor (Int) -> Void {
                     get {
-                        let wrappers = self.ping_closures
+                        let caller = self.ping_closures
                         return { a0 in
-                            for wrapper in wrappers {
+                            for wrapper in caller.wrappers {
                                 for closure in wrapper.closures {
                                     closure(a0)
                                 }
@@ -179,12 +173,10 @@ final class FlowUpExpansionTests: XCTestCase {
                 }
 
                 enum ping_Key: EnvironmentKey {
-                    static var defaultValue: [_FlowUpClosure<@MainActor (Int) -> Void>] {
-                        []
-                    }
+                    static let defaultValue = _FlowUpCaller<@MainActor (Int) -> Void>()
                 }
 
-                fileprivate var ping_closures: [_FlowUpClosure<@MainActor (Int) -> Void>] {
+                fileprivate var ping_closures: _FlowUpCaller<@MainActor (Int) -> Void> {
                     get {
                         self[ping_Key.self]
                     }

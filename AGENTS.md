@@ -92,7 +92,7 @@ and fix every sentence it misreads.
 | `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`FlowableTests`, `ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `MemoViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `TestEnvironmentTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
 
 Public machinery that only macro expansions name — `_TaskStorage`,
-`_CancellableTask`, `_FlowUpClosure`, `_FlowUpID` — is `_`-prefixed, Apple's
+`_CancellableTask`, `_FlowUpClosure`, `_FlowUpCaller`, `_FlowUpID` — is `_`-prefixed, Apple's
 convention for public-but-not-API: expansions land in the consumer's module,
 so the types must be public, but the README never names them and user code
 never should. `TestLog` is the exception: hand-written `@TestLog` is API.
@@ -1620,10 +1620,15 @@ policy); declaration plus the runtime in `Sources/CoreFlow/FlowUp.swift`.
 
 Runtime (stable, generic): `_FlowUpClosure<Closure>` — the listener box,
 `===`/ObjectIdentifier equality, `internal(set)` payload array,
+`@unchecked Sendable`; `_FlowUpCaller<Closure>` — one per collector, the
+collector's single environment value for its whole life, holding the
+current listener boxes (`internal(set)`), `===` equality,
 `@unchecked Sendable`; `_FlowUpID<Tag, Closure>` — public init, internal
-keypath; internal `FlowUpPreferenceKey<Tag, Closure>` (bare wrapper-array
-value, append reduce), internal `FlowUpRegistration` and
-`FlowUpAccumulator` modifiers; public `View.onFlow(_:_:)` / `collectFlow(_:)`
+keypath to the caller; internal `FlowUpPreferenceKey<Tag, Closure>` (bare
+wrapper-array value, append reduce), internal `FlowUpRegistration` and
+`FlowUpAccumulator` modifiers — the accumulator keeps ONE caller in
+`@State`, sets it into the environment on every pass, and writes the
+collected boxes into it on a preference change; public `View.onFlow(_:_:)` / `collectFlow(_:)`
 generic over a metatype-rooted keypath
 (`KeyPath<EnvironmentValues.Type, _FlowUpID<Tag, Closure>>`, SE-0438).
 
@@ -1637,8 +1642,12 @@ part of the runtime contract (built, reverted 2026-09-15); a caller logs its
 own `send` line where it wants evidence; a key enum that
 is BOTH the `EnvironmentKey` and the per-name preference tag (one
 `defaultValue` witnesses only `EnvironmentKey` — the preference key is the
-runtime generic — and must be a *computed* static: a stored `static let`
-of the non-Sendable array is a strict-concurrency error, verified); the
+runtime generic — and is a stored `static let` of one empty
+`_FlowUpCaller`, legal because the caller is `@unchecked Sendable`, and
+shared by every tree with no collector, which nothing writes; until
+2026-11-15 the value was the bare wrapper array, whose default had to be a
+*computed* static, a stored `static let` of the non-Sendable array being a
+strict-concurrency error, verified); the
 fileprivate settable entry over that key; and a same-named `static`
 returning `_FlowUpID` — legal because static and instance members may share
 a name, resolved without ambiguity in both keypath positions (verified
@@ -1647,7 +1656,7 @@ static (the static's return type names the key), so a public anchor
 exports the flow; the entry stays fileprivate — keypaths carry the access
 rights of where they were formed. A public key makes
 `self[key.self]` writable by consumers; accepted — the accumulator
-clobbers manual writes on the next preference change.
+sets its own caller again on every pass.
 
 ### Semantics
 
@@ -1659,14 +1668,26 @@ clobbers manual writes on the next preference change.
   reset — a genuine re-registration) fires the accumulator. Publishing is
   `transformPreference` append, so chained same-flow `.on` on one view
   keeps both registrations under either nested-preference semantics.
-- The combined closure captures boxes and reads payloads at call time —
-  never stale. Zero listeners, or no accumulator installed, is the no-op.
+- The combined closure captures the collector's caller and reads its
+  listener list, and each payload, at call time — never stale. A closure
+  held longer than one pass (a `.task`, a delegate, a stored callback)
+  reaches a listener registered later and stops reaching one that left.
+  Until 2026-11-15 it captured the listener ARRAY at read time, so such a
+  holder called the listeners of that pass forever; measured in a hosted
+  app, a `.task` created on the first pass emitted to nobody. Measured
+  with the caller, same app: that task is heard, from a cold launch too;
+  listeners removed and put back twice, the held closure reached each new
+  set and nothing while there was none. The caller is one object for the
+  collector's life, so a registration appearing no longer changes the
+  environment and the readers of a flow are not recomputed for it. Zero
+  listeners, or no accumulator installed, is the no-op.
 - Non-`Void` returns are diagnosed (no single combined result); first
   thrown error aborts remaining listeners; `async` runs sequentially in
   registration order; sibling order is preference-traversal order,
   documented as unspecified.
 - Main-actor contract: register and invoke on the main actor.
-  `_FlowUpClosure` is `@unchecked Sendable` backed by that contract, and
+  `_FlowUpClosure` and `_FlowUpCaller` are `@unchecked Sendable` backed by
+  that contract, and
   the claim is REQUIRED: a `@MainActor`-typed flow makes the accessor's
   returned closure isolated, and sending the array into it is a
   region-isolation error without Sendable (found by a compiled probe that sent the array into a `@MainActor` flow). Per-flow enforcement is free:

@@ -9,8 +9,10 @@ import SwiftSyntaxMacros
 /// the per-name tag keying the preference channel (hand-rolled — native
 /// `@Entry` refuses to expand inside another macro's expansion buffer: its
 /// container check cannot see the extension from there, verified
-/// directly), the fileprivate settable entry holding the bare wrapper
-/// array, and a same-named `static` `_FlowUpID`
+/// directly), the fileprivate settable entry holding the collector's
+/// caller object, whose listeners the closure reads when it is called,
+/// so a closure held longer than one pass still reaches the current
+/// listeners, and a same-named `static` `_FlowUpID`
 /// (legal — static and instance members may share a name) that `on` /
 /// `accumulate` resolve through a metatype-rooted keypath, so one name
 /// spells every call site.
@@ -36,9 +38,9 @@ public enum FlowUpMacro: AccessorMacro, PeerMacro {
         return [
             """
             get {
-                let wrappers = self.\(raw: anchor.name)_closures
+                let caller = self.\(raw: anchor.name)_closures
                 return {\(raw: signature)
-                    for wrapper in wrappers {
+                    for wrapper in caller.wrappers {
                         for closure in wrapper.closures {
                             \(raw: anchor.effects)closure(\(raw: arguments))
                         }
@@ -61,13 +63,11 @@ public enum FlowUpMacro: AccessorMacro, PeerMacro {
         return [
             """
             \(raw: anchor.access)enum \(raw: anchor.name)_Key: EnvironmentKey {
-                \(raw: anchor.access)static var defaultValue: [_FlowUpClosure<\(raw: typeText)>] {
-                    []
-                }
+                \(raw: anchor.access)static let defaultValue = _FlowUpCaller<\(raw: typeText)>()
             }
             """,
             """
-            fileprivate var \(raw: anchor.name)_closures: [_FlowUpClosure<\(raw: typeText)>] {
+            fileprivate var \(raw: anchor.name)_closures: _FlowUpCaller<\(raw: typeText)> {
                 get {
                     self[\(raw: anchor.name)_Key.self]
                 }

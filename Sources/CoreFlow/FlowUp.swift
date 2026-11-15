@@ -21,10 +21,23 @@ public final class _FlowUpClosure<Closure>: Equatable, @unchecked Sendable {
     }
 }
 
-public struct _FlowUpID<Tag, Closure> {
-    let keyPath: WritableKeyPath<EnvironmentValues, [_FlowUpClosure<Closure>]>
+/// One per collector, the same object in the environment for the collector's
+/// whole life. The flow's closure reads `wrappers` when it is called, so a
+/// closure held longer than one pass still reaches the current listeners.
+public final class _FlowUpCaller<Closure>: Equatable, @unchecked Sendable {
+    public internal(set) var wrappers: [_FlowUpClosure<Closure>] = []
 
-    public init(keyPath: WritableKeyPath<EnvironmentValues, [_FlowUpClosure<Closure>]>) {
+    public init() {}
+
+    public static func == (lhs: _FlowUpCaller, rhs: _FlowUpCaller) -> Bool {
+        lhs === rhs
+    }
+}
+
+public struct _FlowUpID<Tag, Closure> {
+    let keyPath: WritableKeyPath<EnvironmentValues, _FlowUpCaller<Closure>>
+
+    public init(keyPath: WritableKeyPath<EnvironmentValues, _FlowUpCaller<Closure>>) {
         self.keyPath = keyPath
     }
 }
@@ -58,16 +71,16 @@ struct FlowUpRegistration<Tag, Closure>: ViewModifier {
 }
 
 struct FlowUpAccumulator<Tag, Closure>: ViewModifier {
-    let keyPath: WritableKeyPath<EnvironmentValues, [_FlowUpClosure<Closure>]>
+    let keyPath: WritableKeyPath<EnvironmentValues, _FlowUpCaller<Closure>>
 
-    @State private var listeners: [_FlowUpClosure<Closure>] = []
+    @State private var caller = _FlowUpCaller<Closure>()
 
     func body(content: Content) -> some View {
         content
-            .onPreferenceChange(FlowUpPreferenceKey<Tag, Closure>.self) { listeners in
-                self.listeners = listeners
+            .onPreferenceChange(FlowUpPreferenceKey<Tag, Closure>.self) { [caller] listeners in
+                caller.wrappers = listeners
             }
-            .environment(keyPath, listeners)
+            .environment(keyPath, caller)
     }
 }
 
