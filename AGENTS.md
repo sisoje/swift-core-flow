@@ -84,12 +84,12 @@ and fix every sentence it misreads.
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one `@main` `CompilerPlugin` listing all of them. One file per macro (`FlowableMacro.swift`, `ShellMacro.swift`, `CapabilityMacro.swift`, `PickMacro.swift`, `TestSupportMacros.swift` — that one holds `@TestState` + `@TestAction` — `TestFocusStateMacro.swift` — `@TestFocusState` + `@TestAccessibilityFocusState`, one shared expansion — `TestEnvironmentMacro.swift`, `UnstructuredTaskMacro.swift`, and `FlowUpMacro.swift`), plus shared stored-property collection + rendering (`StoredProperty.swift`, `MemberMacroEntry.swift`, `FieldRendering.swift`, `FlowableRendering.swift`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), `MemoView.swift` (public `MemoView`, a value memoized by caller-listed dependencies, over the internal `Memo` class; `QueryView` is built on it; see `MemoView`), and the `Experimental/` directory — kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection, the one implementation-dependent technique; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:sectionBy:sortBy:)`, a genuine value of Apple's sealed type from a throwaway container and the public `ResultsObserver`; see the `QueryResult` section) |
+| `CoreFlow` | library | every macro's public attribute/expression declaration, one file per macro (`Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory — `TestLog.swift` (`testLog`, `TestLog`), `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift` — `UnstructuredTask.swift` — `@UnstructuredTask` plus its runtime `_TaskStorage`/`_CancellableTask` — and `FlowUp.swift` — `@FlowUp` plus its runtime `_FlowUpClosure`/`_FlowUpID` and the `onFlow`/`collectFlow` View extensions), plus the non-macro additions: `QueryResult.swift` (`@Query`'s drop-in stand-in on `Core`, see the `@Shell` notes), `QueryView.swift` (the live `@Query` → `QueryResult` shell: public `QueryView` + `View.mockQuery`, internal transform seam, container-seeding as the second mock path; see the `QueryResult` section), `MemoView.swift` (public `MemoView`, a value memoized by caller-listed dependencies, over the internal `Memo` class; `QueryView` is built on it; see `MemoView`), `LazyQuery.swift` (public `LazyQuery`, the dependencies and the deferred query a service member answers, opaque; public `QueryUtilities.lazy`, which makes such a member from a query expression; and the `QueryView` initializer that takes one; see `LazyQuery` under the `QueryResult` section), and the `Experimental/` directory — kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection, the one implementation-dependent technique; pairs with `@Flowable`, see below) and `SectionedResults+Mock.swift` (`SectionedResults.mock(_:sectionBy:sortBy:)`, a genuine value of Apple's sealed type from a throwaway container and the public `ResultsObserver`; see the `QueryResult` section) |
 | `CoreFlowUITestHost` | library, test-only host apps | `HostApp.swift`: `HostApp<Scenario: Decodable & View>`, an `App` whose one window shows the scenario decoded from the launch environment under `uiTestLog`, nothing without a payload; the host's `main.swift` is `HostApp<MyScenario>.main()`, since a generic type cannot be `@main`. `View+UITestLog.swift`: `View.uiTestLog()`, the sink's UI-test end (design record under `Hosted scenarios`). Imports `CoreFlow`, `CoreFlowUITestShared` and SwiftUI, never XCTest, so the host app links it like any library. Consumer: `CoreFlowHosted/HostApp` |
 | `CoreFlowUITestShared` | target, no product | `UITestNames.swift` and `JsonUtils.swift`, `package` access: the environment variable, the log element's identifier, and JSON encode/decode — the agreement between the host and its tests, which both products depend on and no consumer can import |
 | `CoreFlowUITesting` | library, UI-test bundles only | `XCUIApplication+Launch.swift`: `launch(_ payload:)`, the test's launcher. `XCUIElement+Log.swift`: `XCUIApplication.logElement` (any type) and `XCUIElement.logNames`/`logValues`. `XCUIElement+Platforms.swift`, one spelling for every destination, chosen at compile time: `valueOrLabel` (a `Text`'s content: `label` on UIKit, `value` on macOS, where a text's label is empty), `tapOrClick()` (on macOS a click at the element's centre, since `click()` missed a button; `click()` on Catalyst; `tap()` on iOS and visionOS; on tvOS it fails the test, tvOS input is `XCUIRemote`), `XCUIApplication.switchOrCheckBox(_:)` (a `Toggle`'s control: a checkbox on macOS, one switch on visionOS, elsewhere the switch inside the labeled switch element), and `XCUICoordinate.pressOrClick(forDuration:thenDragTo:)` (the drag under the same split, absent on tvOS: `XCUICoordinate` is not declared there). `XCUIElement+Wait.swift`: `waitUntil(_:equals:timeout:)` (reads the property back to back until it matches, no interval — NOT named `wait(for:toEqual:timeout:)`: XCUIAutomation ships a method with that exact signature, which shadowed the package's, so the tests had been running Apple's; Apple's and `waitForExistence(timeout:)` sit ~1.03–1.06 s before their first check even when the condition already holds (timeline-probed), 63 waits in the suite. With `waitUntil` for every wait, existence included (`waitUntil(\.exists, equals: true, …)`), a 10-test sample on Catalyst went from 80 s to 44 s — `FocusBinding` 11.6 → 4.0 s, `MemoView` 9.1 → 3.9 s, 2026-09-30). Imports XCTest, so it is its own product, and `CoreFlowUITestShared`. Consumer: `CoreFlowHosted/UITests` |
 | `CoreFlowExpansionTests` | test (XCTest) | every `assertMacroExpansion` snapshot and diagnostic, one file per macro (`FlowableExpansionTests`, `ShellExpansionTests`, `CapabilityExpansionTests`, `PickExpansionTests`, `TestStateExpansionTests`, `TestActionExpansionTests`, `TestFocusStateExpansionTests`, `TestAccessibilityFocusStateExpansionTests`, `TestEnvironmentExpansionTests`, `UnstructuredTaskExpansionTests`, `FlowUpExpansionTests`); depends on `CoreFlowMacros` + `SwiftSyntaxMacrosTestSupport`, never on the product |
-| `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`FlowableTests`, `ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `MemoViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `TestEnvironmentTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
+| `CoreFlowTests` | test (XCTest + swift-testing, same target) | every compiled/runtime suite, one file per API, against the product only (`FlowableTests`, `ShellTests`, `CapabilityTests`, `QueryResultTests`, `QueryViewTests`, `LazyQueryTests`, `MemoViewTests`, `SectionedResultsMockTests`, `TestStateTests`, `TestActionTests`, `TestEnvironmentTests`, `UnstructuredTaskTests`, `FlowUpTests`, `PickTests`, `ReflectorTests`) |
 
 Public machinery that only macro expansions name — `_TaskStorage`,
 `_CancellableTask`, `_FlowUpClosure`, `_FlowUpCaller`, `_FlowUpID` — is `_`-prefixed, Apple's
@@ -350,9 +350,9 @@ guard failing on any `SF:` outside `Sources/CoreFlow/`; and every
 `CoreFlowTests`/`CoreFlowHostApp` binary in the runs' `Products` is passed
 — locally one per destination tested — a function present in two is loaded
 once (no `#if` in `Sources/CoreFlow`), a platform-only one would read as
-zero from the other platform's run. Verified 2026-10-23 on the iPhone 18
-Pro simulator: exactly the 9 code files (the other 8 are macro
-declarations), 23 UI tests green.
+zero from the other platform's run. Verified 2026-11-16 on the iPhone 18
+Pro simulator: exactly the 10 code files (the other 8 are macro
+declarations), 25 UI tests green.
 
 Every boundary event is log evidence, the package's own way: `@TestState`
 writes log themselves, and `QueryViewSortScenario.build()` logs `("query",
@@ -468,6 +468,16 @@ The other scenarios, each one UI test unless noted:
   `animated 1, unrelated 1, animated 2`: each insert animates, the second
   after the memo handed the stored query back, and the unrelated write
   carries none.
+- `LazyQueryScenario` / `LazyQueryUITests`: `QueryViewSortScenario`'s gated
+  claim through a service member. `QueryUtilities.lazy { descending in … }`
+  is made in `body` and called there on every render, its expression logging
+  `("query", order)` through `@TestLog`, and
+  `QueryView(sortedBooks(sortDescending))` hosts it over the same seeded
+  container. Pinned: the EXACT gated log, `query, unrelated, unrelated,
+  unrelated, sortDescending, query`, values `forward, 1, 2, 3, true, reverse`
+  — calling the member builds nothing, the argument is the dependency, and no
+  list is written anywhere in the scenario. `LazyQuery.swift` is covered
+  whole by the two suites (17 of 17 lines, 2026-11-16).
 - `MemoViewScenario` / `MemoViewUITests`: a parent value handed to a child
   that builds an `@Observable` model from it — the `@State` child keeps the
   first value, the `MemoView` child follows it and keeps its instance across
@@ -1290,6 +1300,72 @@ forms can go stale silently — a forgotten dependency by hand, a bare helper
 under the macro — so the macro bought one line (`let search = search` above a
 predicate) for ~170 lines and a spelling rule. Do not retry without a way to
 see the view's members.
+
+### `LazyQuery`
+
+`Sources/CoreFlow/LazyQuery.swift` removes the stale-dependency hazard
+without seeing the caller's members: a query that takes its inputs as
+ARGUMENTS has its dependencies by construction. They are the arguments.
+PUBLIC surface, three declarations. `LazyQuery<Element: PersistentModel,
+Result>` is a struct holding `dependencies: [any Equatable]` and `query: () ->
+Query<Element, Result>`, both INTERNAL, with no public initializer, so it
+cannot be opened or built outside the package. `QueryUtilities.lazy(_:)` is a
+static function in a caseless enum (the shape of swift-composable-networking's
+`ClosureUtilities.unimplemented`), generic over `each Argument: Equatable`,
+`Element`, `Result`: it takes `(repeat each Argument) -> Query<Element,
+Result>` and returns `(repeat each Argument) -> LazyQuery<Element, Result>`,
+a closure that appends each argument to the dependency array and defers
+`query(repeat each argument)`. `QueryView.init(_ lazy: LazyQuery<Element,
+Result>, content:)` is `self.init(query: lazy.query(), dependencies:
+lazy.dependencies, content:)`: the same memo and the same transform seam, so
+`.mockQuery` and a seeded container behave as on the other initializer. The
+function types carry no isolation, like `QueryView`'s own `query` parameter;
+the caller forms its closures in a main-actor context.
+
+The contract a consumer writes (README chapter `LazyQuery`, its sample
+probe-compiled verbatim; the same shape is `LazyQueryTests`' `SongQueries`):
+a struct whose members are named closure types answering `LazyQuery`, `let
+sorted: (_ byArtist: Bool, _ descending: Bool) -> LazyQuery<Song, [Song]>`,
+and whose initializer takes the plain query expressions and assigns
+`self.sorted = QueryUtilities.lazy(sorted)`. The definition is then bare
+closures returning `Query`, and the use is `QueryView(queries.sorted(byArtist,
+descending)) { $songs in … }`. Each member is written three times in the
+contract: the member, the initializer parameter, the `lazy` line. A macro
+writing that initializer is not built.
+
+Ruling (2026-11-16): whoever provides the arguments gets the equatable
+dependency array back for free, and the solution is to be error free. That
+excludes every shape in which a dependency list is written by hand, in the
+service or at the call site, and every shape in which a caller can hold the
+`Query` without its dependencies. Hence the opacity.
+
+Verified: `LazyQueryTests` (compiled, `@testable`): `sorted(true, false)` has
+the dependencies `true, false`; calling the member runs the expression zero
+times and `lazy.query()` once; a member with no arguments has none; both call
+forms typecheck in a body. Hosted: `LazyQueryScenario` / `LazyQueryUITests`
+(see `Hosted scenarios`).
+
+Rejected along the way (2026-11-16), built green unless noted. (1) A free
+function `lazyQuery { … }`, refused as a spelling; the static in an enum
+replaced it, and the enum is not named `Lazy`, too common a word. (2) A
+callable struct `QueryFactory<Element, Result, each Argument: Equatable>` with
+`callAsFunction` as the member's type: the member reads `QueryFactory<Book,
+[Book], Bool, Bool>`, so the argument names leave the contract, and the
+definition writes `.init { … }` or `QueryFactory { … }`. (3) Members answering
+a plain `Query`, with a `QueryView` initializer taking the member and a pack of
+arguments, `QueryView(queries.books, sortByAuthor, descending)`: one line per
+query in the contract, but a caller can still call the member itself and hand
+`QueryView(query:dependencies:)` a list of its own, the error the ruling
+excludes. (4) A public pack initializer on `LazyQuery`, written inside each
+member, `LazyQuery(sortByAuthor, descending) { Query(…) }`: the list is by
+hand again. (5) NOT buildable: a `@dynamicMemberLookup` wrapper over a struct
+of plain query closures, to keep the contract at one line per query without a
+macro. A subscript over `KeyPath<Queries, (repeat each Argument) ->
+Query<Element, Result>>` fails at `queries[keyPath: keyPath]` with `cannot
+fully abstract a value of variadic function type '(repeat each Argument) ->
+Query<Element, Result>' because different contexts will not be able to
+reliably agree on a calling convention; try wrapping it in a struct` (Swift
+6.4.2), and wrapping it in a struct is (2).
 
 ## `MemoView`
 
@@ -2121,7 +2197,7 @@ behavior.
 | overload resolution and tuple KeyPaths | compiled end-to-end test | `PickTests` |
 | wrapper SDK parity | pinned swiftinterface inspection plus compiled use | Shell/QueryResult evidence |
 | logging order, focus, environment installation | hosted scenario/UI test | `CoreFlowHosted` (`TestStateUITests`, `TestActionUITests`, `TestFocusStateUITests`, `TestAccessibilityFocusStateUITests`, `ShellCoreUITests`, `TestEnvironmentUITests`, `ViewModifierCoreUITests`) |
-| MemoView rebuild-on-dependency and keep-otherwise, QueryView dependency gating, container-free `mockQuery`, sectioned live/mock rendering, live `modelContext`, FlowUp end to end, task teardown, hosted `Core` (`@TestState` + `@AppStorage`→`Binding` write-through), `@TestAction` logging, `@TestFocusState`, `@GestureState(reset:)` on `Core` | hosted scenario/UI test | `CoreFlowHosted` (one `*UITests` per scenario) |
+| MemoView rebuild-on-dependency and keep-otherwise, QueryView dependency gating, a `LazyQuery`'s arguments gating its query, container-free `mockQuery`, sectioned live/mock rendering, live `modelContext`, FlowUp end to end, task teardown, hosted `Core` (`@TestState` + `@AppStorage`→`Binding` write-through), `@TestAction` logging, `@TestFocusState`, `@GestureState(reset:)` on `Core` | hosted scenario/UI test | `CoreFlowHosted` (one `*UITests` per scenario) |
 | binding write-through | compiled/runtime test | `ShellTests`, `ShellCoreUITests` |
 | task replacement and teardown | hosted scenario/UI test | `UnstructuredTaskUITests` (assign, clear-to-`nil` cancels, teardown cancels) — the box is never tested directly, only through its wrapper |
 | reflection labels | runtime test | `ReflectorTests` |
@@ -2141,6 +2217,10 @@ Exact API owners:
   `MockQueryTransform`'s registry hit plus both empty
   fallbacks; `mockQuery`
   hosted behavior is `MockQueryResultsUITests`/`QueryViewSectionedUITests` in `CoreFlowHosted`;
+  `LazyQueryTests` owns the LazyQuery surface compiled (a member's
+  arguments as its dependencies, the expression deferred until asked, both
+  call forms typechecking in a body), its hosted behavior is
+  `LazyQueryUITests`;
   `MemoViewTests` owns the MemoView surface compiled, its behavior is
   `MemoViewUITests`;
   `SectionedResultsMockTests` owns the sectioned-mock runtime behavior

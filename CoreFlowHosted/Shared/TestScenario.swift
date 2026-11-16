@@ -6,6 +6,7 @@ enum TestScenario: Codable {
     case queryViewSectionedLive
     case queryViewSectionedMocked
     case queryViewInsert
+    case lazyQuery
     case memoView
     case flowUp
     case flowUpThrows

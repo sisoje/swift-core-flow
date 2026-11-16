@@ -3,11 +3,12 @@ name: swift-core-flow
 description: >
   Adopting swift-core-flow inside the hypermodular method: the @Shell cut
   that generates a testable Core, @TestState and @TestAction logging at
-  the write site, QueryView and @QueryResult for SwiftData, scenarios,
+  the write site, QueryView, @QueryResult and LazyQuery for SwiftData, scenarios,
   the HostApp test host, and the CoreFlowUITesting bundle that asserts
   the execution log. Use when writing or reviewing code that mentions
   @Shell, Core, @TestState, @TestAction, @TestLog, QueryView,
-  @QueryResult, HostApp, uiTestLog, logElement, or when adding
+  @QueryResult, LazyQuery, QueryUtilities, HostApp, uiTestLog,
+  logElement, or when adding
   swift-core-flow to a package or an Xcode project. The README beside
   this file is the per-macro reference. The data-coupling skill in
   sisoje/hypermodular is the doctrine this mechanizes.
@@ -166,6 +167,19 @@ static function on the shell, `Library.query(sortByAuthor:)`, so the
 test runs the very expression the shell runs; the shell's own wiring of
 it into its `QueryView` is read, not tested, since the delivered array
 is inside the node and no contract line exposes it.
+
+A query asked from a service has no list to forget. The contract is a
+struct whose members answer a `LazyQuery`, `let books: (_ sortByAuthor:
+Bool) -> LazyQuery<Book, [Book]>`. Its initializer takes the plain query
+expression and assigns `self.books = QueryUtilities.lazy(books)`. The
+store writes the expression once, `books: { sortByAuthor in Query(sort:
+…) }`, and the shell writes `QueryView(queries.books(sortByAuthor)) {
+$books in … }`. Whoever provides the arguments gets the dependencies
+back for free, since the arguments are the dependencies. Calling the
+member builds nothing, and the query is built when an argument changes.
+A `LazyQuery` cannot be opened or built by hand, so a query does not
+travel without the values it was built from. `.mockQuery` and a seeded
+container work the same as under `QueryView(query:dependencies:)`.
 
 ## Scenario
 

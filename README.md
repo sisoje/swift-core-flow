@@ -45,6 +45,10 @@ to a subtree.
   `QueryResult` (`{ $books in … }`), so content reads plain data in production
   and tests alike. The query is rebuilt only when `dependencies:` changes:
   the values that take part in the `Query` init, those and only those.
+- [`LazyQuery`](#lazyquery) (value) is a query asked from a service and not
+  built yet. `QueryUtilities.lazy` turns a query expression into a service
+  member; whoever calls it with arguments gets the dependencies back for
+  free, since they are the arguments, and `QueryView` takes the value whole.
 - [`@QueryResult`](#queryresult) (property wrapper) replaces `@Query` on
   Shell's generated `Core`, preserving the live query's read surface for
   fetched data, errors, and context. Tests supply the fetched value directly:
@@ -638,6 +642,80 @@ BookListScenario()
   `QueryResult<SectionedResults<…>>` and reads Apple's own surface; a seeded
   container mocks them live, and `SectionedResults.mock` below makes
   one as plain data for direct unit construction.
+
+### LazyQuery
+
+**Why this exists.** `dependencies:` is a list written by hand beside an
+expression that reads the same values. Leave one out and the query goes stale
+with no error, and no macro can write the list: a macro cannot see what the
+expression reads. A query that takes its inputs as ARGUMENTS has its
+dependencies by construction. They are the arguments.
+
+So the query expression leaves the view. A service holds it, and
+`QueryUtilities.lazy` turns it into a member that answers a `LazyQuery`: the
+dependencies and the deferred query in one value, which `QueryView` takes
+whole.
+
+```swift
+/// The contract: what a feature can ask the store for.
+struct BookQueries {
+    let sorted: (_ byAuthor: Bool, _ descending: Bool) -> LazyQuery<Book, [Book]>
+    let by: (_ author: String) -> LazyQuery<Book, [Book]>
+
+    init(
+        sorted: @escaping (_ byAuthor: Bool, _ descending: Bool) -> Query<Book, [Book]>,
+        by: @escaping (_ author: String) -> Query<Book, [Book]>
+    ) {
+        self.sorted = QueryUtilities.lazy(sorted)
+        self.by = QueryUtilities.lazy(by)
+    }
+}
+
+// A feature names what it wants: no predicate, no sort, no dependency list.
+struct BookList: View {
+    let queries: BookQueries
+    @State private var sortByAuthor = false
+    @State private var descending = false
+
+    var body: some View {
+        QueryView(queries.sorted(sortByAuthor, descending)) { $books in
+            List(books) { book in
+                Text(book.title)
+            }
+        }
+    }
+}
+
+// Where the store's query knowledge is written, once: plain expressions.
+struct Library: View {
+    var body: some View {
+        BookList(queries: BookQueries(
+            sorted: { byAuthor, descending in
+                Query(sort: byAuthor ? \Book.author : \Book.title, order: descending ? .reverse : .forward)
+            },
+            by: { author in
+                Query(filter: #Predicate<Book> { $0.author == author }, sort: \Book.title)
+            }
+        ))
+    }
+}
+```
+
+- **Whoever provides the arguments gets the dependencies for free.**
+  `queries.sorted(true, false)` answers a `LazyQuery` whose dependencies are
+  `true` and `false`. There is no list to write, in the service or in the
+  view, so there is none to get wrong.
+- **The call builds nothing.** `body` calls the member on every render; the
+  query expression runs only when `QueryView` asks for the query, which is
+  when an argument changed.
+- **A `LazyQuery` is opaque.** Its dependencies and its query are not public
+  and it has no public initializer. It is made only by calling such a member
+  and read only by `QueryView`, so a query never travels without the values
+  it was built from.
+- **Every argument is `Equatable`,** or the member does not compile.
+- **Mocking is unchanged.** This initializer hands `QueryView` the same two
+  things as `query:dependencies:`, so `.mockQuery` and a seeded container
+  work as above.
 
 ### SectionedResults.mock — because Apple sealed plain data
 
@@ -1873,7 +1951,7 @@ targets and one hosted test project:
 | Target | Kind | Contents |
 |---|---|---|
 | `CoreFlowMacros` | macro plugin | every macro's implementation, one file each: `FlowableMacro`, `ShellMacro`, `CapabilityMacro`, `PickMacro`, `TestSupportMacros.swift` (`@TestState` + `@TestAction`), `TestFocusStateMacro.swift`, `TestEnvironmentMacro.swift`, `UnstructuredTaskMacro.swift`, `FlowUpMacro.swift` — plus shared stored-property collection (`StoredProperty.swift`) and rendering (`FlowableRendering.swift`, covering the init, `makeFlow(_:)`, and `InFlow`) that `@Flowable` builds on and `@Shell` reuses (`ShellRendering.swift`), and TuplePicker's own key-path parsing (`KeyPathPick.swift`, `TuplePickerSupport.swift`) |
-| `CoreFlow` | library | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — the `TestLog` dynamic property and the `package` entry it reads — `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, `MemoView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection, implementation-dependent) and `SectionedResults+Mock.swift` (sectioned results over a throwaway container) |
+| `CoreFlow` | library | every macro's public declaration — `Flowable.swift`, `Shell.swift`, `Capability.swift`, `TuplePicker.swift`, the `TestSupport/` directory (`TestLog.swift` — the `TestLog` dynamic property and the `package` entry it reads — `TestState.swift`, `TestAction.swift`, `TestFocusState.swift`, `TestAccessibilityFocusState.swift`, `TestEnvironment.swift`), `UnstructuredTask.swift` (`@UnstructuredTask` plus its runtime storage box), `FlowUp.swift` (`@FlowUp` plus `onFlow`/`collectFlow`) — plus the non-macro runtime: `QueryResult.swift`, `QueryView.swift`, `LazyQuery.swift`, `MemoView.swift`, and `Experimental/` — `Reflector.swift` and `SectionedResults+Mock.swift`, kept apart on purpose: `Reflector.swift` (uninitialized-memory reflection, implementation-dependent) and `SectionedResults+Mock.swift` (sectioned results over a throwaway container) |
 | `CoreFlowUITestHost` | library, test-only host apps | `HostApp<Scenario>` (the host app, one line of `main.swift`) and `View.uiTestLog()` — imports `CoreFlow` and SwiftUI, never XCTest |
 | `CoreFlowUITestShared` | target, no product | the names and the JSON the host and its tests agree on |
 | `CoreFlowUITesting` | library, UI-test bundles only | `XCUIApplication.launch(_:)`, `logElement`, `XCUIElement.logNames`/`logValues`/`valueOrLabel`, `waitUntil(_:equals:timeout:)`, `XCUIApplication.switchOrCheckBox(_:)`, `tapOrClick()`, `XCUICoordinate.pressOrClick(forDuration:thenDragTo:)` — imports XCTest, so an app never links it |

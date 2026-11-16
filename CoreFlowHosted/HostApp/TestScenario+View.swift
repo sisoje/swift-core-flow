@@ -9,6 +9,7 @@ extension TestScenario: View {
         case .queryViewSectionedLive: QueryViewSectionedScenario(mocked: false)
         case .queryViewSectionedMocked: QueryViewSectionedScenario(mocked: true)
         case .queryViewInsert: QueryViewInsertScenario()
+        case .lazyQuery: LazyQueryScenario()
         case .memoView: MemoViewScenario()
         case .flowUp: FlowUpScenario()
         case .flowUpThrows: FlowUpThrowsScenario()
