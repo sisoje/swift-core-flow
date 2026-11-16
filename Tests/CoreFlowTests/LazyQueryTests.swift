@@ -3,12 +3,12 @@ import SwiftData
 import SwiftUI
 import Testing
 
-// Real, compiled usage of the LazyQuery surface — no live view anywhere in
-// this file. That the query is rebuilt only when an argument changes is
-// CoreFlowHosted's story (`LazyQueryUITests`).
+// Real, compiled usage of the LazyQuery surface and of what `@LazyQueries`
+// writes — no live view anywhere in this file. That the query is rebuilt only
+// when an argument changes is CoreFlowHosted's story (`LazyQueryUITests`).
 
 @Model
-private final class Song {
+final class Song {
     var title: String
     var artist: String
     init(title: String, artist: String) {
@@ -17,22 +17,22 @@ private final class Song {
     }
 }
 
-/// A query service the way an app declares one: the members answer a
-/// `LazyQuery`, and the initializer takes plain query expressions.
-private struct SongQueries {
+/// A query service the way an app declares one: each member answers a
+/// `LazyQuery`, written once, and the initializer takes plain query
+/// expressions.
+@LazyQueries
+struct SongQueries {
     let sorted: (_ byArtist: Bool, _ descending: Bool) -> LazyQuery<Song, [Song]>
     let by: (_ artist: String) -> LazyQuery<Song, [Song]>
     let all: () -> LazyQuery<Song, [Song]>
+}
 
-    init(
-        sorted: @escaping (_ byArtist: Bool, _ descending: Bool) -> Query<Song, [Song]>,
-        by: @escaping (_ artist: String) -> Query<Song, [Song]>,
-        all: @escaping () -> Query<Song, [Song]>
-    ) {
-        self.sorted = QueryUtilities.lazy(sorted)
-        self.by = QueryUtilities.lazy(by)
-        self.all = QueryUtilities.lazy(all)
-    }
+/// A sectioned query names its section, so it has no default and this
+/// service has no `defaultQueries`.
+@available(macOS 27.0, iOS 27.0, tvOS 27.0, watchOS 27.0, visionOS 27.0, macCatalyst 27.0, *)
+@LazyQueries
+struct SongSections {
+    let byArtist: (_ descending: Bool) -> LazyQuery<Song, SectionedResults<Song, String>>
 }
 
 @MainActor
@@ -78,5 +78,24 @@ struct LazyQueryTests {
             }
         }
         _ = Probe(queries: SongQueries(sorted: { _, _ in Query() }, by: { _ in Query() }, all: { Query() }))
+    }
+
+    @Test func defaultQueriesAnswersTheDefaultQueryWhateverItIsAskedWith() {
+        let queries = SongQueries.defaultQueries
+        // Still asked with arguments, and they are still the dependencies.
+        let lazy = queries.sorted(true, false)
+        #expect(lazy.dependencies.count == 2)
+        #expect(lazy.dependencies[0] as? Bool == true)
+        #expect(queries.by("Björk").dependencies.first as? String == "Björk")
+        #expect(queries.all().dependencies.isEmpty)
+        _ = lazy.query()
+    }
+
+    @Test @available(macOS 27.0, iOS 27.0, tvOS 27.0, watchOS 27.0, visionOS 27.0, macCatalyst 27.0, *)
+    func aSectionedQueryGoesThroughTheGeneratedInitializer() {
+        let sections = SongSections(byArtist: { descending in
+            Query(sort: \Song.title, order: descending ? .reverse : .forward, sectionBy: \Song.artist)
+        })
+        #expect(sections.byArtist(true).dependencies.first as? Bool == true)
     }
 }

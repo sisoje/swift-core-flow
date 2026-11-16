@@ -3,15 +3,15 @@ name: swift-core-flow
 description: >
   Adopting swift-core-flow inside the hypermodular method: the @Shell cut
   that generates a testable Core, @TestState and @TestAction logging at
-  the write site, QueryView, @QueryResult and LazyQuery for SwiftData, scenarios,
-  the HostApp test host, and the CoreFlowUITesting bundle that asserts
-  the execution log. Use when writing or reviewing code that mentions
-  @Shell, Core, @TestState, @TestAction, @TestLog, QueryView,
-  @QueryResult, LazyQuery, QueryUtilities, HostApp, uiTestLog,
-  logElement, or when adding
-  swift-core-flow to a package or an Xcode project. The README beside
-  this file is the per-macro reference. The data-coupling skill in
-  sisoje/hypermodular is the doctrine this mechanizes.
+  the write site, QueryView, @QueryResult, LazyQuery and @LazyQueries for
+  SwiftData, scenarios, the HostApp test host, and the CoreFlowUITesting
+  bundle that asserts the execution log. Use when writing or reviewing
+  code that mentions @Shell, Core, @TestState, @TestAction, @TestLog,
+  QueryView, @QueryResult, LazyQuery, @LazyQueries, QueryUtilities,
+  HostApp, uiTestLog, logElement, or when adding swift-core-flow to a
+  package or an Xcode project. The README beside this file is the
+  per-macro reference. The data-coupling skill in sisoje/hypermodular is
+  the doctrine this mechanizes.
 ---
 
 # swift-core-flow: the method, mechanized
@@ -169,17 +169,25 @@ it into its `QueryView` is read, not tested, since the delivered array
 is inside the node and no contract line exposes it.
 
 A query asked from a service has no list to forget. The contract is a
-struct whose members answer a `LazyQuery`, `let books: (_ sortByAuthor:
-Bool) -> LazyQuery<Book, [Book]>`. Its initializer takes the plain query
-expression and assigns `self.books = QueryUtilities.lazy(books)`. The
-store writes the expression once, `books: { sortByAuthor in Query(sort:
-…) }`, and the shell writes `QueryView(queries.books(sortByAuthor)) {
-$books in … }`. Whoever provides the arguments gets the dependencies
-back for free, since the arguments are the dependencies. Calling the
-member builds nothing, and the query is built when an argument changes.
-A `LazyQuery` cannot be opened or built by hand, so a query does not
-travel without the values it was built from. `.mockQuery` and a seeded
-container work the same as under `QueryView(query:dependencies:)`.
+struct under `@LazyQueries` whose members answer a `LazyQuery`, `var
+books: (_ sortByAuthor: Bool) -> LazyQuery<Book, [Book]>`, each written
+once. The macro writes the initializer, which takes each member's plain
+query expression, and `defaultQueries`, the service whose every member
+answers `Query()`. The environment entry defaults to it, `@Entry var
+queries = Queries.defaultQueries`. The store writes each expression once,
+`Queries(books: { sortByAuthor in Query(sort: …) })`, and the shell
+writes `QueryView(queries.books(sortByAuthor)) { $books in … }`. Whoever
+provides the arguments gets the dependencies back for free, since the
+arguments are the dependencies. Calling the member builds nothing, and
+the query is built when an argument changes. A `LazyQuery` cannot be
+opened or built by hand, so a query does not travel without the values
+it was built from. Every stored property of the service is such a
+member, and anything else is a compile error. A sectioned query names
+its section and so has no default, and a service that holds one gets the
+initializer without `defaultQueries`. The contract's file imports
+SwiftData and SwiftUI, since the generated code names `Query`.
+`.mockQuery` and a seeded container work the same as under
+`QueryView(query:dependencies:)`.
 
 ## Scenario
 

@@ -450,4 +450,14 @@ public struct DataTypeMacroDiagnostic: DiagnosticMessage {
             id: "stateNeedsInlineDefault"
         )
     }
+
+    /// `@LazyQueries`' own rule, checked in `LazyQueriesMacro`: a query
+    /// service holds queries and nothing else.
+    public static func notALazyQuery(propertyName: String) -> DataTypeMacroDiagnostic {
+        DataTypeMacroDiagnostic(
+            message:
+            "'\(propertyName)' is not a query. Every stored property of a @LazyQueries type is a function type with no attributes whose result is spelled LazyQuery<…>, such as `(_ title: String) -> LazyQuery<Book, [Book]>`.",
+            id: "notALazyQuery"
+        )
+    }
 }

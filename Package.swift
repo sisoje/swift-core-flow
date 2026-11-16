@@ -24,7 +24,8 @@ let package = Package(
         // to consumers. One file per macro (FlowableMacro.swift, ShellMacro.swift,
         // CapabilityMacro.swift, PickMacro.swift, TestSupportMacros.swift,
         // TestFocusStateMacro.swift — @TestFocusState + @TestAccessibilityFocusState —
-        // TestEnvironmentMacro.swift, UnstructuredTaskMacro.swift, FlowUpMacro.swift),
+        // TestEnvironmentMacro.swift, UnstructuredTaskMacro.swift, FlowUpMacro.swift,
+        // LazyQueriesMacro.swift),
         // plus the shared stored-property collection + rendering helpers
         // (StoredProperty.swift, MemberMacroEntry.swift, FieldRendering.swift,
         // FlowableRendering.swift, ShellRendering.swift) that @Flowable builds on
@@ -42,7 +43,8 @@ let package = Package(
         ),
         // The public-facing library: every macro's attribute/expression declaration,
         // one file per macro (Flowable.swift, Shell.swift, Capability.swift,
-        // TuplePicker.swift, UnstructuredTask.swift, FlowUp.swift, and the
+        // TuplePicker.swift, UnstructuredTask.swift, FlowUp.swift, LazyQuery.swift —
+        // @LazyQueries beside LazyQuery and QueryUtilities — and the
         // TestSupport/ directory: TestLog, UITestLogging, TestState, TestAction,
         // TestFocusState, TestAccessibilityFocusState, TestEnvironment), plus the
         // non-macro runtime: QueryResult.swift,

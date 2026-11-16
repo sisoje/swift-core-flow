@@ -15,5 +15,6 @@ struct CoreFlowPlugin: CompilerPlugin {
         TestEnvironmentMacro.self,
         UnstructuredTaskMacro.self,
         FlowUpMacro.self,
+        LazyQueriesMacro.self,
     ]
 }
