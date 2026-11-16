@@ -7,16 +7,18 @@ import SwiftUI
 /// into `QueryView`.
 public struct LazyQuery<Element: PersistentModel, Result> {
     let dependencies: [any Equatable]
-    let query: () -> Query<Element, Result>
+    let query: @MainActor () -> Query<Element, Result>
 }
 
 public enum QueryUtilities {
     /// Makes a member of a query service out of a query expression. Whoever
     /// calls the member with its arguments gets the `LazyQuery` back, and the
     /// arguments are its dependencies: there is no list to write and none to
-    /// get wrong. An argument that is not `Equatable` does not compile.
-    public static func lazy<each Argument: Equatable, Element: PersistentModel, Result>(
-        _ query: @escaping (repeat each Argument) -> Query<Element, Result>
+    /// get wrong. An argument that is not `Equatable` and `Sendable` does not
+    /// compile. The expression is `@MainActor`, since it builds a `Query`,
+    /// and what comes back is not, so a service is made in any context.
+    public static func lazy<each Argument: Equatable & Sendable, Element: PersistentModel, Result>(
+        _ query: @escaping @MainActor (repeat each Argument) -> Query<Element, Result>
     ) -> (repeat each Argument) -> LazyQuery<Element, Result> {
         { (argument: repeat each Argument) in
             var dependencies: [any Equatable] = []
@@ -46,12 +48,12 @@ public extension QueryView {
 ///     let sorted: (_ byAuthor: Bool, _ descending: Bool) -> LazyQuery<Book, [Book]>
 ///     // generates:
 ///     // init(
-///     //     sorted: @escaping (_ byAuthor: Bool, _ descending: Bool) -> Query<Book, [Book]>
+///     //     sorted: @escaping @MainActor (_ byAuthor: Bool, _ descending: Bool) -> Query<Book, [Book]>
 ///     // ) {
 ///     //     self.sorted = QueryUtilities.lazy(sorted)
 ///     // }
 ///     //
-///     // @MainActor static var defaultQueries: Self {
+///     // static var defaultQueries: Self {
 ///     //     Self(
 ///     //         sorted: { _, _ in
 ///     //             Query()
@@ -69,9 +71,10 @@ public extension QueryView {
 /// initializer cannot hand one member another member's query.
 ///
 /// - `defaultQueries` answers the default query, every element, unsorted,
-///   whatever a member is asked with. It is `@MainActor`, since its closures
-///   build a `Query`, and it is what an environment entry defaults to in a
-///   module whose default isolation is the main actor. It is written only
+///   whatever a member is asked with. It is what an environment entry
+///   defaults to, in a module of any default isolation: a query expression
+///   is typed `@MainActor`, so the closure that builds the `Query` is
+///   isolated and the service that holds it is not. It is written only
 ///   when every query answers an array, spelled `[Element]`: a sectioned
 ///   query has to name its section, so a service holding one gets the
 ///   initializer alone.

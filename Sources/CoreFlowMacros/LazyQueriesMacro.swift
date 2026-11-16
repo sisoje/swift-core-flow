@@ -90,9 +90,10 @@ struct LazyQueryMember {
 /// whatever the member has: the member's default is a function answering
 /// `LazyQuery`, not the query expression the parameter takes.
 ///
-/// `defaultQueries` is `@MainActor` because its closures build a `Query`,
-/// whose initializers are. The attribute is written out so the expansion
-/// compiles in a module with no default isolation too.
+/// Each parameter is `@MainActor`, because a query expression builds a
+/// `Query`, whose initializers are. A closure passed for one takes that
+/// isolation from the parameter, so `defaultQueries` carries none and an
+/// environment entry defaults to it in a module of any default isolation.
 func renderLazyQueries(_ queries: [LazyQueryMember], access: String) -> [DeclSyntax] {
     func list(_ indentation: String, _ line: (LazyQueryMember) -> String) -> String {
         queries.isEmpty
@@ -103,7 +104,7 @@ func renderLazyQueries(_ queries: [LazyQueryMember], access: String) -> [DeclSyn
     var decls = [
         DeclSyntax(
             stringLiteral: """
-            \(access)init(\(list("") { "\($0.name): @escaping \($0.expressionType)" })) {
+            \(access)init(\(list("") { "\($0.name): @escaping @MainActor \($0.expressionType)" })) {
             \(queries.map { "    self.\($0.name) = QueryUtilities.lazy(\($0.name))" }.joined(separator: "\n"))
             }
             """
@@ -113,7 +114,7 @@ func renderLazyQueries(_ queries: [LazyQueryMember], access: String) -> [DeclSyn
         decls.append(
             DeclSyntax(
                 stringLiteral: """
-                @MainActor \(access)static var defaultQueries: Self {
+                \(access)static var defaultQueries: Self {
                     Self(\(list("    ") { "\($0.name): \($0.defaultExpression)" }))
                 }
                 """

@@ -99,3 +99,9 @@ struct LazyQueryTests {
         #expect(sections.byArtist(true).dependencies.first as? Bool == true)
     }
 }
+
+// This module has no default isolation, so this entry is the proof that
+// `defaultQueries` is reachable from a nonisolated context.
+extension EnvironmentValues {
+    @Entry var songQueries = SongQueries.defaultQueries
+}

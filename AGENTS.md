@@ -1315,7 +1315,7 @@ Result>` is a struct holding `dependencies: [any Equatable]` and `query: () ->
 Query<Element, Result>`, both INTERNAL, with no public initializer, so it
 cannot be opened or built outside the package. `QueryUtilities.lazy(_:)` is a
 static function in a caseless enum (the shape of swift-composable-networking's
-`ClosureUtilities.unimplemented`), generic over `each Argument: Equatable`,
+`ClosureUtilities.unimplemented`), generic over `each Argument: Equatable & Sendable`,
 `Element`, `Result`: it takes `(repeat each Argument) -> Query<Element,
 Result>` and returns `(repeat each Argument) -> LazyQuery<Element, Result>`,
 a closure that appends each argument to the dependency array and defers
@@ -1323,8 +1323,9 @@ a closure that appends each argument to the dependency array and defers
 Result>, content:)` is `self.init(query: lazy.query(), dependencies:
 lazy.dependencies, content:)`: the same memo and the same transform seam, so
 `.mockQuery` and a seeded container behave as on the other initializer. The
-function types carry no isolation, like `QueryView`'s own `query` parameter;
-the caller forms its closures in a main-actor context. `Query`'s initializers
+function types carried no isolation in 1.4.0, like `QueryView`'s own `query`
+parameter, and the caller formed its closures in a main-actor context; since
+1.4.1 the query expression is `@MainActor` (see `@LazyQueries` below). `Query`'s initializers
 are `@MainActor @preconcurrency` (the SDK interface of `_SwiftData_SwiftUI`,
 SwiftData's cross-import overlay with SwiftUI, where `Query` is declared), so
 a closure that builds one compiles in a nonisolated context too, in Swift 6
@@ -1397,14 +1398,14 @@ over one). The listing is the `LazyQueriesExpansionTests` snapshot:
 
 ```swift
 init(
-    sorted: @escaping (_ byAuthor: Bool, _ descending: Bool) -> Query<Book, [Book]>,
-    by: @escaping (_ author: String) -> Query<Book, [Book]>
+    sorted: @escaping @MainActor (_ byAuthor: Bool, _ descending: Bool) -> Query<Book, [Book]>,
+    by: @escaping @MainActor (_ author: String) -> Query<Book, [Book]>
 ) {
     self.sorted = QueryUtilities.lazy(sorted)
     self.by = QueryUtilities.lazy(by)
 }
 
-@MainActor static var defaultQueries: Self {
+static var defaultQueries: Self {
     Self(
         sorted: { _, _ in
             Query()
@@ -1450,11 +1451,19 @@ init(
   the argument node, not through `GenericArgumentSyntax.argument`, which is a
   `TypeSyntax` in swift-syntax 600 and an enum of a type or an expression
   from 601, both inside the supported range.
-- **`@MainActor` is written out on `defaultQueries`.** Its closures build a
-  `Query`. Under the attribute they inherit the isolation and compile clean
-  in a module of either default isolation. Without it, in a module with no
-  default isolation, each closure draws the warning quoted in the `LazyQuery`
-  section, inside the expansion where the consumer cannot fix it.
+- **The query expression is `@MainActor`, the service is not** (1.4.1,
+  2026-11-16). `QueryUtilities.lazy` takes `@escaping @MainActor (repeat
+  each Argument) -> Query<…>`, `LazyQuery.query` is `@MainActor () ->
+  Query<…>`, and the generated initializer's parameters carry the same
+  attribute. A closure literal passed for one takes the isolation from the
+  parameter, so `defaultQueries` has no attribute and `@Entry var songQueries
+  = SongQueries.defaultQueries` compiles in a module with no default
+  isolation (`LazyQueryTests`, which is one). The arguments are captured by
+  the isolated closure, so they are `Equatable & Sendable`; with `Equatable`
+  alone the capture is the warning `task or actor-isolated value cannot be
+  sent`. In 1.4.0 `defaultQueries` was `@MainActor` and the function types
+  plain, which made the entry's module take the main-actor default; an app
+  whose data layer took it had to mark its plain values `nonisolated`.
 - **The formatter splits the default closures.** The renderer writes `{ _, _
   in Query() }` on one line and swift-syntax's `BasicFormat` puts the body on
   its own line. The snapshot is the actual expansion.
@@ -1476,7 +1485,8 @@ init(
 Ruling (2026-11-16): the macro writes `defaultQueries`, a static, by the
 owner's word. It is what an environment entry defaults to.
 
-Consumer probe (2026-11-16; a scratch package against this checkout, Swift 6
+Consumer probe of 1.4.0, superseded for the entry default by 1.4.1 above
+(2026-11-16; a scratch package against this checkout, Swift 6
 mode, `public` service in one module and its use in others; not a test
 suite). In modules carrying `.defaultIsolation(MainActor.self)`: the service,
 `@Entry var queries = Queries.defaultQueries`, a feature reading

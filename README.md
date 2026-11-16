@@ -708,14 +708,14 @@ struct LibraryPreview: View {
 
 ```swift
 init(
-    sorted: @escaping (_ byAuthor: Bool, _ descending: Bool) -> Query<Book, [Book]>,
-    by: @escaping (_ author: String) -> Query<Book, [Book]>
+    sorted: @escaping @MainActor (_ byAuthor: Bool, _ descending: Bool) -> Query<Book, [Book]>,
+    by: @escaping @MainActor (_ author: String) -> Query<Book, [Book]>
 ) {
     self.sorted = QueryUtilities.lazy(sorted)
     self.by = QueryUtilities.lazy(by)
 }
 
-@MainActor static var defaultQueries: Self {
+static var defaultQueries: Self {
     Self(
         sorted: { _, _ in
             Query()
@@ -749,10 +749,10 @@ init(
   member answers `Query()`, every element, unsorted, whatever it is asked
   with, and the arguments are still its dependencies. It is what an
   environment entry defaults to, `@Entry var bookQueries =
-  BookQueries.defaultQueries`. It is `@MainActor`, because its closures build
-  a `Query`, so the entry is written in a module whose default isolation is
-  the main actor (`.defaultIsolation(MainActor.self)`); elsewhere an entry's
-  default is a nonisolated context and the line does not compile.
+  BookQueries.defaultQueries`, in a module of any default isolation. The
+  initializer takes each query expression as a `@MainActor` function, since
+  it builds a `Query`, and the service that holds it carries no isolation.
+  An argument of a query is `Equatable` and `Sendable`.
 - **A sectioned query has no default.** It has to name its section, so a
   service holding a query whose result is not spelled `[Element]` gets the
   initializer alone.
