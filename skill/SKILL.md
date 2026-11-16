@@ -26,7 +26,7 @@ API. This file is the order of work and what the README does not say.
 
 ```swift
 // swift-tools-version: 6.4
-.package(url: "https://github.com/sisoje/swift-core-flow.git", from: "1.2.1"),
+.package(url: "https://github.com/sisoje/swift-core-flow.git", from: "1.3.0"),
 .product(name: "CoreFlow", package: "swift-core-flow"),            // the app and the test host
 .product(name: "CoreFlowUITestHost", package: "swift-core-flow"),  // the test host only
 .product(name: "CoreFlowUITesting", package: "swift-core-flow"),   // the UI-test bundle only

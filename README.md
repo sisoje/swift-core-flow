@@ -147,7 +147,7 @@ observable boundary.
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/sisoje/swift-core-flow.git", from: "1.2.1"),
+.package(url: "https://github.com/sisoje/swift-core-flow.git", from: "1.3.0"),
 
 // target dependency
 .product(name: "CoreFlow", package: "swift-core-flow"),
