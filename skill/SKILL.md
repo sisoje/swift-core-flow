@@ -34,8 +34,8 @@ API. This file is the order of work and what the README does not say.
 
 With a path dependency, `.package(path: "../CoreFlow")`, the package
 name in `.product(name:package:)` is the directory's, `CoreFlow`, not
-`swift-core-flow`. In an Xcode project the app target links `CoreFlow`, or the features
-package that does, the test host
+`swift-core-flow`. In an Xcode project the app target links `CoreFlow`, or `AppCore`,
+the package that does, the test host
 links the same and `CoreFlowUITestHost`, the UI-test bundle links
 `CoreFlowUITesting`. `SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor` goes on
 the app and the test host and not on the UI-test bundle; in a package the
@@ -46,7 +46,7 @@ swift-syntax and takes minutes once.
 
 Inside the hypermodular layout one package lists the library, the
 data coupling layer, and it re-exports it with `@_exported import
-CoreFlow`. The features package re-exports the layer the same way.
+CoreFlow`. `AppCore` re-exports the layer the same way.
 A feature file then sees the layer and the macros and imports neither
 by name, and a dependency that imports the layer has the macros too.
 
