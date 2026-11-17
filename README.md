@@ -154,7 +154,7 @@ observable boundary.
 
 ```swift
 // Package.swift
-.package(url: "https://github.com/sisoje/swift-core-flow.git", from: "1.3.0"),
+.package(url: "https://github.com/sisoje/swift-core-flow.git", from: "1.4.2"),
 
 // target dependency
 .product(name: "CoreFlow", package: "swift-core-flow"),
@@ -801,9 +801,10 @@ BookList()
 - **The result is of any type the query answers,** a `SectionedResults`
   from `SectionedResults.mock` included, and a `QueryResult` with a
   `fetchError:` is the error branch. Its `modelContext` is the environment's.
-- **Or the real query runs.** A seeded in-memory container under the default
-  service, or under the real one, mocks the store and not the query, as in
-  the QueryView chapter.
+- **Or a real `Query` runs.** A seeded in-memory container mocks the store
+  and not the query, as in the QueryView chapter. Under the default service
+  that query is `Query()`, every element, unsorted. Under the real service
+  it is the service's own.
 
 ### SectionedResults.mock — because Apple sealed plain data
 
