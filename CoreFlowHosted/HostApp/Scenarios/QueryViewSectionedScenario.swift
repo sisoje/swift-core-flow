@@ -9,8 +9,8 @@ struct QueryViewSectionedScenario: View {
     var body: some View {
         if mocked {
             sections(
-                LazyQuery(
-                    result: QueryResult(
+                .result(
+                    QueryResult(
                         wrappedValue: SectionedResults.mock(
                             [novel("Dune"), novel("Anathem"), novel("It")], sectionBy: \.genre
                         )
@@ -18,7 +18,7 @@ struct QueryViewSectionedScenario: View {
                 )
             )
         } else {
-            let byGenre = QueryUtilities.lazyQuery { Query(sort: \Novel.genre, sectionBy: \Novel.genre) }
+            let byGenre = LazyQuery.query { Query(sort: \Novel.genre, sectionBy: \Novel.genre) }
             sections(byGenre())
                 .modelContainer(for: Novel.self, inMemory: true) { result in
                     let context = try! result.get().mainContext

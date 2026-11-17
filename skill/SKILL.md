@@ -7,7 +7,7 @@ description: >
   SwiftData, scenarios, the HostApp test host, and the CoreFlowUITesting
   bundle that asserts the execution log. Use when writing or reviewing
   code that mentions @Shell, Core, @TestState, @TestAction, @TestLog,
-  QueryView, @QueryResult, LazyQuery, @LazyQueries, QueryUtilities,
+  QueryView, @QueryResult, LazyQuery, @LazyQueries,
   HostApp, uiTestLog, logElement, or when adding swift-core-flow to a
   package or an Xcode project. The README beside this file is the
   per-macro reference. The data-coupling skill in sisoje/hypermodular is
@@ -57,7 +57,7 @@ by name, and a dependency that imports the layer has the macros too.
 |---|---|
 | the cut, with own state logging at the write site | `@Shell` generates `Core`; `@TestState`, `@TestAction`, `@TestFocusState`, `@TestEnvironment` |
 | the scenario as a hosted UI test | `HostApp<Scenario>`, `uiTestLog()`, `CoreFlowUITesting` |
-| a read of the store is a query asked from the query service with the values it depends on: one shell runs it, content reads plain data | `@LazyQueries`, `LazyQuery`, `QueryView`; a scenario sets a member to `LazyQuery(result:)`. For a `@Query` in a view not yet converted, `@QueryResult` |
+| a read of the store is a query asked from the query service with the values it depends on: one shell runs it, content reads plain data | `@LazyQueries`, `LazyQuery`, `QueryView`; a scenario sets a member to `LazyQuery.result`. For a `@Query` in a view not yet converted, `@QueryResult` |
 | a value derived from inputs, kept across renders, not `@State(wrappedValue:)` in an `init` | `MemoView` with `dependencies:`; a changed dependency replaces the whole value, so state that is to survive a change of the input stays out of it; a value the build reads and `dependencies:` leaves out is not followed |
 | work an event starts is a task the node holds, not a `Task` nobody holds; it cancels on replacement and on node removal | `@UnstructuredTask`; each assignment logs under the property's name with the value `task`, and the block declares it; a child that starts the work is handed `$download`, and its write cancels and logs the same; inside the task, write state through a `$binding` taken into the capture list, not through `self` |
 | capabilities: hand a consumer only the operations it needs, as a tuple | `@Capability` over a type or an extension |
@@ -177,7 +177,7 @@ sortByAuthor)) })`. Its plain test seeds an in-memory container and
 fetches with that function, `context.fetch(books(sortByAuthor:
 true))`, so the real sort is asserted with no view and no host. A
 node's scenario sets the members its node asks to a result, each by name,
-`.environment(\.queryService.books) { _ in LazyQuery(result: QueryResult(wrappedValue: [dune])) }`.
+`.environment(\.queryService.books) { _ in .result(QueryResult(wrappedValue: [dune])) }`.
 `QueryView` hands that result to the
 content and builds no `Query`, so no store is read and the scenario
 needs no container. A `QueryResult` with a `fetchError:` is the error
@@ -191,7 +191,7 @@ SwiftData gives it and nothing added.
 A view not yet converted has its read written into it. On a `@Shell`
 node a `@Query` property becomes `@QueryResult` and the scenario hands
 the array. A query that stays in a view is made lazy in place and
-asked with the values it depends on, `let books = QueryUtilities.lazyQuery {
+asked with the values it depends on, `let books = LazyQuery.query {
 (sortByAuthor: Bool) in Library.query(sortByAuthor: sortByAuthor) }`
 and `QueryView(books(sortByAuthor)) { $books in … }`. The expression
 is bound to a name first, since called in the same expression with an

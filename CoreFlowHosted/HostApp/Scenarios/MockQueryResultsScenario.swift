@@ -46,9 +46,9 @@ struct MockQueryResultsScenario: View {
 
     var body: some View {
         Shelves()
-            .environment(\.shelfQueries.sciFi) { LazyQuery(result: QueryResult(wrappedValue: [dune])) }
-            .environment(\.shelfQueries.horror) { LazyQuery(result: QueryResult(wrappedValue: [it])) }
-            .environment(\.shelfQueries.tags) { LazyQuery(result: QueryResult(wrappedValue: [], fetchError: TagsUnavailable())) }
+            .environment(\.shelfQueries.sciFi) { .result(QueryResult(wrappedValue: [dune])) }
+            .environment(\.shelfQueries.horror) { .result(QueryResult(wrappedValue: [it])) }
+            .environment(\.shelfQueries.tags) { .result(QueryResult(wrappedValue: [], fetchError: TagsUnavailable())) }
     }
 }
 

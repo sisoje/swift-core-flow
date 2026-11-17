@@ -44,7 +44,7 @@ let package = Package(
         // The public-facing library: every macro's attribute/expression declaration,
         // one file per macro (Flowable.swift, Shell.swift, Capability.swift,
         // TuplePicker.swift, UnstructuredTask.swift, FlowUp.swift, LazyQuery.swift —
-        // @LazyQueries beside LazyQuery and QueryUtilities — and the
+        // @LazyQueries beside LazyQuery — and the
         // TestSupport/ directory: TestLog, UITestLogging, TestState, TestAction,
         // TestFocusState, TestAccessibilityFocusState, TestEnvironment), plus the
         // non-macro runtime: QueryResult.swift,

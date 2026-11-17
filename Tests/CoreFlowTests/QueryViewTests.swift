@@ -22,17 +22,17 @@ struct QueryViewTests {
             var descending = false
 
             var body: some View {
-                let sorted = QueryUtilities.lazyQuery { (descending: Bool) in
+                let sorted = LazyQuery.query { (descending: Bool) in
                     Query(sort: \Track.title, order: descending ? .reverse : .forward)
                 }
-                let all = QueryUtilities.lazyQuery { Query(sort: \Track.title) }
+                let all = LazyQuery.query { Query(sort: \Track.title) }
                 QueryView(sorted(descending)) { $tracks in
                     Text(verbatim: "\(tracks.count)")
                 }
                 QueryView(all()) { result in
                     Text(verbatim: "\(result.wrappedValue.count)")
                 }
-                QueryView(LazyQuery<Track, [Track]>(result: QueryResult(wrappedValue: [Track(title: "Dune")]))) { $tracks in
+                QueryView(LazyQuery<Track, [Track]>.result(QueryResult(wrappedValue: [Track(title: "Dune")]))) { $tracks in
                     Text(verbatim: "\(tracks.count)")
                 }
             }

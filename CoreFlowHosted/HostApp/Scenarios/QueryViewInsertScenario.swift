@@ -7,7 +7,7 @@ struct QueryViewInsertScenario: View {
     @TestLog private var log
 
     var body: some View {
-        let sortedNovels = QueryUtilities.lazyQuery { Query(sort: \Novel.title, animation: .default) }
+        let sortedNovels = LazyQuery.query { Query(sort: \Novel.title, animation: .default) }
         VStack {
             Button("unrelated") { unrelated += 1 }
             // Read in body, so each unrelated write re-renders this view and

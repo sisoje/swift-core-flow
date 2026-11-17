@@ -27,8 +27,8 @@ final class LazyQueriesExpansionTests: XCTestCase {
                     sorted: @escaping @MainActor (_ byAuthor: Bool, _ descending: Bool) -> Query<Book, [Book]>,
                     by: @escaping @MainActor (_ author: String) -> Query<Book, [Book]>
                 ) {
-                    self.sorted = QueryUtilities.lazyQuery(sorted)
-                    self.by = QueryUtilities.lazyQuery(by)
+                    self.sorted = LazyQuery.query(sorted)
+                    self.by = LazyQuery.query(by)
                 }
 
                 static var defaultQueries: Self {
@@ -62,7 +62,7 @@ final class LazyQueriesExpansionTests: XCTestCase {
                 public init(
                     all: @escaping @MainActor () -> Query<Book, [Book]>
                 ) {
-                    self.all = QueryUtilities.lazyQuery(all)
+                    self.all = LazyQuery.query(all)
                 }
 
                 public static var defaultQueries: Self {
@@ -99,8 +99,8 @@ final class LazyQueriesExpansionTests: XCTestCase {
                     all: @escaping @MainActor () -> Query<Book, [Book]>,
                     byAuthor: @escaping @MainActor (_ descending: Bool) -> Query<Book, SectionedResults<Book, String>>
                 ) {
-                    self.all = QueryUtilities.lazyQuery(all)
-                    self.byAuthor = QueryUtilities.lazyQuery(byAuthor)
+                    self.all = LazyQuery.query(all)
+                    self.byAuthor = LazyQuery.query(byAuthor)
                 }
             }
             """,
@@ -115,17 +115,17 @@ final class LazyQueriesExpansionTests: XCTestCase {
             """
             @LazyQueries
             struct Queries {
-                var all: () -> LazyQuery<Book, [Book]> = QueryUtilities.lazyQuery { Query() }
+                var all: () -> LazyQuery<Book, [Book]> = LazyQuery.query { Query() }
             }
             """,
             expandedSource: """
             struct Queries {
-                var all: () -> LazyQuery<Book, [Book]> = QueryUtilities.lazyQuery { Query() }
+                var all: () -> LazyQuery<Book, [Book]> = LazyQuery.query { Query() }
 
                 init(
                     all: @escaping @MainActor () -> Query<Book, [Book]>
                 ) {
-                    self.all = QueryUtilities.lazyQuery(all)
+                    self.all = LazyQuery.query(all)
                 }
 
                 static var defaultQueries: Self {

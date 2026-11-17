@@ -20,8 +20,8 @@ struct QueryViewSortScenario: View {
     var body: some View {
         // The query expression made lazy, in place: once as a function of the
         // value it depends on, once capturing that value.
-        let sorted = QueryUtilities.lazyQuery { (descending: Bool) in build(descending) }
-        let captured = QueryUtilities.lazyQuery { build(sortDescending) }
+        let sorted = LazyQuery.query { (descending: Bool) in build(descending) }
+        let captured = LazyQuery.query { build(sortDescending) }
         VStack {
             Button("unrelated") { unrelated += 1 }
             // Read in body, so each unrelated write re-renders this view.
