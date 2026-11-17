@@ -110,8 +110,8 @@ struct LazyQueryTests {
     @Test func aMemberSetToAResultCarriesItAndTheOthersKeepTheirQueries() {
         let song = Song(title: "Hyperballad", artist: "Björk")
         var queries = SongQueries.defaultQueries
-        queries.by = { _ in .result(QueryResult(wrappedValue: [song])) }
-        queries.all = { .result(QueryResult(wrappedValue: [], fetchError: Unavailable())) }
+        queries.by = { _ in .result([song]) }
+        queries.all = { .result([], fetchError: Unavailable()) }
 
         // Two members of one result type, each with its own answer.
         #expect(queries.by("Björk").result?.wrappedValue.first === song)
@@ -129,8 +129,8 @@ struct LazyQueryTests {
         struct Probe: View {
             var body: some View {
                 Text(verbatim: "")
-                    .environment(\.songQueries.sorted) { _, _ in .result(QueryResult(wrappedValue: [])) }
-                    .environment(\.songQueries.all) { .result(QueryResult(wrappedValue: [], fetchError: Unavailable())) }
+                    .environment(\.songQueries.sorted) { _, _ in .result([]) }
+                    .environment(\.songQueries.all) { .result([], fetchError: Unavailable()) }
             }
         }
         _ = Probe()
@@ -148,7 +148,7 @@ struct LazyQueryTests {
     func aResultIsOfAnyTypeTheQueryAnswers() {
         var sections = SongSections(byArtist: { _ in Query(sort: \Song.title, sectionBy: \Song.artist) })
         let sectioned = SectionedResults.mock([Song(title: "Hyperballad", artist: "Björk")], sectionBy: \.artist)
-        sections.byArtist = { _ in .result(QueryResult(wrappedValue: sectioned)) }
+        sections.byArtist = { _ in .result(sectioned) }
         #expect(sections.byArtist(true).result?.wrappedValue.sectionTitles == ["Björk"])
     }
 }

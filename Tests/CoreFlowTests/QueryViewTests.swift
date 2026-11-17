@@ -32,7 +32,7 @@ struct QueryViewTests {
                 QueryView(all()) { result in
                     Text(verbatim: "\(result.wrappedValue.count)")
                 }
-                QueryView(LazyQuery<Track, [Track]>.result(QueryResult(wrappedValue: [Track(title: "Dune")]))) { $tracks in
+                QueryView(LazyQuery<Track, [Track]>.result([Track(title: "Dune")])) { $tracks in
                     Text(verbatim: "\(tracks.count)")
                 }
             }

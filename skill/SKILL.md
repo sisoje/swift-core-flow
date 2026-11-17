@@ -177,10 +177,10 @@ sortByAuthor)) })`. Its plain test seeds an in-memory container and
 fetches with that function, `context.fetch(books(sortByAuthor:
 true))`, so the real sort is asserted with no view and no host. A
 node's scenario sets the members its node asks to a result, each by name,
-`.environment(\.queryService.books) { _ in .result(QueryResult(wrappedValue: [dune])) }`.
+`.environment(\.queryService.books) { _ in .result([dune]) }`.
 `QueryView` hands that result to the
 content and builds no `Query`, so no store is read and the scenario
-needs no container. A `QueryResult` with a `fetchError:` is the error
+needs no container. `.result([], fetchError: …)` is the error
 branch. A member is a `var`, so one is set alone and the others keep
 the default. Two queries of one result type get their own rows. Or
 `.modelContainer(for:inMemory:) { try!

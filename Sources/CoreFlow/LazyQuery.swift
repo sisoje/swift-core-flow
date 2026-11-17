@@ -29,9 +29,10 @@ public struct LazyQuery<Element: PersistentModel, Result> {
         }
     }
 
-    /// The result itself: `QueryView` hands it to content and builds no `Query`.
-    public static func result(_ result: QueryResult<Result>) -> LazyQuery {
-        LazyQuery(source: .result(result))
+    /// The result itself, with its fetch error if it has one: `QueryView`
+    /// hands it to content and builds no `Query`.
+    public static func result(_ result: Result, fetchError: (any Error)? = nil) -> LazyQuery {
+        LazyQuery(source: .result(QueryResult(wrappedValue: result, fetchError: fetchError)))
     }
 }
 
@@ -77,7 +78,7 @@ public struct LazyQuery<Element: PersistentModel, Result> {
 ///   query has to name its section, so a service holding one gets the
 ///   initializer alone.
 /// - A member is a `var`, so a test or a scenario sets one alone to a result,
-///   `queries.sorted = { _, _ in .result(QueryResult(wrappedValue: [dune])) }`,
+///   `queries.sorted = { _, _ in .result([dune]) }`,
 ///   and the others keep their queries.
 /// - A stored property that is not a function type with no attributes whose
 ///   result is spelled `LazyQuery<…>` is a compile error (the macro is

@@ -460,7 +460,7 @@ The other scenarios, each one UI test unless noted:
 - `MockQueryResultsScenario` / `MockQueryResultsUITests`: three members of a
   `@LazyQueries` service (`ShelfQueries`, read from an `@Entry` that defaults
   to `defaultQueries`) set to `LazyQuery.result` through the entry's key
-  path, `.environment(\.shelfQueries.sciFi) { .result(QueryResult(wrappedValue: [dune])) }`,
+  path, `.environment(\.shelfQueries.sciFi) { .result([dune]) }`,
   with NO container anywhere — two queries of one result type, `[Novel]`,
   render their own rows (`sciFi Dune`, `horror It`), and a fixed result's
   `fetchError` on the `[Tag]` query renders through `_tags.fetchError`. No
@@ -471,7 +471,7 @@ The other scenarios, each one UI test unless noted:
 - `QueryViewSectionedScenario(mocked:)` / `QueryViewSectionedUITests` (two tests, 27+): the
   same `ForEach(sections, id: \.title) { Section(title) { ForEach(section) } }`
   content over a real `Query(sort:sectionBy:)` on a seeded container, and
-  over `.result(QueryResult(wrappedValue: SectionedResults.mock(…)))` with no container — the
+  over `.result(SectionedResults.mock(…))` with no container — the
   mocked value survives real SwiftUI consumption (sections, rows), not just
   `count`.
   Tests here are flat copy-paste by rule: readable like a book, no shared
@@ -1349,8 +1349,9 @@ holding one INTERNAL field, `source`, an internal enum of two cases:
 Query<Element, Result>)`, a query from the store, and
 `.result(QueryResult<Result>)`. It cannot be opened outside the package, and
 its only initializer is the synthesized internal one over `source`. Each
-static makes one case and has its name. `LazyQuery.result(_:
-QueryResult<Result>)` makes the result case alone, so a `Query` is still
+static makes one case and has its name. `LazyQuery.result(_: Result,
+fetchError: (any Error)? = nil)` makes the result case alone, building the
+`QueryResult` over the value and the error, so a `Query` is still
 never held without its dependencies. `LazyQuery.query(_:)` is generic over
 `each Argument: Equatable & Sendable`: it takes `(repeat each Argument) ->
 Query<Element, Result>` and returns `(repeat each Argument) -> LazyQuery`,
@@ -1373,19 +1374,20 @@ A FIXED RESULT is a `LazyQuery` with no query behind it, the way
 `Binding.constant` is a binding with no storage behind it. It is what a
 test or a scenario sets a member to, and the documents do not call it a mock
 (owner, 2026-11-17: the type holds a result, not test code).
-`LazyQuery.result` takes a `QueryResult`, which is built as anywhere else, `fetchError:`
-included for the error branch, and `QueryView` hands it to content without
+`LazyQuery.result` takes the value the query would answer, and `fetchError:`
+for the error branch, `.result([], fetchError: StoreDown())`, and `QueryView`
+hands the `QueryResult` built over them to content without
 building a `Query`. `Result` is whatever the query answers, so the one
 function covers an array, a `SectionedResults` (made by
 `SectionedResults.mock`) and any result type Apple adds. It is set as a MEMBER of the service, which is why a member is a
-`var`: `.environment(\.bookQueries.sorted) { _, _ in .result(QueryResult(wrappedValue: [dune]))
+`var`: `.environment(\.bookQueries.sorted) { _, _ in .result([dune])
 }` through the entry's key path, or `queries.sorted = { … }` on a copy. The
 member's type fixes `Element`, which the result's value alone does not, and it
 is what lets the closure write `.result(…)` with no type name: written
-with no context, `QueryView(LazyQuery.result(QueryResult(wrappedValue: [book])))`
+with no context, `QueryView(LazyQuery.result([book]))`
 or `QueryView(.result(…))`, it is `generic
 parameter 'Element' could not be inferred`, and it is spelled
-`LazyQuery<Book, [Book]>.result(QueryResult(wrappedValue: [book]))`. A member set to a fixed result ignores its
+`LazyQuery<Book, [Book]>.result([book])`. A member set to a fixed result ignores its
 arguments unless its closure reads them. Members not set keep their queries,
 so two queries of one result type get their own rows, and a tree that reads
 only such members reads no store and needs no container.
@@ -1402,8 +1404,9 @@ exists, so a sectioned query could not be mocked. (3) Two optional fields,
 query and mock, in `LazyQuery` and in `QueryView`: built green, replaced by
 the enum, which has no case for neither. (4) `init(mock: Result, fetchError:)`
 in a public extension, building the `QueryResult` itself, over cases named
-`.store` and `.mock`: refused (owner). A `QueryResult` is already built
-easily, so the function takes one, and what it holds is a result, the
+`.store` and `.mock`: refused (owner: awkward as an initializer in an
+extension; the same parameters on a static function of the type are fine,
+which is `result`). What it holds is a result, the
 name the case and the function have; the other case is `.query`. Considered
 and not built: a
 default of fixed results in place of `defaultQueries`. An empty value exists only for
@@ -1421,6 +1424,23 @@ writes, the in-place forms with the parameter typed, untyped and absent, and
 a member set to `.result(…)` on a copy and through the key path all compile,
 and the two limits recorded here (no context, and called in the same
 expression) read the same.
+
+Tried for `result` the same day, each compiled from that scratch consumer.
+(1) `result(_: QueryResult<Result>)`, the first static (commit 03c2167), written
+`.result(QueryResult(wrappedValue: [dune]))`: too long at every call site
+(owner). (2) `QueryResult: ExpressibleByArrayLiteral where Value:
+RangeReplaceableCollection` under it: `.result([dune])` compiles, an array
+in a variable is `cannot convert value of type '[Book]' to expected argument
+type 'QueryResult<Array<Book>>'`, and the error branch stays long. (3) A
+wrapped parameter, `result(@QueryResult _ result: Result)`, the rule that
+lets a `Core` be built `Core(items: [dune])`: its call sites are those of a
+plain `Result` parameter, and the error goes in only as the projected value,
+`.result($_: QueryResult(wrappedValue: [], fetchError: StoreDown()))`
+(compiled, not run). (4) A form returning the member itself, `<each
+Argument>(…) -> (repeat each Argument) -> LazyQuery`, to drop the `{ _, _ in
+… }`: `.environment(\.bookQueries.sorted, LazyQuery.result([dune]))`
+compiles, but the type name has to be written (`type '(Bool, Bool) ->
+LazyQuery<Book, Array<Book>>' has no member`), so it is no shorter.
 
 A query made IN PLACE, with no service, is the same function bound to a name:
 `let sorted = LazyQuery.query { (descending: Bool) in Query(…) }`, then

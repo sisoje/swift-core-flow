@@ -719,7 +719,7 @@ struct BookListScenario: View {
 
     var body: some View {
         BookList()
-            .environment(\.bookQueries.sorted) { _, _ in .result(QueryResult(wrappedValue: [dune, emma])) }
+            .environment(\.bookQueries.sorted) { _, _ in .result([dune, emma]) }
     }
 }
 ```
@@ -784,7 +784,7 @@ static var defaultQueries: Self {
   names `Query`, which is declared where the two meet. With either import
   missing the expansion reports `cannot find type 'Query' in scope`.
 - **A `LazyQuery` is a query or a fixed result.** `LazyQuery.result` takes
-  a `QueryResult` and is that result, with no query behind it, the way
+  the value the query would answer and is that result, with no query behind it, the way
   `Binding.constant` is a binding with no storage behind it. `QueryView`
   hands it to content and builds no `Query`, so no store is read and no
   container is needed. A member is a
@@ -794,13 +794,13 @@ static var defaultQueries: Self {
 
 ```swift
 BookList()
-    .environment(\.bookQueries.sorted) { _, _ in .result(QueryResult(wrappedValue: [dune, emma])) }
-    .environment(\.bookQueries.by) { _ in .result(QueryResult(wrappedValue: [], fetchError: StoreDown())) }
+    .environment(\.bookQueries.sorted) { _, _ in .result([dune, emma]) }
+    .environment(\.bookQueries.by) { _ in .result([], fetchError: StoreDown()) }
 ```
 
 - **The result is of any type the query answers,** a `SectionedResults`
-  from `SectionedResults.mock` included, and a `QueryResult` with a
-  `fetchError:` is the error branch. Its `modelContext` is the environment's.
+  from `SectionedResults.mock` included, and `fetchError:` is the error
+  branch. Its `modelContext` is the environment's.
 - **Or a real `Query` runs.** A seeded in-memory container mocks the store
   and not the query, as in the QueryView chapter. Under the default service
   that query is `Query()`, every element, unsorted. Under the real service
