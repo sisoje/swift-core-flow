@@ -1,60 +1,10 @@
 import SwiftData
 import SwiftUI
 
-protocol QueryTransforming {
-    @MainActor func toResult<E: PersistentModel, R>(_ q: Query<E, R>) -> QueryResult<R>
-}
-
-struct DefaultQueryTransform: QueryTransforming {
-    func toResult<R>(_ q: Query<some PersistentModel, R>) -> QueryResult<R> {
-        QueryResult(
-            wrappedValue: q.wrappedValue,
-            fetchError: q.fetchError,
-            givenModelContext: q.modelContext
-        )
-    }
-}
-
-/// The canned test transform: a per-result-type registry, so ONE value
-/// serves a subtree with queries over any mix of model types, fully typed
-/// at the registration site. A registry hit is returned; an unregistered
-/// shape gets the query's own value — empty when no container is installed —
-/// so a mocked subtree renders whatever it wasn't seeded for.
-struct MockQueryTransform: QueryTransforming {
-    var resmap: [ObjectIdentifier: Any] = [:]
-
-    init<each R>(_ results: repeat QueryResult<each R>) {
-        repeat insert(each results)
-    }
-
-    mutating func insert<R>(_ result: QueryResult<R>) {
-        resmap[ObjectIdentifier(R.self)] = result
-    }
-
-    func toResult<E: PersistentModel, R>(_ q: Query<E, R>) -> QueryResult<R> {
-        if let result = resmap[ObjectIdentifier(R.self)] as? QueryResult<R> {
-            return result
-        }
-        return QueryResult(wrappedValue: q.wrappedValue)
-    }
-}
-
-extension EnvironmentValues {
-    @Entry var queryTransform: QueryTransforming = DefaultQueryTransform()
-}
-
-public extension View {
-    func mockQuery<each R>(_ results: repeat QueryResult<each R>) -> some View {
-        environment(\.queryTransform, MockQueryTransform(repeat each results))
-            // Empty: an unregistered query reads it and finds nothing. Without
-            // a container SwiftData logs a runtime issue on that read.
-            .modelContainer(for: [], inMemory: true)
-    }
-}
-
 /// Storing the property in a view is what makes SwiftUI install it when it is
-/// a `DynamicProperty` (`Query` here) — passed straight into a closure it would
-/// never update.
+/// a `DynamicProperty` — passed straight into a closure it would never update.
+/// A `Query` is one, and so is a `QueryResult`, whose `modelContext` reads
+/// the environment.
 struct PropertyHostView<Property, Content: View>: View {
     let property: Property
     @ViewBuilder let content: (Property) -> Content
@@ -65,29 +15,34 @@ struct PropertyHostView<Property, Content: View>: View {
 }
 
 public struct QueryView<Element: PersistentModel, Result, Content: View>: View {
-    /// `dependencies` are the values that take part in the `Query` init, those
-    /// and only those; a value left out is a change the memoized query will
-    /// not follow. `content` is not gated and reads whatever state it wants.
-    public init(
-        query: @autoclosure @escaping () -> Query<Element, Result>,
-        dependencies: [any Equatable] = [],
-        @ViewBuilder content: @escaping (QueryResult<Result>) -> Content
-    ) {
-        self.dependencies = dependencies
+    /// A query from the store is built when a value it was asked with changes
+    /// and at no other time. A result is handed to `content` as it is, and no
+    /// `Query` is built. `content` is not gated and reads whatever state it
+    /// wants.
+    public init(_ query: LazyQuery<Element, Result>, @ViewBuilder content: @escaping (QueryResult<Result>) -> Content) {
         self.query = query
         self.content = content
     }
 
-    @Environment(\.queryTransform) private var queryTransform
-    let dependencies: [any Equatable]
-    let query: () -> Query<Element, Result>
+    let query: LazyQuery<Element, Result>
     let content: (QueryResult<Result>) -> Content
 
     public var body: some View {
-        MemoView(query(), dependencies: dependencies) { builtQuery in
-            PropertyHostView(property: builtQuery) {
-                content(queryTransform.toResult($0))
+        switch query.source {
+        case let .query(dependencies, query):
+            MemoView(query(), dependencies: dependencies) { builtQuery in
+                PropertyHostView(property: builtQuery) {
+                    content(
+                        QueryResult(
+                            wrappedValue: $0.wrappedValue,
+                            fetchError: $0.fetchError,
+                            givenModelContext: $0.modelContext
+                        )
+                    )
+                }
             }
+        case let .result(result):
+            PropertyHostView(property: result, content: content)
         }
     }
 }

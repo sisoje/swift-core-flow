@@ -21,7 +21,7 @@ struct LazyQueryScenario: View {
     var body: some View {
         // The service member, the way a store sets one: a query expression
         // made lazy. Nothing here or below lists a dependency.
-        let sortedBooks = QueryUtilities.lazy { (descending: Bool) -> Query<Book, [Book]> in
+        let sortedBooks = QueryUtilities.lazyQuery { (descending: Bool) -> Query<Book, [Book]> in
             let order: SortOrder = descending ? .reverse : .forward
             log("query", "\(order)")
             return Query(sort: \Book.title, order: order)

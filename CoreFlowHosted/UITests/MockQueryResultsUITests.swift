@@ -3,12 +3,12 @@ import XCTest
 
 final class MockQueryResultsUITests: XCTestCase {
     @MainActor
-    func testCannedResultAndCannedFetchErrorRender() {
+    func testQueriesMockedByNameRenderTheirOwnResultAndFetchError() {
         let app = XCUIApplication.launch(TestScenario.mockQueryResults)
-        XCTAssertTrue(app.staticTexts["Dune"].waitUntil(\.exists, equals: true, timeout: 5))
+        // Two queries of one result type, each with the rows its own member
+        // was mocked with, and no container anywhere.
+        XCTAssertTrue(app.staticTexts["sciFi Dune"].waitUntil(\.exists, equals: true, timeout: 5))
+        XCTAssertTrue(app.staticTexts["horror It"].exists)
         XCTAssertTrue(app.staticTexts["TagsUnavailable()"].exists)
-        // An unregistered shape renders the query's own value: empty, and no
-        // trap, with no container anywhere.
-        XCTAssertTrue(app.staticTexts["unregistered sections 0"].exists)
     }
 }

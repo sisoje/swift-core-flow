@@ -4,7 +4,7 @@ import SwiftSyntaxMacros
 
 /// A query service's initializer and its default value. Every stored property
 /// of the service is a query: a function answering `LazyQuery`, taken by the
-/// initializer as its query expression and made lazy by `QueryUtilities.lazy`.
+/// initializer as its query expression and made lazy by `QueryUtilities.lazyQuery`.
 /// Entry point, the one type rule and the renderer, all in this file.
 public enum LazyQueriesMacro: MemberMacro {
     public static func expansion(
@@ -53,7 +53,7 @@ struct LazyQueryMember {
     /// Nil unless the type is a function type with no attributes whose result
     /// is spelled `LazyQuery<…>`. An attributed one (`@MainActor`,
     /// `@Sendable`) is refused because the lifted line could not compile:
-    /// what `QueryUtilities.lazy` returns is a plain function and does not
+    /// what `QueryUtilities.lazyQuery` returns is a plain function and does not
     /// convert to one (`converting non-Sendable function value to '@MainActor
     /// @Sendable …' may introduce data races`). A qualified or aliased result
     /// is not seen, the package's syntax-only rule.
@@ -105,7 +105,7 @@ func renderLazyQueries(_ queries: [LazyQueryMember], access: String) -> [DeclSyn
         DeclSyntax(
             stringLiteral: """
             \(access)init(\(list("") { "\($0.name): @escaping @MainActor \($0.expressionType)" })) {
-            \(queries.map { "    self.\($0.name) = QueryUtilities.lazy(\($0.name))" }.joined(separator: "\n"))
+            \(queries.map { "    self.\($0.name) = QueryUtilities.lazyQuery(\($0.name))" }.joined(separator: "\n"))
             }
             """
         ),

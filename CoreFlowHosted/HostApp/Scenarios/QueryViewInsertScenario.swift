@@ -7,12 +7,13 @@ struct QueryViewInsertScenario: View {
     @TestLog private var log
 
     var body: some View {
+        let sortedNovels = QueryUtilities.lazyQuery { Query(sort: \Novel.title, animation: .default) }
         VStack {
             Button("unrelated") { unrelated += 1 }
             // Read in body, so each unrelated write re-renders this view and
             // hands the memoized query to `QueryView` again.
             Text(verbatim: "unrelated \(unrelated)")
-            QueryView(query: Query(sort: \Novel.title, animation: .default)) { $novels in
+            QueryView(sortedNovels()) { $novels in
                 List {
                     Button("insert") {
                         _novels.modelContext.insert(Novel(title: "Novel \(novels.count + 1)", genre: "Sci-Fi"))

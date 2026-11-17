@@ -28,9 +28,10 @@ final class QueryViewSortUITests: XCTestCase {
         }
         app.buttons["sort"].tapOrClick()
 
-        // No dependencies are always equal: one construction at first
-        // appearance, none after — not even for the sort write the query
-        // expression reads, since it was left out of the dependencies.
+        // A query asked with no arguments has no dependencies: one
+        // construction at first appearance, none after — not even for the
+        // sort write, since the expression captures that value and does not
+        // take it as an argument.
         let names = #"["query","unrelated","unrelated","unrelated","sortDescending"]"#
         XCTAssertTrue(app.logElement.waitUntil(\.label, equals: names, timeout: 5), app.logElement.label)
         XCTAssertEqual(app.logElement.logValues, ["forward", "1", "2", "3", "true"])

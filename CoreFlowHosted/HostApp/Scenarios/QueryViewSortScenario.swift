@@ -18,6 +18,10 @@ struct QueryViewSortScenario: View {
     @TestLog private var log
 
     var body: some View {
+        // The query expression made lazy, in place: once as a function of the
+        // value it depends on, once capturing that value.
+        let sorted = QueryUtilities.lazyQuery { (descending: Bool) in build(descending) }
+        let captured = QueryUtilities.lazyQuery { build(sortDescending) }
         VStack {
             Button("unrelated") { unrelated += 1 }
             // Read in body, so each unrelated write re-renders this view.
@@ -27,13 +31,15 @@ struct QueryViewSortScenario: View {
             // subtree whose content is `EmptyView`, so the query is never
             // even constructed.
             if gated {
-                QueryView(query: build(), dependencies: [sortDescending]) { $books in
+                // Asked with the value, so the value is the dependency.
+                QueryView(sorted(sortDescending)) { $books in
                     List(books) { Text($0.title) }
                 }
             } else {
-                // No dependencies: always equal, so the query is built once
-                // and kept — it does not follow the sort write.
-                QueryView(query: build()) { $books in
+                // The expression captures the value and takes no argument:
+                // no dependencies, so the query is built once and kept — it
+                // does not follow the sort write.
+                QueryView(captured()) { $books in
                     List(books) { Text($0.title) }
                 }
             }
@@ -45,8 +51,8 @@ struct QueryViewSortScenario: View {
         }
     }
 
-    private func build() -> Query<Book, [Book]> {
-        let order: SortOrder = sortDescending ? .reverse : .forward
+    private func build(_ descending: Bool) -> Query<Book, [Book]> {
+        let order: SortOrder = descending ? .reverse : .forward
         log("query", "\(order)")
         return Query(sort: \Book.title, order: order)
     }

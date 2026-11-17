@@ -17,35 +17,23 @@ private final class Track {
 
 @MainActor
 struct QueryViewTests {
-    @Test func mockTransformReturnsRegisteredThenEmptyFallback() {
-        let registered = QueryResult(wrappedValue: [Track(title: "Dune")])
-        let mock = MockQueryTransform(registered)
-        let query = Query(sort: \Track.title)
-        #expect(mock.toResult(query).wrappedValue.map(\.title) == ["Dune"])
-        // Unregistered array shape: the empty array, not a trap.
-        #expect(MockQueryTransform().toResult(query).wrappedValue.isEmpty)
-    }
-
-    @Test @available(macOS 27.0, iOS 27.0, tvOS 27.0, watchOS 27.0, visionOS 27.0, macCatalyst 27.0, *)
-    func mockTransformReturnsEmptySectionedFallback() {
-        // Unregistered sectioned shape: an empty SectionedResults.
-        let sectioned = Query(sort: \Track.title, sectionBy: \Track.title)
-        #expect(MockQueryTransform().toResult(sectioned).wrappedValue.isEmpty)
-    }
-
-    @Test func initsAndDollarParameterTypecheckInABody() {
+    @Test func aQueryMadeInPlaceAResultAndTheDollarParameterTypecheckInABody() {
         struct Probe: View {
             var descending = false
 
             var body: some View {
-                QueryView(
-                    query: Query(sort: \Track.title, order: descending ? .reverse : .forward),
-                    dependencies: [descending]
-                ) { $tracks in
+                let sorted = QueryUtilities.lazyQuery { (descending: Bool) in
+                    Query(sort: \Track.title, order: descending ? .reverse : .forward)
+                }
+                let all = QueryUtilities.lazyQuery { Query(sort: \Track.title) }
+                QueryView(sorted(descending)) { $tracks in
                     Text(verbatim: "\(tracks.count)")
                 }
-                QueryView(query: Query(sort: \Track.title)) { result in
+                QueryView(all()) { result in
                     Text(verbatim: "\(result.wrappedValue.count)")
+                }
+                QueryView(LazyQuery<Track, [Track]>(result: QueryResult(wrappedValue: [Track(title: "Dune")]))) { $tracks in
+                    Text(verbatim: "\(tracks.count)")
                 }
             }
         }

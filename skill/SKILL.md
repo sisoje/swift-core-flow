@@ -57,7 +57,7 @@ by name, and a dependency that imports the layer has the macros too.
 |---|---|
 | the cut, with own state logging at the write site | `@Shell` generates `Core`; `@TestState`, `@TestAction`, `@TestFocusState`, `@TestEnvironment` |
 | the scenario as a hosted UI test | `HostApp<Scenario>`, `uiTestLog()`, `CoreFlowUITesting` |
-| a read of the store is a query asked from the query service with the values it depends on: one shell runs it, content reads plain data | `@LazyQueries`, `LazyQuery`, `QueryView`, `.mockQuery`. For a `@Query` in a view not yet converted, `@QueryResult` and `QueryView` with `dependencies:` |
+| a read of the store is a query asked from the query service with the values it depends on: one shell runs it, content reads plain data | `@LazyQueries`, `LazyQuery`, `QueryView`; a scenario sets a member to `LazyQuery(result:)`. For a `@Query` in a view not yet converted, `@QueryResult` |
 | a value derived from inputs, kept across renders, not `@State(wrappedValue:)` in an `init` | `MemoView` with `dependencies:`; a changed dependency replaces the whole value, so state that is to survive a change of the input stays out of it; a value the build reads and `dependencies:` leaves out is not followed |
 | work an event starts is a task the node holds, not a `Task` nobody holds; it cancels on replacement and on node removal | `@UnstructuredTask`; each assignment logs under the property's name with the value `task`, and the block declares it; a child that starts the work is handed `$download`, and its write cancels and logs the same; inside the task, write state through a `$binding` taken into the capture list, not through `self` |
 | capabilities: hand a consumer only the operations it needs, as a tuple | `@Capability` over a type or an extension |
@@ -160,8 +160,9 @@ QueryService.defaultQueries`. The shell writes
 content reads plain data. Whoever provides the arguments gets the
 dependencies back for free, since the arguments are the dependencies.
 Calling the member builds nothing, and the query is built when an
-argument changes. A `LazyQuery` cannot be opened or built by hand, so a
-query does not travel without the values it was built from. Every
+argument changes. A `LazyQuery` cannot be opened, and its query cannot
+be built by hand, so a query does not travel without the values it was
+built from. Every
 stored property of the service is such a member, and anything else is
 a compile error. A sectioned query names its section and so has no
 default, and a service that holds one gets the initializer without
@@ -175,21 +176,30 @@ descriptor, and the member builds the query over it,
 sortByAuthor)) })`. Its plain test seeds an in-memory container and
 fetches with that function, `context.fetch(books(sortByAuthor:
 true))`, so the real sort is asserted with no view and no host. A
-node's scenario sets no query service. `.mockQuery(QueryResult(
-wrappedValue: [dune]))` on a subtree hands its `QueryView`s canned
-results, or `.modelContainer(for:inMemory:) { try!
+node's scenario sets the members its node asks to a result, each by name,
+`.environment(\.queryService.books) { _ in LazyQuery(result: QueryResult(wrappedValue: [dune])) }`.
+`QueryView` hands that result to the
+content and builds no `Query`, so no store is read and the scenario
+needs no container. A `QueryResult` with a `fetchError:` is the error
+branch. A member is a `var`, so one is set alone and the others keep
+the default. Two queries of one result type get their own rows. Or
+`.modelContainer(for:inMemory:) { try!
 $0.get().mainContext.insert(…) }` seeds a real container and the
 default service fetches from it. A `@Model` class carries what
 SwiftData gives it and nothing added.
 
 A view not yet converted has its read written into it. On a `@Shell`
 node a `@Query` property becomes `@QueryResult` and the scenario hands
-the array. `QueryView(query:dependencies:) { $books in … }` is the
-query written by hand, and `dependencies` are exactly the values the
-`Query` init reads. A value it reads and the list leaves out is a
-change the query does not follow, and the list goes stale with no
-error, which is why a new read is asked from the service. Where such a
-query stays, its sort is asserted by a hosted scenario over a seeded
+the array. A query that stays in a view is made lazy in place and
+asked with the values it depends on, `let books = QueryUtilities.lazyQuery {
+(sortByAuthor: Bool) in Library.query(sortByAuthor: sortByAuthor) }`
+and `QueryView(books(sortByAuthor)) { $books in … }`. The expression
+is bound to a name first, since called in the same expression with an
+argument it does not compile. The arguments are the dependencies. A
+value the expression captures and does not take as an argument is a
+change the query does not follow, with no error, which is why a new
+read is asked from the service. Where such a query stays, its sort is
+asserted by a hosted scenario over a seeded
 container that logs the delivered order from a user action, a snapshot
 button calling `log("books", "\(books.map(\.title))")`, so it is
 asserted at the shell's edge and not from the render schedule. The
@@ -238,7 +248,7 @@ boundaries. A child under it is the child's host, not its `Core`, so
 its own state stays silent; it shares the environment, so a contract
 both name logs the child's calls too; the block drives the node, no
 deeper.
-A child that reads the store is handed `.mockQuery`.
+A child that reads the store has the member it asks set to a fixed result.
 
 A closure of a contract is a `@TestAction` too. That is what the
 wrapper was made for, so that no scenario writes a logger by hand. The

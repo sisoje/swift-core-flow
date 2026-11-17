@@ -8,25 +8,29 @@ struct QueryViewSectionedScenario: View {
 
     var body: some View {
         if mocked {
-            sections.mockQuery(
-                QueryResult(
-                    wrappedValue: SectionedResults.mock(
-                        [novel("Dune"), novel("Anathem"), novel("It")], sectionBy: \.genre
+            sections(
+                LazyQuery(
+                    result: QueryResult(
+                        wrappedValue: SectionedResults.mock(
+                            [novel("Dune"), novel("Anathem"), novel("It")], sectionBy: \.genre
+                        )
                     )
                 )
             )
         } else {
-            sections.modelContainer(for: Novel.self, inMemory: true) { result in
-                let context = try! result.get().mainContext
-                context.insert(novel("Dune"))
-                context.insert(novel("Anathem"))
-                context.insert(novel("It"))
-            }
+            let byGenre = QueryUtilities.lazyQuery { Query(sort: \Novel.genre, sectionBy: \Novel.genre) }
+            sections(byGenre())
+                .modelContainer(for: Novel.self, inMemory: true) { result in
+                    let context = try! result.get().mainContext
+                    context.insert(novel("Dune"))
+                    context.insert(novel("Anathem"))
+                    context.insert(novel("It"))
+                }
         }
     }
 
-    private var sections: some View {
-        QueryView(query: Query(sort: \Novel.genre, sectionBy: \Novel.genre)) { $sections in
+    private func sections(_ query: LazyQuery<Novel, SectionedResults<Novel, String>>) -> some View {
+        QueryView(query) { $sections in
             List {
                 ForEach(sections, id: \.title) { section in
                     Section(section.title) {

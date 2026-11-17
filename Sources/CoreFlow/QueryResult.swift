@@ -13,11 +13,11 @@ import SwiftUI
 /// The live wrapper has **no `projectedValue`**; ours is a deliberate
 /// superset (copied bodies never spell `$x`, so parity holds): projecting
 /// `self` with `init(projectedValue:)` is what lets an SE-0293 `$` closure
-/// parameter re-propertify the value — `QueryView(query: …) { $books in
+/// parameter re-propertify the value — `QueryView(queries.books()) { $books in
 /// ForEach(books) … }`, `@Query` ergonomics without the wrapper.
 ///
 /// `modelContext` resolves seeded-then-environment
-/// (`givenModelContext ?? defaultModelContext`): a live transform seeds
+/// (`givenModelContext ?? defaultModelContext`): `QueryView` seeds
 /// the real query's context; otherwise the private
 /// `@Environment(\.modelContext)` read answers (`DynamicProperty`, so it
 /// installs when `Core` is hosted — mock it via

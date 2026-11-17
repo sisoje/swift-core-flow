@@ -1,13 +1,27 @@
 import SwiftData
 import SwiftUI
 
-/// A query not built yet, with the values it is built from. It cannot be
-/// opened or made by hand: it comes only from calling a member that
-/// `QueryUtilities.lazy` made, with that member's arguments, and it goes only
-/// into `QueryView`.
+/// A query not built yet, with the values it is built from, or a result
+/// with no query behind it. It cannot be opened, and the query cannot be made
+/// by hand: it comes only from calling a member that
+/// `QueryUtilities.lazyQuery` made, with that member's arguments. Either one
+/// goes only into `QueryView`.
 public struct LazyQuery<Element: PersistentModel, Result> {
-    let dependencies: [any Equatable]
-    let query: @MainActor () -> Query<Element, Result>
+    enum Source {
+        case query(dependencies: [any Equatable], query: @MainActor () -> Query<Element, Result>)
+        case result(QueryResult<Result>)
+    }
+
+    let source: Source
+
+    init(dependencies: [any Equatable], query: @escaping @MainActor () -> Query<Element, Result>) {
+        source = .query(dependencies: dependencies, query: query)
+    }
+
+    /// The result itself: `QueryView` hands it to content and builds no `Query`.
+    public init(result: QueryResult<Result>) {
+        source = .result(result)
+    }
 }
 
 public enum QueryUtilities {
@@ -17,7 +31,7 @@ public enum QueryUtilities {
     /// get wrong. An argument that is not `Equatable` and `Sendable` does not
     /// compile. The expression is `@MainActor`, since it builds a `Query`,
     /// and what comes back is not, so a service is made in any context.
-    public static func lazy<each Argument: Equatable & Sendable, Element: PersistentModel, Result>(
+    public static func lazyQuery<each Argument: Equatable & Sendable, Element: PersistentModel, Result>(
         _ query: @escaping @MainActor (repeat each Argument) -> Query<Element, Result>
     ) -> (repeat each Argument) -> LazyQuery<Element, Result> {
         { (argument: repeat each Argument) in
@@ -28,29 +42,20 @@ public enum QueryUtilities {
     }
 }
 
-public extension QueryView {
-    /// A `LazyQuery` carries both of the other initializer's arguments, so the
-    /// query is built when a value it was asked with changes and at no other
-    /// time.
-    init(_ lazy: LazyQuery<Element, Result>, @ViewBuilder content: @escaping (QueryResult<Result>) -> Content) {
-        self.init(query: lazy.query(), dependencies: lazy.dependencies, content: content)
-    }
-}
-
 /// The initializer of a query service and its default value. Every stored
 /// property is a query, a function answering `LazyQuery`. The initializer
 /// takes each one as its query expression, a function of the same arguments
-/// returning the `Query`, and makes it lazy with `QueryUtilities.lazy`:
+/// returning the `Query`, and makes it lazy with `QueryUtilities.lazyQuery`:
 ///
 /// ```swift
 /// @LazyQueries
 /// struct BookQueries {
-///     let sorted: (_ byAuthor: Bool, _ descending: Bool) -> LazyQuery<Book, [Book]>
+///     var sorted: (_ byAuthor: Bool, _ descending: Bool) -> LazyQuery<Book, [Book]>
 ///     // generates:
 ///     // init(
 ///     //     sorted: @escaping @MainActor (_ byAuthor: Bool, _ descending: Bool) -> Query<Book, [Book]>
 ///     // ) {
-///     //     self.sorted = QueryUtilities.lazy(sorted)
+///     //     self.sorted = QueryUtilities.lazyQuery(sorted)
 ///     // }
 ///     //
 ///     // static var defaultQueries: Self {
@@ -78,6 +83,9 @@ public extension QueryView {
 ///   when every query answers an array, spelled `[Element]`: a sectioned
 ///   query has to name its section, so a service holding one gets the
 ///   initializer alone.
+/// - A member is a `var`, so a test or a scenario sets one alone to a result,
+///   `queries.sorted = { _, _ in LazyQuery(result: QueryResult(wrappedValue: [dune])) }`,
+///   and the others keep their queries.
 /// - A stored property that is not a function type with no attributes whose
 ///   result is spelled `LazyQuery<…>` is a compile error (the macro is
 ///   syntax-only, and a query service holds nothing else).
